@@ -424,9 +424,6 @@ void cpu_step(CPU& c) {
         case 0xA4: case 0xA5: {
             bool w = op == 0xA5;
             uint32_t n = c.rep ? c.cx : 1;
-            if (getenv("LOF_MOVS") && c.cs==0x119D && c.ip==0x129F) {
-                static int q=0; if(q++<12){ uint32_t ss=((uint32_t)d.seg_of(3)<<4)+c.si, tt=((uint32_t)c.es<<4)+c.di;
-                    fprintf(stderr,"[movs] n=%u src=%05X dst=%05X (%05X) first=%02X es=%04X\n", n, ss, tt, tt, m.rb(ss), c.es); } }
             if (c.rep) c.cx = 0;
             for (uint32_t i = 0; i < n; i++) {
                 uint32_t s = ((uint32_t)d.seg_of(3) << 4) + c.si;

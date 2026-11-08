@@ -29,7 +29,7 @@ static std::string dos_to_host(std::string p) {
 }
 
 // ------------------------------------------------------------------ ctor ---
-void Machine::reset_cpu_state() {
+void Machine::reset_cpu_state(bool /*wipe*/) {
     ram.assign(0x110000, 0);
     ega.reset();
     cpu.m = this;
@@ -37,6 +37,9 @@ void Machine::reset_cpu_state() {
     cpu.ss = kPspSeg; cpu.sp = 0xFFFE;
     cpu.ds = kPspSeg; cpu.es = kPspSeg;
     cpu.flags = 0x0202;
+    cpu.halted = false;
+    cpu.has_ovr = false;
+    cpu.rep = 0;
     psp_seg = kPspSeg;
     alloc_top = 0xA000;
     // BIOS data area basics
@@ -184,6 +187,8 @@ void Machine::load_exe(const std::vector<uint8_t>& img, const std::string& name)
     uint16_t loadseg = kPspSeg + 0x10;   // PSP is 0x100 bytes = 16 paragraphs
     uint32_t base = (uint32_t)loadseg << 4;
     std::memcpy(&ram[base], &img[hdr], std::min(imglen, ram.size() - base));
+    // First free paragraph after the loaded image, rounded up to a paragraph.
+    alloc_free = (uint16_t)(loadseg + ((imglen + 15) >> 4) + 1);
     // apply relocations
     for (uint16_t i = 0; i < nreloc; i++) {
         size_t o = reltbl + (size_t)i * 4;
@@ -193,10 +198,18 @@ void Machine::load_exe(const std::vector<uint8_t>& img, const std::string& name)
         uint16_t v = rw(a);
         ww(a, (uint16_t)(v + loadseg));
     }
-    if (getenv("LOF_PLANT_LOFX")) {
-        // VOR (the original copy-protection TSR) plants the signature "lofx" in the
-        // INT 0xFA vector slot; LOF's startup guard only checks for its presence.
-        wb(0x3E8, 'l'); wb(0x3E9, 'o'); wb(0x3EA, 'f'); wb(0x3EB, 'x');
+    // LOF's startup guard aborts unless the copy-protection signature "lofx" is
+    // present in the INT 0xFA vector slot.  A legitimate install has VOR (run
+    // first by START.BAT) plant it, so plant it here too when loading LOF.  We
+    // must NOT plant it before VOR itself, which uses the same slot to detect an
+    // already-resident instance ("Please reboot your system without resident
+    // programs.").
+    {
+        std::string lower;
+        for (char c : name) lower += (char)tolower((unsigned char)c);
+        if (lower.find("vor") == std::string::npos) {
+            wb(0x3E8, 'l'); wb(0x3E9, 'o'); wb(0x3EA, 'f'); wb(0x3EB, 'x');
+        }
     }
     cpu.cs = (uint16_t)(loadseg + cs);
     cpu.ip = ip;
@@ -276,18 +289,21 @@ void Machine::dos_int(uint8_t n) {
     switch (ah) {
         case 0x00: case 0x4C: { exit_code = al; running = false; break; }
         case 0x01: {   // read char with echo
-            if (!key_queue.empty()) { c.ax = (uint16_t)((c.ax & 0xFF00) | key_queue.front()); key_queue.erase(key_queue.begin()); }
+            if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+                c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k)); }
             else c.ax = (uint16_t)((c.ax & 0xFF00) | 0);
             break; }
         case 0x02: fputc((char)(c.dx & 0xFF), stdout); fflush(stdout); break;
         case 0x06: {
             if ((c.dx & 0xFF) == 0xFF) {  // direct input, non-blocking
-                if (!key_queue.empty()) { c.ax = (uint16_t)((c.ax & 0xFF00) | key_queue.front()); key_queue.erase(key_queue.begin()); c.flags &= ~ZF; }
+                if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+                    c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k)); c.flags &= ~ZF; }
                 else { c.ax = (uint16_t)(c.ax & 0xFF00); c.flags |= ZF; }
             } else { fputc((char)(c.dx & 0xFF), stdout); fflush(stdout); }
             break; }
         case 0x07: case 0x08: {
-            if (!key_queue.empty()) { c.ax = (uint16_t)((c.ax & 0xFF00) | key_queue.front()); key_queue.erase(key_queue.begin()); }
+            if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+                c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k)); }
             else c.ax = (uint16_t)((c.ax & 0xFF00));
             break; }
         case 0x09: {
@@ -396,12 +412,16 @@ void Machine::dos_int(uint8_t n) {
             const char* d = ".";
             while (*d) wb(p++, (uint8_t)*d++);
             wb(p, 0); set_cf(c, false); break; }
-        case 0x48: {  // allocate memory (simplified: bump from alloc_top upward is unavailable)
-            // Provide a fixed scratch area: hand out from a reserved pool at 0x2000..
-            static uint16_t pool = 0x7000;
+        case 0x48: {  // allocate memory
+            // Bump allocator above the resident image (set in load_exe) so each
+            // program starts with a full, fresh heap; this mirrors DOS handing
+            // out the largest free block below the video segment.
             uint16_t want = c.bx;
-            if (pool + want < 0xA000) { c.ax = pool; pool += want + 1; set_cf(c, false); }
-            else { c.ax = 0xA000 - pool; c.bx = c.ax; set_cf(c, true); }
+            if ((uint32_t)alloc_free + want < 0xA000) {
+                c.ax = alloc_free; alloc_free += want + 1; set_cf(c, false);
+            } else {
+                c.ax = (uint16_t)(0xA000 - alloc_free); c.bx = c.ax; set_cf(c, true);
+            }
             break; }
         case 0x49: set_cf(c, false); break;             // free memory
         case 0x4A: set_cf(c, false); break;             // resize memory
@@ -491,7 +511,9 @@ void Machine::bios_int(uint8_t n) {
             if (c.bx >> 8 == 0x10 || (c.bx & 0xFF) == 0x10) {
                 // BL=10h: "return EGA information".  A real EGA BIOS reports the
                 // adapter here; games probe it to tell EGA from CGA/MDA.
-                c.bx = (uint16_t)((0 << 8) | 3);   // BH=0 (color), BL=3 (256K)
+                // BL=03h: 256 KiB EGA.  Games probe this to tell EGA from
+                // CGA/MDA; returning 0 makes them fall back to the CGA path.
+                c.bx = (uint16_t)((0 << 8) | 3);
                 c.cx = 0;
             } else {
                 c.ax = (uint16_t)((c.ax & 0xFF00) | 0);  // no alternate select
@@ -503,17 +525,43 @@ void Machine::bios_int(uint8_t n) {
 }
 
 // --------------------------------------------------------------- INT 16h ---
+// Map a Set-1 scan code to its ASCII character (unshifted).  The BIOS returns
+// the scan code in AH and the ASCII value in AL; games key off either one.
+uint8_t scancode_ascii(uint8_t sc) {
+    static const char* low = "1234567890-=";
+    static const char* mid = "qwertyuiop[]";
+    static const char* high = "asdfghjkl;'`";
+    static const char* lowr = "zxcvbnm,./";
+    if (sc >= 0x02 && sc <= 0x0D) return (uint8_t)low[sc - 0x02];
+    if (sc >= 0x10 && sc <= 0x1B) return (uint8_t)mid[sc - 0x10];
+    if (sc >= 0x1E && sc <= 0x28) return (uint8_t)high[sc - 0x1E];
+    if (sc >= 0x2C && sc <= 0x35) return (uint8_t)lowr[sc - 0x2C];
+    switch (sc) {
+        case 0x01: return 0x1B;   // Esc
+        case 0x0E: return 0x08;   // Backspace
+        case 0x0F: return 0x09;   // Tab
+        case 0x1C: return 0x0D;   // Enter
+        case 0x1D: return 0x00;   // Ctrl
+        case 0x29: return '`';
+        case 0x2B: return '\\';   // backslash
+        case 0x2A: case 0x36: return 0x00;  // Shift
+        case 0x39: return 0x20;   // Space
+        default: return 0x00;
+    }
+}
+
 static void kbd_int(Machine& m, uint8_t) {
     CPU& c = m.cpu;
     uint8_t ah = (uint8_t)(c.ax >> 8);
     switch (ah) {
         case 0x00: case 0x10: {
             if (!m.key_queue.empty()) { uint8_t k = m.key_queue.front(); m.key_queue.erase(m.key_queue.begin());
-                c.ax = (uint16_t)((ah == 0x10 ? (c.ax & 0xFF00) : 0) | k); }
+                if (ah == 0x10) c.ax = (uint16_t)(((c.ax & 0xFF00)) | scancode_ascii(k));
+                else c.ax = (uint16_t)((k << 8) | scancode_ascii(k)); }
             else c.ax = (uint16_t)(c.ax & 0xFF00);
             break; }
         case 0x01: case 0x11: {
-            if (!m.key_queue.empty()) { c.ax = (uint16_t)((c.ax & 0xFF00) | m.key_queue.front()); c.flags &= ~ZF; }
+            if (!m.key_queue.empty()) { c.ax = (uint16_t)((m.key_queue.front() << 8) | scancode_ascii(m.key_queue.front())); c.flags &= ~ZF; }
             else { c.ax = (uint16_t)(c.ax & 0xFF00); c.flags |= ZF; }
             break; }
         case 0x02: c.ax = (uint16_t)((c.ax & 0xFF00) | m.kbd_shift); break;
@@ -552,7 +600,7 @@ void Machine::do_int(uint8_t n) {
         } }
     else if (n == 0x10) { count_10++;
         if (getenv("LOF_I10")) { static int shown=0; if (shown<200) { fprintf(stderr,"INT10 AH=%02X AL=%02X bx=%04X cx=%04X dx=%04X cs:ip=%04X:%04X\n", cpu.ax>>8, cpu.ax&0xFF, cpu.bx, cpu.cx, cpu.dx, cpu.cs, (uint16_t)(cpu.ip-2)); shown++; } } }
-    else if (n == 0x16) count_16++;
+    else if (n == 0x16) { count_16++; }
     switch (n) {
         case 0x10: bios_int(n); break;
         case 0x16: kbd_int(*this, n); break;
@@ -571,6 +619,21 @@ void Machine::do_int(uint8_t n) {
     // frame in cpu.cpp; a plain "iret" returns to the interrupted instruction.
 }
 
+void Machine::trigger_int(uint8_t n) {
+    // Simulate a hardware interrupt: push FLAGS/CS/IP and jump to the handler
+    // stored in the interrupt vector table.
+    uint32_t vec = (uint32_t)n * 4;
+    uint16_t off = rw(vec), seg = rw(vec + 2);
+    if (off == 0 && seg == 0) return;
+    auto push = [&](uint16_t v) { cpu.sp = (uint16_t)(cpu.sp - 2); ww(((uint32_t)cpu.ss << 4) + cpu.sp, v); };
+    push(cpu.flags);
+    push(cpu.cs);
+    push(cpu.ip);
+    cpu.flags &= ~(IF | TF);
+    cpu.cs = seg;
+    cpu.ip = off;
+}
+
 // ---------------------------------------------------------------- run ------
 void Machine::run() {
     cpu.m = this;
@@ -582,6 +645,7 @@ void Machine::run() {
         }
         ticks++;
         ww(0x46C, (uint16_t)(ticks & 0xFFFF));
+        if (!getenv("LOF_NO_TIMER") && (cpu.flags & IF)) trigger_int(0x1C);
         if (pump) pump();
     }
 }

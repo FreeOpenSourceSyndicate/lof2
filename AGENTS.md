@@ -1,13 +1,41 @@
-# AGENTS.md — Legend of Faerghail native port
+# AGENTS.md — Legend of Faerghail native drop-in
 
 ## Goal
 
-Run the original 1990 DOS RPG *Legend of Faerghail* (reLINE Software) natively on
-Ubuntu.  The game's two binaries — `LOF.EXE` (main game) and `VOR.EXE` (LZEXE-packed
-loader/overlay manager) — are executed by a **native 8086/EGA emulator** written in
-C/C++ in `src/`.  This is *not* a wrapper around the DOS binaries and *not* a
-reimplementation of the game logic: it is a small, editable CPU + video emulator
-that boots the original code, so the behaviour matches the originals.
+Play the 1990 DOS RPG *Legend of Faerghail* (reLINE Software) natively on Ubuntu
+**without executing the original executables**.
+
+The deliverable is a pair of drop-in binaries — `lof` and `vor` — that sit in the
+game folder in place of `LOF.EXE` / `VOR.EXE`. They **must not run the original
+EXEs**; they read the game's *data* files (`EGA/`, `SYST/`, `DNGS/`, `ROST/`,
+`DSKTAB.DFS`, `*.SAV`, ...) and reproduce the original behaviour as faithfully as
+possible by re-implementing the engine in editable C/C++. The drop-in must work
+even if `LOF.EXE` / `VOR.EXE` are absent, so that a player who owns the game data
+can still play.
+
+## IMPORTANT: what NOT to do
+
+- **Do NOT execute the original `LOF.EXE` / `VOR.EXE`.** The emulator (below) is
+  a *development aid* for decompilation and reference only; the shipped drop-in
+  must not depend on it or on the original binaries at run time.
+- **Do NOT look at the sibling repo `FreeOpenSourceSyndicate/lof`.** It is
+  unreliable and its approach is a known dead end; treat it as poisoned.
+
+## Original-binary analysis (reference only)
+
+The 8086/EGA emulator in `src/` exists solely to *run the originals once*, so we
+can observe behaviour and produce a decompilation (`tools/decompile.py`,
+`analysis/*.asm`). Findings from that analysis drive the re-implementation.
+
+- `VOR.EXE` is **both** the intro/title screen (title graphic + a text page) **and**
+  the copy-protection step: it plants the `lofx` signature in the INT 0xFA vector
+  slot, and `LOF.EXE`'s startup guard aborts unless that signature is present.
+  It prints "Please reboot your system without resident programs." only when a
+  prior instance is already resident. So VOR *does* show content and must be
+  reproduced (it is not copy-protection-only).
+- `LOF.EXE` loads its graphics from `EGA\...` (e.g. `ega\in\titl`, `ega\char0\ch00`,
+  `ega\up\up00`..), its disk table from `DSKTAB.DFS`, and system data from
+  `SYST\SNSC`.
 
 ## Build
 
@@ -19,7 +47,7 @@ make test       # CPU self-test
 
 Output binary: `./lof-native`.
 
-## Run
+## Run (analysis emulator — dev aid only)
 
 ```sh
 ./lof-native --dir game --headless --frames 300 --shot out.png   # render a frame
@@ -27,7 +55,28 @@ Output binary: `./lof-native`.
 ```
 
 `--dir` points at the game data directory (must contain `LOF.EXE`, `VOR.EXE`,
-`EGA/`, `SYST/`, `DNGS/`, `DSKTAB.DFS`, ...).
+`EGA/`, `SYST/`, `DNGS/`, `DSKTAB.DFS`, ...).  When `--dir` is omitted the data
+directory defaults to the folder holding the executable.
+
+Useful flags: `--exe <path>` (load a specific program), `--vor` (run VOR first,
+then LOF — the original START.BAT order), `--shot-frame N` (capture frame N).
+
+This emulator is a **development aid** for producing the decompilation and
+reference captures. It is not the deliverable.
+
+## Drop-in binaries (the deliverable)
+
+The real deliverable is `lof` (and `vor`) — native re-implementations that read
+the game *data* files and reproduce the original behaviour **without executing
+`LOF.EXE`/`VOR.EXE`**.  They must work when the original EXEs are absent, and the
+code must stay editable so the game can be modified after the port.
+
+Roadmap:
+
+1. Keep the analysis emulator working (below) to observe/annotate the originals.
+2. Extract the data-file formats (EGA graphics, `DSKTAB.DFS`, `SYST\SNSC`, saves).
+3. Re-implement, in order: VOR title screen -> LOF boot/menu -> the play loop.
+4. `make dropin` installs the re-implementation into `game/` as `lof` and `vor`.
 
 ### Debug env hooks (all optional)
 
@@ -51,12 +100,15 @@ Output binary: `./lof-native`.
 
 `downloads/` and `game/` are git-ignored (proprietary).  To restore:
 
-- `downloads/lof_msdos.zip` — the **DOS** release (use this one).
+- `downloads/lof_msdos.zip` — the **DOS** release (use this one).  It is
+  byte-identical to archive.org item `msdos_Legend_of_Faerghail_1990`
+  (`Legend_of_Faerghail_1990.zip`, md5 `52eedcec208a1ae4677c6abf5ce57eb0`).
 - Extract to `downloads/ext_msdos/legfaer`, then copy to `game/`.
 - `game/disk1.id`..`disk3.id` are dummy files created to satisfy the disk check.
 
-Only the DOS version is used.  Prefer a German release if available; otherwise the
-international DOS release.
+Only the DOS version is used.  A German-language DOS build does not exist
+(reLINE shipped the DOS release in English/international; the German release was
+Amiga/Atari ST only), so the international DOS release is the correct choice.
 
 ## Reference captures
 
@@ -89,3 +141,11 @@ Reference frames used during development live in `/tmp/native/` (ephemeral) and
   (bit mask was wrongly mapped to 7, which forced a 0x3F mask → dropped pixels).
 - EGA colour: primary guns weight 2, secondary weight 1 (index 7 = light gray).
 - DOS INT 21h AH=3D must return the handle in AX (not preserve AH), else reads fail.
+- BIOS INT 16h must return the scan code in AH and the ASCII value in AL; games
+  key off either byte.  DOS INT 21h AH=01/07/08 return the ASCII value in AL
+  (extended keys return AL=0, with the scan code on the following read).
+- `scancode_ascii` table: 0x2C is `z` (the row is `zxcvbnm,./`, no leading `\`),
+  0x29 is `` ` ``, 0x2B is `\`.  Covered by `make test`.
+- `reset_cpu_state` must clear transient CPU state (`halted`, prefix/repeat
+  flags), not just the registers — otherwise a second program (LOF after VOR)
+  inherits the first one's halt flag.  Covered by `make test`.

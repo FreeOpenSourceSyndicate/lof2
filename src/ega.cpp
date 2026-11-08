@@ -58,14 +58,8 @@ uint8_t Ega::read(uint32_t off) {
 }
 
 void Ega::write(uint32_t off, uint8_t v) {
-    { static unsigned rowc[200]={0}; static long tot=0; static bool reg=false; if(!reg){reg=true;atexit([]{ fprintf(stderr,"[rowc] "); for(int i=0;i<200;i+=10) fprintf(stderr,"%d:%u ",i,rowc[i]); fprintf(stderr,"\n"); });} if(off<8000){ rowc[off/40]++; } }
     writes++;
 
-    if (getenv("LOF_VTRACE")) { static long n=0; static unsigned lo[4]={0xFFFF,0xFFFF,0xFFFF,0xFFFF}, hi[4]={0,0,0,0}; static unsigned nz[4]={0,0,0,0}, tot[4]={0,0,0,0};
-        int pp=-1; for(int q=0;q<4;q++) if(seq_map_mask&(1<<q)) pp=q;
-        if(pp>=0){ unsigned o=off&0xFFFF; if(o<lo[pp])lo[pp]=o; if(o>hi[pp])hi[pp]=o; tot[pp]++; if(v)nz[pp]++; }
-        n++; if(n%20000==0) for(int q=0;q<4;q++) fprintf(stderr,"[vr] plane%d lo=%04X hi=%04X tot=%u nz=%u\n",q,lo[q],hi[q],tot[q],nz[q]); }
-    if (getenv("LOF_WMODE")) { static unsigned long keycnt[65536]={0}; unsigned k=((seq_map_mask&0xF)<<12)|((gc_mode&3)<<10)|((gc_enable_setres&0xF)<<6)|(gc_bitmask&0x3F); keycnt[k]++; static long n=0; if(++n%10000==0){ for(int i=0;i<65536;i++) if(keycnt[i]) fprintf(stderr,"[wm] mask=%X mode=%d en=%X bm=%02X cnt=%lu\n",(i>>12)&0xF,(i>>10)&3,(i>>6)&0xF,(i&0x3F),keycnt[i]); } }
     off &= 0xFFFF;
     uint8_t data = v;
     // rotate (GC reg 3 bits 3-5) + logical op (bits 0-1)

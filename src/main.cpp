@@ -11,10 +11,11 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <unistd.h>
 #include <cstring>
 #include <cstdio>
 #include <string>
-#include <zlib.h>
+
 #include <vector>
 
 #ifdef USE_SDL
@@ -39,13 +40,15 @@ static void write_png(const std::string& path, const std::vector<uint32_t>& fb, 
 
 struct Options {
     std::string dir = ".";
+    bool dir_set = false;
     bool headless = false;
     long frames = -1;
     std::string shot;
+    long shot_frame = 0;
     std::vector<uint8_t> keys;
     double timeout = -1;
-    bool run_vor = true;
-    std::string exe;   // run a single EXE instead of VOR+LOF
+    bool run_vor = false;   // VOR is disk copy-protection only; see below
+    std::string exe;   // run a single EXE instead of LOF
 };
 
 static Options parse(int argc, char** argv) {
@@ -53,12 +56,13 @@ static Options parse(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
         auto next = [&]() -> std::string { return (i + 1 < argc) ? argv[++i] : std::string(); };
-        if (a == "--dir") o.dir = next();
+        if (a == "--dir") { o.dir = next(); o.dir_set = true; }
         else if (a == "--headless") o.headless = true;
         else if (a == "--frames") o.frames = atol(next().c_str());
         else if (a == "--shot") o.shot = next();
+        else if (a == "--shot-frame") o.shot_frame = atol(next().c_str());
         else if (a == "--timeout") o.timeout = atof(next().c_str());
-        else if (a == "--no-vor") o.run_vor = false;
+        else if (a == "--vor") o.run_vor = true;   // opt in to the VOR preloader
         else if (a == "--exe") { o.exe = next(); o.run_vor = false; }
         else if (a == "--keys") {
             std::string s = next(); size_t p = 0;
@@ -73,6 +77,26 @@ static Options parse(int argc, char** argv) {
 
 int main(int argc, char** argv) {
     Options opt = parse(argc, argv);
+    // Drop-in mode: when invoked as "vor" (the name START.BAT uses for the
+    // copy-protection preloader), reproduce the original startup sequence.
+    {
+        std::string a0 = argv[0] ? argv[0] : "";
+        size_t s = a0.find_last_of('/');
+        std::string base = (s == std::string::npos) ? a0 : a0.substr(s + 1);
+        if (base == "vor" || base == "vor.exe" || base == "VOR.EXE") opt.run_vor = true;
+    }
+    if (!opt.dir_set) {
+        // Drop-in mode: run from the directory holding this executable so the
+        // binary can sit next to LOF.EXE/VOR.EXE inside the game folder.
+        char buf[4096];
+        ssize_t n = readlink("/proc/self/exe", buf, sizeof buf - 1);
+        if (n > 0) {
+            buf[n] = '\0';
+            std::string p(buf);
+            size_t slash = p.find_last_of('/');
+            if (slash != std::string::npos) opt.dir = p.substr(0, slash);
+        }
+    }
 
     Machine m;
     m.game_dir = opt.dir;
@@ -106,7 +130,7 @@ int main(int argc, char** argv) {
     long frame_no = 0;
     auto present = [&]() {
         m.render();
-        if (!opt.shot.empty() && frame_no == 0) {
+        if (!opt.shot.empty() && frame_no == opt.shot_frame) {
             write_png(opt.shot, m.framebuffer, m.fb_w, m.fb_h); fprintf(stderr,"[lof] shot fb=%dx%d\n",m.fb_w,m.fb_h);
         }
 #ifdef USE_SDL
@@ -281,10 +305,12 @@ int main(int argc, char** argv) {
         return true;
     };
 
+    // START.BAT runs VOR before LOF, but VOR is purely disk copy-protection
+    // (it validates the disk id and aborts with "LEGEND OF FAERGHAIL aborted,
+    // good bye..." on failure); it draws no game content.  We therefore skip
+    // it by default so the game can run from a plain folder.  Pass --vor to
+    // reproduce the original startup sequence.
     if (opt.run_vor) {
-        // VOR is LZEXE-packed; it unpacks itself in memory and hands control to
-        // the game's entry point.  The native loader recognises the packed
-        // format and expands it before execution (see load_exe).
         run_one(vor);
         frame_no = 0;
     }
@@ -331,14 +357,19 @@ int main(int argc, char** argv) {
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <zlib.h>
 #include <vector>
 
 namespace {
 static uint32_t crc32(const uint8_t* d, size_t n, uint32_t crc = 0xFFFFFFFFu) {
     static uint32_t tab[256]; static bool init = false;
-    if (!init) { for (uint32_t i = 0; i < 256; i++) { uint32_t c = i;
-        for (int k = 0; k < 8; k++) c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1; tab[i] = c; } init = true; }
+    if (!init) {
+        for (uint32_t i = 0; i < 256; i++) {
+            uint32_t c = i;
+            for (int k = 0; k < 8; k++) c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+            tab[i] = c;
+        }
+        init = true;
+    }
     for (size_t i = 0; i < n; i++) crc = tab[(crc ^ d[i]) & 0xFF] ^ (crc >> 8);
     return crc ^ 0xFFFFFFFFu;
 }
@@ -354,6 +385,26 @@ static void chunk(std::vector<uint8_t>& out, const char* type, const std::vector
     out.insert(out.end(), data.begin(), data.end());
     be32(out, crc32(both.data(), both.size()));
 }
+// Minimal zlib stream with stored (uncompressed) deflate blocks.  Avoids a
+// libz dependency; PNG readers accept it as a valid IDAT payload.
+static std::vector<uint8_t> zlib_stored(const std::vector<uint8_t>& raw) {
+    std::vector<uint8_t> z = {0x78, 0x01};
+    size_t i = 0;
+    do {
+        size_t n = std::min<size_t>(65535, raw.size() - i);
+        bool last = (i + n >= raw.size());
+        z.push_back(last ? 1 : 0);
+        z.push_back((uint8_t)(n & 0xFF)); z.push_back((uint8_t)(n >> 8));
+        z.push_back((uint8_t)(~n & 0xFF)); z.push_back((uint8_t)((~n >> 8) & 0xFF));
+        z.insert(z.end(), raw.begin() + i, raw.begin() + i + n);
+        i += n;
+    } while (i < raw.size());
+    uint32_t a = 1, b = 0;
+    for (uint8_t c : raw) { a = (a + c) % 65521; b = (b + a) % 65521; }
+    uint32_t adler = (b << 16) | a;
+    be32(z, adler);
+    return z;
+}
 static void write_png_impl(const std::string& path, const std::vector<uint32_t>& fb, int w, int h) {
     std::vector<uint8_t> raw;
     for (int y = 0; y < h; y++) {
@@ -364,10 +415,7 @@ static void write_png_impl(const std::string& path, const std::vector<uint32_t>&
             raw.push_back(p & 0xFF); raw.push_back((p >> 24) & 0xFF);
         }
     }
-    std::vector<uint8_t> z(raw.size() + raw.size() / 8 + 64);
-    uLongf zlen = (uLongf)z.size();
-    if (compress2(z.data(), &zlen, raw.data(), (uLong)raw.size(), 6) != Z_OK) return;
-    z.resize(zlen);
+    std::vector<uint8_t> z = zlib_stored(raw);
     std::vector<uint8_t> out = {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
     std::vector<uint8_t> ihdr; be32(ihdr, w); be32(ihdr, h);
     ihdr.push_back(8); ihdr.push_back(6); ihdr.push_back(0); ihdr.push_back(0); ihdr.push_back(0);
