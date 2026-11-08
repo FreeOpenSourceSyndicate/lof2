@@ -7,6 +7,7 @@
 #include "data.h"
 #include "screens.h"
 #include "font.h"
+#include "char.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -46,9 +47,21 @@ static void dump_data(const std::string& dir) {
     }
 }
 
+// --dump-spec: decode SYST/SPEC0..7 (workstream B's reader) so the parsed
+// scenario specials are visible from the shipped front-end.
+static void dump_spec_files(const std::string& dir) {
+    for (int n = 0; n <= 7; n++) {
+        char p[32]; snprintf(p, sizeof p, "/SYST/SPEC%d", n);
+        SpecTable t = load_spec(dir + p);
+        if (!t.ok) continue;
+        char label[32]; snprintf(label, sizeof label, "SYST/SPEC%d", n);
+        dump_spec(stdout, t, label);
+    }
+}
+
 int main(int argc, char** argv) {
     std::string dir = game_dir(argv[0]);
-    bool headless = false, have_shot = false, dump = false;
+    bool headless = false, have_shot = false, dump = false, dump_spec = false;
     std::string shot;
     long shot_frame = -1;
 
@@ -57,11 +70,13 @@ int main(int argc, char** argv) {
         if (a == "--dir" && i + 1 < argc) dir = argv[++i];
         else if (a == "--headless") headless = true;
         else if (a == "--dump-data") dump = true;
+        else if (a == "--dump-spec") dump_spec = true;
         else if (a == "--shot" && i + 1 < argc) { shot = argv[++i]; have_shot = true; }
         else if (a == "--shot-frame" && i + 1 < argc) shot_frame = atol(argv[++i]);
     }
 
     if (dump) { dump_data(dir); return 0; }
+    if (dump_spec) { dump_spec_files(dir); return 0; }
 
     Screen scr;
     scr.resize(320, 200);
