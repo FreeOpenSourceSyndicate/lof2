@@ -58,7 +58,9 @@ uint8_t Ega::read(uint32_t off) {
 }
 
 void Ega::write(uint32_t off, uint8_t v) {
+    { static unsigned rowc[200]={0}; static long tot=0; static bool reg=false; if(!reg){reg=true;atexit([]{ fprintf(stderr,"[rowc] "); for(int i=0;i<200;i+=10) fprintf(stderr,"%d:%u ",i,rowc[i]); fprintf(stderr,"\n"); });} if(off<8000){ rowc[off/40]++; } }
     writes++;
+
     if (getenv("LOF_VTRACE")) { static long n=0; static unsigned lo[4]={0xFFFF,0xFFFF,0xFFFF,0xFFFF}, hi[4]={0,0,0,0}; static unsigned nz[4]={0,0,0,0}, tot[4]={0,0,0,0};
         int pp=-1; for(int q=0;q<4;q++) if(seq_map_mask&(1<<q)) pp=q;
         if(pp>=0){ unsigned o=off&0xFFFF; if(o<lo[pp])lo[pp]=o; if(o>hi[pp])hi[pp]=o; tot[pp]++; if(v)nz[pp]++; }

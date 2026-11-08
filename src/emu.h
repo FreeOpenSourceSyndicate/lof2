@@ -158,7 +158,7 @@ struct Machine {
         return (uint16_t)(ram[a] | (ram[(a + 1) & 0xFFFFF] << 8));
     }
     inline void wb(uint32_t a, uint8_t v) {
-        if (is_ega(a)) { ega.write(a - 0xA0000, v); fb_dirty = true; return; }
+        if (is_ega(a)) { if(getenv("LOF_VC")){ static unsigned long key[8192]; static unsigned cnt[8192],lo[8192],hi[8192]; static int nk=0; static bool reg=false; if(!reg){reg=true; atexit([]{ for(int i=0;i<nk;i++) if(cnt[i]>200) fprintf(stderr,"[vc] %04X:%04X n=%u off=%04X..%04X\n",(unsigned)(key[i]>>16),(unsigned)(key[i]&0xFFFF),cnt[i],lo[i],hi[i]); });} uint32_t k=((uint32_t)cpu.cs<<16)|cpu.ip; int f=-1; for(int i=0;i<nk;i++) if(key[i]==k){f=i;break;} if(f<0&&nk<8192){ f=nk; key[nk]=k; cnt[nk]=0; lo[nk]=0xFFFF; hi[nk]=0; nk++; } if(f>=0){ cnt[f]++; uint32_t o=a-0xA0000; if(o<lo[f])lo[f]=o; if(o>hi[f])hi[f]=o; } } ega.write(a - 0xA0000, v); fb_dirty = true; return; }
         ram[a & 0xFFFFF] = v;
     }
     inline void ww(uint32_t a, uint16_t v) {

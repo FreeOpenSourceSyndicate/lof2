@@ -156,6 +156,7 @@ void Machine::port_write_byte(uint16_t p, uint8_t b) {
             break;
         case 0x3D4: ega.crtc_index = v & 0x1F; break;
         case 0x3D5:
+            if (getenv("LOF_CRTC")) { static int n=0; if(n<200){ fprintf(stderr,"[crtc] idx=%02X val=%02X cs:ip=%04X:%04X\n", ega.crtc_index&0x1F, v, cpu.cs, cpu.ip); n++; } }
             if ((ega.crtc_index & 0x1F) < 32) ega.crtc[ega.crtc_index & 0x1F] = v & 0xFF;
             break;
         case 0x3C7: case 0x3C8: case 0x3C9: break;   // DAC (unused on EGA)
@@ -362,6 +363,7 @@ void Machine::dos_int(uint8_t n) {
             uint32_t p = ((uint32_t)c.ds << 4) + c.dx;
             size_t got = fread(&ram[p], 1, c.cx, it->second.fp);
             if (getenv("LOF_I21")) fprintf(stderr, "[3F read] h=%u want=%u got=%zu file=%s\n", c.bx, c.cx, got, it->second.name.c_str());
+            if (getenv("LOF_READ")) fprintf(stderr, "[READ] file=%s want=%u got=%zu dest=%04X:%04X\n", it->second.name.c_str(), c.cx, got, c.ds, c.dx);
             c.ax = (uint16_t)got; set_cf(c, false); break; }
         case 0x40: {  // write
             if (c.bx <= 4) {  // stdout etc.
@@ -420,6 +422,9 @@ void Machine::dos_int(uint8_t n) {
 static int cur_row = 0, cur_col = 0;
 
 void Machine::bios_int(uint8_t n) {
+    if (getenv("LOF_INT10ALL")) { static unsigned cnt[256]={0}; static long t=0;
+        uint8_t ah=(uint8_t)(cpu.ax>>8); cnt[ah]++;
+        if(++t%20000==0) for(int i=0;i<256;i++) if(cnt[i]) fprintf(stderr,"[i10] AH=%02X cnt=%u\n",i,cnt[i]); }
     (void)n;
     CPU& c = cpu;
     uint8_t ah = (uint8_t)(c.ax >> 8);
