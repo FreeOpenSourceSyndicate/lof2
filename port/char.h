@@ -126,10 +126,15 @@ std::vector<RostRecord> load_rost(const std::string& path);
 // drop-in must run without the original EXE, so the decoded table is
 // transcribed into `port/char_items.inc` and exposed here.  Per record: a
 // 16-byte NUL-padded name, seven little-endian int16 fields, then a byte item
-// class and a byte equipment slot.
+// class and a byte use-effect index.
 constexpr size_t kItemCount = 185;
 constexpr size_t kItemNameLen = 16;
 constexpr size_t kItemRecordSize = 32;
+
+// Character/creature classes, in SNSC order (SYST/SNSC record index).  The item
+// eligibility mask (`f6`, bit n) and SPEC `index_c9` use this ordering.
+constexpr size_t kClassCount = 14;
+extern const char* const kClassName[kClassCount];
 
 struct ItemRecord {
     std::string name;
@@ -153,6 +158,10 @@ const std::vector<ItemRecord>& items();
 
 // 1-based item lookup as used by saves/maps; nullptr when out of range.
 const ItemRecord* item_by_index(int index);
+
+// True if item `index` (1-based) is usable by SNSC class `cls` (0..13) per its
+// eligibility mask (f6); out-of-range item or class returns false.
+bool item_usable_by_class(int index, int cls);
 
 // Print the decoded table (for eyeballing).
 void dump_items(FILE* out);
