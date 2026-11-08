@@ -161,6 +161,17 @@ const std::vector<ItemRecord>& items();
 // 1-based item lookup as used by saves/maps; nullptr when out of range.
 const ItemRecord* item_by_index(int index);
 
+// Descriptive label for an item's use-effect index (`ItemRecord::effect`), the
+// value the engine switches on when the party "uses" an item (potions, rings,
+// wands, scrolls, quest items).  Derived by grouping the item table by effect
+// value, so the labels are descriptive, not engine symbol names.  Returns a
+// non-null string for every input (unknown/0 => "none").
+const char* item_effect_name(uint8_t effect);
+
+// Item indices (into `items()`) whose use-effect index equals `effect`, in
+// table order.  `effect == 0` returns the plain (non-magical) gear.
+std::vector<size_t> items_with_effect(uint8_t effect);
+
 // True if item `index` (1-based) is usable by SNSC class `cls` (0..13) per its
 // eligibility mask (f6); out-of-range item or class returns false.
 bool item_usable_by_class(int index, int cls);

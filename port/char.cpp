@@ -218,14 +218,67 @@ bool item_usable_by_class(int index, int cls) {
     return (it->f6 & (1 << cls)) != 0;
 }
 
+const char* item_effect_name(uint8_t effect) {
+    switch (effect) {
+        case 0: return "none";
+        case 1: return "enchant weapon";
+        case 2: return "enchant armour";
+        case 3: return "poison I";
+        case 4: return "gunpowder";
+        case 5: return "crystal ball";
+        case 7: return "tool";
+        case 8: return "antimagic";
+        case 9: return "catchpole hilt";
+        case 10: return "healing";
+        case 11: return "inquisitor";
+        case 12: return "blade of power";
+        case 13: return "special weapon";
+        case 14: return "book half";
+        case 15: return "quest jewel";
+        case 16: return "scroll/ball";
+        case 17: return "death mask";
+        case 18: return "sarcophagus";
+        case 19: return "protection scroll";
+        case 20: return "holy water";
+        case 21: return "dragon armour";
+        case 23: return "poison II";
+        case 24: return "healer staff";
+        case 27: return "scroll of power";
+        case 28: return "protecting ring";
+        case 29: return "ring of shelter";
+        case 30: return "antidote I";
+        case 31: return "antidote II";
+        case 32: return "spade";
+        case 33: return "artifact weapon";
+        case 34: return "lantern";
+        case 35: return "torch";
+        case 36: return "talisman";
+        case 37: return "climbing gear";
+        case 38: return "strength/food";
+        case 39: return "map";
+        case 40: return "raw material";
+        default: return "none";
+    }
+}
+
+std::vector<size_t> items_with_effect(uint8_t effect) {
+    std::vector<size_t> out;
+    const auto& v = items();
+    for (size_t i = 0; i < v.size(); i++)
+        if (v[i].effect == effect) out.push_back(i);
+    return out;
+}
+
 void dump_items(std::FILE* out) {
     const auto& v = items();
     for (size_t i = 0; i < v.size(); i++) {
         const ItemRecord& r = v[i];
         std::fprintf(out,
-                     "[%3zu] %-18s class=%u eff=%u f0..6=%d %d %d %d %d %d %d\n",
-                     i, r.name.c_str(), r.item_class, r.effect, r.f0, r.f1, r.f2,
-                     r.f3, r.f4, r.f5, r.f6);
+                     "[%3zu] %-18s class=%u eff=%u (%-16s) f0..6=%d %d %d %d %d %d "
+                     "%d\n",
+                     i, r.name.c_str(), r.item_class, r.effect,
+                     item_effect_name(r.effect), r.f0, r.f1, r.f2, r.f3, r.f4,
+                     r.f5, r.f6);
     }
 }
 

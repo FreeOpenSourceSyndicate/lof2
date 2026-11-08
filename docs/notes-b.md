@@ -234,6 +234,47 @@ their exact combat use lives in the play-loop code, so treat them as unverified)
 - `f6` is a class-eligibility mask (14 bits; magic items set the high bits,
   e.g. 4095 = every class).  `item_usable_by_class()` reads it.
 
+**Use-effect index (off 31).**  Grouping the 185 items by this byte yields a
+clean 1:1 behaviour table, so it *is* a use-effect id, not an equip slot.  The
+values present in this release (and the items that carry them):
+
+| eff | meaning | example items |
+|----:|---------|---------------|
+| 0 | plain gear | Club, Warhammer, all ordinary weapons/armour |
+| 1 / 2 | enchant weapon / armour | Enchant weapon, Enchant armour |
+| 3 / 23 | poison I / II | Poison I, Poison II |
+| 4 | gunpowder | Gunpowder |
+| 5 | crystal ball | Crystal ball |
+| 7 | tool | Spellbook, Holy symbol, Thieves' picks, Anvil, Sledge-hammer |
+| 8 | antimagic | Antimagic ring |
+| 9 | catchpole hilt | Catchpoles hilt |
+| 10 | healing | Healing potion |
+| 11 / 12 / 13 / 33 | special/artifact weapon | Inquisitor, Blade of power, Stonesword, Lightbringer |
+| 14 | book half | 1st/2nd Bookhalf |
+| 15 | quest jewel | The Emerald, The Corona, The Keystaff, The Ring |
+| 16 | scroll/ball | Papyrus scroll, Mithril ball |
+| 17 / 18 | death mask / sarcophagus | Death mask, Sarcophagus |
+| 19 | protection scroll | Scroll, Magic protect., True scroll, maps |
+| 20 | holy water | Holy water |
+| 21 | dragon armour | Dragon chain/plate/leather |
+| 24 | healer staff | Healers' staff |
+| 27 | scroll of power | Scroll of power |
+| 28 / 29 | protecting / shelter ring | Protecting ring, Ring of shelter |
+| 30 / 31 | antidote I / II | Antidote I, Antidote II |
+| 32 | spade | Spade |
+| 34 / 35 | lantern / torch | Lantern, Torch |
+| 36 | talisman | Talisman |
+| 37 | climbing gear | Rope, Crystal wedge |
+| 38 | strength/food | Strength potion, 12 Rations |
+| 39 | map | Blue map, Small map, Old map, … |
+| 40 | raw material | Dry clay, Some water |
+
+Exposed as `item_effect_name(effect)` (descriptive label) and
+`items_with_effect(effect)` (the indices that carry it); `dump_items()` prints
+the label next to each item.  The labels are *descriptive*, derived from the
+item names in each group — the exact per-effect handler lives in the play loop
+and is left un-named.
+
 ### Handoff notes for the play loop (maintainer domain)
 
 - Character struct: only the head is written by the init/erase routine; the rest
