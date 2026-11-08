@@ -31,15 +31,18 @@ bool Font::load(const std::string& path, std::string* err) {
 }
 
 // Glyph cells: band 0 holds upper case in cells 0..25 and digits in cells
-// 26..35; band 1 holds lower case in cells 0..25.  Band 2 holds punctuation.
-// (Read straight off the decoded strip: the glyph run starts at cell 0.)
+// 26..35; band 1 holds lower case in cells 0..25.  The punctuation cells were
+// recovered by matching rendered glyphs against a DOSBox capture of the menu.
 static bool glyph_cell(char ch, int& band, int& cell) {
     if (ch >= 'A' && ch <= 'Z') { band = 0; cell = ch - 'A'; return true; }
     if (ch >= 'a' && ch <= 'z') { band = 1; cell = ch - 'a'; return true; }
     if (ch >= '0' && ch <= '9') { band = 0; cell = 26 + (ch - '0'); return true; }
     switch (ch) {
-        case '(': band = 1; cell = 2; return true;
-        case ')': band = 1; cell = 3; return true;
+        case '(': band = 1; cell = 38; return true;
+        case ')': band = 1; cell = 39; return true;
+        case ',': band = 1; cell = 32; return true;
+        case '-': band = 1; cell = 33; return true;
+        case '!': band = 0; cell = 39; return true;
         default: return false;
     }
 }
