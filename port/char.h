@@ -72,6 +72,14 @@ const char* spec_type_name(uint16_t type);
 struct SpecRecord {
     std::array<uint8_t, kSpecRecordSize> raw{};
 
+    // 0x00  NUL-terminated keyword/password (region 0x00..0x0e).  Present in 45
+    // of 665 records; the player must type it (or answer the prompt) for the
+    // record to fire.  Values are the expected answer: "Y"/"N" for the many
+    // yes/no prompts (recruit, door, button, trap), and words for the keyed
+    // riddles ("Fire", "Daughter", "Echo", "Eyes" on the four elemental
+    // guardians; "Khazad Maran", "Spingo", "Iceflower", "Circle", "Stairs", …).
+    std::string keyword;
+
     std::string text_a;   // NUL-terminated, offset 0x0e (region 0x0e..0x4a)
     std::string text_b;   // NUL-terminated, offset 0x50 (region 0x50..0xc6)
 
