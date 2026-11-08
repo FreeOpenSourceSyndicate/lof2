@@ -319,6 +319,18 @@ through the play loop (the runtime stat struct at `es:[bx+0x27xx]` is in the
 maintainer's main-loop domain), so only the low-risk offsets are named and the
 rest is left as a follow-up.
 
+### Monster rosters (`SYST/NSC0n`) — new
+
+The engine's monster table for scenario `n` is `SYST/NSC0%ld` (format string at
+image `0x4a363`). The file is a count byte followed by that many 78-byte
+records in the **same layout as SNSC** (singular + plural name, then the 40-byte
+stats block), so `port/data.cpp`'s `load_nsc()` reads it unchanged. This release
+ships scenarios 0..7 (25/36/36/131/80/68/142/60 monsters). B exposes
+`monster_names(dir, scenario)` (the singular names, in table order); the 40-byte
+stat block is the same un-named template as SNSC and is left as a follow-up.
+(`SYST/NSC0n` is deliberately *not* auto-probed as `NSC%02d`, since only
+scenarios 0..9 have a single-digit file name.)
+
 ### Status after unblock
 
 - [x] Oracle-confirmed ROST (414 = 410+4) and SHOP (190) strides; ROST `tail`.
@@ -329,6 +341,10 @@ rest is left as a follow-up.
 - [x] 14 SNSC classes exposed as `kClassName[]`; `item_usable_by_class()`.
 - [x] Character-generation name tables (sex/race/profession/alignment/skills/
       languages/status) -> `port/char_names.inc` + accessors.
+- [x] Character-sheet display tables (female professions, race adjectives,
+      lower alignments, padded/abbrev profession columns, actions, morale).
+- [x] Monster rosters (`SYST/NSC0n`) exposed via `monster_names()` (reuses
+      `load_nsc`).
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
       all-present roster slots, and the save header/records/trailer.
 - [ ] Remaining B: named stat-field semantics of the SNSC 40-byte block and the

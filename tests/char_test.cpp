@@ -286,6 +286,13 @@ static int real_data() {
            ac[4] == "Cast Spell");
     assert(mo.size() == kMoraleCount && mo[0] == "Good" && mo[4] == "Bad");
 
+    // Monster rosters (SYST/NSC0n, same 78-byte layout as SNSC).  NSC00 holds
+    // 25 scenario-0 monsters; the first is the Ape.
+    auto m0 = monster_names(dir, 0);
+    assert(m0.size() == 25 && m0[0] == "Ape");
+    assert(monster_names(dir, kMonsterScenarioCount).empty());
+    assert(monster_names(dir, -1).empty());
+
     printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells/names ok\n");
     return 0;
 }

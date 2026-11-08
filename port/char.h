@@ -231,6 +231,18 @@ std::vector<std::string> profession_padded_names();
 std::vector<std::string> action_names();
 std::vector<std::string> morale_names();
 
+// --- Monster / NPC rosters -------------------------------------------------
+//
+// SYST/NSCnn is a count byte then that many 78-byte records in the same layout
+// as SYST/SNSC (singular + plural name, then a 40-byte stats block).  The
+// engine loads SYST/NSC0n for scenario n (format string `SYST\NSC0%ld` at
+// image 0x4a363); this release ships scenarios 0..7.
+constexpr int kMonsterScenarioCount = 8;
+
+// Singular names of scenario `scenario`'s monsters, in table order (empty when
+// the file is missing).  `dir` is the game data directory.
+std::vector<std::string> monster_names(const std::string& dir, int scenario);
+
 // Offsets into the 410-byte (0x19a) in-memory character struct.  ROST records
 // hold this struct at +0x01 (after the count byte) as records of 414 bytes; a
 // GAMES save holds it verbatim at +4.  The offsets below are the ones the
