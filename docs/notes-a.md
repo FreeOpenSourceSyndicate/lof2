@@ -187,3 +187,23 @@ value:
    `EGA/Dn/DPnnn` is computed from the map — then I can derive the mapping
    statically without needing a frame.
 3. Otherwise the static decode + walk model is as far as A can go.
+
+### Exhaustive key sweep (done — no dungeon reachable)
+
+With the save loaded (town), I injected every plausible key after `O`: all
+letter/number hot-keys, both Enter scancodes (0x1C/0x28), arrows (0x48/0x4B/
+0x4D/0x50), numpad (0x47..0x53), Ctrl+F1..F10, Esc (0x01), Tab (0x0F), Space
+(0x39), backspace, `+`/`-`. None changed the viewport or opened any `DNGS/DNG*`
+or `EGA/Dn/DP*` file. Paging the Count-of-Cyldane intro with Continue (0x2E)
+does not start a walkable state either. So the town->dungeon transition needs
+state I cannot reach by keypress alone from this save — confirming the ask
+above. (`O` = Open file is confirmed working: it loads `GAMES/GAME  1`.)
+
+### One concrete maintainer hook that would work
+
+The dungeon entry point is a function that loads the level, loads
+`EGA/Dn/DPnnn` for its tileset, and calls the first-person draw. A single
+`LOF_DUNGEON=<n>` hook in `src/main.cpp` that, after the LOF loader has run,
+writes the dungeon number/level to the fields the debug path reads and calls
+that function would produce the frame directly — no key sequence needed. I
+cannot add it because `src/` is maintainer-owned.
