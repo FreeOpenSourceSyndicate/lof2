@@ -182,7 +182,19 @@ static int real_data() {
     assert(shop.adjustments[1] == -2);
     assert(shop.trailing == 0x1606);
 
-    printf("char_test: real SPEC/ROST/SHOP ok\n");
+    // Saved games ("gamestandings"): header 0x00 'F' 'O' 'L' + 410-byte
+    // character records.  The engine opens GAMES\GAME%d (string in LOF.EXE).
+    SaveGame sv = load_save(std::string(dir) + "/GAMES/GAME1");
+    assert(sv.ok);
+    assert(sv.header[0] == 0x00 && sv.header[1] == 'F' &&
+           sv.header[2] == 'O' && sv.header[3] == 'L');
+    assert(sv.chars.size() == 32);
+    assert(sv.chars[0].present == 1 && sv.chars[0].name == "Decker");
+    assert(sv.chars[1].name == "Siegurd");
+    assert(sv.chars[5].name == "Assanla");
+    assert(sv.trailer.size() == 10);
+
+    printf("char_test: real SPEC/ROST/SHOP/GAMES ok\n");
     return 0;
 }
 

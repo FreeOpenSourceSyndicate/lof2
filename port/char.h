@@ -119,6 +119,32 @@ struct RostRecord {
 // Load ROST/ROST (count byte + N x 414-byte records).
 std::vector<RostRecord> load_rost(const std::string& path);
 
+// --- GAMES/GAMEn (saved game / "gamestanding") ----------------------------
+
+// A saved game file is a 4-byte header (0x00 'F' 'O' 'L') followed by the
+// party as fixed 410-byte character records (the same 0x19a struct ROST uses),
+// then a short trailing block.  The engine opens `GAMES\GAME%d`; records begin
+// at offset 4 with stride 410.
+constexpr size_t kSaveHeaderSize = 4;
+constexpr uint8_t kSaveMagic[4] = {0x00, 'F', 'O', 'L'};
+
+struct SaveChar {
+    std::array<uint8_t, 410> raw{};  // one 0x19a character struct
+    uint8_t present = 0;             // +0x00  non-zero: slot holds a character
+    std::string name;                // +0x01  NUL-terminated name (<= 14 bytes)
+};
+
+struct SaveGame {
+    bool ok = false;
+    uint8_t header[4] = {0, 0, 0, 0};
+    std::vector<SaveChar> chars;      // floor((size - 4) / 410) records
+    std::vector<uint8_t> trailer;     // any bytes past the last whole record
+};
+
+// Load GAMES/GAMEn; ok is false only if the file is too short or the header is
+// not the expected magic.
+SaveGame load_save(const std::string& path);
+
 // --- ROST/SHOP ------------------------------------------------------------
 
 struct ShopData {
