@@ -296,3 +296,10 @@ Reference frames used during development live in `/tmp/native/` (ephemeral) and
 - `reset_cpu_state` must clear transient CPU state (`halted`, prefix/repeat
   flags), not just the registers — otherwise a second program (LOF after VOR)
   inherits the first one's halt flag.  Covered by `make test`.
+- EGA image header is **11 bytes**, not 7: escape byte, `0x1234`, width (word),
+  height (word), decompressed-size+10 (word), two reserved bytes; the RLE
+  stream starts at offset 11.  Decoding from offset 7 shifts every image 32px
+  right and garbles the font strip.  The size field equals `4*w*h + 10` for
+  every file in `EGA/`.  Font cells are indexed from 0 (band 0 = `A-Z` then
+  `0-9`; band 1 = `a-z`).  Some images (`IN/DRAG`, `IN/CRED`) end early and the
+  rest of the planes are implicitly zero — pad before blitting.
