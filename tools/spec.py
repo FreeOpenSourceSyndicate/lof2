@@ -102,6 +102,18 @@ ITEM_COUNT = 185
 ITEM_REC = 32
 
 
+def c_string(name):
+    """Escape a name for a C string literal: octal for non-printable bytes so
+    the emitted source stays ASCII regardless of the compiler's encoding."""
+    out = []
+    for b in name.encode("latin1"):
+        if 32 <= b < 127 and b not in (ord('"'), ord("\\")):
+            out.append(chr(b))
+        else:
+            out.append("\\%03o" % b)
+    return "".join(out)
+
+
 def emit_items(exe_path, out_path):
     d = open(exe_path, "rb").read()
     names, fields, tail = [], [], []
@@ -124,7 +136,7 @@ def emit_items(exe_path, out_path):
                 "byte use-effect index.\n\n")
         f.write("static const char kItemNames[kItemCount][16] = {\n")
         for nm in names:
-            f.write('    "%s",\n' % nm.replace("\\", "\\\\").replace('"', '\\"'))
+            f.write('    "%s",\n' % c_string(nm))
         f.write("};\n\n// The seven int16 fields, then the class and use-effect "
                 "bytes.\n")
         f.write("static const int16_t kItemFields[kItemCount][7] = {\n")
@@ -135,6 +147,46 @@ def emit_items(exe_path, out_path):
             f.write("    {%d,%d},\n" % t)
         f.write("};\n")
     print(f"wrote {out_path} ({ITEM_COUNT} items)")
+
+
+# The spell table also lives only inside LOF.EXE (image offset 0x44430, data
+# segment 0x4430): 141 records of 36 bytes — a 22-byte NUL-padded name then 14
+# data bytes.  The records are grouped by caster class (magician, druid, ...);
+# the last 14 carry German names (unused/debug).  Like the item table, the
+# drop-in must run without the EXE, so it is transcribed here.
+SPELL_EXE_OFF = 0x44430
+SPELL_COUNT = 141
+SPELL_REC = 36
+SPELL_NAME = 22
+
+
+def emit_spells(exe_path, out_path):
+    d = open(exe_path, "rb").read()
+    names, data = [], []
+    for i in range(SPELL_COUNT):
+        r = d[SPELL_EXE_OFF + i * SPELL_REC:SPELL_EXE_OFF + (i + 1) * SPELL_REC]
+        names.append(r[:SPELL_NAME].split(b"\x00")[0].decode("latin1").rstrip())
+        data.append(r[SPELL_NAME:SPELL_REC])
+    with open(out_path, "w") as f:
+        f.write("// Legend of Faerghail spell table — transcribed from the DOS "
+                "release.\n")
+        f.write("// It lives only inside LOF.EXE (image offset 0x44430 / data "
+                "segment 0x4430);\n")
+        f.write("// no data file carries it, and the drop-in must run without "
+                "the original EXE,\n")
+        f.write("// so it keeps this copy.  Regenerate with "
+                "`tools/spec.py --emit-spells`.\n")
+        f.write("// 141 records of 36 bytes: a 22-byte NUL-padded name then 14 "
+                "data bytes.\n\n")
+        f.write("static const char kSpellNames[kSpellCount][22] = {\n")
+        for nm in names:
+            f.write('    "%s",\n' % c_string(nm))
+        f.write("};\n\n// The 14 data bytes per spell.\n")
+        f.write("static const uint8_t kSpellData[kSpellCount][14] = {\n")
+        for ds in data:
+            f.write("    {%s},\n" % ",".join(str(b) for b in ds))
+        f.write("};\n")
+    print(f"wrote {out_path} ({SPELL_COUNT} spells)")
 
 
 def dump_shop(path):
@@ -148,6 +200,15 @@ def dump_shop(path):
         print(f"  trailer word = {struct.unpack_from('<H', d, len(d) - 4)[0]:#06x}")
 
 
+def dump_spells(exe_path):
+    d = open(exe_path, "rb").read()
+    print(f"{exe_path}: spell table at {SPELL_EXE_OFF:#x}, {SPELL_COUNT} records")
+    for i in range(SPELL_COUNT):
+        r = d[SPELL_EXE_OFF + i * SPELL_REC:SPELL_EXE_OFF + (i + 1) * SPELL_REC]
+        nm = r[:SPELL_NAME].split(b"\x00")[0].decode("latin1").rstrip()
+        print(f"  [{i:3d}] {nm:22s} {r[SPELL_NAME:].hex(' ')}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default="game")
@@ -159,12 +220,20 @@ def main():
                     help="dump a GAMES/GAMEn saved game (e.g. GAME1)")
     ap.add_argument("--emit-items", action="store_true",
                     help="regenerate port/char_items.inc from LOF.EXE")
+    ap.add_argument("--emit-spells", action="store_true",
+                    help="regenerate port/char_spells.inc from LOF.EXE")
+    ap.add_argument("--spells", action="store_true",
+                    help="dump the LOF.EXE spell table")
     ap.add_argument("--nonempty", action="store_true",
                     help="only show SPEC records that carry text")
     args = ap.parse_args()
 
     if args.emit_items:
         emit_items(os.path.join(args.dir, "LOF.EXE"), "port/char_items.inc")
+    elif args.emit_spells:
+        emit_spells(os.path.join(args.dir, "LOF.EXE"), "port/char_spells.inc")
+    elif args.spells:
+        dump_spells(os.path.join(args.dir, "LOF.EXE"))
     elif args.spec is not None:
         dump_spec(os.path.join(args.dir, "SYST", f"SPEC{args.spec}"),
                   args.spec, args.nonempty)

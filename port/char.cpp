@@ -6,6 +6,7 @@
 namespace lofport {
 
 #include "char_items.inc"
+#include "char_spells.inc"
 
 namespace {
 
@@ -222,6 +223,35 @@ void dump_items(std::FILE* out) {
                      "[%3zu] %-18s class=%u eff=%u f0..6=%d %d %d %d %d %d %d\n",
                      i, r.name.c_str(), r.item_class, r.effect, r.f0, r.f1, r.f2,
                      r.f3, r.f4, r.f5, r.f6);
+    }
+}
+
+const std::vector<SpellRecord>& spells() {
+    static const std::vector<SpellRecord> table = [] {
+        std::vector<SpellRecord> v;
+        v.reserve(kSpellCount);
+        for (size_t i = 0; i < kSpellCount; i++) {
+            SpellRecord r;
+            r.name = kSpellNames[i];
+            std::memcpy(r.data, kSpellData[i], sizeof(r.data));
+            v.push_back(std::move(r));
+        }
+        return v;
+    }();
+    return table;
+}
+
+const SpellRecord* spell_by_index(int index) {
+    if (index < 1 || (size_t)index > kSpellCount) return nullptr;
+    return &spells()[index - 1];
+}
+
+void dump_spells(std::FILE* out) {
+    const auto& v = spells();
+    for (size_t i = 0; i < v.size(); i++) {
+        std::fprintf(out, "[%3zu] %-22s", i, v[i].name.c_str());
+        for (uint8_t b : v[i].data) std::fprintf(out, " %02x", b);
+        std::fputc('\n', out);
     }
 }
 

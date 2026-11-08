@@ -241,10 +241,17 @@ their exact combat use lives in the play-loop code, so treat them as unverified)
   loop's global view `es:[bx+0x27xx]` — hundreds of `mov ax,0x19a` sites follow
   the town/shop code.  Naming those fields needs the live cursor/loop state, so
   it is left to the maintainer rather than guessed.
-- Spells are stored as a **name pool** (NUL-terminated strings around image
-  `0x44478`..), not as fixed records like the item table; their effects live in
-  the interpreter code next to each name, so there is no data-only spell table
-  to transcribe.
+- Spells **are** a fixed table (correcting an earlier guess): 141 records of
+  36 bytes at image `0x44430` (data segment `0x4430`) — a 22-byte NUL-padded
+  name then 14 data bytes.  Records are grouped by caster class (magician,
+  druid, priest, ...); the final 14 carry German names (unused/debug).  It is
+  transcribed into `port/char_spells.inc` (regenerate with
+  `tools/spec.py --emit-spells`) and exposed as `spells()` / `spell_by_index()`.
+  The 14 data bytes decode as five little-endian words then four bytes: the
+  first word is a **bitmask** (`1,2,4,8,16,32`), byte 10 is small (1..10,
+  likely a power/spell level), byte 11 is 2/3, byte 12 is a target flag
+  (0 self/buff, 1 single, 2 area) and byte 13 is a modifier.  Their exact use is
+  in the play loop, so only the layout is asserted.
 - The item table (above) is indexed by `shl ax,1` twice + `add` (×32), consistent
   with the max record size seen on a single stack frame.
 
@@ -280,6 +287,8 @@ rest is left as a follow-up.
 - [x] SPEC dispatch-type semantics (all 25 observed values) + `spec_type_name`.
 - [x] Save-game (`GAMES/GAMEn`) parser + format (header `\0FOL`, 410 stride).
 - [x] Item table (185 x 32 bytes) transcribed from LOF.EXE -> `port/char_items.inc`.
+- [x] Spell table (141 x 36 bytes) transcribed from LOF.EXE -> `port/char_spells.inc`.
+- [x] 14 SNSC classes exposed as `kClassName[]`; `item_usable_by_class()`.
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
       all-present roster slots, and the save header/records/trailer.
 - [ ] Remaining B: named stat-field semantics of the SNSC 40-byte block and the
