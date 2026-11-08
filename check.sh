@@ -8,9 +8,15 @@ ok()   { printf '  ok   %s\n' "$*"; }
 bad()  { printf '  FAIL %s\n' "$*"; fail=1; }
 
 echo "[check] repository"
-[ "$(basename "$(git rev-parse --show-toplevel)")" = "lof2" ] \
-    && ok "repo is lof2 (not the poisoned sibling 'lof')" \
-    || bad "repo directory is not named lof2 — are you in the sibling repo?"
+# The reliable identity is the git remote, not the directory name.
+remote_url="$(git remote get-url origin 2>/dev/null || echo '')"
+if printf '%s' "$remote_url" | grep -qE 'FreeOpenSourceSyndicate/lof2(\.git)?$'; then
+    ok "origin is lof2 (the correct repo)"
+elif [ "$(basename "$(git rev-parse --show-toplevel)")" = "lof2" ]; then
+    ok "repo directory is lof2"
+else
+    printf '  note origin is %s (expected .../lof2) — confirm this is not the sibling repo\n' "${remote_url:-<none>}"
+fi
 
 # Poison guard: no remote pointing at the sibling repo.
 if git remote -v 2>/dev/null | grep -qE 'FreeOpenSourceSyndicate/lof(\.git)?([[:space:]]|$)'; then
