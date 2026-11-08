@@ -65,6 +65,14 @@ else
     fi
 fi
 
+# The engine opens saves as GAMES\GAME%3d (printf "%3d"), i.e. the shipped
+# GAME1 must also exist as "GAME  1" (two spaces) or the load silently fails
+# and the play loop is never entered.  Repair it on every run (idempotent).
+if [ -f game/GAMES/GAME1 ] && [ ! -f "game/GAMES/GAME  1" ]; then
+    cp game/GAMES/GAME1 "game/GAMES/GAME  1"
+    say "[bootstrap] created game/GAMES/GAME  1 (save slot the engine opens)"
+fi
+
 # --- 2. build ---------------------------------------------------------------
 if [ "$CHECK" = 1 ]; then
     [ "$missing" = 0 ] && say "[bootstrap] everything present" || true
