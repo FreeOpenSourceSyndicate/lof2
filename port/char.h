@@ -138,12 +138,14 @@ extern const char* const kClassName[kClassCount];
 
 struct ItemRecord {
     std::string name;
-    int16_t f0 = 0;  // melee weapon: hands (1/2); else 0
-    int16_t f1 = 0;  // melee weapon: damage; armour/others: a cost
-    int16_t f2 = 0;  // weapon: cost; armour: raw AC bonus
-    int16_t f3 = 0;  // projectiles: ammo count; armour: equipped AC
-    int16_t f4 = 0;  // weapon: class/penalty mask
-    int16_t f5 = 0;  // projectile pairing / misc
+    // Seven little-endian int16 fields.  f1..f4 are only partially named (their
+    // exact combat semantics live in the play-loop code); f5/f6 are grounded.
+    int16_t f0 = 0;  // weapon/armour class code (1..4)
+    int16_t f1 = 0;  // weapon: damage; armour: cost
+    int16_t f2 = 0;  // weapon: cost; armour: AC bonus
+    int16_t f3 = 0;  // armour: further AC; projectiles: ammo count
+    int16_t f4 = 0;  // weapon: cost / damage multiplier
+    int16_t f5 = 0;  // projectile -> launcher item index (weapons: 0)
     int16_t f6 = 0;  // class-eligibility mask (bit n => class n may use)
     // Item class: 0 misc/key, 1 melee, 2 armour, 3 shield, 4 projectile,
     // 5 staff, 6 scroll/book/map, 8 ring, 9 potion, 10 treasure, 11 bow/sling.

@@ -221,15 +221,18 @@ into `port/char_items.inc` (regenerate with `tools/spec.py --emit-items`, which
 reads the EXE once as a dev aid) and exposed as `items()` / `item_by_index()` /
 `dump_items()` in `port/char.{h,cpp}`.
 
-Field guesses (weapons line up cleanly; armour's third field is the raw AC bonus):
+Field semantics (weapons line up cleanly; `f1..f4` are only partially named —
+their exact combat use lives in the play-loop code, so treat them as unverified):
 
-- melee weapons (class 1): `f0` = hands, `f1` = damage, `f2` = cost,
-  `f4` = class/penalty mask; e.g. Short sword `(1,10,50,…,1536)`, two-handed
-  sword `f0 = 2`.
-- armour (class 2): `f1` = hands-ish cost, `f2` = raw AC, `f3` = equipped AC;
+- melee weapons (class 1): `f0` = weapon class code 1..4 (not a hands count),
+  `f1` = damage, `f2` = cost; e.g. Short sword `(1,10,50,…)`, Broadsword
+  `(2,18,80,…)`, Two handed swrd `(2,25,456,…)`.
+- armour (class 2): `f1` = cost, `f2` = AC bonus, `f3` = further AC;
   e.g. Leather `(4,15,150,35)`, Full plate `(1,2000,650,90)`.
-- projectiles (class 4): `f3` = ammo count; e.g. Bullets `(2,2,2,2560,1024…)`.
-- `f6` is a class-eligibility mask (magic items set the high bits, e.g. 4095).
+- projectiles (class 4): `f3` = ammo count, `f5` = the launcher item index
+  (e.g. Bolts `f5 = 24` = Crossbow); the launcher's `f5` points back.
+- `f6` is a class-eligibility mask (14 bits; magic items set the high bits,
+  e.g. 4095 = every class).  `item_usable_by_class()` reads it.
 
 ### Handoff notes for the play loop (maintainer domain)
 
