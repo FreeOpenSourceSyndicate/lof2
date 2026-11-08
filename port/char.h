@@ -190,6 +190,30 @@ const SpellRecord* spell_by_index(int index);
 // Print the decoded table (for eyeballing).
 void dump_spells(FILE* out);
 
+// Character-generation model: the name tables LOF.EXE uses when creating a
+// character (transcribed into port/char_names.inc; regenerate with
+// `tools/spec.py --emit-names`).  These are the choices the "add a new
+// character" flow presents, in engine order.
+constexpr size_t kSexCount = 2;
+constexpr size_t kRaceCount = 6;
+constexpr size_t kProfessionCount = 12;
+constexpr size_t kAlignmentCount = 2;
+constexpr size_t kSkillCount = 9;
+constexpr size_t kLanguageCount = 8;
+constexpr size_t kStatusCount = 8;
+
+std::vector<std::string> sex_names();
+std::vector<std::string> race_names();
+std::vector<std::string> profession_names();
+std::vector<std::string> alignment_names();
+std::vector<std::string> skill_names();
+std::vector<std::string> language_names();
+
+// Character condition labels (index 0 = "Good"): the 5-char form the status
+// line shows, and the full word (e.g. "Poisn" / "Poisoned").
+std::vector<std::string> status_short_names();
+std::vector<std::string> status_long_names();
+
 // Offsets into the 410-byte (0x19a) in-memory character struct.  ROST records
 // hold this struct at +0x01 (after the count byte) as records of 414 bytes; a
 // GAMES save holds it verbatim at +4.  The offsets below are the ones the

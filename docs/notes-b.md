@@ -255,6 +255,28 @@ their exact combat use lives in the play-loop code, so treat them as unverified)
 - The item table (above) is indexed by `shl ax,1` twice + `add` (×32), consistent
   with the max record size seen on a single stack frame.
 
+### Character-generation name tables (LOF.EXE)
+
+The "add a new character" flow's choices are baked into LOF.EXE as fixed
+tables (transcribed into `port/char_names.inc`, regenerate with
+`tools/spec.py --emit-names`; eyeball with `--names`):
+
+| table | offset | records | values |
+|-------|-------:|---------|--------|
+| sex | `0x41e28` | 2 x 12 | Female, Male |
+| race | `0x41e4a` | 6 x 12 | Human, Half-Elf, Elf, Halfling, Dwarf, Half-Orc |
+| profession | `0x41e98` | 12 x 12 | Warrior, Barbarian, Rogue, Smith, Scout, Priest, Druid, Magician, Illusionist, Paladin, Healer, Monk |
+| alignment | `0x41f28` | 2 x 12 | Lawful, Chaotic |
+| skills | `0x41d52` | 9 packed | Negotiating, Attack, Defence, Concentration, Pick-pocketing, Stalking, Trap detecting, Trap disarming, Lock picking |
+| languages | `0x41dbe` | 8 packed | Common, Animal, Orc, Lizard, Dwarven, Elven, Dark, Magic |
+| status (short) | `0x42190` | 8 x 6 | Good, Mad, Ill, Poisn, Blnd., Stun., Stone, Dead |
+| status (long) | `0x421c0` | 8 packed | Good, Mad, Ill, Poisoned, Blind, Stunned, Stoned, Dead |
+
+Exposed as `sex_names()`/`race_names()`/`profession_names()`/`alignment_names()`/
+`skill_names()`/`language_names()`/`status_short_names()`/`status_long_names()`
+with `kSexCount`..`kStatusCount`.  The 12-byte records are 11 chars + NUL
+(zero-padded between groups); the packed tables are NUL-terminated strings.
+
 ### ROST record structure (refined)
 
 The file stride is 414, but the engine treats a character as a **410-byte
@@ -289,6 +311,8 @@ rest is left as a follow-up.
 - [x] Item table (185 x 32 bytes) transcribed from LOF.EXE -> `port/char_items.inc`.
 - [x] Spell table (141 x 36 bytes) transcribed from LOF.EXE -> `port/char_spells.inc`.
 - [x] 14 SNSC classes exposed as `kClassName[]`; `item_usable_by_class()`.
+- [x] Character-generation name tables (sex/race/profession/alignment/skills/
+      languages/status) -> `port/char_names.inc` + accessors.
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
       all-present roster slots, and the save header/records/trailer.
 - [ ] Remaining B: named stat-field semantics of the SNSC 40-byte block and the

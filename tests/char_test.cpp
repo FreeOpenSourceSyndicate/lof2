@@ -244,7 +244,32 @@ static int real_data() {
     assert(spell_by_index(141) && spell_by_index(141)->name == "Drachenatem II");
     assert(spell_by_index(0) == nullptr && spell_by_index(142) == nullptr);
 
-    printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells ok\n");
+    // Character-generation name tables.
+    auto sexes = sex_names();
+    auto races = race_names();
+    auto profs = profession_names();
+    auto aligns = alignment_names();
+    auto skills = skill_names();
+    auto langs = language_names();
+    assert(sexes.size() == kSexCount && sexes[0] == "Female" && sexes[1] == "Male");
+    assert(races.size() == kRaceCount && races[0] == "Human" &&
+           races[5] == "Half-Orc");
+    assert(profs.size() == kProfessionCount && profs[0] == "Warrior" &&
+           profs[11] == "Monk");
+    assert(aligns.size() == kAlignmentCount && aligns[0] == "Lawful" &&
+           aligns[1] == "Chaotic");
+    assert(skills.size() == kSkillCount && skills[0] == "Negotiating" &&
+           skills[8] == "Lock picking");
+    assert(langs.size() == kLanguageCount && langs[0] == "Common tongue" &&
+           langs[7] == "Magic tongue");
+    auto stat_short = status_short_names();
+    auto stat_long = status_long_names();
+    assert(stat_short.size() == kStatusCount && stat_short[0] == "Good" &&
+           stat_short[3] == "Poisn" && stat_short[7] == "Dead");
+    assert(stat_long.size() == kStatusCount && stat_long[3] == "Poisoned" &&
+           stat_long[6] == "Stoned");
+
+    printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells/names ok\n");
     return 0;
 }
 

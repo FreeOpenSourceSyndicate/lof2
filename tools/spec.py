@@ -189,6 +189,73 @@ def emit_spells(exe_path, out_path):
     print(f"wrote {out_path} ({SPELL_COUNT} spells)")
 
 
+# Character-generation name tables (also only inside LOF.EXE).  The
+# sex/race/profession/alignment tables are fixed 12-byte records (11 chars +
+# NUL), zero-padded between groups; skills and languages are packed
+# variable-length NUL-terminated strings.
+SEX_OFF, SEX_N = 0x41E28, 2
+RACE_OFF, RACE_N = 0x41E4A, 6
+PROF_OFF, PROF_N = 0x41E98, 12
+ALIGN_OFF, ALIGN_N = 0x41F28, 2
+SKILL_OFF, SKILL_N = 0x41D52, 9
+LANG_OFF, LANG_N = 0x41DBE, 8
+STATUS_OFF, STATUS_N = 0x42190, 8  # short forms, 5-byte records
+STATUS_LONG_OFF = 0x421C0        # long forms, packed
+NAME_REC = 12
+
+
+def _fixed_names(d, off, n, rec=NAME_REC):
+    return [d[off + i * rec:off + i * rec + rec]
+            .split(b"\x00")[0].decode("latin1").rstrip() for i in range(n)]
+
+
+def _packed_names(d, off, n):
+    out, i = [], off
+    for _ in range(n):
+        j = d.find(b"\x00", i)
+        out.append(d[i:j].decode("latin1").rstrip())
+        i = j + 1
+    return out
+
+
+def emit_names(exe_path, out_path):
+    d = open(exe_path, "rb").read()
+    groups = [
+        ("kSexNames", _fixed_names(d, SEX_OFF, SEX_N)),
+        ("kRaceNames", _fixed_names(d, RACE_OFF, RACE_N)),
+        ("kProfessionNames", _fixed_names(d, PROF_OFF, PROF_N)),
+        ("kAlignmentNames", _fixed_names(d, ALIGN_OFF, ALIGN_N)),
+        ("kSkillNames", _packed_names(d, SKILL_OFF, SKILL_N)),
+        ("kLanguageNames", _packed_names(d, LANG_OFF, LANG_N)),
+        ("kStatusShortNames", _fixed_names(d, STATUS_OFF, STATUS_N, 6)),
+        ("kStatusLongNames", _packed_names(d, STATUS_LONG_OFF, STATUS_N)),
+    ]
+    with open(out_path, "w") as f:
+        f.write("// Legend of Faerghail character-generation name tables — "
+                "transcribed\n// from the DOS release (LOF.EXE image offsets "
+                "0x41e28/0x41e4a/0x41e98/0x41f28\n// for sex/race/profession/"
+                "alignment, 0x41d52 skills, 0x41dbe languages).\n"
+                "// Regenerate with `tools/spec.py --emit-names`.\n\n")
+        for sym, names in groups:
+            f.write("static const char* const %s[] = {\n" % sym)
+            for nm in names:
+                f.write('    "%s",\n' % c_string(nm))
+            f.write("};\n\n")
+    print(f"wrote {out_path} ({sum(len(n) for _, n in groups)} names)")
+
+
+def dump_names(exe_path):
+    d = open(exe_path, "rb").read()
+    print(f"sex      : {_fixed_names(d, SEX_OFF, SEX_N)}")
+    print(f"race     : {_fixed_names(d, RACE_OFF, RACE_N)}")
+    print(f"profession: {_fixed_names(d, PROF_OFF, PROF_N)}")
+    print(f"alignment: {_fixed_names(d, ALIGN_OFF, ALIGN_N)}")
+    print(f"skills   : {_packed_names(d, SKILL_OFF, SKILL_N)}")
+    print(f"languages: {_packed_names(d, LANG_OFF, LANG_N)}")
+    print(f"status sh: {_fixed_names(d, STATUS_OFF, STATUS_N, 6)}")
+    print(f"status lg: {_packed_names(d, STATUS_LONG_OFF, STATUS_N)}")
+
+
 def dump_shop(path):
     d = open(path, "rb").read()
     print(f"{path}: size={len(d)}")
@@ -224,6 +291,10 @@ def main():
                     help="regenerate port/char_spells.inc from LOF.EXE")
     ap.add_argument("--spells", action="store_true",
                     help="dump the LOF.EXE spell table")
+    ap.add_argument("--emit-names", action="store_true",
+                    help="regenerate port/char_names.inc from LOF.EXE")
+    ap.add_argument("--names", action="store_true",
+                    help="dump the LOF.EXE char-gen name tables")
     ap.add_argument("--nonempty", action="store_true",
                     help="only show SPEC records that carry text")
     args = ap.parse_args()
@@ -234,6 +305,10 @@ def main():
         emit_spells(os.path.join(args.dir, "LOF.EXE"), "port/char_spells.inc")
     elif args.spells:
         dump_spells(os.path.join(args.dir, "LOF.EXE"))
+    elif args.emit_names:
+        emit_names(os.path.join(args.dir, "LOF.EXE"), "port/char_names.inc")
+    elif args.names:
+        dump_names(os.path.join(args.dir, "LOF.EXE"))
     elif args.spec is not None:
         dump_spec(os.path.join(args.dir, "SYST", f"SPEC{args.spec}"),
                   args.spec, args.nonempty)
