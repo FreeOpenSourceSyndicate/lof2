@@ -36,10 +36,11 @@ struct Dungeon {
     std::vector<uint8_t> tiles;
 
     // 36x36 per-cell object records, two bytes each, in the same row-major
-    // order as `tiles`.  In practice the low byte is 0 for almost every cell
-    // and the high byte carries a small code (values overlap the tile set:
-    // 0x06, 0x07, 0x35, 0x57, ...), so it reads as a feature/decoration layer.
-    // Stored as a little-endian word; use `obj_code`/`obj_low` for the parts.
+    // order as `tiles`.  Across all 29 files the first byte is 0 for 99.2% of
+    // cells (and otherwise 1..4) while the second byte is 0 for 91% of cells
+    // (and otherwise 1..~20).  So the two bytes read as two sparse per-cell
+    // codes: a low "sub-type/index" and a high "feature/kind".  Stored as a
+    // little-endian word; use `obj_low`/`obj_code` for the two parts.
     std::vector<uint16_t> objects;
 
     inline uint8_t obj_low(int x, int y) const {

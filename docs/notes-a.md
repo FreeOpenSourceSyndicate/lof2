@@ -37,21 +37,43 @@ Known reference cells (asserted in tests/dungeon_test.cpp):
   DNG01 h1=1 field=65280  tile(0,0)=6  tile(17,17)=0
   DNG26 h1=3 field=17156  tile(0,0)=6  tile(5,6)=6
 
+## Oracle ground truth (important)
+
+The `GAMES/GAMEn` filename is built as `GAMES\GAME%3d` (printf `%3d`), so the
+file is `GAMES/GAME  1` (two spaces). The repo only shipped `GAME1`; copying
+`GAME1` -> `GAME  1` lets the game actually load a save.
+
+With `LOF_CMDLEN=3` and the menu keys `0x18` ("(O)pen file") then `0x02` ("1"),
+the emulator opens `GAMES/GAME  1` and issues, in order:
+
+```
+read 11834 bytes   (character / game state)
+read     4 bytes
+read  1296 bytes   (the map!)
+```
+
+11834 + 4 + 1296 = 13134 = the file size, and **1296 = 36*36** — the same size
+as the DNGS tile layer.  This independently confirms the 36x36 map geometry.
+The save's map region (`data[11838:11838+1296]`) is the *town* map for this
+save: mostly `6` with a small `0/2/4/5` structure, so the town map shares the
+tile-code space with the dungeons.
+
+After the save loads, the emulator does not read `DNGS/`; the loaded save starts
+in town, so reaching a dungeon needs more navigation than the current scripted
+input.  The tile-set files `EGA/D0..D7/DPnnn` (63/51 tiles each) are almost
+certainly the walls the dungeons are drawn from (D0 is the town set), but that
+mapping is unverified.
+
 ## Progress
 
 - [x] RLE scheme + fixed 3892-byte decode confirmed for all 29 files.
-- [x] 36x36 tile grid + 2-byte object records implemented (`port/dungeon.cpp`).
+- [x] 36x36 tile grid + 2-byte object records implemented (`port/dungeon.cpp`);
+      geometry cross-validated by the save-file read size (1296).
 - [x] `tools/dngs.py` explorer, `tests/dungeon_test.cpp`, wired into `make test`.
-- [ ] Identify tile code -> EGA tile (`EGA/D0..D7/DPnnn`, sizes 16x19, 16x29,
-      32x29, ...; DP001 is a 120x119 full-screen background).  These look like a
-      first-person view tileset, not a top-down map; needs oracle ground truth.
+- [x] `render_dungeon_map()` top-down renderer + `dungeon_passable()` (writes a
+      320x200 PNG via `--shot`-style `save_png`).
+- [ ] Tile code -> `EGA/Dn/DPnnn` mapping (needs oracle ground truth from a real
+      dungeon frame).
 - [ ] Object-code semantics (doors/stairs/items/traps?).
-- [ ] Draw one dungeon screen matching the oracle frame.
-
-## Oracle notes
-
-Driving the menu to a playable state is still open. A baseline run with
-`LOF_CMDLEN=3` reads, in order: DSKTAB.DFS, disk0.id, SYST/SNSC, EGA/UP/* (menu
-art + font), EGA/TWN/TWN00..05 (town), ROST/ROST, ROST/SHOP. No `DNGS/` read yet;
-reaching a dungeon needs a loaded game. `GAMES/GAME1..GAME5` (13134 bytes) are
-save files; the tail (>=11838) is a `06`-filled block, possibly an in-save map.
+- [ ] Draw one dungeon screen matching the oracle frame (blocked on reaching a
+      dungeon in the oracle).
