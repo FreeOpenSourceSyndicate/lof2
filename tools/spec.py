@@ -70,8 +70,8 @@ def dump_rost(path):
     for i in range(count):
         r = d[1 + i * ROST_REC:1 + (i + 1) * ROST_REC]
         name = cstr(r, 1, 14)
-        print(f"  [{i:2d}] present={r[0]:#04x} name={name!r} "
-              f"tail={r[410:414].hex()}")
+        tail = struct.unpack_from("<I", r, 410)[0]
+        print(f"  [{i:2d}] present={r[0]:#04x} name={name!r} tail={tail:#x}")
 
 
 def dump_shop(path):

@@ -104,11 +104,16 @@ SpecTable load_spec(const std::string& path);
 
 // --- ROST/ROST ------------------------------------------------------------
 
-// One 414-byte saved-character record.
+// One saved-character record.  The engine stores the character as a 410-byte
+// (0x19a) struct plus a 4-byte trailing word (the loader reads 410 then 4 --
+// see the `LOF_I21` trace of the town scenario and `imul [bp..],0x19a` in the
+// disassembly); in the file the two are contiguous, so the stride is 414.
 struct RostRecord {
     std::array<uint8_t, kRostRecordSize> raw{};
     uint8_t present = 0;   // 0x00  non-zero: slot holds a character
     std::string name;      // 0x01  NUL-terminated name (<= 14 bytes)
+    uint32_t tail = 0;     // 410..413  trailing 32-bit value (split from the
+                           //           410-byte struct by the loader)
 };
 
 // Load ROST/ROST (count byte + N x 414-byte records).
