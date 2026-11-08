@@ -123,6 +123,10 @@ static int real_data() {
     assert(t.records[0].text_a == "He shakes his head.");
     assert(t.records[0].text_b.rfind("A Woodkeeper plants himself", 0) == 0);
     assert(t.records[0].type == SPEC_TYPE_RECRUIT);
+    // +0xeb is a rarely-set SNSC class index (0xff = none); SPEC0[8] sets it to
+    // 2 (Ihl Kazar) and the engine reads SNSC stats[0x0a] for that class.
+    assert(t.records[8].class_eb == 2 && t.records[8].has_class());
+    assert(t.records[0].class_eb == 0xff && !t.records[0].has_class());
 
     // SPEC0[15..18] are the four elemental guardians (type 25); the engine's
     // 0x19 handler reads index_c9 (+0xc9) to pick which one.  The observed

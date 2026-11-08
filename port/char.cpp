@@ -64,6 +64,7 @@ bool parse_spec(const std::vector<uint8_t>& data, SpecTable& out) {
         rec.counter = rd16(r + 0xe4);
         rec.arg_e6 = rd16(r + 0xe6);
         rec.arg_e8 = rd16(r + 0xe8);
+        rec.class_eb = r[0xeb];
 
         out.records.push_back(std::move(rec));
     }
@@ -170,9 +171,10 @@ void dump_spec(std::FILE* out, const SpecTable& t, const char* label) {
     for (size_t i = 0; i < t.records.size(); i++) {
         const SpecRecord& r = t.records[i];
         std::fprintf(out,
-                     "  [%3zu] type=%-3u (%-11s) idx=%02x arg4c=%u arg4e=%d cnt=%u\n",
+                     "  [%3zu] type=%-3u (%-11s) idx=%02x cls=%02x arg4c=%u "
+                     "arg4e=%d cnt=%u\n",
                      i, (unsigned)r.type, spec_type_name(r.type), r.index_c9,
-                     r.arg_4c, r.arg_4e, r.counter);
+                     r.class_eb, r.arg_4c, r.arg_4e, r.counter);
         if (!r.text_a.empty()) std::fprintf(out, "        a: %s\n", r.text_a.c_str());
         if (!r.text_b.empty()) std::fprintf(out, "        b: %s\n", r.text_b.c_str());
     }
