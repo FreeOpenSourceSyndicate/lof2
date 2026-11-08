@@ -3,4 +3,4 @@
 # (Agent A — dungeons) DNGS decoder.
 LOCAL_TEST_CMDS = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port \
     -o dungeon_test tests/dungeon_test.cpp port/dungeon.cpp port/gfx.cpp && \
-    ./dungeon_test game/DNGS
+    ./dungeon_test game/DNGS; rc=$$?; rm -f dungeon_test; exit $$rc
