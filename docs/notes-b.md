@@ -24,6 +24,13 @@ plausible fields (verify against the emulator's reads with `LOF_I21=1` +
 
 - (start) Game data restored via `./bootstrap.sh`. Workstream B is unclaimed:
   no `port/char.*`, no `tests/char_test.cpp`, no `work/*` branch, no open PR.
+- (2026-11-08, branch `work/agent-b-items`) Decoded the character attribute
+  block `+0x44..+0x48` and the level field `+0x17` from the sheet builder
+  (`0x2676E`) and the training/level-up routines (`0x9144`, `0x95B0`), resolving
+  the earlier `+0x46` "level vs Dexterity" conflict: `+0x46` is **Dexterity**,
+  the level is `+0x17`.  Extended `CharSheet`/`CharOffset` in `port/char.{h,cpp}`,
+  added `decode_char` coverage + a synthetic projection test in `char_test`, and
+  taught `tools/spec.py --save` to print the attributes.  `make test` passes.
 
 ## Format findings (from data + `analysis/lof.asm`)
 
@@ -195,7 +202,10 @@ this; `tools/spec.py --save GAME1` dumps it.
 ### 410-byte character struct — grounded offsets
 
 The character-init / erase routines (`analysis/lof.asm` `1B95A`..`1BA8E`, over
-the array `es:[0x30]` with the usual `imul …,0x19a`) read/write these directly:
+the array `es:[0x30]` with the usual `imul …,0x19a`) read/write these directly.
+The attribute block and level field are grounded independently in the character
+**sheet builder** (`0x2676E`) and the **training/level-up** routines
+(`0x9144`, `0x95B0`):
 
 | off | size | note |
 |----:|-----:|------|
@@ -203,12 +213,43 @@ the array `es:[0x30]` with the usual `imul …,0x19a`) read/write these directly
 | 0x01 | 14 | NUL-terminated name |
 | 0x10 | word | erase pass runs only when `!= -1`; **live** chars carry `-1` |
 | 0x12 | word | paired with 0x10 (`> 0`); cleared with the slot |
-| 0x1d | byte | set to `0x0a`, overridden to `5*level46-0x41+1` when `level46>0x0f` |
-| 0x46 | byte | clamped/derived stat driving 0x1d |
+| 0x17 | byte | **level / rank**; level-up does `inc es:[bx+si+0x17]` (0x9144) then prints "X enters the %ld rank." (DS:0x4ea6); sheet prints it under "Rnk " |
+| 0x18 | byte | class flag: 1 PC / 2 monster (SNSC seed) |
+| 0x1c | byte | base stat 45..75 (SNSC seed) |
+| 0x1d | byte | set to `0x0a`, overridden to `5*dex46-0x41` when `dex46>0x0f` (1BA40) |
+| 0x1e | byte | body stat `100 - rec[0x2d]` (SNSC seed) |
+| 0x20 | word | maximum hit points |
+| 0x22 | word | current hit points |
+| 0x44 | byte | **Constitution** |
+| 0x45 | byte | **Strength** |
+| 0x46 | byte | **Dexterity** |
+| 0x47 | byte | **Intelligence** |
+| 0x48 | byte | **Wisdom** |
+| 0x56 | byte | speed 1..4 (SNSC seed) |
 
-Exposed as `CharOffset` in `port/char.h`; `char_test` asserts them on a save.
-The rest of the struct (the play-loop stat view at `es:[bx+0x27xx]`) is only
-reachable from the main loop and is left to the maintainer.
+**Attribute block (`+0x44..+0x48`) — this corrects an earlier note that called
+`+0x46` "level".** `+0x46` is **Dexterity**, not level; the level is `+0x17`.
+Evidence (all in `analysis/lof.asm`, cross-checked against raw EXE bytes):
+
+- The sheet builder copies the 410-byte struct onto its stack (`repne movsw`
+  0xcd words at `2679D`), so `[bp-0x19e+off]` *is* char field `+off`.  It then
+  prints, in order: "Str " (`+0x45`), "Con " (`+0x44`), "Dex " (`+0x46`),
+  "Int " (`+0x47`), "Wis " (`+0x48`) — each followed by its `%02d` value read
+  from exactly that stack slot.
+- The training routine (`0x95B0`..) increments `+0x45` for "Strength improves!",
+  `+0x46` for "Dexterity improves!", `+0x48` for "Wisdom improves!".  There is
+  no "Level improves!" string (level is raised by the `inc +0x17` at `0x9144`).
+- The Con→HP bonus in the char-init pass (`0x856D`..`0x85AD`) reads `+0x44`
+  (`Con > 14` adds `Con-14` HP; the `+0x17` read just above it is doubled for
+  HP).  `+0x17` is the level, `+0x1f` gates the bonus (0 = a player character).
+
+Exposed as `CharOffset` + `CharSheet` in `port/char.h`; `char_test` asserts them
+on a save and on a synthetic struct.  The rest of the struct (the play-loop
+stat view at `es:[bx+0x27xx]`) is only reachable from the main loop and is left
+to the maintainer.
+
+The sample save `GAMES/GAME1` reads cleanly: Decker rnk 1 / Con 14 / Str 19 /
+Dex 14 / Int 12 / Wis 15; Siegurd (the un-rolled template) is all zeros.
 
 ### Item table (transcribed from LOF.EXE) — new
 
