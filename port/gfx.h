@@ -58,10 +58,6 @@ struct EgaImage {
 // Load and RLE-decompress an EGA/*.image file. Returns false on error.
 bool load_ega_image(const std::string& path, EgaImage& out, std::string* err = nullptr);
 
-// The 16-entry EGA/CGA-compatible RGB palette used when the game does not
-// reprogram the attribute controller.
-extern const uint8_t kEgaPalette[16][3];
-
 // Draw `img` onto `scr` at (dx,dy) using colour `idx` for every set pixel.
 // (The game's blitter draws single-colour masks; the full-colour compositing of
 // multi-plane images is handled by blit_image below.)

@@ -18,21 +18,20 @@ void rgb_from_attr(uint8_t attr, uint8_t* rgb) {
     rgb[2] = (uint8_t)(((attr >> 0) & 1) * 170 + ((attr >> 3) & 1) * 85);  // B
 }
 
-// Standard EGA 16-colour palette (RGB triples), 0..15 — the default palette the
-// BIOS programs at mode set (index 6 = brown, 8 = dark gray).
-const uint8_t kEgaPalette[16][3] = {
-    {0x00, 0x00, 0x00}, {0x00, 0x00, 0xAA}, {0x00, 0xAA, 0x00}, {0x00, 0xAA, 0xAA},
-    {0xAA, 0x00, 0x00}, {0xAA, 0x00, 0xAA}, {0xAA, 0x55, 0x00}, {0xAA, 0xAA, 0xAA},
-    {0x55, 0x55, 0x55}, {0x55, 0x55, 0xFF}, {0x55, 0xFF, 0x55}, {0x55, 0xFF, 0xFF},
-    {0xFF, 0x55, 0x55}, {0xFF, 0x55, 0xFF}, {0xFF, 0xFF, 0x55}, {0xFF, 0xFF, 0xFF},
-};
+// The palette the game programs at start-up via INT 10h AH=10h AL=02h.  LOF
+// remaps attribute indices 0..7 to the low-intensity colour set and 8..15 to
+// the same eight hues at high intensity (index 6 becomes yellow, not brown, and
+// index 8 dark green, not dark gray), so the stock EGA/BGI palette renders the
+// menu, town and intro in the wrong colours.
+//
+// The eight selectors are the low-intensity hues black/blue/green/cyan/
+// red/magenta/brown/gray; index i>=8 selects the same hue at double intensity.
+// These are the values LOF writes (the tracer at INT 10h AH=10h AL=02h shows
+// data 00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17).
+static uint8_t game_attr(int i) { return (uint8_t)(i < 8 ? i : i + 8); }
 
 Palette::Palette() {
-    for (int i = 0; i < 16; i++) {
-        rgb[i][0] = kEgaPalette[i][0];
-        rgb[i][1] = kEgaPalette[i][1];
-        rgb[i][2] = kEgaPalette[i][2];
-    }
+    for (int i = 0; i < 16; i++) rgb_from_attr(game_attr(i), rgb[i]);
 }
 
 // Image header (11 bytes): escape byte, 0x1234 magic, width (word),
