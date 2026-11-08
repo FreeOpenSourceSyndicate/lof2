@@ -232,6 +232,14 @@ static int real_data() {
     assert(item_usable_by_class(33, 0) && item_usable_by_class(33, 9));
     assert(!item_usable_by_class(33, 4));  // not the Dragon
     assert(!item_usable_by_class(0, 0) && !item_usable_by_class(186, 0));
+    // Use-effect names + reverse lookup by effect value.
+    assert(std::string(item_effect_name(0)) == "none");
+    assert(std::string(item_effect_name(10)) == "healing");
+    assert(std::string(item_effect_name(255)) == "none");
+    auto heals = items_with_effect(10);
+    assert(heals.size() == 1 && it[heals[0]].name == "Healing potion");
+    assert(items_with_effect(10)[0] == 0x2e);
+    assert(items_with_effect(200).empty());
 
     // Spell table (141 x 36 bytes, also transcribed from LOF.EXE).
     const auto& sp = spells();
