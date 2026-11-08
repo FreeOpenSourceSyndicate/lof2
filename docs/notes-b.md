@@ -293,6 +293,12 @@ and is left un-named.
   likely a power/spell level), byte 11 is 2/3, byte 12 is a target flag
   (0 self/buff, 1 single, 2 area) and byte 13 is a modifier.  Their exact use is
   in the play loop, so only the layout is asserted.
+  **data byte 8 is a spell-effect code**: grouping all 141 spells by it gives
+  clean families (`0x0f` = the seven heal spells, `0x02` = light, `0x04` =
+  paralyse, `0x0c` = fear, `0x0e` = summon elemental, `0x37` = map, `0x3e` =
+  enchant, `0x00` = plain damage), so it is the id the play loop switches on.
+  Exposed as `spell_effect_name(code)` / `spells_with_effect(code)` (labels are
+  descriptive, derived from the grouped spell names).
 - The item table (above) is indexed by `shl ax,1` twice + `add` (×32), consistent
   with the max record size seen on a single stack frame.
 
@@ -388,6 +394,10 @@ scenarios 0..9 have a single-digit file name.)
       lower alignments, padded/abbrev profession columns, actions, morale).
 - [x] Monster rosters (`SYST/NSC0n`) exposed via `monster_names()` (reuses
       `load_nsc`).
+- [x] Scenario titles + combat abbreviations (`scenario_names()`,
+      `combat_abbrev_names()`).
+- [x] Item use-effect names (`item_effect_name()`, `items_with_effect()`).
+- [x] Spell effect codes (`spell_effect_name()`, `spells_with_effect()`).
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
       all-present roster slots, and the save header/records/trailer.
 - [ ] Remaining B: named stat-field semantics of the SNSC 40-byte block and the

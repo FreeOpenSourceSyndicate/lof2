@@ -302,10 +302,73 @@ const SpellRecord* spell_by_index(int index) {
     return &spells()[index - 1];
 }
 
+const char* spell_effect_name(uint8_t code) {
+    switch (code) {
+        case 0x00: return "damage";
+        case 0x02: return "light";
+        case 0x03: return "missile";
+        case 0x04: return "paralyse";
+        case 0x05: return "entangle";
+        case 0x06: return "confuse";
+        case 0x07: return "haste";
+        case 0x08: return "mind";
+        case 0x09: return "detect";
+        case 0x0a: return "slow";
+        case 0x0b: return "feeblemind";
+        case 0x0c: return "fear";
+        case 0x0d: return "alter";
+        case 0x0e: return "summon elemental";
+        case 0x0f: return "healing";
+        case 0x10: return "petrify";
+        case 0x11: return "turn undead";
+        case 0x12: return "silence";
+        case 0x13: return "cure poison";
+        case 0x14: return "remove curse";
+        case 0x15: return "holy";
+        case 0x16: return "summon warrior";
+        case 0x17: return "earthquake";
+        case 0x19: return "protection";
+        case 0x23: return "animal friendship";
+        case 0x24: return "friendship";
+        case 0x25: return "summon woodkeeper";
+        case 0x27: return "critical";
+        case 0x28: return "colour spray";
+        case 0x29: return "polymorph";
+        case 0x2b: return "illusion";
+        case 0x2c: return "phantom";
+        case 0x2d: return "cure blindness";
+        case 0x2e: return "cure poison";
+        case 0x2f: return "refresh";
+        case 0x30: return "cure illness";
+        case 0x31: return "shelter";
+        case 0x33: return "restoration";
+        case 0x34: return "magic shield";
+        case 0x36: return "open locks";
+        case 0x37: return "map";
+        case 0x38: return "disarm traps";
+        case 0x39: return "permanent light";
+        case 0x3a: return "invisibility";
+        case 0x3d: return "disrupt";
+        case 0x3e: return "enchant";
+        case 0x3f: return "titan's fist";
+        default: return "special";
+    }
+}
+
+std::vector<size_t> spells_with_effect(uint8_t code) {
+    std::vector<size_t> out;
+    const auto& v = spells();
+    for (size_t i = 0; i < v.size(); i++)
+        if (v[i].data[kSpellEffectByte] == code) out.push_back(i);
+    return out;
+}
+
 void dump_spells(std::FILE* out) {
     const auto& v = spells();
     for (size_t i = 0; i < v.size(); i++) {
-        std::fprintf(out, "[%3zu] %-22s", i, v[i].name.c_str());
+        std::fprintf(out, "[%3zu] %-22s eff=%02x (%-16s)", i, v[i].name.c_str(),
+                     v[i].data[kSpellEffectByte],
+                     spell_effect_name(v[i].data[kSpellEffectByte]));
         for (uint8_t b : v[i].data) std::fprintf(out, " %02x", b);
         std::fputc('\n', out);
     }
