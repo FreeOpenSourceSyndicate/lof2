@@ -40,6 +40,29 @@ can observe behaviour and produce a decompilation (`tools/decompile.py`,
 
 ## Data formats
 
+### Which release is used (and why)
+
+`Legend of Faerghail` was developed by Electronic Design Hannover and published
+by reLINE Software (both German) in 1990 for Amiga, Atari ST and MS-DOS. The
+task asks for a German DOS build if one exists, otherwise the international one.
+Research (Internet Archive software search, Wikipedia/OGDB, abandonware mirrors)
+found **no separate German DOS release**: every archived MS-DOS dump is the
+English build, and the game was shipped internationally with English text (the
+manual even notes translation errors). We therefore use the international
+MS-DOS release, which is what the drop-in targets.
+
+Three archives were obtained and are kept under `downloads/` (git-ignored):
+
+- `lof_msdos.zip` — "Legend of Faerghail (1990)", the 5.25" MS-DOS build
+  (extracted to `downloads/ext_msdos/legfaer`). This is the copy the drop-in is
+  developed against.
+- `lof_35.zip` — the 3.5" MS-DOS build (`downloads/ext_35/3.5/DISK0{1,2,3}.IMG`).
+- `lof_ark.zip` — the same 5.25" build from the DOS Abandonware Ark.
+
+The extracted game folder (`game/`) holds `LOF.EXE`, `VOR.EXE` and the data
+directories the drop-in reads. The `.EXE`s are only ever run by the analysis
+emulator; the shipped `lof`/`vor` do not use them.
+
 ### EGA image files (`EGA/**`) — decoded, see `tools/ega.py`
 
 All `EGA` files are RLE-compressed 4-plane EGA images:
