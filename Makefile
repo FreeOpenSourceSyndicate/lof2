@@ -47,6 +47,12 @@ lof: port/lof.cpp port/gfx.cpp port/data.cpp port/gfx.h port/data.h
 vor: port/vor.cpp port/gfx.cpp port/gfx.h
 	$(CXX) $(PORT_CFLAGS) -o $@ port/vor.cpp port/gfx.cpp $(PORT_LIBS)
 
+# Regenerate the annotated disassembly listings (needs lof-native for the
+# LZEXE-unpacked VOR payload).
+asm: lof-native
+	python3 tools/decompile.py lof
+	python3 tools/decompile.py vor
+
 # Install the native drop-in into the game folder under the names START.BAT uses.
 dropin: lof vor
 	cp lof game/lof
@@ -55,4 +61,4 @@ dropin: lof vor
 clean:
 	rm -f lof-native cpu_test lof vor port/*.o
 
-.PHONY: all headless test dropin port clean
+.PHONY: all headless test asm dropin port clean

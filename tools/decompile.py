@@ -247,8 +247,8 @@ def decompile(image, base0, ip0, name, out):
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in ('lof', 'vor', 'vorlin'):
-        raise SystemExit('usage: decompile.py {lof|vor|vorlin} [outfile]')
+    if len(sys.argv) < 2 or sys.argv[1] not in ('lof', 'vor', 'vorstub'):
+        raise SystemExit('usage: decompile.py {lof|vor|vorstub} [outfile]')
     which = sys.argv[1]
     path = os.path.join(ROOT, 'game', 'LOF.EXE' if which == 'lof' else 'VOR.EXE')
     outpath = sys.argv[2] if len(sys.argv) > 2 else \
@@ -260,13 +260,13 @@ def main():
         base = m['cs'] << 4
         ip = m['ip']
         name = 'LOF.EXE (main game)'
-    elif which == 'vor':
+    elif which == 'vorstub':
         m = load_mz(path)
         image = m['image']
         base = m['cs'] << 4
         ip = m['ip']
         name = 'VOR.EXE (LZEXE stub)'
-    else:  # vorlin: linear sweep of the LZEXE-unpacked payload
+    else:  # vor: linear sweep of the LZEXE-unpacked payload
         import tempfile, subprocess
         exe = os.path.join(ROOT, 'lof-native')
         fd, dump = tempfile.mkstemp(prefix='vor_ram_', suffix='.bin')
