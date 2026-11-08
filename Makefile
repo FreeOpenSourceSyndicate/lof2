@@ -28,6 +28,19 @@ test: tests/cpu_test.cpp src/cpu.cpp src/ega.cpp src/machine.cpp src/emu.h tests
 	./cpu_test
 	$(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port -o font_test tests/font_test.cpp port/font.cpp port/gfx.cpp
 	./font_test
+	@$(MAKE) --no-print-directory local-test
+
+# --- Per-agent tests -------------------------------------------------------
+# Agents add their own test commands to tests/local.mk (which they own) instead
+# of editing this Makefile.  LOCAL_TEST_CMDS is a list of shell commands.
+-include tests/local.mk
+LOCAL_TEST_CMDS ?=
+local-test:
+	@$(LOCAL_TEST_CMDS)
+
+# Health check: repo name, poison guard, build, tests, git hygiene.
+check:
+	./check.sh
 
 # --- Native drop-in (the deliverable) -------------------------------------
 # These binaries re-implement the engine and read the game data files; they do
@@ -63,4 +76,4 @@ dropin: lof vor
 clean:
 	rm -f lof-native cpu_test lof vor port/*.o
 
-.PHONY: all headless test asm dropin port clean
+.PHONY: all headless test asm dropin port clean check local-test

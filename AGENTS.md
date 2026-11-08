@@ -1,5 +1,10 @@
 # AGENTS.md — Legend of Faerghail native drop-in
 
+> **New here? Read `docs/HANDOFF.md` first, then `docs/RISKS.md`, then
+> `docs/WORKSTREAMS.md`.** They cover how to survive a workspace reset, how to
+> avoid the poisoned sibling repo, and which files you own. This file is the
+> deep technical reference.
+
 ## Goal
 
 Play the 1990 DOS RPG *Legend of Faerghail* (reLINE Software) natively on Ubuntu
@@ -67,11 +72,13 @@ emulator; the shipped `lof`/`vor` do not use them.
 
 All `EGA` files are RLE-compressed 4-plane EGA images:
 
-    off 0 : escape byte (RLE marker; stream starts at off 7)
-    off 1 : 0x1234 magic (word)          <- the loader tests `cmp [si],0x1234`
-    off 3 : width in bytes per row (word)  -> pixel width = width*8
-    off 5 : height in rows (word)
-    off 7 : RLE stream
+    off 0  : escape byte (RLE marker; the stream starts right after the header)
+    off 1  : 0x1234 magic (word)          <- the loader tests `cmp [si],0x1234`
+    off 3  : width in bytes per row (word)  -> pixel width = width*8
+    off 5  : height in rows (word)
+    off 7  : decompressed size + 10 (word)
+    off 9  : 2 reserved bytes
+    off 11 : RLE stream
 
 RLE: literal bytes copy through; the escape byte introduces a (count, value)
 pair emitting `value` repeated `count` times. The decoded buffer is four EGA
@@ -303,3 +310,19 @@ Reference frames used during development live in `/tmp/native/` (ephemeral) and
   every file in `EGA/`.  Font cells are indexed from 0 (band 0 = `A-Z` then
   `0-9`; band 1 = `a-z`).  Some images (`IN/DRAG`, `IN/CRED`) end early and the
   rest of the planes are implicitly zero — pad before blitting.
+- DOS INT 21h **AH=4Ah must actually resize** the block at ES:BX.  LOF's .EXE
+  prologue shrinks its own program block to 0x4C92 paragraphs, then calls
+  AH=48h; if AH=4Ah is a no-op the bump allocator hands back memory *inside*
+  LOF's block (below its stack), and LOF's `rep stosw` zeroes the return address
+  on the stack, so a `RETF` jumps to 0000:0000 and the game dies right after the
+  SNSC load.  AH=4Ah sets `alloc_free` to the shrunk block end; AH=48h then
+  returns memory above the stack, as real DOS does.  Covered by the emulator
+  booting LOF to the main menu.
+
+## Dungeon files (`DNGS/`) — partial
+
+`DNGS/DNG00`..`DNGxx` are RLE-compressed (escape `0xff`, same run idea as the EGA
+images but a different header).  Interior values are small codes (`00 03 06 0c`)
+consistent with per-cell tile/feature codes.  See `docs/WORKSTREAMS.md` for the
+decode task; ground-truth against the emulator's reads of `DNGS/` (`LOF_I21=1`)
+and the EGA planes (`LOF_EDUMP=`).
