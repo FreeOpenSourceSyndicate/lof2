@@ -57,9 +57,12 @@ plausible fields (verify against the emulator's reads with `LOF_I21=1` +
 
 ### `ROST/SHOP` — 190 bytes
 
-- Byte 0 = 0; bytes 1..45 = 45 **signed** adjustment values (`-1..-10`),
-  probably a per-item price/availability table; then zero padding; last word
-  `0x1606` at offset 186.
+- Byte 0 = 0 header, then **185 signed bytes, one per item in item-table order**
+  (the engine reads 186 then 4; the first 33 line up exactly with the item
+  classes: Club `-10`, War scythe `-2`, … Full plate `-8`, Small shield `-1`).
+  Values are in `-1..-10` (Club alone is `-10`), so it is a per-item shop
+  adjustment / availability table; the rest are `0`.
+- Last word `0x1606` at offset 186 (the separately-read 4-byte trailer).
 
 ### Progress
 

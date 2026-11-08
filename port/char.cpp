@@ -120,13 +120,12 @@ ShopData load_shop(const std::string& path) {
     ShopData s;
     std::vector<uint8_t> d = read_file(path);
     if (d.empty()) return s;
-    // Byte 0 is a zero header; bytes 1..45 are signed adjustments.
-    size_t n = d.size() > 46 ? 45 : (d.size() > 1 ? d.size() - 1 : 0);
-    s.adjustments.reserve(n);
-    for (size_t i = 0; i < n; i++) s.adjustments.push_back((int8_t)d[1 + i]);
-    // The file ends with a 16-bit value (0x1606 in this release) followed by
-    // two zero bytes.
-    if (d.size() >= 4) s.trailing = rd16(d.data() + d.size() - 4);
+    // Byte 0 is a header (zero in this release); the next 185 bytes are one
+    // signed adjustment per item, parallel to the item table order (the engine
+    // reads 186 then 4).  The file ends with a 16-bit trailer word.
+    if (d.size() < 1 + kItemCount) return s;
+    for (size_t i = 0; i < kItemCount; i++) s.adjustments[i] = (int8_t)d[1 + i];
+    if (d.size() >= 4) s.trailer = rd16(d.data() + d.size() - 4);
     s.ok = true;
     return s;
 }

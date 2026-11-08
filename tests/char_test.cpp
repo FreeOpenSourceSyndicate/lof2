@@ -177,10 +177,12 @@ static int real_data() {
 
     ShopData shop = load_shop(std::string(dir) + "/ROST/SHOP");
     assert(shop.ok);
-    assert(shop.adjustments.size() == 45);
-    assert(shop.adjustments[0] == -10);
-    assert(shop.adjustments[1] == -2);
-    assert(shop.trailing == 0x1606);
+    // One signed adjustment per item, parallel to the item table order.
+    assert(shop.adjustments[0] == -10);   // Club
+    assert(shop.adjustments[1] == -2);    // War scythe
+    assert(shop.adjustments[12] == -1);   // Short sword
+    assert(shop.adjustments[32] == -8);   // Full plate
+    assert(shop.trailer == 0x1606);
 
     // Saved games ("gamestandings"): header 0x00 'F' 'O' 'L' + 410-byte
     // character records.  The engine opens GAMES\GAME%d (string in LOF.EXE).
