@@ -211,6 +211,8 @@ ACTION_OFF, ACTION_N = 0x42204, 5           # 12-byte records
 MORALE_OFF, MORALE_N, MORALE_REC = 0x423F8, 5, 13
 COMBAT_ABBR_OFF, COMBAT_ABBR_N, COMBAT_ABBR_REC = 0x421F0, 4, 5
 SCENARIO_OFF, SCENARIO_N, SCENARIO_REC = 0x42240, 8, 22  # maps scenario idx
+FACING_OFF, FACING_N, FACING_REC = 0x422F0, 4, 22   # compass heading line
+TIMEOFDAY_OFF, TIMEOFDAY_N, TIMEOFDAY_REC = 0x42348, 8, 22  # clock line
 NAME_REC = 12
 
 
@@ -252,6 +254,10 @@ def emit_names(exe_path, out_path):
          _fixed_names(d, COMBAT_ABBR_OFF, COMBAT_ABBR_N, COMBAT_ABBR_REC)),
         ("kScenarioNames",
          _fixed_names(d, SCENARIO_OFF, SCENARIO_N, SCENARIO_REC)),
+        ("kFacingNames",
+         _fixed_names(d, FACING_OFF, FACING_N, FACING_REC)),
+        ("kTimeOfDayNames",
+         _fixed_names(d, TIMEOFDAY_OFF, TIMEOFDAY_N, TIMEOFDAY_REC)),
     ]
     with open(out_path, "w") as f:
         f.write("// Legend of Faerghail character-generation name tables — "
@@ -299,6 +305,44 @@ def dump_spells(exe_path):
         print(f"  [{i:3d}] {nm:22s} {r[SPELL_NAME:].hex(' ')}")
 
 
+def dump_sns(path):
+    """Dump an SNSC/NSC file (78-byte records) and the stats-block -> character
+    seed mapping decoded from analysis/lof.asm 1DA8E..1DCBB."""
+    d = open(path, "rb").read()
+    if not d:
+        print(f"{path}: empty")
+        return
+    # SNSC is 14 bare 78-byte records (no count byte: 1092 = 14*78); NSCnn is a
+    # count byte followed by that many records (1951 = 1 + 25*78).
+    if len(d) % 78 == 0:
+        base, count = 0, len(d) // 78
+    else:
+        base, count = 1, d[0]
+    print(f"{path}: count={count} stride=78")
+    # record-relative offset -> (char offset, transform)
+    fields = [
+        (0x4c, "+0x18", "copy", "class flag (1 PC / 2 monster)"),
+        (0x2e, "+0x1c", "copy", "base stat"),
+        (0x2d, "+0x1e", "100-n", "body stat"),
+        (0x2d, "+0x1d", "100-n", "seed (overridden by level routine)"),
+        (0x36, "+0x56", "copy", "speed"),
+        (0x2a, "+0x7a+n", "set 2", "seed-slot index"),
+    ]
+    for i in range(count):
+        r = d[base + i * 78:base + i * 78 + 78]
+        if len(r) < 78:
+            break
+        sing = r[0:19].split(b"\x00")[0].decode("latin1")
+        plur = r[19:38].split(b"\x00")[0].decode("latin1")
+        print(f"  [{i:2d}] {sing!r}/{plur!r} stats={r[38:78].hex(' ')}")
+        parts = []
+        for off, ch, tf, _ in fields:
+            v = r[off]
+            out = (100 - v) & 0xFF if tf == "100-n" else v
+            parts.append(f"rec[{off:#x}]={v}->{ch}={out}")
+        print(f"        seed: " + "  ".join(parts))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default="game")
@@ -318,6 +362,9 @@ def main():
                     help="regenerate port/char_names.inc from LOF.EXE")
     ap.add_argument("--names", action="store_true",
                     help="dump the LOF.EXE char-gen name tables")
+    ap.add_argument("--sns", default=None,
+                    help="dump an SNSC/NSC file and its character-seed mapping "
+                         "(e.g. SNSC or NSC00)")
     ap.add_argument("--nonempty", action="store_true",
                     help="only show SPEC records that carry text")
     args = ap.parse_args()
@@ -332,6 +379,8 @@ def main():
         emit_names(os.path.join(args.dir, "LOF.EXE"), "port/char_names.inc")
     elif args.names:
         dump_names(os.path.join(args.dir, "LOF.EXE"))
+    elif args.sns:
+        dump_sns(os.path.join(args.dir, "SYST", args.sns))
     elif args.spec is not None:
         dump_spec(os.path.join(args.dir, "SYST", f"SPEC{args.spec}"),
                   args.spec, args.nonempty)

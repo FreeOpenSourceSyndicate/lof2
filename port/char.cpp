@@ -52,6 +52,7 @@ bool parse_spec(const std::vector<uint8_t>& data, SpecTable& out) {
         SpecRecord rec;
         std::memcpy(rec.raw.data(), r, kSpecRecordSize);
 
+        rec.keyword = cstr(r + 0x00, 0x0e);
         rec.text_a = cstr(r + 0x0e, 0x4a - 0x0e);
         rec.text_b = cstr(r + 0x50, 0xc6 - 0x50);
 
@@ -175,6 +176,7 @@ void dump_spec(std::FILE* out, const SpecTable& t, const char* label) {
                      "arg4e=%d cnt=%u\n",
                      i, (unsigned)r.type, spec_type_name(r.type), r.index_c9,
                      r.class_eb, r.arg_4c, r.arg_4e, r.counter);
+        if (!r.keyword.empty()) std::fprintf(out, "        kw: %s\n", r.keyword.c_str());
         if (!r.text_a.empty()) std::fprintf(out, "        a: %s\n", r.text_a.c_str());
         if (!r.text_b.empty()) std::fprintf(out, "        b: %s\n", r.text_b.c_str());
     }
@@ -426,6 +428,12 @@ std::vector<std::string> combat_abbrev_names() {
 std::vector<std::string> scenario_names() {
     return to_vec(kScenarioNames, kScenarioCount);
 }
+std::vector<std::string> facing_names() {
+    return to_vec(kFacingNames, kFacingCount);
+}
+std::vector<std::string> time_of_day_names() {
+    return to_vec(kTimeOfDayNames, kTimeOfDayCount);
+}
 
 std::vector<std::string> monster_names(const std::string& dir, int scenario) {
     std::vector<std::string> out;
@@ -434,6 +442,44 @@ std::vector<std::string> monster_names(const std::string& dir, int scenario) {
     std::snprintf(path, sizeof(path), "%s/SYST/NSC0%d", dir.c_str(), scenario);
     for (const SnsRecord& r : load_nsc(path)) out.push_back(r.singular);
     return out;
+}
+
+CharSeed sns_char_seed(const SnsRecord& rec) {
+    CharSeed s;
+    s.c18 = rec.stats[kSnsClass4c - 38];
+    s.c1c = rec.stats[kSnsBody2e - 38];
+    s.c1d = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);
+    s.c1e = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);
+    s.c56 = rec.stats[kSnsSpeed36 - 38];
+    s.c7a_index = rec.stats[kSnsIndex2a - 38];
+    return s;
+}
+
+int CharSheet::hp_percent() const {
+    if (hp_max == 0) return 0;
+    return 100 * hp_cur / hp_max;   // integer division, as the sheet builder does
+}
+
+uint8_t char_stat1d_from_level(uint8_t level) {
+    if (level < 16) return 10;
+    return (uint8_t)(5 * level - 65);   // 1BA40: 5*level - 0x41
+}
+
+CharSheet decode_char(const uint8_t* raw) {
+    CharSheet c;
+    c.present = raw[kCharPresent];
+    c.name = cstr(raw + kCharName, 14);
+    c.flags10 = (int16_t)rd16(raw + kCharFlags10);
+    c.counter12 = (int16_t)rd16(raw + kCharCounter12);
+    c.class18 = raw[kCharClass18];
+    c.base1c = raw[kCharBase1c];
+    c.stat1d = raw[kCharStat1d];
+    c.stat1e = raw[kCharStat1e];
+    c.hp_max = (int16_t)rd16(raw + kCharHpMax20);
+    c.hp_cur = (int16_t)rd16(raw + kCharHpCur22);
+    c.level46 = raw[kCharLevel46];
+    c.speed56 = raw[kCharSpeed56];
+    return c;
 }
 
 }  // namespace lofport
