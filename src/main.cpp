@@ -276,14 +276,32 @@ int main(int argc, char** argv) {
                 cpu_step(m.cpu);
                 if (getenv("LOF_CSCHG")) {
                     static uint16_t prev_cs = 0xFFFF;
+                    static uint16_t prev_ss = 0xFFFF;
                     if (m.cpu.cs != prev_cs) {
                         fprintf(stderr, "CSCHG %08u -> %04X:%04X (from %04X:%04X) ax=%04X bx=%04X cx=%04X dx=%04X si=%04X di=%04X bp=%04X sp=%04X\n",
                             m.instr_count, m.cpu.cs, m.cpu.ip, prev_cs, m.cpu.ip, m.cpu.ax, m.cpu.bx, m.cpu.cx,
                             m.cpu.dx, m.cpu.si, m.cpu.di, m.cpu.bp, m.cpu.sp);
                         prev_cs = m.cpu.cs;
                     }
+                    if (m.cpu.ss != prev_ss) {
+                        fprintf(stderr, "SSCHG %08u ss=%04X sp=%04X cs:ip=%04X:%04X ax=%04X bx=%04X cx=%04X dx=%04X si=%04X di=%04X bp=%04X\n",
+                            m.instr_count, m.cpu.ss, m.cpu.sp, m.cpu.cs, m.cpu.ip, m.cpu.ax, m.cpu.bx,
+                            m.cpu.cx, m.cpu.dx, m.cpu.si, m.cpu.di, m.cpu.bp);
+                        prev_ss = m.cpu.ss;
+                    }
                 }
-                if (m.cpu.cs == 0) { m.running = false; }
+                if (m.cpu.cs == 0) {
+                    if (getenv("LOF_CRASHDBG")) {
+                        fprintf(stderr, "[crash] cs:ip=%04X:%04X ss:sp=%04X:%04X instr=%u\n",
+                                m.cpu.cs, m.cpu.ip, m.cpu.ss, m.cpu.sp, m.instr_count);
+                        uint32_t sbase = (uint32_t)m.cpu.ss << 4;
+                        for (int k = -8; k <= 16; k++) {
+                            uint32_t a = sbase + (uint16_t)(m.cpu.sp + k);
+                            fprintf(stderr, "  ss:[sp%+d]=%04X\n", k, (uint16_t)(m.rb(a) | (m.rb(a + 1) << 8)));
+                        }
+                    }
+                    m.running = false;
+                }
                 if (!m.running) {
                     for (auto& s : ring) fprintf(stderr, "%s\n", s.c_str());
                     break;

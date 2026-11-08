@@ -436,7 +436,23 @@ void Machine::dos_int(uint8_t n) {
             }
             break; }
         case 0x49: set_cf(c, false); break;             // free memory
-        case 0x4A: set_cf(c, false); break;             // resize memory
+        case 0x4A: {  // resize memory block at ES (BX = new size in paragraphs)
+            // A DOS .EXE prologue shrinks its own block (ES = PSP) to its real
+            // size, then allocates working memory on top.  We must honour the
+            // shrink, otherwise AH=48 hands back memory that lies *inside* the
+            // program's own stack and the game zeroes its return address.
+            uint16_t seg = c.es, newparas = c.bx;
+            uint32_t newend = (uint32_t)seg + newparas;
+            if (seg == kPspSeg && newend <= alloc_top) {
+                alloc_free = (uint16_t)newend;
+                ww(((uint32_t)kPspSeg << 4) + 0x02, (uint16_t)newend);
+                set_cf(c, false);
+            } else {
+                // Resizing a sub-block: keep the bump pointer monotonic.
+                if (newend > alloc_free && newend <= alloc_top) alloc_free = (uint16_t)newend;
+                set_cf(c, false);
+            }
+            break; }
         case 0x4B: set_cf(c, true); c.ax = 8; break;    // EXEC (unsupported)
         case 0x4E: {  // find first
             uint32_t p = ((uint32_t)c.ds << 4) + c.dx;
