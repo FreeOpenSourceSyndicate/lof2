@@ -367,9 +367,23 @@ void Machine::dos_int(uint8_t n) {
             c.dx = (uint16_t)(((tm->tm_mon + 1) << 8) | tm->tm_mday);
             c.ax = (uint16_t)((c.ax & 0xFF00) | tm->tm_wday); break; }
         case 0x2C: {  // get time
-            time_t t = time(nullptr); struct tm* tm = localtime(&t);
-            c.cx = (uint16_t)((tm->tm_hour << 8) | tm->tm_min);
-            c.dx = (uint16_t)((tm->tm_sec << 8) | 0); break; }
+            // LOF gates the town exit on the wall clock ("the town gates are
+            // closed and locked 'till early morning"), so a headless run at the
+            // wrong hour cannot leave town.  LOF_HOUR/LOF_MIN override the hour
+            // and minute the game sees; LOF_SEC the seconds.
+            int hh = 0, mm = 0, ss = 0;
+            if (const char* e = getenv("LOF_HOUR")) hh = atoi(e) & 0xFF;
+            if (const char* e = getenv("LOF_MIN"))  mm = atoi(e) & 0xFF;
+            if (const char* e = getenv("LOF_SEC"))  ss = atoi(e) & 0xFF;
+            if (getenv("LOF_HOUR") || getenv("LOF_MIN") || getenv("LOF_SEC")) {
+                c.cx = (uint16_t)((hh << 8) | mm);
+                c.dx = (uint16_t)((ss << 8) | 0);
+            } else {
+                time_t t = time(nullptr); struct tm* tm = localtime(&t);
+                c.cx = (uint16_t)((tm->tm_hour << 8) | tm->tm_min);
+                c.dx = (uint16_t)((tm->tm_sec << 8) | 0);
+            }
+            break; }
         case 0x2F: c.es = kPspSeg; c.bx = 0x80; break;   // get DTA
         case 0x30: c.ax = 0x0005; c.bx = 0; break;        // DOS 5.0
         case 0x35: {  // get interrupt vector

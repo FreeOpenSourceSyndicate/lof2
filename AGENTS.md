@@ -302,6 +302,34 @@ Roadmap:
 | `LOF_I21=1` `LOF_I21ALL=1` | DOS INT 21h open/read trace / per-function counts |
 | `LOF_MODE=1`         | trace INT 10h AH=00 video mode sets |
 | `LOF_CLICK`/`LOF_KEYS` | scripted input for headless runs |
+| `LOF_KEYONCE=1`      | inject `--keys` once instead of every 20 frames |
+| `LOF_KEYSTEP=N`      | deliver one `--keys` entry every N frames |
+| `LOF_KEYAT=f:sc,...` | queue each scancode at an exact frame (multi-screen scripts) |
+| `LOF_HOUR`/`LOF_MIN`/`LOF_SEC` | override the DOS clock (INT 21h AH=2Ch) |
+
+## Town / play-loop flow (oracle for the drop-in)
+
+The save filename the engine opens is `GAMES\GAME%3d` (printf `%3d`), i.e.
+`GAMES/GAME  1` (two spaces) — the shipped `GAME1` must be copied to that name
+or the load silently fails.
+
+The scripted path into the play loop is `--keys 0x18,0x1c` (O then Enter) with
+`LOF_CMDLEN=3`, which loads `GAMES/GAME  1` and draws the town screen.
+
+The **town is menu-only** (no free movement): the main screen offers
+`(E)mporium (B)ank (I)nn (H)ouse of trades (T)emple (C)ontinue`.  Each building
+has its own sub-menu.  Leaving town is the `(C)ontinue` path; the sub-menu drawn
+after the first `C` (string `ds=0x5AA2`, x=139) is the town-exit menu, and a
+second `C` on it heads out.  Reaching the wilderness/dungeon is **still not
+scripted to completion** — see `docs/notes-maintainer-town.md` for the exact
+frame timings tried.
+
+The engine has an **internal clock** that advances on its own; the phase of day
+(`Midnight`, `Dawn`, `Early morning`, `Morning`, `Midday`, `Afternoon`,
+`Sunset`, `Evening` — strings `ds=0x2348..0x23E2`) is shown in the lower-left
+box.  The town gates are closed outside "early morning", and waiting without
+resting makes the party "tired and won't go on".  This is *not* the wall clock;
+do not expect `LOF_HOUR` to gate the exit.
 
 ## Game data (not committed)
 

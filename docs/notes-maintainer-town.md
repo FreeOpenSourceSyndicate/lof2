@@ -1,0 +1,91 @@
+# notes-maintainer-town.md — town / play-loop oracle
+
+CLAIM: reach the first playable in-game state (town → Continue → out of town /
+dungeon) to use as the oracle for the native port's play loop.  Files touched:
+`src/main.cpp`, `src/machine.cpp`, `AGENTS.md`, this file.
+
+## What works now
+
+* **Save file name.**  The engine builds the load name with `GAMES\GAME%3d`
+  (printf `%3d`), so the file it opens is `GAMES/GAME  1` (two spaces).  The
+  repo shipped `GAME1`; copy it to `GAME  1` and the load succeeds.  Confirmed:
+  `--keys 0x18,0x1c` with `LOF_CMDLEN=3` reads `GAMES/GAME  1` and draws town.
+  (Credit: workstream A's notes-a.md.)
+* **New input hooks** in `src/main.cpp`:
+  * `LOF_KEYONCE=1` — inject `--keys` once (not every 20 frames).
+  * `LOF_KEYSTEP=N` — one key every N frames.
+  * `LOF_KEYAT="frame:sc,frame:sc,..."` — pin each scancode to an exact frame.
+    Multi-screen flows have wildly different dwell times (loading a save runs
+    ~35M instructions ≈ frame 270), so fixed-step delivery overshoots.
+* **Clock hook** in `src/machine.cpp`: `LOF_HOUR`/`LOF_MIN`/`LOF_SEC` override
+  INT 21h AH=2Ch.
+
+## Town menu (from LOF.EXE, ds base 0x40000)
+
+Strings at `ds=0x5A4A`:
+
+```
+Which building do you want to visit?
+(E)mporium (B)ank (I)nn (H)ouse of trades (T)emple (C)ontinue
+```
+
+The main town screen is **menu-only** — no free movement (confirmed).  The town
+name is `Thyn` / `Cyldane` (`ds=0x5A56` / `0x5A5E`; `Cyldane` is referenced at
+file `0x7C41`).  `(C)ontinue` at `ds=0x5AA2` is referenced at file `0x9A37`.
+
+## Internal clock (NOT the wall clock)
+
+The engine keeps its own time; it advances as you play.  The phase of day is
+drawn in the lower-left box:
+
+| phase | ds offset |
+|-------|-----------|
+| Midnight | 0x2348 |
+| Dawn | 0x235E |
+| Early morning | 0x2374 |
+| Morning | 0x238A |
+| Midday | 0x23A0 |
+| Afternoon | 0x23B6 |
+| Sunset | 0x23CC |
+| Evening | 0x23E2 |
+
+Related strings: "The town gates are closed and locked 'till early morning"
+(file `0x4B92E`), "The companions are tired and won't go on" (file `0x4B8EC`),
+"Dawn / Early morning / Morning / Midday" (`0x4237E`).  So leaving town is
+gated on the in-game phase; the party also tires if you wait without resting.
+`LOF_HOUR` therefore does **not** open the gates.
+
+## Exact frame timing (measured)
+
+* frame ~10: main menu ready (press O = 0x18).
+* frame ~60: load prompt (press 1 = 0x02).  The save load runs to ~frame 270.
+* frame ≥ 300: town menu is drawn (pressing C = 0x2e here draws the
+  "Which building…" sub-menu; the sub-menu's own `(C)ontinue` is what leaves).
+
+Frame hashes seen: town = `1ad8f17e`, first-C = `c3ff0fd8`, town-exit C-C =
+`291922e1`.  After the first C the read list still contains only
+`ROST/ROST ROST/SHOP ega\twn\twn00..05 ega\up\*` — no `DNGS`, no `EGA/Dn`,
+no `SYST/SPEC`.
+
+## Still open (the actual blocker)
+
+Pressing `C` twice does **not** yet read a dungeon/wilderness file.  Best guesses
+for the next session, in order:
+
+1. The second `C` is being swallowed (the sub-menu may need its key later, or the
+   `AH=0Ch` flush in `machine.cpp` eats it).  Try `LOF_KEYAT` with the second key
+   a few frames *after* the sub-menu frame and screenshot at 20-frame intervals
+   to watch for the transition.
+2. The sub-menu's `(C)ontinue` may prompt (Y/N or a target), so a second key is
+   not enough.
+3. Rest first (the `(R)est` path) to pass time to "early morning", then Continue.
+4. Debug escape hatch: the `Debugmode activ` string (`ds=0x2511`, file `0x8017`)
+   and `Enter dungeon-number?` / `Enter level-number?` (`ds=0x25D3` / `0x25E9`)
+   suggest a hidden debug flow; the `ds=0x2511` ref at file `0x8017` is *inside*
+   a `rep movsb` loop (image `0x2B58`), i.e. it is copy data, not a direct
+   print — so debug mode is toggled some other way (TBD).
+
+## Note
+
+`game/` and `downloads/` are git-ignored (proprietary); the `GAME  1` copy lives
+only in the local `game/GAMES/` tree, not in git.

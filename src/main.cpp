@@ -15,6 +15,7 @@
 #include <cstring>
 #include <cstdio>
 #include <string>
+#include <sstream>
 
 #include <vector>
 
@@ -160,9 +161,51 @@ int main(int argc, char** argv) {
     };
 
     long key_frame = getenv("LOF_KEYFRAME") ? atol(getenv("LOF_KEYFRAME")) : 5;
+    // LOF_KEYONCE=1 injects the --keys sequence exactly once (at key_frame)
+    // instead of re-queueing it every 20 frames.  The repeating default makes
+    // scripted menus work, but it re-presses every hot-key on a 20-frame cycle,
+    // which loops multi-step dialogs (e.g. town -> Continue) back to the start.
+    bool key_once = getenv("LOF_KEYONCE") && atoi(getenv("LOF_KEYONCE")) != 0;
+    // LOF_KEYSTEP=N delivers one --keys entry every N frames (starting at
+    // LOF_KEYFRAME) instead of dumping the whole list at once.  Multi-screen
+    // flows (menu -> open file -> town -> Continue) need each key to arrive
+    // after the previous screen has actually drawn and started polling.
+    long key_step = getenv("LOF_KEYSTEP") ? atol(getenv("LOF_KEYSTEP")) : 0;
+    // LOF_KEYAT="frame:sc,frame:sc,..." queues each scancode at an exact frame.
+    // Multi-screen flows have wildly different dwell times (loading a save runs
+    // tens of millions of instructions), so fixed-step delivery overshoots;
+    // this lets a script pin each key to the screen that is actually waiting.
+    struct KeyAt { long frame; uint8_t sc; };
+    std::vector<KeyAt> key_at;
+    if (const char* ka = getenv("LOF_KEYAT")) {
+        std::string s(ka), item;
+        std::stringstream ss(s);
+        while (std::getline(ss, item, ',')) {
+            auto c = item.find(':');
+            if (c == std::string::npos) continue;
+            long fr = strtol(item.substr(0, c).c_str(), nullptr, 0);
+            long sc = strtol(item.substr(c + 1).c_str(), nullptr, 0);
+            key_at.push_back({fr, (uint8_t)sc});
+        }
+    }
+    size_t key_idx = 0;
+    bool key_sent = false;
     auto feed_keys = [&]() {
-        if (!opt.keys.empty() && frame_no >= key_frame && ((frame_no - key_frame) % 20) == 0) {
-            for (uint8_t k : opt.keys) m.key_queue.push_back(k);
+        if (!key_at.empty()) {
+            while (key_idx < key_at.size() && frame_no >= key_at[key_idx].frame) {
+                m.key_queue.push_back(key_at[key_idx].sc);
+                key_idx++;
+            }
+        } else if (!opt.keys.empty() && frame_no >= key_frame) {
+            if (key_step > 0) {
+                size_t want = (size_t)((frame_no - key_frame) / key_step) + 1;
+                while (key_idx < opt.keys.size() && key_idx < want) {
+                    m.key_queue.push_back(opt.keys[key_idx++]);
+                }
+            } else if (key_once ? !key_sent : ((frame_no - key_frame) % 20) == 0) {
+                for (uint8_t k : opt.keys) m.key_queue.push_back(k);
+                key_sent = true;
+            }
         }
         if (getenv("LOF_MOVEX")) m.mouse_x = atoi(getenv("LOF_MOVEX"));
         if (getenv("LOF_MOVEY")) m.mouse_y = atoi(getenv("LOF_MOVEY"));
