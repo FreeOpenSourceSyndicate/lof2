@@ -101,6 +101,24 @@ static void synthetic_spec() {
     assert(std::string(spec_type_name(0x19)) == "elemental");
     assert(std::string(spec_type_name(9999)) == "unknown");
 
+    // SNSC -> character seed mapping (analysis/lof.asm 1DA8E..1DCBB): a synthetic
+    // class record with distinct bytes at the mapped offsets must decode to the
+    // documented character-struct fields, including the 100-n fold on 0x1d/0x1e.
+    SnsRecord sns;
+    sns.singular = "Tester";
+    sns.plural = "Testers";
+    sns.stats[kSnsIndex2a - 38] = 1;
+    sns.stats[kSnsBody2d - 38] = 10;
+    sns.stats[kSnsBody2e - 38] = 65;
+    sns.stats[kSnsSpeed36 - 38] = 4;
+    sns.stats[kSnsClass4c - 38] = 2;
+    CharSeed s = sns_char_seed(sns);
+    assert(s.c18 == 2);
+    assert(s.c1c == 65);
+    assert(s.c1d == 90 && s.c1e == 90);   // 100 - 10
+    assert(s.c56 == 4);
+    assert(s.c7a_index == 1);
+
     printf("char_test: synthetic SPEC ok\n");
 }
 
@@ -334,6 +352,36 @@ static int real_data() {
     assert(m0.size() == 25 && m0[0] == "Ape");
     assert(monster_names(dir, kMonsterScenarioCount).empty());
     assert(monster_names(dir, -1).empty());
+
+    // SNSC statistics block -> character-struct seed (analysis/lof.asm
+    // 1DA8E..1DCBB).  Verified byte-for-byte against the shipped save: SNSC
+    // class 0 is "Siegurd" and GAME1's Siegurd was built from it.
+    auto snsc = load_snsc(std::string(dir) + "/SYST/SNSC");
+    assert(snsc.size() == kClassCount);
+    assert(snsc[0].singular == "Siegurd" && snsc[0].plural == "Siegurd");
+    CharSeed seed = sns_char_seed(snsc[0]);
+    // The record's own bytes the mapping reads (record offsets 0x2a..0x4c).
+    const uint8_t* st = snsc[0].stats;
+    assert(seed.c18 == st[kSnsClass4c - 38]);   // char +0x18
+    assert(seed.c1c == st[kSnsBody2e - 38]);    // char +0x1c
+    assert(seed.c1d == (uint8_t)(100 - st[kSnsBody2d - 38]));  // char +0x1d
+    assert(seed.c1e == seed.c1d);               // char +0x1e mirrors +0x1d
+    assert(seed.c56 == st[kSnsSpeed36 - 38]);   // char +0x56
+    assert(seed.c7a_index == st[kSnsIndex2a - 38]);
+    // And they equal the live character's fields (Siegurd == SNSC class 0).
+    // Note: char +0x1d is written from the same 100-n value here, but the
+    // level routine at 1BA40 then overrides it (0x0a for Siegurd, level 0x0e).
+    const uint8_t* ch = sv.chars[1].raw.data();  // GAME1 slot 1 = Siegurd
+    assert(ch[kCharClass18] == seed.c18);
+    assert(ch[kCharBase1c] == seed.c1c);
+    assert(ch[kCharStat1e] == seed.c1e);
+    assert(ch[kCharSpeed56] == seed.c56);
+    assert(ch[kCharStat1d] == 0x0a);   // overridden by the 1BA40 level routine
+    assert(ch[kCharSeed7a + seed.c7a_index] == 2);
+    assert(seed.c18 == 1 && seed.c1c == 65 && seed.c1d == 90 && seed.c56 == 4);
+    // Monsters carry class 2 (e.g. the Dragon) and a distinct body value.
+    CharSeed dseed = sns_char_seed(snsc[4]);
+    assert(dseed.c18 == 2 && dseed.c1c == 45 && dseed.c56 == 4);
 
     printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells/names ok\n");
     return 0;

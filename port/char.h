@@ -22,6 +22,8 @@
 #include <string>
 #include <vector>
 
+#include "data.h"   // SnsRecord (SYST/SNSC, SYST/NSCnn) — read-only reuse
+
 namespace lofport {
 
 // --- SYST/SPECn -----------------------------------------------------------
@@ -291,6 +293,40 @@ constexpr int kMonsterScenarioCount = 8;
 // the file is missing).  `dir` is the game data directory.
 std::vector<std::string> monster_names(const std::string& dir, int scenario);
 
+// --- SNSC / NSC statistics block (character seed) -------------------------
+//
+// An SNSC/NSC record is 78 bytes: a singular and a plural NUL-padded name (19
+// each), then a 40-byte statistics block at record byte 38 (0x26).  When the
+// engine creates a character of a class it copies a handful of those bytes into
+// the runtime 410-byte (0x19a) character struct.  The copy sites are grounded in
+// `analysis/lof.asm` 1DA8E..1DCBB and verified against the shipped
+// `GAMES/GAMEn` / `ROST/ROST` saves (Siegurd == SNSC class 0, byte-for-byte).
+//
+// Record-relative offsets the init routine reads; the value in the record is
+// `stats[off - 38]`.
+enum SnsOffset : size_t {
+    kSnsIndex2a = 0x2a,  // byte; selects a char +0x7a+n slot (set to 2)
+    kSnsBody2d  = 0x2d,  // byte; char +0x1e = 100 - value, char +0x1d = same
+    kSnsBody2e  = 0x2e,  // byte; char +0x1c (45..75, a base stat)
+    kSnsSpeed36 = 0x36,  // byte; char +0x56 (1..4)
+    kSnsClass4c = 0x4c,  // byte; char +0x18 (1 for PCs, 2 for big monsters)
+};
+
+// The character-struct fields the SNSC/NSC init routine seeds from a class
+// record (analysis/lof.asm 1DA8E..1DCBB).  Offsets name the target byte in the
+// 410-byte character struct.
+struct CharSeed {
+    uint8_t c18 = 0;  // rec[0x4c]
+    uint8_t c1c = 0;  // rec[0x2e]
+    uint8_t c1d = 0;  // 100 - rec[0x2d]
+    uint8_t c1e = 0;  // 100 - rec[0x2d]
+    uint8_t c56 = 0;  // rec[0x36]
+    uint8_t c7a_index = 0;  // rec[0x2a]; char[0x7a + index] is then set to 2
+};
+
+// Apply the SNSC/NSC init mapping to a class record (see `SnsOffset`).
+CharSeed sns_char_seed(const SnsRecord& rec);
+
 // Offsets into the 410-byte (0x19a) in-memory character struct.  ROST records
 // hold this struct at +0x01 (after the count byte) as records of 414 bytes; a
 // GAMES save holds it verbatim at +4.  The offsets below are the ones the
@@ -309,6 +345,15 @@ enum CharOffset : size_t {
     // overrides it with 5*level46 - 0x41 + 1; both are byte quantities.
     kCharStat1d    = 0x1d,  // byte
     kCharLevel46   = 0x46,  // byte
+    // Fields seeded from an SNSC/NSC class record by the init routine at
+    // 1DA8E..1DCBB (see `sns_char_seed`): +0x18 class flag, +0x1c base stat,
+    // +0x1e body stat, +0x56 speed.  +0x7a is the base of the seed slots: the
+    // routine sets byte +0x7a + rec[0x2a] to 2.
+    kCharClass18   = 0x18,  // byte: 1 for PCs, 2 for big monsters
+    kCharBase1c    = 0x1c,  // byte: base stat (45..75)
+    kCharStat1e    = 0x1e,  // byte: body stat (100 - rec[0x2d])
+    kCharSpeed56   = 0x56,  // byte: speed (1..4)
+    kCharSeed7a    = 0x7a,  // byte: base of the +0x7a+n seed slots
 };
 
 // --- GAMES/GAMEn (saved game / "gamestanding") ----------------------------

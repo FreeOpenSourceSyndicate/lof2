@@ -444,4 +444,15 @@ std::vector<std::string> monster_names(const std::string& dir, int scenario) {
     return out;
 }
 
+CharSeed sns_char_seed(const SnsRecord& rec) {
+    CharSeed s;
+    s.c18 = rec.stats[kSnsClass4c - 38];
+    s.c1c = rec.stats[kSnsBody2e - 38];
+    s.c1d = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);
+    s.c1e = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);
+    s.c56 = rec.stats[kSnsSpeed36 - 38];
+    s.c7a_index = rec.stats[kSnsIndex2a - 38];
+    return s;
+}
+
 }  // namespace lofport
