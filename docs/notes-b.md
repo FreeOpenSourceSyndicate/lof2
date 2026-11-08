@@ -149,11 +149,28 @@ tests are 1, 7, 9, 0x0c, 0x0e, 0x11, 0x19; the rest (0,2..6,8,10,12..18,20..22,
 (Water, Earth, Air, Fire). Index 10 (Woodkeeper) also appears, matching the SNSC
 class order for classes 5..13.
 
+### ROST record structure (refined)
+
+The file stride is 414, but the engine treats a character as a **410-byte
+(0x19a) struct plus a separate 4-byte word** — the loader reads 410 then 4 per
+record (`LOF_I21` trace) and the runtime character stride is the pervasive
+`imul …,0x19a`. `RostRecord` now exposes that 4-byte `tail` (little-endian):
+Connar=0x68a, Siegurd=0x592, etc.
+
+### SNSC is confirmed (already parsed by `port/data.cpp`)
+
+The 78-byte SNSC stride is confirmed in the loader at `analysis/lof.asm`
+`1B1E1`: `mov ax,0x4e; imul [bp-2]; add ax,[es:0x37b0]; …` loops
+`cmp [bp-2],0xe` (14 classes). `port/data.cpp` already reads it; B reuses it and
+does not duplicate it. The 40-byte statistics sub-block's named-field layout is
+only readable through the play loop (the runtime stat struct at es:[bx+0x27xx]
+is in the maintainer's main-loop domain), so it is left as a follow-up.
+
 ### Status after unblock
 
-- [x] Oracle-confirmed ROST (414) and SHOP (190) strides.
+- [x] Oracle-confirmed ROST (414 = 410+4) and SHOP (190) strides; ROST `tail`.
 - [x] SPEC dispatch-type semantics (all 25 observed values) + `spec_type_name`.
-- [x] Tests assert element types/indices and the 665-record total.
-- [ ] Remaining B: numeric stat block semantics of `SYST/SNSC` (the 40-byte
-      block after the two names) — bit/field layout not yet grounded; combat
-      formulas depend on the maintainer's play loop.
+- [x] Tests assert element types/indices, the 665-record total, ROST tail values,
+      and all-present roster slots.
+- [ ] Remaining B: named stat-field semantics of the SNSC 40-byte block and the
+      410-byte character struct — both need the play loop (maintainer domain).

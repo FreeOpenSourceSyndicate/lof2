@@ -83,6 +83,8 @@ std::vector<RostRecord> load_rost(const std::string& path) {
         std::memcpy(rec.raw.data(), r, kRostRecordSize);
         rec.present = r[0x00];
         rec.name = cstr(r + 0x01, 14);
+        rec.tail = (uint32_t)r[410] | ((uint32_t)r[411] << 8) |
+                   ((uint32_t)r[412] << 16) | ((uint32_t)r[413] << 24);
         out.push_back(std::move(rec));
     }
     return out;

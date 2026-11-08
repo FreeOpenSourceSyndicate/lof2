@@ -163,6 +163,11 @@ static int real_data() {
     assert(roster[0].name == "Connar");
     assert(roster[10].name == "Siegurd");
     assert(roster[0].present == 1);
+    // The 4-byte trailing value the loader reads separately (410..413).
+    assert(roster[0].tail == 0x68a);
+    assert(roster[10].tail == 0x592);
+    for (size_t i = 0; i < roster.size(); i++)
+        assert(roster[i].present == 1);  // all 11 slots hold a character
 
     ShopData shop = load_shop(std::string(dir) + "/ROST/SHOP");
     assert(shop.ok);
