@@ -410,13 +410,14 @@ static int real_data() {
     assert(seed.c7a_index == st[kSnsIndex2a - 38]);
     // And they equal the live character's fields (Siegurd == SNSC class 0).
     // Note: char +0x1d is written from the same 100-n value here, but the
-    // level routine at 1BA40 then overrides it (0x0a for Siegurd, level 0x0e).
+    // Dexterity rule at 1BA40 then overrides it (Siegurd's Dexterity is 0, so
+    // it keeps 0x0a; Decker's Dexterity is 0x0e, still below 16 -> 0x0a).
     const uint8_t* ch = sv.chars[1].raw.data();  // GAME1 slot 1 = Siegurd
     assert(ch[kCharClass18] == seed.c18);
     assert(ch[kCharBase1c] == seed.c1c);
     assert(ch[kCharStat1e] == seed.c1e);
     assert(ch[kCharSpeed56] == seed.c56);
-    assert(ch[kCharStat1d] == 0x0a);   // overridden by the 1BA40 level routine
+    assert(ch[kCharStat1d] == 0x0a);   // overridden by the 1BA40 Dexterity rule
     assert(ch[kCharSeed7a + seed.c7a_index] == 2);
     assert(seed.c18 == 1 && seed.c1c == 65 && seed.c1d == 90 && seed.c56 == 4);
     // Monsters carry class 2 (e.g. the Dragon) and a distinct body value.

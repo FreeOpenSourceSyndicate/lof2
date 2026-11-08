@@ -440,7 +440,7 @@ against the shipped `GAMES/GAMEn` + `ROST/ROST` saves (Siegurd == SNSC class 0):
 | `0x4c` | 38 | `+0x18` | copy | class flag: 1 for PCs, 2 for big monsters |
 | `0x2e` | 8  | `+0x1c` | copy | base stat (45..75) |
 | `0x2d` | 7  | `+0x1e` | `100 - n` | body/health stat |
-| `0x2d` | 7  | `+0x1d` | `100 - n` | same seed, then overridden by the level routine (1BA40) |
+| `0x2d` | 7  | `+0x1d` | `100 - n` | same seed, then overridden by the Dexterity rule (1BA40) |
 | `0x36` | 16 | `+0x56` | copy | speed (1..4) |
 | `0x2a` | 4  | `+0x7a+idx` | set 2 | picks which `+0x7a+n` slot is initialised |
 
@@ -495,11 +495,16 @@ scenarios 0..9 have a single-digit file name.)
 - [x] SNSC/NSC 40-byte stats-block -> character-struct seed mapping
       (`sns_char_seed()`, `SnsOffset`, `CharSeed`); verified against the saves.
 - [x] Character-struct projection (`CharSheet`, `decode_char()`) plus the
-      level-derived `+0x1d` rule (`char_stat1d_from_level()`): the HP pair
+      Dexterity-derived `+0x1d` rule (`char_stat1d_from_dex()`): the HP pair
       `+0x20` (max) / `+0x22` (current) is proven by the sheet builder at
       28054/28067 (`100*cur/max` as a percentage), and `+0x1d` by the routine at
-      1BA40 (`<16 -> 10`, else `5*level-65`).  Both verified against every
+      1BA40 (`<16 -> 10`, else `5*dex-65`).  Both verified against every
       in-use save/ROST character.  `--dump-char [FILE]` prints the sheets.
+- [x] Character attribute block `+0x44..+0x48` (Con/Str/Dex/Int/Wis) and level
+      `+0x17` (`kCharCon44`..`kCharWis48`, `kCharLevel17`, `CharSheet` fields),
+      grounded in the sheet builder (0x2676E) and the training/level-up routines
+      (0x95B0/0x9144).  Resolves the earlier `+0x46` "level vs Dexterity"
+      conflict: `+0x46` is Dexterity, the level is `+0x17`.
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
       all-present roster slots, and the save header/records/trailer.
 - [ ] Remaining B: the full named stat-field semantics of the SNSC 40-byte block
@@ -521,14 +526,18 @@ buffer, and the copies pin the semantics:
   init routine writes (`rec[0x2e]=65` base, `+0x20 = +0x22 = rand(1..0x41/2)
   + 0x41 = rand(1..32)+65`, upper half 96).
 
-- `char +0x1d` is the **level-derived stat** set by the routine at 1BA40: a
-  character below level 16 keeps the value 10 the init routine wrote; from
-  level 16 up it becomes `5*level - 0x41` (level 16 -> 15, 19 -> 30, and
-  level 0 -> 10 for Siegurd, whose `+0x46` is 0).  Verified against all six
-  party members and the full roster.
+- `char +0x1d` is the **Dexterity-derived stat** set by the routine at 1BA40: a
+  character whose Dexterity (`+0x46`) is below 16 keeps the value 10 the init
+  routine wrote; from Dexterity 16 up it becomes `5*dex - 0x41` (dex 16 -> 15,
+  19 -> 30).  Verified against all six party members and the full roster.
 
 `decode_char()` projects these plus the already-known fields (present, name,
-flags10/counter12, class18, base1c, stat1e, level46, speed56) into a `CharSheet`
-with `hp_percent()` reproducing the builder's integer division exactly.  Note
-the save carries spare slots with `+0x00 != 1` (garbage); only `present == 1`
-slots are real characters.
+flags10/counter12, level17, class18, base1c, stat1e, con44/str45/dex46/int47/
+wis48, speed56) into a `CharSheet` with `hp_percent()` reproducing the builder's
+integer division exactly.  Note the save carries spare slots with `+0x00 != 1`
+(garbage); only `present == 1` slots are real characters.
+
+Correction (2026-11-08): an earlier revision of this section called `+0x46`
+"level" and named the helper `char_stat1d_from_level`.  `+0x46` is **Dexterity**;
+the level is `+0x17` (see the "410-byte character struct — grounded offsets"
+table above and the sheet builder at 0x2676E).
