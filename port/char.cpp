@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "data.h"
+
 namespace lofport {
 
 #include "char_items.inc"
@@ -299,6 +301,15 @@ std::vector<std::string> action_names() {
 }
 std::vector<std::string> morale_names() {
     return to_vec(kMoraleNames, kMoraleCount);
+}
+
+std::vector<std::string> monster_names(const std::string& dir, int scenario) {
+    std::vector<std::string> out;
+    if (scenario < 0 || scenario >= kMonsterScenarioCount) return out;
+    char path[64];
+    std::snprintf(path, sizeof(path), "%s/SYST/NSC0%d", dir.c_str(), scenario);
+    for (const SnsRecord& r : load_nsc(path)) out.push_back(r.singular);
+    return out;
 }
 
 }  // namespace lofport
