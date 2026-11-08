@@ -86,12 +86,25 @@ then LOF — the original START.BAT order), `--shot-frame N` (capture frame N).
 This emulator is a **development aid** for producing the decompilation and
 reference captures. It is not the deliverable.
 
-## Drop-in binaries (the deliverable)
+### Drop-in binaries (the deliverable) — `port/`
 
-The real deliverable is `lof` (and `vor`) — native re-implementations that read
-the game *data* files and reproduce the original behaviour **without executing
-`LOF.EXE`/`VOR.EXE`**.  They must work when the original EXEs are absent, and the
-code must stay editable so the game can be modified after the port.
+`make port` builds `lof` and `vor` in the repo root; `make dropin` copies them into
+`game/` under the names `START.BAT` invokes. These are **native re-implementations**
+that read the game *data* files and never touch `LOF.EXE` / `VOR.EXE`.
+
+- `port/gfx.{h,cpp}` — EGA decoder (same format as `tools/ega.py`), 4-plane
+  blitter, 16-colour palette, minimal PNG writer, optional SDL2 window.
+- `port/vor.cpp` — loads `EGA/IN/DRAG`, draws it full screen (the intro/title).
+- `port/lof.cpp` — boot/title path; more screens are added as formats are decoded.
+
+Both accept `--dir DIR`, `--headless`, `--shot FILE.png` (for verification).
+
+Progress:
+
+- [x] VOR title screen (`EGA/IN/DRAG`) reproduced; verified against DOSBox-X.
+- [ ] VOR text page (built into VOR.EXE, after the title).
+- [ ] LOF boot sequence / title logo placement.
+- [ ] LOF menu and play loop.
 
 Roadmap:
 

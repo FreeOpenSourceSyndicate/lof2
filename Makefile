@@ -27,13 +27,32 @@ test: tests/cpu_test.cpp src/cpu.cpp src/ega.cpp src/machine.cpp src/emu.h
 	$(CXX) $(CXXFLAGS) -I src -o cpu_test tests/cpu_test.cpp src/cpu.cpp src/ega.cpp src/machine.cpp
 	./cpu_test
 
-# Copy the emulator into the game folder under the names START.BAT uses, so it can
-# be dropped in place of the originals.
-dropin: lof-native
-	cp lof-native game/lof
-	cp lof-native game/vor
+# --- Native drop-in (the deliverable) -------------------------------------
+# These binaries re-implement the engine and read the game data files; they do
+# NOT run LOF.EXE / VOR.EXE.
+PORT_SRC  = port/gfx.cpp port/lof.cpp port/vor.cpp
+PORT_CFLAGS = -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port
+PORT_SDL_CFLAGS := $(shell pkg-config --cflags sdl2 2>/dev/null)
+PORT_SDL_LIBS   := $(shell pkg-config --libs sdl2 2>/dev/null)
+ifneq ($(PORT_SDL_LIBS),)
+PORT_CFLAGS += -DUSE_SDL $(PORT_SDL_CFLAGS)
+PORT_LIBS    = $(PORT_SDL_LIBS)
+endif
+
+port: lof vor
+
+lof: port/lof.cpp port/gfx.cpp port/gfx.h
+	$(CXX) $(PORT_CFLAGS) -o $@ port/lof.cpp port/gfx.cpp $(PORT_LIBS)
+
+vor: port/vor.cpp port/gfx.cpp port/gfx.h
+	$(CXX) $(PORT_CFLAGS) -o $@ port/vor.cpp port/gfx.cpp $(PORT_LIBS)
+
+# Install the native drop-in into the game folder under the names START.BAT uses.
+dropin: lof vor
+	cp lof game/lof
+	cp vor game/vor
 
 clean:
-	rm -f lof-native cpu_test
+	rm -f lof-native cpu_test lof vor port/*.o
 
-.PHONY: all headless test dropin clean
+.PHONY: all headless test dropin port clean

@@ -15,3 +15,7 @@ __pycache__/
 
 # Scratch
 *.tmp
+
+# native drop-in binaries (build with `make port`)
+/lof
+/vor
