@@ -251,6 +251,15 @@ static int real_data() {
     assert(spell_by_index(1) && spell_by_index(1)->name == "Burning hands");
     assert(spell_by_index(141) && spell_by_index(141)->name == "Drachenatem II");
     assert(spell_by_index(0) == nullptr && spell_by_index(142) == nullptr);
+    // Spell effect code = data byte 8 (0x0f = healing family).
+    assert(kSpellEffectByte == 8);
+    assert(std::string(spell_effect_name(0x0f)) == "healing");
+    assert(std::string(spell_effect_name(0x37)) == "map");
+    assert(std::string(spell_effect_name(0xff)) == "special");
+    auto heal = spells_with_effect(0x0f);
+    assert(heal.size() == 7 && sp[heal[0]].name == "Healing I" &&
+           sp[heal[6]].name == "Healing III");
+    assert(spells_with_effect(0x01).empty());
 
     // Character-generation name tables.
     auto sexes = sex_names();
