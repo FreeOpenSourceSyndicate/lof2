@@ -52,6 +52,7 @@ bool parse_spec(const std::vector<uint8_t>& data, SpecTable& out) {
         SpecRecord rec;
         std::memcpy(rec.raw.data(), r, kSpecRecordSize);
 
+        rec.keyword = cstr(r + 0x00, 0x0e);
         rec.text_a = cstr(r + 0x0e, 0x4a - 0x0e);
         rec.text_b = cstr(r + 0x50, 0xc6 - 0x50);
 
@@ -175,6 +176,7 @@ void dump_spec(std::FILE* out, const SpecTable& t, const char* label) {
                      "arg4e=%d cnt=%u\n",
                      i, (unsigned)r.type, spec_type_name(r.type), r.index_c9,
                      r.class_eb, r.arg_4c, r.arg_4e, r.counter);
+        if (!r.keyword.empty()) std::fprintf(out, "        kw: %s\n", r.keyword.c_str());
         if (!r.text_a.empty()) std::fprintf(out, "        a: %s\n", r.text_a.c_str());
         if (!r.text_b.empty()) std::fprintf(out, "        b: %s\n", r.text_b.c_str());
     }

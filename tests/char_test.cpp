@@ -32,7 +32,8 @@ static void synthetic_spec() {
     img[0] = 1;
     uint8_t* r = &img[1];
 
-    // text_a / text_b
+    // keyword / text_a / text_b
+    putstr(img, 1 + 0x00, "Swordfish", 0x0e);
     putstr(img, 1 + 0x0e, "Hello world", 0x4a - 0x0e);
     putstr(img, 1 + 0x50, "A big pile of bones.", 0xc6 - 0x50);
 
@@ -53,6 +54,7 @@ static void synthetic_spec() {
     assert(t.records.size() == 1);
 
     const SpecRecord& rec = t.records[0];
+    assert(rec.keyword == "Swordfish");
     assert(rec.text_a == "Hello world");
     assert(rec.text_b == "A big pile of bones.");
     assert(rec.flag_4b == 1);
@@ -127,6 +129,14 @@ static int real_data() {
     // 2 (Ihl Kazar) and the engine reads SNSC stats[0x0a] for that class.
     assert(t.records[8].class_eb == 2 && t.records[8].has_class());
     assert(t.records[0].class_eb == 0xff && !t.records[0].has_class());
+    // +0x00 is a keyword/password (region 0x00..0x0e); the four elemental
+    // guardians answer "Fire"/"Daughter"/"Echo"/"Eyes", the recruit slots "Y".
+    assert(t.records[1].keyword == "Y" && t.records[8].keyword == "Y");
+    assert(t.records[15].keyword == "Fire");
+    assert(t.records[16].keyword == "Daughter");
+    assert(t.records[17].keyword == "Echo");
+    assert(t.records[18].keyword == "Eyes");
+    assert(t.records[0].keyword.empty());
 
     // SPEC0[15..18] are the four elemental guardians (type 25); the engine's
     // 0x19 handler reads index_c9 (+0xc9) to pick which one.  The observed
