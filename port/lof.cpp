@@ -5,6 +5,7 @@
 // screen; the remaining screens are filled in as the data formats are decoded.
 #include "gfx.h"
 #include "data.h"
+#include "screens.h"
 
 #include <cstdio>
 #include <cstring>
@@ -61,16 +62,27 @@ int main(int argc, char** argv) {
     scr.resize(320, 200);
     scr.clear(0);
 
-    // LOF's boot screen draws the EGA/IN/TITL logo.  Its position and the rest
-    // of the boot sequence are still being reverse-engineered; render the logo
-    // centred for now so the drop-in already produces the opening image.
-    EgaImage titl;
+    // --screen NAME renders a pre-decoded full-screen image (EGA/IN/NAME) and
+    // exits; used to reproduce/verify the credits screen and other stills.
+    std::string screen;
+    for (int i = 1; i < argc; i++)
+        if (std::string(argv[i]) == "--screen" && i + 1 < argc) screen = argv[++i];
+    if (!screen.empty()) {
+        std::string err;
+        if (!show_ega(scr, dir + "/EGA/IN/" + screen, false, &err)) {
+            fprintf(stderr, "lof: %s\n", err.c_str());
+            return 1;
+        }
+        if (have_shot && !save_png(shot, scr)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
+        if (!headless) present_sdl(scr, "Legend of Faerghail");
+        return 0;
+    }
+
+    // LOF's boot screen draws the EGA/IN/TITL logo.  Its exact position and the
+    // rest of the boot sequence are still being reverse-engineered; render the
+    // logo centred for now so the drop-in already produces the opening image.
     std::string err;
-    if (load_ega_image(dir + "/EGA/IN/TITL", titl, &err)) {
-        int x = (scr.width - titl.width_bytes * 8) / 2;
-        int y = (scr.height - titl.height) / 2;
-        blit_image(scr, titl, x, y);
-    } else {
+    if (!show_ega(scr, dir + "/EGA/IN/TITL", true, &err)) {
         fprintf(stderr, "lof: %s\n", err.c_str());
     }
 

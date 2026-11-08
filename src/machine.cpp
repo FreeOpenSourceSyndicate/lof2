@@ -223,6 +223,16 @@ void Machine::load_exe(const std::vector<uint8_t>& img, const std::string& name)
     ww(((uint32_t)kPspSeg << 4) + 0x02, alloc_top);    // top of memory
     wb(((uint32_t)kPspSeg << 4) + 0x05, 0x9A);         // far call to DOS
     for (int i = 0x18; i < 0x2C; i++) wb(((uint32_t)kPspSeg << 4) + i, 0xFF);  // handles
+    // Optional non-empty command tail, so programs that require being launched
+    // from their .BAT wrapper (e.g. LOF's START.BAT check) will proceed.
+    if (const char* cl = getenv("LOF_CMDLEN")) {
+        int n = atoi(cl);
+        if (n < 0) n = 0;
+        if (n > 126) n = 126;
+        wb(((uint32_t)kPspSeg << 4) + 0x80, (uint8_t)n);
+        for (int i = 0; i < n; i++) wb(((uint32_t)kPspSeg << 4) + 0x81 + i, ' ');
+        wb(((uint32_t)kPspSeg << 4) + 0x81 + n, 0x0D);
+    }
     // MCB for the program block
     uint16_t mcb = kPspSeg - 1;
     uint32_t ma = (uint32_t)mcb << 4;
