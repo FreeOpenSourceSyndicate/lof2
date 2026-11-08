@@ -25,6 +25,7 @@ Usage:
     python3 tools/dngs.py grid  game/DNGS/DNG00 [tiles|objects] [W]
     python3 tools/dngs.py png   game/DNGS/DNG00 out.png [cell]
     python3 tools/dngs.py tiles game/EGA          # layered dungeon tilesets
+    python3 tools/dngs.py atlas game/EGA D0 out.png  # sheet of a tileset
     python3 tools/dngs.py all
 """
 import collections
@@ -197,6 +198,45 @@ def cmd_tiles(dn_dir):
         print('   codes: %s' % ' '.join('%03d' % c for c, _, _ in sizes))
 
 
+def cmd_atlas(dn_dir, tile_set, out, cols=8, bg=0):
+    """Write a contact sheet of one dungeon tileset EGA/Dn/DPnnn.
+
+    Each code (from the DPnnn filename) gets one cell, labelled with its code
+    so a decoded tile value can be mapped to a sprite by eye once an oracle
+    frame is available.  Cells are the sprite's true decoded size (the tiles
+    are pre-scaled first-person sprites, so sizes vary), padded into a grid
+    whose cell is the largest sprite in the set.
+    """
+    import ega
+    files = sorted(glob.glob(os.path.join(dn_dir, tile_set, 'DP*')))
+    if not files:
+        sys.exit('no DP* tiles in %s/%s' % (dn_dir, tile_set))
+    imgs = []           # (code, width, height, [[idx]])
+    for f in files:
+        code = int(os.path.basename(f)[2:])
+        w, h, _ = ega.decode(f)
+        rows = [list(r) for r in ega.indices(f)]
+        imgs.append((code, w * 8, h, rows))
+    cw = max(w for _, w, _, _ in imgs)
+    ch = max(h for _, _, h, _ in imgs)
+    rows_n = (len(imgs) + cols - 1) // cols
+    W, H = cols * cw, rows_n * ch
+    # _png writes 8-bit grayscale, so map EGA indices through the palette.
+    lum = [int(0.299 * r + 0.587 * g + 0.114 * b) for r, g, b in ega.EGA_PALETTE]
+    pix = bytearray([lum[bg]]) * (W * H)
+    for i, (_code, w, h, rows) in enumerate(imgs):
+        cx, cy = (i % cols) * cw, (i // cols) * ch
+        for y in range(min(h, ch)):
+            base = (cy + y) * W + cx
+            for x in range(min(w, cw)):
+                v = rows[y][x] if y < len(rows) and x < len(rows[y]) else bg
+                pix[base + x] = lum[v]
+    _png(out, pix, W, H)
+    print('wrote %s (%dx%d, %d tiles, cell %dx%d)' %
+          (out, W, H, len(imgs), cw, ch))
+    print('codes: %s' % ' '.join('%03d' % c for c, _, _, _ in imgs))
+
+
 def main(argv):
     if len(argv) < 2:
         sys.exit(__doc__)
@@ -212,6 +252,11 @@ def main(argv):
     elif cmd == 'png':
         cmd_png(argv[1], argv[2] if len(argv) > 2 else 'dungeon.png',
                 int(argv[3]) if len(argv) > 3 else 8)
+    elif cmd == 'atlas':
+        cmd_atlas(argv[1] if len(argv) > 1 else 'game/EGA',
+                  argv[2] if len(argv) > 2 else 'D0',
+                  argv[3] if len(argv) > 3 else 'atlas.png',
+                  int(argv[4]) if len(argv) > 4 else 8)
     elif cmd == 'all':
         for p in sorted(glob.glob('game/DNGS/DNG*')):
             cmd_info(p)

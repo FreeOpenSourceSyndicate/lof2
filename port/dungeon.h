@@ -36,11 +36,13 @@ struct Dungeon {
     std::vector<uint8_t> tiles;
 
     // 36x36 per-cell object records, two bytes each, in the same row-major
-    // order as `tiles`.  Across all 29 files the first byte is 0 for 99.2% of
-    // cells (and otherwise 1..4) while the second byte is 0 for 91% of cells
-    // (and otherwise 1..~20).  So the two bytes read as two sparse per-cell
-    // codes: a low "sub-type/index" and a high "feature/kind".  Stored as a
-    // little-endian word; use `obj_low`/`obj_code` for the two parts.
+    // order as `tiles`.  Read as 1296 words, both bytes are meaningful *per
+    // cell*: the low byte is 0 for 99.2% of cells (otherwise 1..4) while the
+    // high byte is 0 for 91% of cells (otherwise 1..245, 206 distinct values).
+    // Both byte layers are spatially coherent on their own (adj/nz 0.69 / 0.58),
+    // unlike the non-interleaved half-planes (0.04 / 0.03), which is why the
+    // records are read as words.  Stored little-endian; use `obj_low`/`obj_code`
+    // for the two bytes.
     std::vector<uint16_t> objects;
 
     inline uint8_t obj_low(int x, int y) const {

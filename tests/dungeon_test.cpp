@@ -116,7 +116,8 @@ static void test_real(const std::string& dir) {
 
 // DNGS file naming: DNG<dungeon><level>, matching the game's own
 // `DNGS\DNG%01ld%01ld` format string.  Every file present in game/DNGS must
-// round-trip through the helper.
+// round-trip through the helper, and every one must decode to the fixed
+// 36x36 geometry (the header+body size is invariant across all 29 files).
 static void test_file_name(const std::string& dir) {
     assert(dungeon_file_name(0, 0) == "DNG00");
     assert(dungeon_file_name(1, 7) == "DNG17");
@@ -133,6 +134,9 @@ static void test_file_name(const std::string& dir) {
             assert(load_dungeon(p, d));
             assert(dungeon_file_name(dg, lv) ==
                    std::string("DNG") + (char)('0' + dg) + (char)('0' + lv));
+            // Fixed geometry for every shipped level.
+            assert((int)d.tiles.size() == kDungeonTiles);
+            assert((int)d.objects.size() == kDungeonTiles);
             checked++;
         }
     }
