@@ -168,6 +168,28 @@ bool item_usable_by_class(int index, int cls);
 // Print the decoded table (for eyeballing).
 void dump_items(FILE* out);
 
+// Spell table (also transcribed from LOF.EXE, see port/char_spells.inc).  The
+// engine keeps 141 records of 36 bytes: a 22-byte NUL-padded name then 14 data
+// bytes.  The records are grouped by caster class; the last 14 carry German
+// names (unused/debug).  The data bytes' exact meaning lives in the play loop.
+constexpr size_t kSpellCount = 141;
+constexpr size_t kSpellNameLen = 22;
+constexpr size_t kSpellRecordSize = 36;
+
+struct SpellRecord {
+    std::string name;
+    uint8_t data[14] = {0};
+};
+
+// The decoded table in engine order (index 0 = "Burning hands").
+const std::vector<SpellRecord>& spells();
+
+// 1-based spell lookup (spell indices in items/characters are 1-based).
+const SpellRecord* spell_by_index(int index);
+
+// Print the decoded table (for eyeballing).
+void dump_spells(FILE* out);
+
 // Offsets into the 410-byte (0x19a) in-memory character struct.  ROST records
 // hold this struct at +0x01 (after the count byte) as records of 414 bytes; a
 // GAMES save holds it verbatim at +4.  The offsets below are the ones the

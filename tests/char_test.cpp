@@ -233,7 +233,18 @@ static int real_data() {
     assert(!item_usable_by_class(33, 4));  // not the Dragon
     assert(!item_usable_by_class(0, 0) && !item_usable_by_class(186, 0));
 
-    printf("char_test: real SPEC/ROST/SHOP/GAMES/items ok\n");
+    // Spell table (141 x 36 bytes, also transcribed from LOF.EXE).
+    const auto& sp = spells();
+    assert(sp.size() == kSpellCount && kSpellCount == 141);
+    assert(sp[0].name == "Burning hands");
+    assert(sp[0].data[0] == 0x20 && sp[0].data[10] == 0x03 &&
+           sp[0].data[13] == 0x00);
+    assert(sp[130].name == "Drachenatem I");
+    assert(spell_by_index(1) && spell_by_index(1)->name == "Burning hands");
+    assert(spell_by_index(141) && spell_by_index(141)->name == "Drachenatem II");
+    assert(spell_by_index(0) == nullptr && spell_by_index(142) == nullptr);
+
+    printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells ok\n");
     return 0;
 }
 
