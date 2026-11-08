@@ -330,12 +330,15 @@ tables (transcribed into `port/char_names.inc`, regenerate with
 | morale | `0x423f8` | 5 x 13 | Good, Satisfactory, Mediocre, Alarming, Bad |
 | combat abbrev | `0x421f0` | 4 x 5 | KIL, ATK, DEF, RET |
 | scenario title | `0x42240` | 8 x 22 | Valley of Faerghail … The Mountain |
+| facing | `0x422f0` | 4 x 22 | Facing North/East/South/West |
+| time of day | `0x42348` | 8 x 22 | Midnight, Dawn, Early morning, Morning, Midday, Afternoon, Sunset, Evening |
 
 The scenario titles above double as the location line the play loop blits, so
 `scenario_names()` (index = scenario number) names the region each
-`SYST/SPECn` / `SYST/NSC0n` pair belongs to.  The adjacent **facing**
-(`0x422f0`, 4 x 22) and **time-of-day** (`0x42348`, 8 x 22) strings are pure
-main-loop display strings and are left for the maintainer.
+`SYST/SPECn` / `SYST/NSC0n` pair belongs to.  The adjacent **facing** and
+**time-of-day** tables are the map/status screen's heading and clock lines
+(each a 22-byte centred cell); exposed as `facing_names()` /
+`time_of_day_names()`.
 
 Exposed as `sex_names()`/`race_names()`/`profession_names()`/`alignment_names()`/
 `skill_names()`/`language_names()`/`status_short_names()`/`status_long_names()`/
@@ -410,6 +413,9 @@ scenarios 0..9 have a single-digit file name.)
       `combat_abbrev_names()`).
 - [x] Item use-effect names (`item_effect_name()`, `items_with_effect()`).
 - [x] Spell effect codes (`spell_effect_name()`, `spells_with_effect()`).
+- [x] SPEC keyword/password (`SpecRecord::keyword`) + `+0xeb` class reference.
+- [x] Status-line facing / time-of-day tables (`facing_names()`,
+      `time_of_day_names()`).
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
       all-present roster slots, and the save header/records/trailer.
 - [ ] Remaining B: named stat-field semantics of the SNSC 40-byte block and the

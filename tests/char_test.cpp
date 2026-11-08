@@ -321,6 +321,12 @@ static int real_data() {
     assert(ca.size() == kCombatAbbrevCount && ca[0] == "KIL" && ca[3] == "RET");
     assert(sc.size() == kScenarioCount && sc[0] == " Valley of Faerghail" &&
            sc[7] == "    The Mountain");
+    auto fa = facing_names();
+    auto td = time_of_day_names();
+    assert(fa.size() == kFacingCount && fa[0] == "    Facing North" &&
+           fa[3] == "    Facing West");
+    assert(td.size() == kTimeOfDayCount && td[0] == "      Midnight" &&
+           td[7] == "       Evening");
 
     // Monster rosters (SYST/NSC0n, same 78-byte layout as SNSC).  NSC00 holds
     // 25 scenario-0 monsters; the first is the Ape.

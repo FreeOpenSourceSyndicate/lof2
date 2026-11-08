@@ -177,3 +177,21 @@ static const char* const kScenarioNames[] = {
     "    The Mountain",
 };
 
+static const char* const kFacingNames[] = {
+    "    Facing North",
+    "    Facing East",
+    "    Facing South",
+    "    Facing West",
+};
+
+static const char* const kTimeOfDayNames[] = {
+    "      Midnight",
+    "        Dawn",
+    "    Early morning",
+    "       Morning",
+    "       Midday",
+    "      Afternoon",
+    "       Sunset",
+    "       Evening",
+};
+

@@ -428,6 +428,12 @@ std::vector<std::string> combat_abbrev_names() {
 std::vector<std::string> scenario_names() {
     return to_vec(kScenarioNames, kScenarioCount);
 }
+std::vector<std::string> facing_names() {
+    return to_vec(kFacingNames, kFacingCount);
+}
+std::vector<std::string> time_of_day_names() {
+    return to_vec(kTimeOfDayNames, kTimeOfDayCount);
+}
 
 std::vector<std::string> monster_names(const std::string& dir, int scenario) {
     std::vector<std::string> out;

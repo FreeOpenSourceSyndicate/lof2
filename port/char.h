@@ -271,6 +271,14 @@ std::vector<std::string> combat_abbrev_names();
 // scenario plays in and parallel `SYST/SPECn` / `SYST/NSC0n`.
 std::vector<std::string> scenario_names();
 
+// Status-line tables (LOF.EXE, image 0x422f0/0x42348; 22-byte centred cells).
+// `facing_names()` is the compass heading (N/E/S/W) and `time_of_day_names()`
+// the clock band (Midnight, Dawn, … Evening) the map screen shows.
+constexpr size_t kFacingCount = 4;
+constexpr size_t kTimeOfDayCount = 8;
+std::vector<std::string> facing_names();
+std::vector<std::string> time_of_day_names();
+
 // --- Monster / NPC rosters -------------------------------------------------
 //
 // SYST/NSCnn is a count byte then that many 78-byte records in the same layout
