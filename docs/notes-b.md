@@ -149,6 +149,22 @@ tests are 1, 7, 9, 0x0c, 0x0e, 0x11, 0x19; the rest (0,2..6,8,10,12..18,20..22,
 (Water, Earth, Air, Fire). Index 10 (Woodkeeper) also appears, matching the SNSC
 class order for classes 5..13.
 
+### SPEC field semantics grounded in the dispatcher
+
+The event dispatcher (`analysis/lof.asm` ~`1F88F`, `1F98C`, `20AD7`) confirms the
+record field meanings on the 238-byte buffer:
+
+- `+0x4e` (`arg_4e`) is read **signed** and `jl`-gated (`cmp word …,0; jl`):
+  negative (`-1`) means "no text window"; the engine then reads `+0x4c`
+  (`arg_4c`) and pushes it as the text id for the window it opens.
+- `+0xe4` (`counter`), `+0xe6` (`arg_e6`) and `+0xe8` (`arg_e8`) are the type-7
+  (door) handler's countdown/target fields.
+- Record init (`1B95A`..) zeroes `+0x4a/+0x4b/+0x4c` and sets `+0x4e = 0x64`,
+  confirming the field map at the head of the 0xa4..0xee region.
+
+In this release `arg_4e` is `-1` in **659 of 665** records (only six have a value:
+four are 3, two are 0) — asserted in `char_test`.
+
 ### ROST record structure (refined)
 
 The file stride is 414, but the engine treats a character as a **410-byte
