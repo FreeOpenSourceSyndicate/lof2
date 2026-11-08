@@ -90,6 +90,29 @@ std::vector<RostRecord> load_rost(const std::string& path) {
     return out;
 }
 
+SaveGame load_save(const std::string& path) {
+    SaveGame g;
+    std::vector<uint8_t> d = read_file(path);
+    if (d.size() < kSaveHeaderSize) return g;
+    std::memcpy(g.header, d.data(), kSaveHeaderSize);
+    g.ok = std::memcmp(g.header, kSaveMagic, 4) == 0;
+    if (!g.ok) return g;
+    size_t n = (d.size() - kSaveHeaderSize) / 410;
+    for (size_t i = 0; i < n; i++) {
+        const uint8_t* r = d.data() + kSaveHeaderSize + i * 410;
+        SaveChar c;
+        std::memcpy(c.raw.data(), r, 410);
+        c.present = r[0];
+        std::string nm;
+        for (int k = 1; k < 15 && r[k]; k++) nm.push_back((char)r[k]);
+        c.name = std::move(nm);
+        g.chars.push_back(std::move(c));
+    }
+    size_t end = kSaveHeaderSize + n * 410;
+    g.trailer.assign(d.begin() + end, d.end());
+    return g;
+}
+
 ShopData load_shop(const std::string& path) {
     ShopData s;
     std::vector<uint8_t> d = read_file(path);

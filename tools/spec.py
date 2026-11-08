@@ -74,6 +74,19 @@ def dump_rost(path):
         print(f"  [{i:2d}] present={r[0]:#04x} name={name!r} tail={tail:#x}")
 
 
+def dump_save(path):
+    d = open(path, "rb").read()
+    hdr = d[:4]
+    n = (len(d) - 4) // 410
+    print(f"{path}: size={len(d)} header={hdr.hex()} "
+          f"({hdr!r}) records={n} trailer={len(d) - 4 - n * 410}")
+    for i in range(n):
+        r = d[4 + i * 410:4 + (i + 1) * 410]
+        name = cstr(r, 1, 14)
+        if r[0] or name:
+            print(f"  [{i:2d}] present={r[0]:#04x} name={name!r}")
+
+
 def dump_shop(path):
     d = open(path, "rb").read()
     print(f"{path}: size={len(d)}")
@@ -90,6 +103,8 @@ def main():
                     help="dump one SYST/SPECn (index n)")
     ap.add_argument("--rost", action="store_true")
     ap.add_argument("--shop", action="store_true")
+    ap.add_argument("--save", default=None,
+                    help="dump a GAMES/GAMEn saved game (e.g. GAME1)")
     ap.add_argument("--nonempty", action="store_true",
                     help="only show SPEC records that carry text")
     args = ap.parse_args()
@@ -101,6 +116,8 @@ def main():
         dump_rost(os.path.join(args.dir, "ROST", "ROST"))
     elif args.shop:
         dump_shop(os.path.join(args.dir, "ROST", "SHOP"))
+    elif args.save:
+        dump_save(os.path.join(args.dir, "GAMES", args.save))
     else:
         for n in range(8):
             p = os.path.join(args.dir, "SYST", f"SPEC{n}")

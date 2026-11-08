@@ -165,6 +165,21 @@ record field meanings on the 238-byte buffer:
 In this release `arg_4e` is `-1` in **659 of 665** records (only six have a value:
 four are 3, two are 0) — asserted in `char_test`.
 
+### Saved games (`GAMES/GAMEn`) — new
+
+The engine's save system is grounded from `LOF.EXE` strings: `GAMES\GAME%d`
+with prompts "Load which gamestanding:", " is not a valid game:",
+" gamestanding loaded!" (and the save mirror). A save file is:
+
+    off 0  : header `00 46 4F 4C`  (0x00 'F' 'O' 'L')
+    off 4  : N x 410-byte (0x19a) character records — the SAME struct ROST uses
+    end    : trailing block (10 bytes here)
+
+GAME1..GAME5 are all 13134 bytes = 4 + 32*410 + 10, i.e. **32 character slots**.
+The six party members appear first: Decker, Siegurd, Handy, Merlin, Cassandra,
+Assanla (present = 0x01). `SaveGame`/`load_save()` in `port/char.{h,cpp}` parse
+this; `tools/spec.py --save GAME1` dumps it.
+
 ### ROST record structure (refined)
 
 The file stride is 414, but the engine treats a character as a **410-byte
@@ -186,7 +201,8 @@ is in the maintainer's main-loop domain), so it is left as a follow-up.
 
 - [x] Oracle-confirmed ROST (414 = 410+4) and SHOP (190) strides; ROST `tail`.
 - [x] SPEC dispatch-type semantics (all 25 observed values) + `spec_type_name`.
+- [x] Save-game (`GAMES/GAMEn`) parser + format (header `\0FOL`, 410 stride).
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
-      and all-present roster slots.
+      all-present roster slots, and the save header/records/trailer.
 - [ ] Remaining B: named stat-field semantics of the SNSC 40-byte block and the
       410-byte character struct — both need the play loop (maintainer domain).
