@@ -93,7 +93,67 @@ in a `mov ax,0xee`-strided function, all of which sit past the text regions.
 
 ### Request for the maintainer (do not edit `port/lof.cpp` myself)
 
-`lof.cpp` is `[SERIAL]` and owned by the maintainer. Please wire
-`--dump-spec` into the front-end: include `char.h`, and on `--dump-spec` call
-`load_spec(dir + "/SYST/SPEC" + n)` for n=0..7 and `dump_spec(stdout, t, label)`.
-(The same dump is already runnable now via `./char_test --dump-spec`.)
+`lof.cpp` is `[SERIAL]` and owned by the maintainer. It now already exposes
+`--dump-spec` (thanks, maintainer, PR #6). No further front-end change is needed
+for the current B scope.
+
+## Unblock + oracle grounding (after maintainer PR #6/#7)
+
+The maintainer landed `O`+Enter → town (the first in-game state) and wired
+`--dump-spec`. B is now grounded against real in-game reads:
+
+- Oracle trace (`LOF_I21=1`, `--keys 0x18,0x1c`) shows the engine reading
+  `ROST\ROST` as **11 × (410 + 4) bytes** and `ROST\SHOP` as **186 + 4** bytes.
+  This *independently confirms both strides* (414 and 190) that I derived from
+  the file sizes — the split read (410 then 4) is exactly the 4-byte tail I saw
+  at offsets 410..413.
+- The event dispatcher in `analysis/lof.asm` at `1F740` confirms the SPEC layout
+  on the 238-byte buffer `[0x7d04]`: it prints `text_b` at `+0x50`, and for
+  dispatch **type 0x19** reads `index_c9` at `+0xc9`
+  (`mov al, es:[bx+si+0xc9]; cwde; ... call`). Both match my parser.
+
+### SPEC dispatch-type semantics (`+0xe2`, oracle-derived)
+
+Correlating the type word with each record's text across all **665** records
+(SPEC0..7) gives a clean 1:1 behaviour mapping. The engine's explicit handler
+tests are 1, 7, 9, 0x0c, 0x0e, 0x11, 0x19; the rest (0,2..6,8,10,12..18,20..22,
+24) are simple text/scenery records. Encoded as `SpecType` +
+`spec_type_name()` in `port/char.{h,cpp}`:
+
+| type | count | meaning | evidence |
+|-----:|------:|---------|----------|
+| 0  | 586 | pure description (scenery, gravestones) | dominant; text only |
+| 1  | 9 | recruit ("may I join you (Yes/No)") | text_b |
+| 2  | 9 | spring/fountain | text_b |
+| 3  | 3 | spring breaking through ground | text_b |
+| 4  | 1 | battlefield | text_b |
+| 5  | 1 | rumbling passageway | text_b |
+| 6  | 1 | (no text) | — |
+| 7  | 10 | "would you like to go through?" door | handler `cmp …,7` |
+| 8  | 12 | trade for gold (Yes/No) | text_b |
+| 9  | 1 | notice/sign; `arg_4c` = text id | handler `cmp …,9` |
+| 10 | 1 | deep/clear spring | text_b |
+| 11 | 7 | teleport | text_b |
+| 12 | 1 | "press it?" button | handler `cmp …,0xc` |
+| 13 | 2 | inscribed stone / cauldron | text_b |
+| 14 | 1 | figure blocks the way | handler `cmp …,0xe` |
+| 15 | 3 | (often no text) | — |
+| 16 | 1 | hazardous crossing (lava) | text_b |
+| 17 | 4 | item/puzzle interaction | handler `cmp …,0x11` |
+| 18 | 2 | damaging trap | text_b |
+| 19–22 | 1 each | button variants | text_b ("Click.") |
+| 24 | 1 | massive stone door with a circle | text_b |
+| 25 | 5 | elemental guardian riddle; `index_c9` selects it | handler `cmp …,0x19` + reads `+0xc9` |
+
+`SPEC0[15..18]` are the four elemental guardians with `index_c9 = 6,7,8,9`
+(Water, Earth, Air, Fire). Index 10 (Woodkeeper) also appears, matching the SNSC
+class order for classes 5..13.
+
+### Status after unblock
+
+- [x] Oracle-confirmed ROST (414) and SHOP (190) strides.
+- [x] SPEC dispatch-type semantics (all 25 observed values) + `spec_type_name`.
+- [x] Tests assert element types/indices and the 665-record total.
+- [ ] Remaining B: numeric stat block semantics of `SYST/SNSC` (the 40-byte
+      block after the two names) — bit/field layout not yet grounded; combat
+      formulas depend on the maintainer's play loop.

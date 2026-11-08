@@ -18,6 +18,17 @@ import struct
 SPEC_REC = 238   # 0xee, confirmed in analysis/lof.asm
 ROST_REC = 414
 
+# Dispatch-type labels, derived by correlating the value at 0xe2 with each
+# record's text across all 665 records (kept in sync with port/char.cpp).
+TYPE_NAME = {
+    0: "text", 1: "recruit", 2: "spring", 3: "spring2", 4: "battle",
+    5: "passage", 6: "empty6", 7: "door", 8: "trade", 9: "sign",
+    10: "spring3", 11: "teleport", 12: "button", 13: "inscription",
+    14: "challenge", 15: "empty15", 16: "lava", 17: "puzzle", 18: "trap",
+    19: "button19", 20: "button20", 21: "button21", 22: "button22",
+    24: "door24", 25: "elemental",
+}
+
 
 def cstr(b, off, limit):
     end = off
@@ -43,8 +54,8 @@ def dump_spec(path, index=None, only_nonempty=False):
         a4c = struct.unpack_from("<H", r, 0x4C)[0]
         a4e = struct.unpack_from("<h", r, 0x4E)[0]
         cnt = struct.unpack_from("<H", r, 0xE4)[0]
-        print(f"  [{i:3d}] type={typ:<3d} idx={idx:#04x} a4c={a4c} "
-              f"a4e={a4e} cnt={cnt}")
+        print(f"  [{i:3d}] type={typ:<3d} ({TYPE_NAME.get(typ,'?'):<11}) "
+              f"idx={idx:#04x} a4c={a4c} a4e={a4e} cnt={cnt}")
         if ta:
             print(f"        a: {ta}")
         if tb:
