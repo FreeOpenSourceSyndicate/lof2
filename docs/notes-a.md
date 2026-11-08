@@ -113,6 +113,28 @@ that is `1..4`) while the high byte is the object/feature code (`1..245`, 206
 distinct values) and is spatially coherent on its own. `port/dungeon.h` exposes
 `obj_low` (low byte) and `obj_code` (high byte).
 
+Per dungeon, the *distinct* tile codes are few (9..16) and share a common core
+`{0,1,2,3,6,7,8,13}` plus a couple of "special" codes that are always
+`variant*16 + 4` or `variant*16 + 5` and differ from dungeon to dungeon:
+
+| dungeon | extra/special codes |
+|---------|---------------------|
+| 0 | 20 21 85 244 |
+| 1 | 4 5 36 37 |
+| 2 | 20 21 52 53 |
+| 3 | 36 37 68 69 |
+| 4 | 52 53 85 244 |
+| 5 | 4 68 101 |
+| 6 | 84 |
+
+So the special code is an authored per-dungeon value (a feature type such as a
+stair/portal), not derivable from the tileset index — another reason the
+code -> sprite mapping needs the oracle frame rather than pure static analysis.
+
+The 8 tilesets `EGA/D0..D7` are the sprite pools (D0 has 63 sprites, D1..D7 have
+51); the number of sprites per set far exceeds the ~9..16 distinct codes a level
+uses, consistent with one code expanding to several pre-scaled depth sprites.
+
 ## Tileset atlas tool
 
 `python3 tools/dngs.py atlas game/EGA D0 out.png [cols]` writes a grayscale
