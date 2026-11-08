@@ -41,8 +41,8 @@ endif
 
 port: lof vor
 
-lof: port/lof.cpp port/gfx.cpp port/gfx.h
-	$(CXX) $(PORT_CFLAGS) -o $@ port/lof.cpp port/gfx.cpp $(PORT_LIBS)
+lof: port/lof.cpp port/gfx.cpp port/data.cpp port/gfx.h port/data.h
+	$(CXX) $(PORT_CFLAGS) -o $@ port/lof.cpp port/gfx.cpp port/data.cpp $(PORT_LIBS)
 
 vor: port/vor.cpp port/gfx.cpp port/gfx.h
 	$(CXX) $(PORT_CFLAGS) -o $@ port/vor.cpp port/gfx.cpp $(PORT_LIBS)

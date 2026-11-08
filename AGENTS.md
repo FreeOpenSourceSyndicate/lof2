@@ -78,6 +78,21 @@ plaintext in the unpacked payload (only the error strings are), so reproducing i
 exactly requires decoding VOR's font/string tables (`INT 10h AH=11h` font
 handling is used). This is the next VOR target after the title graphic.
 
+### System data files (`SYST/`)
+
+- `SYST/SNSC` — 14 records x 78 bytes. Each record begins with two 19-byte,
+  NUL-padded names: the **singular** form then the **plural** form (e.g. "Dragon"
+  / "Dragons"). A 40-byte statistics block follows. These are the 14 character /
+  creature classes (Siegurd, Eljot, Ihl Kazar, Mask Bearer, Dragon, Earth, Fire,
+  Water, Air, Angel, Woodkeeper, Phantomfighter, Warrior, Werewolf).
+- `SYST/NSCnn` — a count byte followed by that many 78-byte records in the same
+  layout (per-scenario NPC/monster tables).
+- `SYST/TXTn` — a table of little-endian word offsets (N of them) followed by
+  NUL-terminated strings; the offsets point at the string bodies. `TXT0` holds
+  the long dialogue texts (English).
+- `DSKTAB.DFS` — 140 bytes, all zero in this release (disk/volume table; zeroed
+  because the game was installed to a hard disk).
+
 ## Build
 
 ```sh
