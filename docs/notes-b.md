@@ -162,6 +162,9 @@ record field meanings on the 238-byte buffer:
   (`arg_4c`) and pushes it as the text id for the window it opens.
 - `+0xe4` (`counter`), `+0xe6` (`arg_e6`) and `+0xe8` (`arg_e8`) are the type-7
   (door) handler's countdown/target fields.
+- `+0xeb` (`class_eb`) is an SNSC class index (`0xff` = none): the consumer at
+  `1F86B` scales it by 78 into the SNSC base and reads `stats[0x0a]`.  Only 3 of
+  665 records set it (0, 1, 2).
 - Record init (`1B95A`..) zeroes `+0x4a/+0x4b/+0x4c` and sets `+0x4e = 0x64`,
   confirming the field map at the head of the 0xa4..0xee region.
 
@@ -359,6 +362,15 @@ does not duplicate it. The class order is exposed as `kClassName[]` (Siegurd,
 Eljot, Ihl Kazar, Mask Bearer, Dragon, Earth, Fire, Water, Air, Angel,
 Woodkeeper, Phantomfighter, Warrior, Werewolf) — the same order the item `f6`
 eligibility mask and SPEC `index_c9` use.
+
+The SNSC class index a special/NPC record refers to lives in SPEC `+0xeb`
+(`0xff` = none).  The consumer at `analysis/lof.asm` `1F86B` does
+`imul 0x4e` (78) by `+0xeb`, adds the SNSC base `es:[0x37b0]`, and reads
+`es:[bx + si + 0x48]` = `stats[0x0a]` (record byte 48) as a byte argument to
+the far routine `212f:6e00` (the same routine used elsewhere to push a
+byte/word value).  So record byte 48 is a per-class value the message code
+prints/uses; only 3 of 665 SPEC records set `+0xeb`, so it is a rarely used
+field.  The other 39 stat bytes have no comparable single-byte consumer here.
 
 The 40-byte statistics sub-block (record bytes 38..77) is a class template: a
 PC (Siegurd/Eljot) starts from a 14-value seed vector

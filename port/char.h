@@ -84,8 +84,10 @@ struct SpecRecord {
     uint16_t counter = 0;     // 0xe4  countdown/counter
     uint16_t arg_e6 = 0;      // 0xe6  extra argument (type 7/14)
     uint16_t arg_e8 = 0;      // 0xe8  extra argument
+    uint8_t class_eb = 0xff;  // 0xeb  SNSC class index (0xff = none); see notes
 
     bool has_index() const { return index_c9 != 0xff; }
+    bool has_class() const { return class_eb != 0xff; }
 };
 
 // A parsed SYST/SPECn file: the count byte plus its records.
