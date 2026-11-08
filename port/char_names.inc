@@ -1,0 +1,84 @@
+// Legend of Faerghail character-generation name tables — transcribed
+// from the DOS release (LOF.EXE image offsets 0x41e28/0x41e4a/0x41e98/0x41f28
+// for sex/race/profession/alignment, 0x41d52 skills, 0x41dbe languages).
+// Regenerate with `tools/spec.py --emit-names`.
+
+static const char* const kSexNames[] = {
+    "Female",
+    "Male",
+};
+
+static const char* const kRaceNames[] = {
+    "Human",
+    "Half-Elf",
+    "Elf",
+    "Halfling",
+    "Dwarf",
+    "Half-Orc",
+};
+
+static const char* const kProfessionNames[] = {
+    "Warrior",
+    "Barbarian",
+    "Rogue",
+    "Smith",
+    "Scout",
+    "Priest",
+    "Druid",
+    "Magician",
+    "Illusionist",
+    "Paladin",
+    "Healer",
+    "Monk",
+};
+
+static const char* const kAlignmentNames[] = {
+    "Lawful",
+    "Chaotic",
+};
+
+static const char* const kSkillNames[] = {
+    "Negotiating",
+    "Attack",
+    "Defence",
+    "Concentration",
+    "Pick-pocketing",
+    "Stalking",
+    "Trap detecting",
+    "Trap disarming",
+    "Lock picking",
+};
+
+static const char* const kLanguageNames[] = {
+    "Common tongue",
+    "Animal tongue",
+    "Orc tongue",
+    "Lizard tongue",
+    "Dwarven tongue",
+    "Elven tongue",
+    "Dark tongue",
+    "Magic tongue",
+};
+
+static const char* const kStatusShortNames[] = {
+    "Good",
+    "Mad",
+    "Ill",
+    "Poisn",
+    "Blnd.",
+    "Stun.",
+    "Stone",
+    "Dead",
+};
+
+static const char* const kStatusLongNames[] = {
+    "Good",
+    "Mad",
+    "Ill",
+    "Poisoned",
+    "Blind",
+    "Stunned",
+    "Stoned",
+    "Dead",
+};
+

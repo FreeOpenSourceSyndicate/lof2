@@ -7,6 +7,7 @@ namespace lofport {
 
 #include "char_items.inc"
 #include "char_spells.inc"
+#include "char_names.inc"
 
 namespace {
 
@@ -253,6 +254,33 @@ void dump_spells(std::FILE* out) {
         for (uint8_t b : v[i].data) std::fprintf(out, " %02x", b);
         std::fputc('\n', out);
     }
+}
+
+namespace {
+std::vector<std::string> to_vec(const char* const* a, size_t n) {
+    return std::vector<std::string>(a, a + n);
+}
+}  // namespace
+
+std::vector<std::string> sex_names() { return to_vec(kSexNames, kSexCount); }
+std::vector<std::string> race_names() { return to_vec(kRaceNames, kRaceCount); }
+std::vector<std::string> profession_names() {
+    return to_vec(kProfessionNames, kProfessionCount);
+}
+std::vector<std::string> alignment_names() {
+    return to_vec(kAlignmentNames, kAlignmentCount);
+}
+std::vector<std::string> skill_names() {
+    return to_vec(kSkillNames, kSkillCount);
+}
+std::vector<std::string> language_names() {
+    return to_vec(kLanguageNames, kLanguageCount);
+}
+std::vector<std::string> status_short_names() {
+    return to_vec(kStatusShortNames, kStatusCount);
+}
+std::vector<std::string> status_long_names() {
+    return to_vec(kStatusLongNames, kStatusCount);
 }
 
 }  // namespace lofport
