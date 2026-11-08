@@ -258,9 +258,18 @@ Connar=0x68a, Siegurd=0x592, etc.
 The 78-byte SNSC stride is confirmed in the loader at `analysis/lof.asm`
 `1B1E1`: `mov ax,0x4e; imul [bp-2]; add ax,[es:0x37b0]; …` loops
 `cmp [bp-2],0xe` (14 classes). `port/data.cpp` already reads it; B reuses it and
-does not duplicate it. The 40-byte statistics sub-block's named-field layout is
-only readable through the play loop (the runtime stat struct at es:[bx+0x27xx]
-is in the maintainer's main-loop domain), so it is left as a follow-up.
+does not duplicate it. The class order is exposed as `kClassName[]` (Siegurd,
+Eljot, Ihl Kazar, Mask Bearer, Dragon, Earth, Fire, Water, Air, Angel,
+Woodkeeper, Phantomfighter, Warrior, Werewolf) — the same order the item `f6`
+eligibility mask and SPEC `index_c9` use.
+
+The 40-byte statistics sub-block (record bytes 38..77) is a class template: a
+PC (Siegurd/Eljot) starts from a 14-value seed vector
+(`02 00 01 03 01 01 0c 0a 41 00 0c 00 01 01`), while monsters (Dragon, Warrior,
+Werewolf) carry combat stats inline. The named-field layout is only readable
+through the play loop (the runtime stat struct at `es:[bx+0x27xx]` is in the
+maintainer's main-loop domain), so only the low-risk offsets are named and the
+rest is left as a follow-up.
 
 ### Status after unblock
 

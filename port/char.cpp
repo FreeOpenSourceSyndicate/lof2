@@ -202,6 +202,18 @@ const ItemRecord* item_by_index(int index) {
     return &items()[index - 1];
 }
 
+const char* const kClassName[kClassCount] = {
+    "Siegurd", "Eljot", "Ihl Kazar", "Mask Bearer", "Dragon", "Earth", "Fire",
+    "Water", "Air", "Angel", "Woodkeeper", "Phantomfighter", "Warrior",
+    "Werewolf",
+};
+
+bool item_usable_by_class(int index, int cls) {
+    const ItemRecord* it = item_by_index(index);
+    if (!it || cls < 0 || (size_t)cls >= kClassCount) return false;
+    return (it->f6 & (1 << cls)) != 0;
+}
+
 void dump_items(std::FILE* out) {
     const auto& v = items();
     for (size_t i = 0; i < v.size(); i++) {
