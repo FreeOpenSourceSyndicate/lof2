@@ -140,7 +140,16 @@ screen, and `make test` still passes.
 - [x] Font strip decoded + menu text — `port/font.cpp`.
 - [x] Intro sequence (TITL -> CRED -> menu) in the drop-in.
 - [x] Data readers: `SYST/SNSC`, `SYST/NSCnn`, `SYST/TXTn` — `port/data.cpp`.
-- [ ] Emulator: map the full menu key map and reach the in-game (3D) screens.
+- [x] Emulator: menu key map complete; **the in-game screen is reachable**:
+      `O` then Enter loads the save and the engine reads `ROST/ROST`,
+      `ROST/SHOP` and the town graphics (`EGA/TWN/TWN00..05`) — the town/play
+      screen. Scripted as the `town` scenario in `tests/golden_test.sh`.
+- [x] Drop-in exposes workstream B's reader: `./lof --dir game --dump-spec`
+      (decoded `SYST/SPEC0..7`).
+- [ ] Drop-in: reproduce the in-game (town) screen — compare against the `town`
+      golden frame.
 - [ ] Dungeon subsystem (`DNGS/`) — workstream A.
-- [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — workstream B.
+- [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — workstream B. **Unblocked:**
+      the SPEC/ROST reads now happen in the oracle (`town` scenario), so B can
+      ground the remaining stat/combat semantics against real in-game state.
 - [ ] Main game loop / UI state machine — maintainer.
