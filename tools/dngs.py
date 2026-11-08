@@ -24,6 +24,7 @@ Usage:
     python3 tools/dngs.py info  game/DNGS/DNG00 [DNG01 ...]
     python3 tools/dngs.py grid  game/DNGS/DNG00 [tiles|objects] [W]
     python3 tools/dngs.py png   game/DNGS/DNG00 out.png [cell]
+    python3 tools/dngs.py tiles game/EGA          # layered dungeon tilesets
     python3 tools/dngs.py all
 """
 import collections
@@ -172,11 +173,37 @@ def cmd_png(path, out, cell=8):
     print('wrote %s (%dx%d)' % (out, w, h))
 
 
+def cmd_tiles(dn_dir):
+    """Inventory the layered dungeon tilesets EGA/Dn/DPnnn (see notes-a.md).
+
+    Each Dn directory is one tileset; the tiles are pre-scaled first-person
+    sprites (a wall one step ahead is 120x119, two steps 64x59, ...), so the
+    decoded sizes fall into a few discrete depth bands rather than one size.
+    """
+    import ega
+    dirs = sorted(d for d in os.listdir(dn_dir)
+                  if os.path.isdir(os.path.join(dn_dir, d)))
+    for d in dirs:
+        files = sorted(glob.glob(os.path.join(dn_dir, d, 'DP*')))
+        if not files:
+            continue
+        sizes = []
+        for f in files:
+            w, h, _ = ega.decode(f)
+            sizes.append((int(os.path.basename(f)[2:]), w * 8, h))
+        bands = collections.Counter((w, h) for _, w, h in sizes)
+        print('%s: %d tiles, bands %s' %
+              (d, len(sizes), sorted(bands.items(), key=lambda t: -t[0][0])))
+        print('   codes: %s' % ' '.join('%03d' % c for c, _, _ in sizes))
+
+
 def main(argv):
     if len(argv) < 2:
         sys.exit(__doc__)
     cmd = argv[0]
-    if cmd == 'info':
+    if cmd == 'tiles':
+        cmd_tiles(argv[1] if len(argv) > 1 else 'game/EGA')
+    elif cmd == 'info':
         for p in argv[1:]:
             cmd_info(p)
     elif cmd == 'grid':

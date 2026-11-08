@@ -123,6 +123,35 @@ buildings/areas); `DNG10`/`DNG17` are 0.97-0.99 (a few sealed pockets). So the
 levels; a wrong wall set would fragment them far more. Still PROVISIONAL
 pending an oracle frame, but this raises confidence.
 
+## Dungeon graphics are layered, first-person, pre-scaled tiles
+
+`EGA/D0/DP001..DP066` (63 files) are the dungeon wall/floor/ceiling images and
+they are **not** flat 16x16 tiles. Decoded sizes come in discrete "depth" steps:
+
+| codes (D0) | size    | role                                  |
+|------------|---------|---------------------------------------|
+| 001, 002   | 120x119 | full-viewport wall (1 step ahead)     |
+| 003        | 64x59   | wall two steps ahead                  |
+| 004        | 32x29   | wall far ahead                        |
+| 006, 007   | 32x59   | left / right wall                     |
+| 008..011   | 16x29   | side wall, mid depth                  |
+| 012, 013   | 120x11  | ceiling / floor strip                 |
+| 024, 025   | 32x119  | tall side wall                        |
+| 062..066   | 120x59  | near wall, upper/lower                |
+
+The viewport is 120x119 (matching the town viewport), and `DP001` at 120x119
+fills it. This is the classic **first-person, per-depth sprite** layout: the
+engine picks a differently pre-scaled bitmap for each depth band instead of
+scaling at run time. That is exactly why template-matching the tiles against a
+flat viewport failed earlier — there is no single tile size to match.
+
+The asset-name table (near file offset `0x3b3e8`) lists them as
+`ega\d0\dp000` .. `ega\d0\dp069`, followed by `ega\anim\anNN` frames. `D1`..`D7`
+are **8 different dungeon tilesets** (each 51 files, same sizes starting at
+`DP001`/`DP014`/`DP015`), selected per level — consistent with the German
+`dungeon` level table. Which set a level uses, and the map-tile-code -> `DPnnn`
+index, are still unverified (needs the oracle frame).
+
 ## Save file also carries a 36x36 map region
 
 The oracle reads 11834 + 4 + 1296 bytes from `GAMES/GAME  1` (13134 bytes
