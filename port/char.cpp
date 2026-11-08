@@ -460,7 +460,7 @@ int CharSheet::hp_percent() const {
     return 100 * hp_cur / hp_max;   // integer division, as the sheet builder does
 }
 
-uint8_t char_stat1d_from_level(uint8_t dex) {
+uint8_t char_stat1d_from_dex(uint8_t dex) {
     if (dex < 16) return 10;
     return (uint8_t)(5 * dex - 65);   // 1BA40: 5*dex - 0x41
 }

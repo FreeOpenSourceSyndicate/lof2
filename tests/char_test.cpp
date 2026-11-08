@@ -155,7 +155,7 @@ static void synthetic_spec() {
            ch.int47 == 12 && ch.wis48 == 15);
     assert(ch.speed56 == 2);
     // +0x1d is derived from Dexterity: 5*16 - 65 == 15, matching stat1d above.
-    assert(ch.stat1d == char_stat1d_from_level(ch.dex46));
+    assert(ch.stat1d == char_stat1d_from_dex(ch.dex46));
 
     printf("char_test: synthetic SPEC ok\n");
 }
@@ -435,9 +435,9 @@ static int real_data() {
     assert(cs.hp_percent() == 100);
     assert(cs.level17 == 0 && cs.speed56 == 4);   // Siegurd: rank 0
     // +0x1d is the Dexterity-derived stat (1BA40): <16 -> 10, else 5*dex-65.
-    assert(cs.stat1d == char_stat1d_from_level(cs.dex46));
-    assert(char_stat1d_from_level(0) == 10 && char_stat1d_from_level(15) == 10);
-    assert(char_stat1d_from_level(16) == 15 && char_stat1d_from_level(19) == 30);
+    assert(cs.stat1d == char_stat1d_from_dex(cs.dex46));
+    assert(char_stat1d_from_dex(0) == 10 && char_stat1d_from_dex(15) == 10);
+    assert(char_stat1d_from_dex(16) == 15 && char_stat1d_from_dex(19) == 30);
     // The five primary attributes sit at +0x44..+0x48 (Con, Str, Dex, Int, Wis),
     // verified against the sheet builder (0x2676E) and the training routine
     // (0x95B0): Siegurd is the un-rolled template (all zero); Decker is a real
@@ -457,7 +457,7 @@ static int real_data() {
         assert(!c.name.empty());
         assert(c.hp_cur <= c.hp_max);
         assert(c.hp_percent() == (c.hp_max ? 100 * c.hp_cur / c.hp_max : 0));
-        assert(c.stat1d == char_stat1d_from_level(c.dex46));
+        assert(c.stat1d == char_stat1d_from_dex(c.dex46));
     }
     // A damaged character still projects consistently (Handy: 9 of 11 HP).
     CharSheet dk = decode_char(sv.chars[2].raw.data());

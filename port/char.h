@@ -411,7 +411,7 @@ CharSheet decode_char(const uint8_t* raw);
 // char +0x1d as derived from the Dexterity at +0x46 by the routine at 1BA40: a
 // character below Dexterity 16 keeps 10; from 16 up it is 5*dex - 65 (dex 16 ->
 // 15, 19 -> 30).  Verified against every live save character.
-uint8_t char_stat1d_from_level(uint8_t dex);
+uint8_t char_stat1d_from_dex(uint8_t dex);
 
 // --- GAMES/GAMEn (saved game / "gamestanding") ----------------------------
 
