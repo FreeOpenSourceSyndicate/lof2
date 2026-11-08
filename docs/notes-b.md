@@ -208,7 +208,13 @@ at image offset `0x42cec` (data segment `0x2cec`) as **185 records of 32 bytes**
 
     off 0 : 16-byte NUL-padded name ("Club", "Short sword", …)
     off 16: seven little-endian int16 fields
-    off 30: byte item class, byte equipment slot
+    off 30: byte item class, byte use-effect index
+
+Item class (off 30): 0 misc/key, 1 melee, 2 armour, 3 shield, 4 projectile,
+5 staff, 6 scroll/book/map, 8 ring, 9 potion, 10 treasure, 11 bow/sling.
+Off 31 is **not** an equip slot: it is 0 for ordinary gear and `1..40` only on
+magic/consumable items (potions, rings, wands, special weapons), i.e. a
+use-effect index.
 
 Because the drop-in must run without the original EXE, the table is transcribed
 into `port/char_items.inc` (regenerate with `tools/spec.py --emit-items`, which

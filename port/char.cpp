@@ -188,8 +188,8 @@ const std::vector<ItemRecord>& items() {
             r.f4 = kItemFields[i][4];
             r.f5 = kItemFields[i][5];
             r.f6 = kItemFields[i][6];
-            r.item_class = kItemClassSlot[i][0];
-            r.slot = kItemClassSlot[i][1];
+            r.item_class = kItemClassEffect[i][0];
+            r.effect = kItemClassEffect[i][1];
             v.push_back(std::move(r));
         }
         return v;
@@ -207,8 +207,8 @@ void dump_items(std::FILE* out) {
     for (size_t i = 0; i < v.size(); i++) {
         const ItemRecord& r = v[i];
         std::fprintf(out,
-                     "[%3zu] %-18s class=%u slot=%u f0..6=%d %d %d %d %d %d %d\n",
-                     i, r.name.c_str(), r.item_class, r.slot, r.f0, r.f1, r.f2,
+                     "[%3zu] %-18s class=%u eff=%u f0..6=%d %d %d %d %d %d %d\n",
+                     i, r.name.c_str(), r.item_class, r.effect, r.f0, r.f1, r.f2,
                      r.f3, r.f4, r.f5, r.f6);
     }
 }

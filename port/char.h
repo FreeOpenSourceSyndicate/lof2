@@ -140,8 +140,12 @@ struct ItemRecord {
     int16_t f4 = 0;  // weapon: class/penalty mask
     int16_t f5 = 0;  // projectile pairing / misc
     int16_t f6 = 0;  // class-eligibility mask (bit n => class n may use)
-    uint8_t item_class = 0;  // 1 melee, 2 armour, 4 projectile, 5 helmet, ...
-    uint8_t slot = 0;        // equipment slot
+    // Item class: 0 misc/key, 1 melee, 2 armour, 3 shield, 4 projectile,
+    // 5 staff, 6 scroll/book/map, 8 ring, 9 potion, 10 treasure, 11 bow/sling.
+    uint8_t item_class = 0;
+    // Use/effect index: 0 for ordinary gear; 1..40 on magic & consumable items
+    // (potions, rings, wands, special weapons).  Not an equip slot.
+    uint8_t effect = 0;
 };
 
 // The decoded table in engine order (index 0 = "Club").

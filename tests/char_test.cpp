@@ -212,6 +212,13 @@ static int real_data() {
            it[12].f1 == 10 && it[12].f2 == 50);
     assert(it[0x1a].name == "Leather armour" && it[0x1a].item_class == 2);
     assert(it[184].name == "The Staff");
+    // The trailing byte is a use-effect index (0 for plain gear), not a slot.
+    assert(it[0x21].name == "Small shield" && it[0x21].item_class == 3 &&
+           it[0x21].effect == 0);
+    assert(it[0x2e].name == "Healing potion" && it[0x2e].item_class == 9 &&
+           it[0x2e].effect == 10);
+    assert(it[0x48].name == "Lightbringer" && it[0x48].item_class == 1 &&
+           it[0x48].effect == 33);
     // 1-based lookup: index 13 is "Short sword"; out-of-range is null.
     assert(item_by_index(13) && item_by_index(13)->name == "Short sword");
     assert(item_by_index(185) && item_by_index(185)->name == "The Staff");

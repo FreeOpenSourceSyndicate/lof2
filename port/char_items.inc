@@ -3,7 +3,7 @@
 // no data file carries it, and the drop-in must run without the original EXE,
 // so it keeps this copy.  Regenerate with `tools/spec.py --emit-items`.
 // 185 records of 32 bytes: 16-byte NUL-padded name, seven little-endian
-// int16 fields, then a byte item class and a byte equipment slot.
+// int16 fields, then a byte item class and a byte use-effect index.
 
 static const char kItemNames[kItemCount][16] = {
     "Club",
@@ -193,7 +193,7 @@ static const char kItemNames[kItemCount][16] = {
     "The Staff",
 };
 
-// The seven int16 fields, then the class and slot bytes.
+// The seven int16 fields, then the class and use-effect bytes.
 static const int16_t kItemFields[kItemCount][7] = {
     {4,5,100,0,1280,0,3583},
     {2,8,70,0,1792,0,515},
@@ -382,7 +382,7 @@ static const int16_t kItemFields[kItemCount][7] = {
     {0,1450,22,0,0,0,4095},
 };
 
-static const uint8_t kItemClassSlot[kItemCount][2] = {
+static const uint8_t kItemClassEffect[kItemCount][2] = {
     {1,0},
     {1,0},
     {1,0},
