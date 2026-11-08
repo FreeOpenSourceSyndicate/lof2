@@ -338,11 +338,28 @@ void Machine::dos_int(uint8_t n) {
         case 0x0B: { c.ax = (uint16_t)((c.ax & 0xFF00) | (key_queue.empty() ? 0x00 : 0xFF));
             static int nb=0; if (getenv("LOF_KDBG") && !key_queue.empty() && nb<20){ fprintf(stderr,"[0B] key pending, returns FF\n"); nb++; }
             break; }
-        case 0x0C: { if (!key_queue.empty()) key_queue.clear(); c.ax = (uint16_t)((c.ax & 0xFF00) | al); break; }
+        case 0x0C: {
+            // DOS 0Ch: flush the type-ahead buffer, then invoke the console
+            // input function named in AL (01/06/07/08/0A).  Games poll AH=0Bh
+            // first and then call 0Ch to read the key that is waiting, so the
+            // read must actually return it.
+            uint8_t fn = al;
+            if (fn == 0x01 || fn == 0x06 || fn == 0x07 || fn == 0x08) {
+                if (!key_queue.empty()) {
+                    uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+                    c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k));
+                } else {
+                    c.ax = (uint16_t)((c.ax & 0xFF00) | 0);
+                }
+            } else {
+                if (!key_queue.empty()) key_queue.clear();
+            }
+            break; }
         case 0x19: c.ax = (uint16_t)((c.ax & 0xFF00) | 2); break;  // current drive C:
         case 0x1A: break;  // set DTA (not tracked: single DTA in PSP:0x80 area used)
         case 0x25: {  // set interrupt vector
             uint32_t p = (uint32_t)(c.ax & 0xFF) * 4;
+            if (getenv("LOF_VEC")) fprintf(stderr, "[setvec] INT %02X -> %04X:%04X\n", c.ax & 0xFF, c.ds, c.dx);
             ww(p, c.dx); ww(p + 2, c.ds); break; }
         case 0x2A: {  // get date
             time_t t = time(nullptr); struct tm* tm = localtime(&t);
@@ -601,6 +618,7 @@ static void kbd_int(Machine& m, uint8_t) {
 // --------------------------------------------------------------- INT 33h ---
 static void mouse_int(Machine& m, uint8_t) {
     CPU& c = m.cpu;
+    if (getenv("LOF_MDBG") && c.ax != 3) fprintf(stderr,"[mousefn] ax=%04X bx=%04X cx=%04X dx=%04X\n", c.ax,c.bx,c.cx,c.dx);
     switch (c.ax) {
         case 0x0000: c.ax = 0xFFFF; c.bx = 2; break;                 // reset
         case 0x0001: m.mouse_visible = true; break;                  // show

@@ -164,6 +164,8 @@ int main(int argc, char** argv) {
         if (!opt.keys.empty() && frame_no >= key_frame && ((frame_no - key_frame) % 20) == 0) {
             for (uint8_t k : opt.keys) m.key_queue.push_back(k);
         }
+        if (getenv("LOF_MOVEX")) m.mouse_x = atoi(getenv("LOF_MOVEX"));
+        if (getenv("LOF_MOVEY")) m.mouse_y = atoi(getenv("LOF_MOVEY"));
         if (getenv("LOF_CLICK")) {
             // Click at (mouse_x, mouse_y) starting at frame LOF_CLICKFRAME, held
             // for a few frames so the game's polling loop sees the button down.
