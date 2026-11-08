@@ -129,11 +129,18 @@ screen, and `make test` still passes.
 ## 4. Current status (update this list as you go)
 
 - [x] Analysis emulator boots LOF to the main menu (EGA mode 0Dh).
+- [x] Scripted input drives the menu: `--keys`/`LOF_KEYFRAME` inject keys, and
+      letters switch screens (e.g. `L` opens the character screen). The menu is
+      keyboard-driven, not mouse-only — an earlier note said otherwise; it was
+      wrong (only Enter had been tried).
+- [x] Oracle golden-frame regression test — `tests/golden_test.sh` (`make golden`,
+      also run by `check.sh`). Guards the emulator output every drop-in screen is
+      verified against.
 - [x] EGA image format decoded (11-byte header) — `tools/ega.py`, `port/gfx.cpp`.
 - [x] Font strip decoded + menu text — `port/font.cpp`.
 - [x] Intro sequence (TITL -> CRED -> menu) in the drop-in.
 - [x] Data readers: `SYST/SNSC`, `SYST/NSCnn`, `SYST/TXTn` — `port/data.cpp`.
-- [ ] Emulator: scripted input to drive the menu into the game (oracle follow-up).
+- [ ] Emulator: map the full menu key map and reach the in-game (3D) screens.
 - [ ] Dungeon subsystem (`DNGS/`) — workstream A.
 - [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — workstream B.
 - [ ] Main game loop / UI state machine — maintainer.
