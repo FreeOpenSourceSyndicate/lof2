@@ -189,6 +189,22 @@ static void test_object_layout(const std::string& dir) {
     assert(coherence(hi) > 4 * coherence(blk));  // words are the right reading
 }
 
+static void test_render_facing() {
+    Dungeon d;
+    d.tiles.assign(kDungeonTiles, 6);
+    d.objects.assign(kDungeonTiles, 0);
+    Screen scr; scr.resize(320, 200);
+    DungeonPos p{18, 18, 1};  // facing east
+    render_dungeon_map(scr, d, p, 4);
+    // The facing arrow must paint some pixels east of the centre marker.
+    int cx = (320 - kDungeonW * 4) / 2 + 18 * 4 + 2;
+    int cy = (200 - kDungeonH * 4) / 2 + 18 * 4 + 2;
+    int east = 0;
+    for (int k = 1; k <= 4; k++)
+        east += scr.pixels[cy * scr.width + (cx + k)] == 15;
+    assert(east > 0);
+}
+
 static void test_walk() {
     Dungeon d;
     d.tiles.assign(kDungeonTiles, 6);
@@ -219,6 +235,7 @@ int main(int argc, char** argv) {
     test_synthetic();
     test_render();
     test_reachable();
+    test_render_facing();
     test_walk();
     std::string dir = (argc > 1) ? argv[1] : "game/DNGS";
     test_real(dir);

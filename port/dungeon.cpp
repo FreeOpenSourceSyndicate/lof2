@@ -204,6 +204,21 @@ void render_dungeon_map(Screen& scr, const Dungeon& d, int px, int py, int cell)
     }
 }
 
+void render_dungeon_map(Screen& scr, const Dungeon& d, const DungeonPos& p,
+                        int cell) {
+    render_dungeon_map(scr, d, p.x, p.y, cell);
+    if (cell < 1) cell = 1;
+    int w = kDungeonW * cell, h = kDungeonH * cell;
+    int ox = (scr.width - w) / 2, oy = (scr.height - h) / 2;
+    int cx = ox + p.x * cell + cell / 2, cy = oy + p.y * cell + cell / 2;
+    int dx = dungeon_facing_dx(p.facing), dy = dungeon_facing_dy(p.facing);
+    for (int k = 1; k <= cell; k++) {
+        scr.put(cx + dx * k, cy + dy * k, 15);
+        scr.put(cx + dx * k - dy, cy + dy * k - dx, 14);
+        scr.put(cx + dx * k + dy, cy + dy * k + dx, 14);
+    }
+}
+
 bool load_dungeon(const std::string& path, Dungeon& out, std::string* err) {
     FILE* f = std::fopen(path.c_str(), "rb");
     if (!f) {

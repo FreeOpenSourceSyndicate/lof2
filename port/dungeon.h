@@ -131,6 +131,10 @@ bool dungeon_place(const Dungeon& d, DungeonPos& p, int x, int y);
 void render_dungeon_map(Screen& scr, const Dungeon& d, int px, int py,
                         int cell = 4);
 
+// Same, but draws the party with a short arrow showing its facing.
+void render_dungeon_map(Screen& scr, const Dungeon& d, const DungeonPos& p,
+                        int cell = 4);
+
 }  // namespace lofport
 
 #endif
