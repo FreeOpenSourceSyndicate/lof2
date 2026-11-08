@@ -189,10 +189,37 @@ static void test_object_layout(const std::string& dir) {
     assert(coherence(hi) > 4 * coherence(blk));  // words are the right reading
 }
 
+static void test_walk() {
+    Dungeon d;
+    d.tiles.assign(kDungeonTiles, 6);
+    d.objects.assign(kDungeonTiles, 0);
+    // A wall directly north of (5,5); open everywhere else.
+    d.tiles[4 * kDungeonW + 5] = 3;
+
+    DungeonPos p{5, 5, 0};  // facing N, wall ahead
+    assert(!dungeon_can_step(d, p));
+    assert(!dungeon_step(d, p) && p.x == 5 && p.y == 5);
+    dungeon_turn(p, true);                 // -> E
+    assert(p.facing == 1 && dungeon_can_step(d, p));
+    assert(dungeon_step(d, p) && p.x == 6 && p.y == 5);
+    dungeon_turn(p, false);                // -> N
+    assert(p.facing == 0);
+    dungeon_turn(p, false);                // -> W
+    assert(p.facing == 3 && dungeon_facing_dx(3) == -1);
+    assert(dungeon_step(d, p) && p.x == 5);
+
+    // place() snaps off a wall to the nearest open cell.
+    DungeonPos q;
+    assert(dungeon_place(d, q, 5, 4));
+    assert(dungeon_passable(d, q.x, q.y));
+    assert(!(q.x == 5 && q.y == 4));       // that cell is the wall
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_render();
     test_reachable();
+    test_walk();
     std::string dir = (argc > 1) ? argv[1] : "game/DNGS";
     test_real(dir);
     test_object_layout(dir);

@@ -3,6 +3,7 @@
 #include "dungeon.h"
 
 #include <cstdio>
+#include <cstdlib>
 
 namespace lofport {
 
@@ -128,6 +129,40 @@ bool dungeon_reachable(const Dungeon& d, int x0, int y0, int x1, int y1) {
             if (seen[(size_t)nc]) continue;
             seen[(size_t)nc] = 1;
             stack.push_back(nc);
+        }
+    }
+    return false;
+}
+
+int dungeon_facing_dx(int facing) { return facing == 1 ? 1 : facing == 3 ? -1 : 0; }
+int dungeon_facing_dy(int facing) { return facing == 2 ? 1 : facing == 0 ? -1 : 0; }
+
+void dungeon_turn(DungeonPos& p, bool right) {
+    p.facing = (p.facing + (right ? 1 : 3)) & 3;
+}
+
+bool dungeon_can_step(const Dungeon& d, const DungeonPos& p) {
+    return dungeon_passable(d, p.x + dungeon_facing_dx(p.facing),
+                               p.y + dungeon_facing_dy(p.facing));
+}
+
+bool dungeon_step(const Dungeon& d, DungeonPos& p) {
+    if (!dungeon_can_step(d, p)) return false;
+    p.x += dungeon_facing_dx(p.facing);
+    p.y += dungeon_facing_dy(p.facing);
+    return true;
+}
+
+bool dungeon_place(const Dungeon& d, DungeonPos& p, int x, int y) {
+    if (dungeon_passable(d, x, y)) { p.x = x; p.y = y; return true; }
+    for (int r = 1; r < kDungeonW + kDungeonH; r++) {
+        for (int dy = -r; dy <= r; dy++) {
+            for (int dx = -r; dx <= r; dx++) {
+                if (std::abs(dx) != r && std::abs(dy) != r) continue;
+                if (dungeon_passable(d, x + dx, y + dy)) {
+                    p.x = x + dx; p.y = y + dy; return true;
+                }
+            }
         }
     }
     return false;

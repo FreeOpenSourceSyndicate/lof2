@@ -99,6 +99,31 @@ bool dungeon_passable(const Dungeon& d, int x, int y);
 // sanity-check that a level is connected.
 bool dungeon_reachable(const Dungeon& d, int x0, int y0, int x1, int y1);
 
+// --- Walk model -----------------------------------------------------------
+
+// Grid position + facing for the party.  Facing: 0=N (-y), 1=E (+x),
+// 2=S (+y), 3=W (-x).
+struct DungeonPos {
+    int x = 0, y = 0, facing = 0;
+};
+
+int dungeon_facing_dx(int facing);   // 0,1,0,-1 for N,E,S,W
+int dungeon_facing_dy(int facing);   // -1,0,1,0 for N,E,S,W
+
+// Turn the facing left / right (no collision).  Wraps 0..3.
+void dungeon_turn(DungeonPos& p, bool right);
+
+// True if the cell directly ahead of `p` can be entered.
+bool dungeon_can_step(const Dungeon& d, const DungeonPos& p);
+
+// Step forward if the cell ahead is passable.  Returns true on a move.  The
+// cell *behind* is not checked: a move always leaves the current cell.
+bool dungeon_step(const Dungeon& d, DungeonPos& p);
+
+// Place `p` at the nearest walkable cell to (x,y) (spiral search), or leave it
+// unchanged if the whole level is solid.  Returns true if a spot was found.
+bool dungeon_place(const Dungeon& d, DungeonPos& p, int x, int y);
+
 // Draw a top-down map of the level onto `scr`, `cell` pixels per tile,
 // centred, with the player drawn at (px,py).  Tile codes are colour-coded and
 // a cell with an object code is marked.  Intended for headless verification
