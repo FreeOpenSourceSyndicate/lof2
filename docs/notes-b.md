@@ -271,11 +271,27 @@ tables (transcribed into `port/char_names.inc`, regenerate with
 | languages | `0x41dbe` | 8 packed | Common, Animal, Orc, Lizard, Dwarven, Elven, Dark, Magic |
 | status (short) | `0x42190` | 8 x 6 | Good, Mad, Ill, Poisn, Blnd., Stun., Stone, Dead |
 | status (long) | `0x421c0` | 8 packed | Good, Mad, Ill, Poisoned, Blind, Stunned, Stoned, Dead |
+| gender/profession | `0x41f87` | 12 packed | female Warrior, ..., Priestess, ..., Healer |
+| race adjective | `0x4202e` | 6 packed | Human-, Half-Elven-, Elven-, Halfling-, Dwarven-, Half-Orc- |
+| alignment (lower) | `0x42013` | 2 packed | "lawful ", "chaotic " |
+| profession abbrev | `0x420da` | 13 x 3 | W, Ba, Ro, Sm, Sc, Pr, Dr, Ma, Il, Pa, He, Mn, ?? |
+| profession (padded) | `0x42101` | 13 x 11 | Warrior..Monk, then "??" |
+| actions | `0x42204` | 5 x 12 | Defends, Attacks, Stalks, Use object, Cast Spell |
+| morale | `0x423f8` | 5 x 13 | Good, Satisfactory, Mediocre, Alarming, Bad |
+
+The region also carries the fixed-width **location** (`0x42240`, 8 x 22:
+Valley of Faerghail, Monastery of Sagacita, Sagacita catakombs, The Mines,
+Pyramid, Temple, Castle, Mountain), **facing** (`0x422f0`, 4 x 22) and
+**time-of-day** (`0x42348`, 8 x 22) strings the play loop blits; those are
+main-loop display strings and are left for the maintainer.
 
 Exposed as `sex_names()`/`race_names()`/`profession_names()`/`alignment_names()`/
-`skill_names()`/`language_names()`/`status_short_names()`/`status_long_names()`
-with `kSexCount`..`kStatusCount`.  The 12-byte records are 11 chars + NUL
-(zero-padded between groups); the packed tables are NUL-terminated strings.
+`skill_names()`/`language_names()`/`status_short_names()`/`status_long_names()`/
+`gender_profession_names()`/`race_adjective_names()`/`alignment_lower_names()`/
+`profession_padded_names()`/`action_names()`/`morale_names()` with
+`kSexCount`..`kMoraleCount`.  The 12-byte records are 11 chars + NUL
+(zero-padded between groups); the packed tables are NUL-terminated strings
+(their trailing spaces are significant — they are fixed-width columns).
 
 ### ROST record structure (refined)
 

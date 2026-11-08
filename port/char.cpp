@@ -282,5 +282,23 @@ std::vector<std::string> status_short_names() {
 std::vector<std::string> status_long_names() {
     return to_vec(kStatusLongNames, kStatusCount);
 }
+std::vector<std::string> gender_profession_names() {
+    return to_vec(kGenderProfessionNames, kGenderProfessionCount);
+}
+std::vector<std::string> race_adjective_names() {
+    return to_vec(kRaceAdjectiveNames, kRaceAdjectiveCount);
+}
+std::vector<std::string> alignment_lower_names() {
+    return to_vec(kAlignmentLowerNames, kAlignmentLowerCount);
+}
+std::vector<std::string> profession_padded_names() {
+    return to_vec(kProfessionPaddedNames, kProfessionDisplayCount);
+}
+std::vector<std::string> action_names() {
+    return to_vec(kActionNames, kActionCount);
+}
+std::vector<std::string> morale_names() {
+    return to_vec(kMoraleNames, kMoraleCount);
+}
 
 }  // namespace lofport

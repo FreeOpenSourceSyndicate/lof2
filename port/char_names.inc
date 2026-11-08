@@ -82,3 +82,80 @@ static const char* const kStatusLongNames[] = {
     "Dead",
 };
 
+static const char* const kGenderProfessionNames[] = {
+    "female Warrior",
+    "female Barbarian",
+    "female Rogue",
+    "",
+    "female Scout",
+    "Priestess",
+    "female Druid",
+    "female Magician",
+    "female Illusionist",
+    "female Paladin",
+    "Healer",
+    "",
+};
+
+static const char* const kRaceAdjectiveNames[] = {
+    "Human-",
+    "Half-Elven-",
+    "Elven-",
+    "Halfling-",
+    "Dwarven-",
+    "Half-Orc-",
+};
+
+static const char* const kAlignmentLowerNames[] = {
+    "lawful ",
+    "chaotic ",
+};
+
+static const char* const kProfessionAbbrevNames[] = {
+    "Wa",
+    "Ba",
+    "Ro",
+    "Sm",
+    "Sc",
+    "Pr",
+    "Dr",
+    "Ma",
+    "Il",
+    "Pa",
+    "He",
+    "Mn",
+    "??",
+};
+
+static const char* const kProfessionPaddedNames[] = {
+    "Warrior",
+    "Barbarian",
+    "Rogue",
+    "Smith",
+    "Scout",
+    "Priest",
+    "Druid",
+    "Magician",
+    "Illusion.",
+    "Paladin",
+    "Healer",
+    "Monk",
+    "??",
+};
+
+static const char* const kActionNames[] = {
+    "Defends",
+    "Attacks",
+    "Stalks",
+    "Use object",
+    "Cast Spell",
+};
+
+static const char* const kMoraleNames[] = {
+    "Good",
+    "Satisfactory",
+    "Mediocre",
+    "Alarming",
+    "Bad",
+};
+
