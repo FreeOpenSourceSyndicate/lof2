@@ -142,15 +142,21 @@ static int real_data() {
         assert(r.type <= 25 && r.type != (SpecType)23);
 
     // 665 records across the eight scenario files (stable for this release).
-    size_t total = 0;
+    size_t total = 0, unset_4e = 0;
     for (int n = 0; n <= 7; n++) {
         char p[64];
         snprintf(p, sizeof p, "%s/SYST/SPEC%d", dir, n);
         SpecTable tt = load_spec(p);
         assert(tt.ok);
         total += tt.records.size();
+        for (const auto& r : tt.records)
+            if (r.arg_4e < 0) unset_4e++;  // -1 == "unset" (engine handler
+                                           // gates the text window on it)
     }
     assert(total == 665);
+    // arg_4e (offset 0x4e, read signed by the event dispatcher) is -1 in all
+    // but six records in this release.
+    assert(unset_4e == 659);
 
     // SPEC6 has 182 records; SPEC7 has 41 (the counts are stable per file).
     SpecTable t6 = load_spec(std::string(dir) + "/SYST/SPEC6");
