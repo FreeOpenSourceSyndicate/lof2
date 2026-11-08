@@ -69,7 +69,8 @@ static Options parse(int argc, char** argv) {
             while (p < s.size()) { size_t c = s.find(',', p);
                 std::string t = s.substr(p, c == std::string::npos ? std::string::npos : c - p);
                 if (!t.empty()) o.keys.push_back((uint8_t)strtol(t.c_str(), nullptr, 0));
-                if (c == std::string::npos) break; p = c + 1; }
+                if (c == std::string::npos) break;
+                p = c + 1; }
         }
     }
     return o;
@@ -140,7 +141,8 @@ int main(int argc, char** argv) {
             static std::vector<uint32_t> scaled;
             scaled.assign(640 * 400, 0xFF000000u);
             int sx = 640 / m.fb_w, sy = 400 / m.fb_h;
-            if (sx < 1) sx = 1; if (sy < 1) sy = 1;
+            if (sx < 1) sx = 1;
+            if (sy < 1) sy = 1;
             for (int y = 0; y < 400; y++)
                 for (int x = 0; x < 640; x++) {
                     int gx = x / sx, gy = y / sy;
@@ -335,7 +337,10 @@ int main(int argc, char** argv) {
         }
     }
 
-          if (!opt.shot.empty() && frame_no > 0) write_png(opt.shot, m.framebuffer, m.fb_w, m.fb_h); fprintf(stderr,"[lof] shot fb=%dx%d\n",m.fb_w,m.fb_h);
+      if (!opt.shot.empty() && frame_no > 0) {
+          write_png(opt.shot, m.framebuffer, m.fb_w, m.fb_h);
+          fprintf(stderr,"[lof] shot fb=%dx%d\n",m.fb_w,m.fb_h);
+      }
 
       if (const char* ep = getenv("LOF_EDUMP")) {
           FILE* f = fopen(ep, "wb");

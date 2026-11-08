@@ -145,13 +145,34 @@ that read the game *data* files and never touch `LOF.EXE` / `VOR.EXE`.
 - `port/lof.cpp` — boot/title path; more screens are added as formats are decoded.
 
 Both accept `--dir DIR`, `--headless`, `--shot FILE.png` (for verification).
+`lof` additionally accepts `--screen NAME` (render one named screen, e.g.
+`--screen CRED`, `--screen UP/MSCR`, `--screen EGA/UP/MENU`) and `--shot-frame N`
+(which frame of the intro sequence `--shot` captures; default = last).
 
 Progress:
 
 - [x] VOR title screen (`EGA/IN/DRAG`) reproduced; verified against DOSBox-X.
-- [ ] VOR text page (built into VOR.EXE, after the title).
-- [ ] LOF boot sequence / title logo placement.
-- [ ] LOF menu and play loop.
+- [x] VOR credits page (`EGA/IN/CRED`, shown after a key press) reproduced.
+- [x] LOF boot sequence: title (`EGA/IN/TITL`) -> credits (`EGA/IN/CRED`) ->
+      main menu.
+- [x] LOF main menu artwork: `EGA/UP/MSCR` (full background) + `EGA/UP/MENU`
+      (menu frame blitted at 7,4).
+- [ ] Text/font rendering (see below).
+- [ ] LOF play loop.
+
+### Font / text rendering (partially decoded)
+
+`EGA/UP/CHR1` and `EGA/UP/CHR2` are 320x24 strips, each a row of 40 8x8 glyph
+cells. They are *not* plain ASCII in file order. Decoding so far: each glyph is
+8 bytes; the planes are read the same way as other EGA images (MSB = leftmost
+pixel), giving recognisable Latin capitals. The strip is a *two-row* alphabet:
+the upper 8 pixel rows hold one case (A-Z, 0-9, punctuation) and the lower 8 rows
+the other case / accents. The exact glyph->character mapping and which strip is
+used for which screen text still needs the blit routine in `LOF.EXE`
+(the loader reads the strip and indexes glyphs; the text itself comes from
+`SYST/TXTn` and the inline strings). Until then the drop-in draws no text and the
+menu is reproduced as artwork only.
+
 
 Roadmap:
 

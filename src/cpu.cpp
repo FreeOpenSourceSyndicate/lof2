@@ -551,7 +551,8 @@ void cpu_step(CPU& c) {
             d.rm_write2(addr, modrm >> 6, modrm & 7, is8, r); break;
         }
         case 0xD4: { uint8_t b = d.fetch8(); uint8_t al = (uint8_t)(c.ax & 0xFF);
-            if (b) c.ax = (uint16_t)(((al / b) << 8) | (al % b)); break; }
+            if (b) c.ax = (uint16_t)(((al / b) << 8) | (al % b));
+            break; }
         case 0xD5: { uint8_t b = d.fetch8(); uint8_t al = (uint8_t)(c.ax & 0xFF); uint8_t ah = (uint8_t)(c.ax >> 8);
             c.ax = (uint16_t)((ah * b + al) & 0xFF); break; }
         case 0xD7: { uint32_t a = ((uint32_t)d.seg_of(3) << 4) + c.bx;
@@ -588,7 +589,8 @@ void cpu_step(CPU& c) {
                     uint16_t f = (uint16_t)(c.flags & ~(CF | OF | SF | ZF | PF | AF));
                     if (r) f |= CF;
                     if (r & (is8 ? 0x80 : 0x8000)) f |= SF;
-                    if (r == 0) f |= ZF; f |= pf_of((uint8_t)r); c.flags = f;
+                    if (r == 0) f |= ZF;
+                    f |= pf_of((uint8_t)r); c.flags = f;
                     d.rm_write2(addr, modrm >> 6, modrm & 7, is8, r); break; }
                 case 4: { if (is8) { uint16_t r = (uint16_t)((c.ax & 0xFF) * (uint8_t)a); c.ax = r;
                         c.flags = (uint16_t)(c.flags & ~(CF | OF)); if (r > 0xFF) c.flags |= CF | OF; }
