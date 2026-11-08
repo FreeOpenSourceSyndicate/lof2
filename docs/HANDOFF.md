@@ -21,14 +21,28 @@ make check                # health: poison guard, build, tests, git hygiene
 Anyone can spin up a fresh agent with just this:
 
 > You are working in `FreeOpenSourceSyndicate/lof2`. Start by running
-> `./bootstrap.sh` and reading `docs/HANDOFF.md`, `docs/RISKS.md`, and
-> `docs/WORKSTREAMS.md` — they tell you everything. You own the files listed for
-> your workstream; do not edit files you do not own. Commit and push after every
-> meaningful step (the workspace can reset). Never read the sibling repo
-> `FreeOpenSourceSyndicate/lof`. Your workstream is: **<A = dungeons | B =
-> characters/items | maintainer = main loop>**.
+> `./bootstrap.sh` and reading `README.md`, then `docs/HANDOFF.md`,
+> `docs/RISKS.md`, and `docs/WORKSTREAMS.md` — they tell you everything,
+> including how to pick your own workstream. Do not edit files you do not own.
+> Commit and push after every meaningful step (the workspace can reset). Never
+> read the sibling repo `FreeOpenSourceSyndicate/lof`.
 
 That prompt plus the repo is all a replacement agent needs — no prior context.
+The agent picks its own workstream from `docs/WORKSTREAMS.md` (see "Pick your own
+workstream"); you do not have to point it at one.
+
+### Merging your PR
+
+You may review and merge pull requests yourself — you do not need the maintainer.
+
+1. Keep the branch green: `make check` must pass.
+2. `gh pr create` (or the API) against `main`.
+3. Wait for the mergeability check, then merge:
+   ```sh
+   gh pr merge <n> --repo FreeOpenSourceSyndicate/lof2 --squash
+   ```
+   (or the async API: `PUT /repos/.../pulls/<n>/merge-async`). Do not merge a
+   branch whose `make check` fails.
 
 - `src/`  — an 8086/EGA **emulator**. It runs the *original* `LOF.EXE`/`VOR.EXE`
   so we can observe behaviour and verify our re-implementation. It is a

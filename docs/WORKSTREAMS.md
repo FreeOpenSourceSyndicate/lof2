@@ -10,6 +10,30 @@ other's files**. The rule that keeps builds green is simple:
 Shared files that exactly one person owns at a time are marked **[SERIAL]**.
 Everyone else must not edit them.
 
+## Pick your own workstream (you do not need to be assigned one)
+
+If you were dropped in without a workstream, choose one **yourself** from the
+state of the repo. The authoritative list of open work is the checklist in
+`docs/HANDOFF.md` ("Current status") plus the per-workstream **Definition of
+done** below. To claim a workstream:
+
+1. Read `docs/HANDOFF.md` and this file.
+2. Pick the highest-value item that is still unchecked **and** not already
+   claimed by an open branch/PR. To see what is claimed:
+   `git ls-remote --heads origin` and the open PRs
+   (`gh pr list --repo FreeOpenSourceSyndicate/lof2`).
+3. Create your branch `work/<yourname>` and add a one-line claim at the top of
+   your notes file (`docs/notes-<yourname>.md`): what you are doing.
+4. Push the branch **immediately**, before writing code, so others can see it.
+5. Do the work; push often; open a PR when a unit is green.
+
+If everything is taken, pick the next unchecked item in `docs/HANDOFF.md`, or
+grab a bug from the "Fixed bugs (do not regress)" list in `AGENTS.md` that needs
+a regression test. There is always something; you never need to wait to be told.
+
+Default mapping if you want a suggestion: first agent in → **A (dungeons)**,
+second → **B (characters/items)**. The maintainer owns the main loop.
+
 ## File ownership map
 
 | Path | Owner | Notes |
