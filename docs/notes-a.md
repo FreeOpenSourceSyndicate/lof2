@@ -96,6 +96,54 @@ with `0` (10226) and `6` (21740) dominating and `3` (1888) / `12` (1069) the
 structural walls. The stride-16 groups `20/21 36/37 52/53 68/69 84/85` look
 like wall + orientation variants.
 
+Counted across all 29 files, `tile & 15` (the low nibble) and `tile >> 4` split
+cleanly, confirming the `variant*16 + shape` bitfield:
+
+- shapes (low nibble): `0` x10226, `1` x398, `2` x727, `3` x1888, `4` x29,
+  `5` x28, `6` x21740, `7` x632, `8` x707, `9` x9, `10` x11, `11` x2,
+  `12` x1069, `13` x118.
+- variants (high nibble): `0` x37537, `1` x14, `2` x9, `3` x8, `4` x4, `5` x6,
+  `6` x4, `15` x2. So only ~47 cells in the whole game carry a *variant*
+  (non-zero high nibble); the run-of-the-mill cells are variant 0 with shape
+  `0/6` (floor) or `3/12` (wall).
+
+Object layer: read as 1296 words both bytes are meaningful *per cell*, not a
+single word: the low byte is non-zero in only ~309 cells (a sparse "sub-code"
+that is `1..4`) while the high byte is the object/feature code (`1..245`, 206
+distinct values) and is spatially coherent on its own. `port/dungeon.h` exposes
+`obj_low` (low byte) and `obj_code` (high byte).
+
+Per dungeon, the *distinct* tile codes are few (9..16) and share a common core
+`{0,1,2,3,6,7,8,13}` plus a couple of "special" codes that are always
+`variant*16 + 4` or `variant*16 + 5` and differ from dungeon to dungeon:
+
+| dungeon | extra/special codes |
+|---------|---------------------|
+| 0 | 20 21 85 244 |
+| 1 | 4 5 36 37 |
+| 2 | 20 21 52 53 |
+| 3 | 36 37 68 69 |
+| 4 | 52 53 85 244 |
+| 5 | 4 68 101 |
+| 6 | 84 |
+
+So the special code is an authored per-dungeon value (a feature type such as a
+stair/portal), not derivable from the tileset index — another reason the
+code -> sprite mapping needs the oracle frame rather than pure static analysis.
+
+The 8 tilesets `EGA/D0..D7` are the sprite pools (D0 has 63 sprites, D1..D7 have
+51); the number of sprites per set far exceeds the ~9..16 distinct codes a level
+uses, consistent with one code expanding to several pre-scaled depth sprites.
+
+## Tileset atlas tool
+
+`python3 tools/dngs.py atlas game/EGA D0 out.png [cols]` writes a grayscale
+contact sheet of one tileset (`EGA/Dn/DPnnn`), each sprite padded into a grid
+whose cell is the largest sprite in the set, and prints the code list in cell
+order. This is the artifact for the *next* step: once the oracle dungeon frame
+exists, read a tile code off the map and find its sprite by eye in the sheet
+(the sprites are pre-scaled first-person views, so sizes vary per cell).
+
 ## Progress
 
 - [x] RLE scheme + fixed 3892-byte decode confirmed for all 29 files.
