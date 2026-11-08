@@ -1,0 +1,17 @@
+# Build artifacts
+lof-native
+cpu_test
+*.o
+*.a
+
+# Downloaded game archives and extracted game data (proprietary, do not commit)
+downloads/
+game/
+*.zip
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Scratch
+*.tmp
