@@ -20,7 +20,59 @@ dungeon) to use as the oracle for the native port's play loop.  Files touched:
 * **Clock hook** in `src/machine.cpp`: `LOF_HOUR`/`LOF_MIN`/`LOF_SEC` override
   INT 21h AH=2Ch.
 
-## Town menu (from LOF.EXE, ds base 0x40000)
+## Town layout (verified in DOSBox, DOS EN release)
+
+The starting location is the **Inn**, with an empty party.  Menu:
+
+```
+(P)ick-pocket   (R)est   (L)ook for a new character (create)
+(E)rase character (delete from pool)
+(A)dd a new character (pool -> group)
+(D)ismiss a character (group -> pool)
+(O)pen file (load a saved game)   (C)ontinue
+```
+
+An empty group cannot leave the Inn.  The first pool character is dead; adding a
+*second* (live) one lets `(C)` work.  So the inn is where `(O)pen file` lives —
+the scripted path `O,1` loads the save and lands in the **town main menu**.
+
+Town main menu (string at `ds=0x5A4A`):
+
+```
+Which building do you want to visit?
+(E)mporium (B)ank (I)nn (H)ouse of trades (T)emple (C)ontinue
+```
+
+`(C)ontinue` here leaves town.  The **first** time you leave town a text offers
+an **amulet**: press `1`-`6` to give it to a hero (with one hero you must press
+`1`), or `(L)eave it` to decline.  This amulet prompt is why a plain "press C
+twice" script never reached the map — it needs a third key.
+
+Building sub-menus:
+
+| building | options |
+|----------|---------|
+| (E)mporium | (B)uy (S)ell (R)epair (G)ather Gold (C)ontinue |
+| (B)ank | (D)eposit/open (W)ithdraw/close (E)xamine accounts (J)oint deposit (C)ontinue |
+| (H)ouse of Trades | (T)raining (L)earn magic spells (A)nother Language (J)oint deposit (C)ontinue |
+| (T)emple | (H)eal (R)evive a dead character (J)oint deposit (C)ontinue |
+
+## Wilderness map (after leaving town)
+
+Arrow keys move a first-person party:
+
+* up   = step forward
+* left = turn left (no move)
+* right= turn right (no move)
+* down = turn 180° (no move)
+* `(C)` = asks which spell to cast
+
+Time: **stands still in town** (except when `(R)esting` at the inn), but on the
+map it advances on its own even while idle.  When the party's mood reaches
+"bad" you cannot move ("The companions are tired and won't go on"); resting
+helps.
+
+## Town menu strings (from LOF.EXE, ds base 0x40000)
 
 Strings at `ds=0x5A4A`:
 
