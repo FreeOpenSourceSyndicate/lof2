@@ -2,8 +2,6 @@
 // See port/dungeon.h and docs/notes-a.md.
 #include "dungeon.h"
 
-#include "gfx.h"
-
 #include <cstdio>
 
 namespace lofport {
@@ -91,6 +89,48 @@ std::vector<std::string> dungeon_ascii(const Dungeon& d, bool show_objects) {
         lines.push_back(row);
     }
     return lines;
+}
+
+bool dungeon_passable(const Dungeon& d, int x, int y) {
+    if (x < 0 || y < 0 || x >= kDungeonW || y >= kDungeonH) return false;
+    uint8_t t = d.tile(x, y);
+    return t != 3 && t != 12;
+}
+
+// Colour per tile code (EGA 16-colour indices).
+static uint8_t tile_colour(uint8_t v) {
+    switch (v) {
+        case 0:  return 8;    // dark gray  - open floor
+        case 6:  return 7;    // light gray - floor
+        case 3:  return 4;    // red        - wall
+        case 12: return 1;    // blue       - wall/water
+        case 7:  return 10;   // green
+        case 8:  return 6;    // brown
+        case 2:  return 13;   // magenta
+        default: return 15;   // white
+    }
+}
+
+void render_dungeon_map(Screen& scr, const Dungeon& d, int px, int py, int cell) {
+    if (cell < 1) cell = 1;
+    int w = kDungeonW * cell, h = kDungeonH * cell;
+    int ox = (scr.width - w) / 2, oy = (scr.height - h) / 2;
+    for (int y = 0; y < kDungeonH; y++) {
+        for (int x = 0; x < kDungeonW; x++) {
+            uint8_t col = tile_colour(d.tile(x, y));
+            // object cells get a lighter marker so features stand out
+            if (d.obj_code(x, y)) col = 14;
+            for (int dy = 0; dy < cell; dy++)
+                for (int dx = 0; dx < cell; dx++)
+                    scr.put(ox + x * cell + dx, oy + y * cell + dy, col);
+        }
+    }
+    // player marker: a bright plus at (px,py)
+    int cx = ox + px * cell + cell / 2, cy = oy + py * cell + cell / 2;
+    for (int k = -cell; k <= cell; k++) {
+        scr.put(cx + k, cy, 15);
+        scr.put(cx, cy + k, 15);
+    }
 }
 
 bool load_dungeon(const std::string& path, Dungeon& out, std::string* err) {

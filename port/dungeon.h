@@ -6,6 +6,8 @@
 #ifndef LOF_PORT_DUNGEON_H
 #define LOF_PORT_DUNGEON_H
 
+#include "gfx.h"
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -75,6 +77,21 @@ std::vector<uint8_t> dngs_rle_decode(const std::vector<uint8_t>& raw);
 // mapped to a printable symbol (see tools/dngs.py for the same table); the
 // object code, when non-zero, is shown instead.  Returns kDungeonH lines.
 std::vector<std::string> dungeon_ascii(const Dungeon& d, bool show_objects = false);
+
+// --- Walkable map ---------------------------------------------------------
+
+// Whether a cell can be stepped on.  PROVISIONAL: the mapping from tile code
+// to solid/open has not yet been confirmed against the oracle.  The clearly
+// structural codes (3 and 12) are treated as walls; 0/2/6/7/8 are walkable.
+// Out-of-range cells are solid.
+bool dungeon_passable(const Dungeon& d, int x, int y);
+
+// Draw a top-down map of the level onto `scr`, `cell` pixels per tile,
+// centred, with the player drawn at (px,py).  Tile codes are colour-coded and
+// a cell with an object code is marked.  Intended for headless verification
+// (--shot) and as the basis for the in-game map/automap.
+void render_dungeon_map(Screen& scr, const Dungeon& d, int px, int py,
+                        int cell = 4);
 
 }  // namespace lofport
 

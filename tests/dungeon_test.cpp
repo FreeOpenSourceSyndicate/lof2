@@ -114,8 +114,37 @@ static void test_real(const std::string& dir) {
     else std::printf("dungeon_test: no game data, skipping real-file checks\n");
 }
 
+static void test_render() {
+    Dungeon d;
+    d.tiles.assign(kDungeonTiles, 6);
+    d.objects.assign(kDungeonTiles, 0);
+    d.tiles[0] = 12;                        // wall at (0,0)
+    d.tiles[5] = 3;                         // wall at (5,0)
+    assert(!dungeon_passable(d, 0, 0));
+    assert(dungeon_passable(d, 1, 0));
+    assert(!dungeon_passable(d, -1, 0));
+    assert(!dungeon_passable(d, kDungeonW, 0));
+
+    // ascii: wall symbol for (0,0), floor for the rest of row 0.
+    auto lines = dungeon_ascii(d);
+    assert((int)lines.size() == kDungeonH);
+    assert(lines[0][0] == '*');             // 12 -> '*'
+    assert(lines[0][5] == '%');             // 3  -> '%'
+    assert(lines[0][1] == '.');             // 6  -> '.'
+
+    Screen scr;
+    scr.resize(320, 200);
+    scr.clear(0);
+    render_dungeon_map(scr, d, 1, 1, 4);
+    // The player marker is drawn bright (15) somewhere near the top-left.
+    bool found = false;
+    for (uint8_t v : scr.pixels) if (v == 15) { found = true; break; }
+    assert(found);
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
+    test_render();
     std::string dir = (argc > 1) ? argv[1] : "game/DNGS";
     test_real(dir);
     std::printf("dungeon_test: ok\n");
