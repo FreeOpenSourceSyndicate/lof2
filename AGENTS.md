@@ -238,7 +238,17 @@ and each renders a distinct one:
 earlier note claimed the menu was mouse-only — that was wrong: only Enter had
 been tried, which is not a menu hot-key.
 
-drawn at x=139, rows at y=124+8*n (colour 0). `port/font.{h,cpp}` loads the
+### In-game (town) screen
+
+Pressing `O` then Enter loads the save and enters the play loop. The engine then
+reads `ROST/ROST` and `ROST/SHOP` (party + shop) and the town graphics
+`EGA/TWN/TWN00..TWN05` (plus the shared `EGA/UP/*` UI assets), and draws the
+town screen. This is the first reachable in-game state, so it is the natural
+oracle for the drop-in's play loop and for workstream B's remaining stat/combat
+semantics. Captured deterministically as the `town` scenario in
+`tests/golden_test.sh` (`--keys 0x18,0x1c`).
+
+Menu text is drawn at x=139, rows at y=124+8*n (colour 0). `port/font.{h,cpp}` loads the
 strip at run time (no font data is embedded) and draws text; `tests/font_test.cpp`
 covers the mapping, the advance and the draw path.
 
