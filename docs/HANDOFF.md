@@ -13,7 +13,22 @@ dead-end error. Deep detail lives in `AGENTS.md`; the work split lives in
 make                      # build the analysis emulator  -> ./lof-native
 make port                 # build the drop-in binaries   -> ./lof ./vor
 make test                 # CPU self-test + font test
+make check                # health: poison guard, build, tests, git hygiene
 ```
+
+### Minimal prompt to start (or replace) an agent
+
+Anyone can spin up a fresh agent with just this:
+
+> You are working in `FreeOpenSourceSyndicate/lof2`. Start by running
+> `./bootstrap.sh` and reading `docs/HANDOFF.md`, `docs/RISKS.md`, and
+> `docs/WORKSTREAMS.md` — they tell you everything. You own the files listed for
+> your workstream; do not edit files you do not own. Commit and push after every
+> meaningful step (the workspace can reset). Never read the sibling repo
+> `FreeOpenSourceSyndicate/lof`. Your workstream is: **<A = dungeons | B =
+> characters/items | maintainer = main loop>**.
+
+That prompt plus the repo is all a replacement agent needs — no prior context.
 
 - `src/`  — an 8086/EGA **emulator**. It runs the *original* `LOF.EXE`/`VOR.EXE`
   so we can observe behaviour and verify our re-implementation. It is a
