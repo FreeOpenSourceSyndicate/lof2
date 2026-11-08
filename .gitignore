@@ -19,3 +19,4 @@ __pycache__/
 # native drop-in binaries (build with `make port`)
 /lof
 /vor
+font_test
