@@ -64,16 +64,68 @@ input.  The tile-set files `EGA/D0..D7/DPnnn` (63/51 tiles each) are almost
 certainly the walls the dungeons are drawn from (D0 is the town set), but that
 mapping is unverified.
 
+## Object layer is 1296 *words*, not three 1296-byte planes (proved)
+
+The 2592-byte tail could be read two ways. Test: spatial coherence, i.e. how
+often a non-zero cell has a non-zero 4-neighbour. Reading the tail as fixed
+1296-byte planes gives `adj/nz ~ 0.12` (near-random scatter); reading it as
+1296 little-endian words gives `adj/nz ~ 0.58-0.69` (well-structured). Summed
+over all 29 files:
+
+```
+word lo-byte  nz= 309  adj= 212  adj/nz=0.686
+word hi-byte  nz=3366  adj=1959  adj/nz=0.582
+plane A       nz=1905  adj= 227  adj/nz=0.119
+plane B       nz=1770  adj= 225  adj/nz=0.127
+```
+
+So the word reading is correct. `tests/dungeon_test.cpp::test_object_layout`
+pins this down (asserts the hi-byte word view is >4x more coherent than the
+first plane view). The hi byte is the feature code, the lo byte a sparse
+(1..4) sub-index.
+
+Object placement: every object cell sits on a wall tile `3` (1888 cells), a
+border tile `1`/`2` (1122), or floor `6` (192); ~1/3 are on a wall/open
+boundary. Consistent with doors / stair-mouths / decorations but not proven.
+
+## Tile-code vocabulary
+
+Full set across the 29 files:
+`0,1,2,3,4,5,6,7,8,9,10,11,12,13,20,21,36,37,52,53,68,69,84,85,101,244`
+with `0` (10226) and `6` (21740) dominating and `3` (1888) / `12` (1069) the
+structural walls. The stride-16 groups `20/21 36/37 52/53 68/69 84/85` look
+like wall + orientation variants.
+
 ## Progress
 
 - [x] RLE scheme + fixed 3892-byte decode confirmed for all 29 files.
-- [x] 36x36 tile grid + 2-byte object records implemented (`port/dungeon.cpp`);
-      geometry cross-validated by the save-file read size (1296).
+- [x] 36x36 tile grid + 1296 word records implemented (`port/dungeon.cpp`);
+      geometry cross-validated by the save-file read size (1296) and the
+      word-vs-planes coherence proof.
 - [x] `tools/dngs.py` explorer, `tests/dungeon_test.cpp`, wired into `make test`.
-- [x] `render_dungeon_map()` top-down renderer + `dungeon_passable()` (writes a
-      320x200 PNG via `--shot`-style `save_png`).
-- [ ] Tile code -> `EGA/Dn/DPnnn` mapping (needs oracle ground truth from a real
-      dungeon frame).
+- [x] `render_dungeon_map()` top-down renderer; `dungeon_passable()`,
+      `dungeon_is_solid_tile()`, `dungeon_reachable()` flood-fill walk model.
+- [ ] Tile code -> `EGA/Dn/DPnnn` mapping.  A first-person viewport render is
+      almost certainly built from these tiles, but template-matching the `D0`
+      tiles against the captured town frame failed (best match ~50% of pixels
+      differ = no match), so the viewport origin/geometry or the per-tile
+      masking is not what I assumed.
 - [ ] Object-code semantics (doors/stairs/items/traps?).
-- [ ] Draw one dungeon screen matching the oracle frame (blocked on reaching a
-      dungeon in the oracle).
+- [ ] Draw one dungeon screen matching the oracle frame (blocked; see below).
+
+## What is blocking, precisely
+
+To finish the "matches the oracle frame" definition of done I need **a real
+dungeon frame from the oracle**, which needs the emulator to be steered from
+town into a dungeon. The scripted input does not achieve it: after loading a
+save the game sits in town and reads no `DNGS/` file. Options, in order of
+value:
+
+1. **Maintainer:** a scripted-input recipe (or a debug key/flag) that walks the
+   loaded save into a dungeon, so `DNGS/DNGnn` is read and a frame can be
+   dumped. That unblocks the tile mapping directly.
+2. **Maintainer:** point me at (or annotate) the draw routine for the
+   first-person view in `analysis/lof.asm`, i.e. where the tile index into
+   `EGA/Dn/DPnnn` is computed from the map — then I can derive the mapping
+   statically without needing a frame.
+3. Otherwise the static decode + walk model is as far as A can go.
