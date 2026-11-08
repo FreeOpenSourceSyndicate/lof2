@@ -12,7 +12,7 @@
 //                        `imul [bp-0x44]` in LOF's event dispatcher.
 //   ROST/ROST            one count byte, then N records of 414 bytes: the saved
 //                        party roster (name + stats + equipment).
-//   ROST/SHOP            a small table of signed per-item price adjustments.
+//   ROST/SHOP            a header byte, one signed adjustment per item, a word.
 #ifndef LOF_PORT_CHAR_H
 #define LOF_PORT_CHAR_H
 
@@ -202,8 +202,11 @@ SaveGame load_save(const std::string& path);
 // --- ROST/SHOP ------------------------------------------------------------
 
 struct ShopData {
-    std::vector<int8_t> adjustments;  // bytes 1..45, signed
-    uint16_t trailing = 0;            // last word in the file
+    // ROST/SHOP is 190 bytes: a header byte (observed 0), then one signed byte
+    // per item (185 of them, parallel to the item table order), then a 4-byte
+    // trailer word.  Observed values are 0..-10, a per-item shop adjustment.
+    int8_t adjustments[kItemCount] = {0};
+    uint16_t trailer = 0;
     bool ok = false;
 };
 

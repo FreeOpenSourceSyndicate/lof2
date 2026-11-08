@@ -140,10 +140,12 @@ def emit_items(exe_path, out_path):
 def dump_shop(path):
     d = open(path, "rb").read()
     print(f"{path}: size={len(d)}")
-    adj = [b - 256 if b > 127 else b for b in d[1:46]]
+    # Byte 0 header, then one signed byte per item (185, parallel to the item
+    # table order), then a 4-byte trailer word.
+    adj = [b - 256 if b > 127 else b for b in d[1:1 + ITEM_COUNT]]
     print(f"  header={d[0]:#04x} adjustments({len(adj)})={adj}")
     if len(d) >= 4:
-        print(f"  trailing word = {struct.unpack_from('<H', d, len(d) - 4)[0]:#06x}")
+        print(f"  trailer word = {struct.unpack_from('<H', d, len(d) - 4)[0]:#06x}")
 
 
 def main():
