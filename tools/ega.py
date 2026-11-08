@@ -4,13 +4,15 @@
 Format (little-endian), reverse-engineered from LOF.EXE / VOR.EXE and verified
 against the emulator's own rendering:
 
-    off 0 : escape byte (RLE marker; the stream starts right after the header)
-    off 1 : 0x1234 magic (word)
-    off 3 : width  in bytes per row (word)   -> pixel width = width*8
-    off 5 : height in rows          (word)
-    off 7 : RLE stream
+    off 0  : escape byte (RLE marker; the stream starts right after the header)
+    off 1  : 0x1234 magic (word)
+    off 3  : width  in bytes per row (word)   -> pixel width = width*8
+    off 5  : height in rows          (word)
+    off 7  : decompressed size + 10  (word)
+    off 9  : 2 reserved bytes
+    off 11 : RLE stream
 
-RLE stream: literal bytes are copied as-is; the escape byte introduces a
+The RLE stream: literal bytes are copied as-is; the escape byte introduces a
 (count, value) pair that emits `value` repeated `count` times.  The decoded
 buffer is 4 EGA bitplanes laid out consecutively, each `width*height` bytes:
 
@@ -24,17 +26,19 @@ of each byte being the leftmost pixel.
 """
 import struct
 
+HEADER = 11
+
 
 def decode(path):
     """Return (w_bytes, h, planes) where planes is 4 concatenated bitplanes."""
     d = open(path, 'rb').read()
-    if len(d) < 7 or d[1:3] != b'\x34\x12':
+    if len(d) < HEADER or d[1:3] != b'\x34\x12':
         raise ValueError('%s: bad 0x1234 magic' % path)
     esc = d[0]
     w = struct.unpack('<H', d[3:5])[0]
     h = struct.unpack('<H', d[5:7])[0]
     out = bytearray()
-    i = 7
+    i = HEADER
     n = len(d)
     while i < n:
         b = d[i]; i += 1

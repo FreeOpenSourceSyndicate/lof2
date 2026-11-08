@@ -297,7 +297,9 @@ void Machine::dos_int(uint8_t n) {
     uint8_t ah = (uint8_t)(c.ax >> 8);
     uint8_t al = (uint8_t)(c.ax & 0xFF);
     switch (ah) {
-        case 0x00: case 0x4C: { exit_code = al; running = false; break; }
+        case 0x00: case 0x4C: { exit_code = al;
+            if (getenv("LOF_EXITDBG")) fprintf(stderr, "[exit] AH=%02X al=%02X cs:ip=%04X:%04X instr=%lu\n", ah, al, c.cs, (uint16_t)(c.ip-2), (unsigned long)instr_count);
+            running = false; break; }
         case 0x01: {   // read char with echo
             if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
                 c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k)); }

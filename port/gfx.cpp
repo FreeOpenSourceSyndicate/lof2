@@ -35,8 +35,11 @@ Palette::Palette() {
     }
 }
 
-// The image header is: escape byte, 0x1234 magic, width (word), height (word).
-static const size_t kHeader = 7;
+// Image header (11 bytes): escape byte, 0x1234 magic, width (word),
+// height (word), decompressed-size+10 (word), 2 reserved bytes.  The RLE
+// stream starts right after the 11-byte header.  (Verified against LOF.EXE's
+// loader at image offset 0x1D5E and by the font strip decoding cleanly.)
+static const size_t kHeader = 11;
 
 bool load_ega_image(const std::string& path, EgaImage& out, std::string* err) {
     FILE* f = fopen(path.c_str(), "rb");
@@ -64,20 +67,25 @@ bool load_ega_image(const std::string& path, EgaImage& out, std::string* err) {
 
     // RLE: literals copy through; `esc` introduces (count, value).
     std::vector<uint8_t> planes;
-    planes.reserve((size_t)w * h * 4);
+    size_t want = (size_t)w * h * 4;
+    planes.reserve(want);
     size_t i = kHeader;
-    while (i < d.size()) {
+    while (i < d.size() && planes.size() < want) {
         uint8_t b = d[i++];
         if (b == esc) {
             if (i + 1 >= d.size()) break;
             uint8_t cnt = d[i];
             uint8_t val = d[i + 1];
             i += 2;
-            planes.insert(planes.end(), cnt, val);
+            size_t room = want - planes.size();
+            planes.insert(planes.end(), cnt < room ? cnt : room, val);
         } else {
             planes.push_back(b);
         }
     }
+    // Some images (e.g. IN/DRAG, IN/CRED) end early with the remaining planes
+    // implicitly zero; pad so the blit never reads past the buffer.
+    planes.resize(want, 0);
 
     out.width_bytes = w;
     out.height = h;

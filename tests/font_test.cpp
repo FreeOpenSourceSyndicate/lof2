@@ -15,11 +15,11 @@ int main() {
     Font f;
     f.ok = true;
 
-    // Upper case 'A' -> band 0, cell 4.  Lower case 'a' -> band 1, cell 4.
-    set_glyph(f, 0, 4, 0, 0x80);   // leftmost pixel of the first row
-    set_glyph(f, 1, 4, 1, 0x01);   // rightmost pixel of the second row
-    // Digit '0' -> band 0, cell 30.
-    set_glyph(f, 0, 30, 2, 0x40);
+    // Upper case 'A' -> band 0, cell 0.  Lower case 'a' -> band 1, cell 0.
+    set_glyph(f, 0, 0, 0, 0x80);   // leftmost pixel of the first row
+    set_glyph(f, 1, 0, 1, 0x01);   // rightmost pixel of the second row
+    // Digit '0' -> band 0, cell 26.
+    set_glyph(f, 0, 26, 2, 0x40);
     // '(' -> band 1, cell 2.
     set_glyph(f, 1, 2, 3, 0x02);
 
