@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """Offline explorer for Legend of Faerghail character/item/scenario data.
 
-Workstream B helper.  Reads the game *data* files only (never the EXEs) and
-prints the structure of SYST/SPECn, ROST/ROST and ROST/SHOP.  It is the tool
-that produced the layout recorded in docs/notes-b.md.
+Workstream B helper.  Prints the structure of SYST/SPECn, ROST/ROST, ROST/SHOP
+and GAMES/GAMEn.  It is the tool that produced the layout recorded in
+docs/notes-b.md.
+
+The item table is the one exception to "data files only": the engine keeps it
+inside LOF.EXE (no data file carries it), so `--emit-items` reads the EXE *once*
+as a development aid and regenerates port/char_items.inc, which the drop-in
+compiles in instead (it must run without the EXE).
 
 Usage:
     python3 tools/spec.py --dir game              # summary of all files
     python3 tools/spec.py --dir game --spec 0     # dump SPEC0 records
     python3 tools/spec.py --dir game --rost       # dump ROST
     python3 tools/spec.py --dir game --shop       # dump SHOP
+    python3 tools/spec.py --dir game --save GAME1 # dump a saved game
+    python3 tools/spec.py --dir game --emit-items # regenerate port/char_items.inc
 """
 import argparse
 import os
@@ -87,6 +94,49 @@ def dump_save(path):
             print(f"  [{i:2d}] present={r[0]:#04x} name={name!r}")
 
 
+# The item table lives only inside LOF.EXE (image offset 0x42cec, data segment
+# 0x2cec); it is not in any data file.  This is the single place that reads the
+# EXE, purely to regenerate the transcribed table the drop-in compiles in.
+ITEM_EXE_OFF = 0x42CEC
+ITEM_COUNT = 185
+ITEM_REC = 32
+
+
+def emit_items(exe_path, out_path):
+    d = open(exe_path, "rb").read()
+    names, fields, tail = [], [], []
+    for i in range(ITEM_COUNT):
+        r = d[ITEM_EXE_OFF + i * ITEM_REC:ITEM_EXE_OFF + (i + 1) * ITEM_REC]
+        names.append(r[:16].split(b"\x00")[0].decode("latin1"))
+        fields.append(struct.unpack_from("<7h", r, 16))
+        tail.append((r[30], r[31]))
+    with open(out_path, "w") as f:
+        f.write("// Legend of Faerghail item table — transcribed from the DOS "
+                "release.\n")
+        f.write("// It lives only inside LOF.EXE (image offset 0x42cec / data "
+                "segment 0x2cec);\n")
+        f.write("// no data file carries it, and the drop-in must run without "
+                "the original EXE,\n")
+        f.write("// so it keeps this copy.  Regenerate with "
+                "`tools/spec.py --emit-items`.\n")
+        f.write("// 185 records of 32 bytes: 16-byte NUL-padded name, seven "
+                "little-endian\n// int16 fields, then a byte item class and a "
+                "byte equipment slot.\n\n")
+        f.write("static const char kItemNames[kItemCount][16] = {\n")
+        for nm in names:
+            f.write('    "%s",\n' % nm.replace("\\", "\\\\").replace('"', '\\"'))
+        f.write("};\n\n// The seven int16 fields, then the class and slot "
+                "bytes.\n")
+        f.write("static const int16_t kItemFields[kItemCount][7] = {\n")
+        for fs in fields:
+            f.write("    {%s},\n" % ",".join(str(v) for v in fs))
+        f.write("};\n\nstatic const uint8_t kItemClassSlot[kItemCount][2] = {\n")
+        for t in tail:
+            f.write("    {%d,%d},\n" % t)
+        f.write("};\n")
+    print(f"wrote {out_path} ({ITEM_COUNT} items)")
+
+
 def dump_shop(path):
     d = open(path, "rb").read()
     print(f"{path}: size={len(d)}")
@@ -105,11 +155,15 @@ def main():
     ap.add_argument("--shop", action="store_true")
     ap.add_argument("--save", default=None,
                     help="dump a GAMES/GAMEn saved game (e.g. GAME1)")
+    ap.add_argument("--emit-items", action="store_true",
+                    help="regenerate port/char_items.inc from LOF.EXE")
     ap.add_argument("--nonempty", action="store_true",
                     help="only show SPEC records that carry text")
     args = ap.parse_args()
 
-    if args.spec is not None:
+    if args.emit_items:
+        emit_items(os.path.join(args.dir, "LOF.EXE"), "port/char_items.inc")
+    elif args.spec is not None:
         dump_spec(os.path.join(args.dir, "SYST", f"SPEC{args.spec}"),
                   args.spec, args.nonempty)
     elif args.rost:

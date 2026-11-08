@@ -201,7 +201,23 @@ static int real_data() {
     assert(sv.chars[0].raw[kCharStat1d] == 0x0a);
     assert(sv.chars[0].raw[kCharLevel46] == 0x0e);
 
-    printf("char_test: real SPEC/ROST/SHOP/GAMES ok\n");
+    // Item table (transcribed from LOF.EXE; no data file carries it).
+    const auto& it = items();
+    assert(it.size() == kItemCount);
+    assert(kItemCount == 185);
+    assert(it[0].name == "Club" && it[0].item_class == 1);
+    assert(it[12].name == "Short sword" && it[12].f0 == 1 &&
+           it[12].f1 == 10 && it[12].f2 == 50);
+    assert(it[0x1a].name == "Leather armour" && it[0x1a].item_class == 2);
+    assert(it[184].name == "The Staff");
+    // 1-based lookup: index 13 is "Short sword"; out-of-range is null.
+    assert(item_by_index(13) && item_by_index(13)->name == "Short sword");
+    assert(item_by_index(185) && item_by_index(185)->name == "The Staff");
+    assert(item_by_index(0) == nullptr && item_by_index(186) == nullptr);
+    // Every class-eligibility mask fits the 14 SNSC classes.
+    for (const auto& r : it) assert(r.f6 >= 0 && r.f6 <= 0x3fff);
+
+    printf("char_test: real SPEC/ROST/SHOP/GAMES/items ok\n");
     return 0;
 }
 
@@ -220,6 +236,11 @@ int main(int argc, char** argv) {
                 dump_spec(stdout, t, label);
             }
         }
+        return 0;
+    }
+
+    if (argc > 1 && std::string(argv[1]) == "--dump-items") {
+        dump_items(stdout);
         return 0;
     }
 

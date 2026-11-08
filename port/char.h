@@ -119,6 +119,40 @@ struct RostRecord {
 // Load ROST/ROST (count byte + N x 414-byte records).
 std::vector<RostRecord> load_rost(const std::string& path);
 
+// --- Item table ------------------------------------------------------------
+//
+// The item table is NOT in a data file: the engine keeps it inside LOF.EXE
+// (image offset 0x42cec / data segment 0x2cec, 185 x 32-byte records).  The
+// drop-in must run without the original EXE, so the decoded table is
+// transcribed into `port/char_items.inc` and exposed here.  Per record: a
+// 16-byte NUL-padded name, seven little-endian int16 fields, then a byte item
+// class and a byte equipment slot.
+constexpr size_t kItemCount = 185;
+constexpr size_t kItemNameLen = 16;
+constexpr size_t kItemRecordSize = 32;
+
+struct ItemRecord {
+    std::string name;
+    int16_t f0 = 0;  // melee weapon: hands (1/2); else 0
+    int16_t f1 = 0;  // melee weapon: damage; armour/others: a cost
+    int16_t f2 = 0;  // weapon: cost; armour: raw AC bonus
+    int16_t f3 = 0;  // projectiles: ammo count; armour: equipped AC
+    int16_t f4 = 0;  // weapon: class/penalty mask
+    int16_t f5 = 0;  // projectile pairing / misc
+    int16_t f6 = 0;  // class-eligibility mask (bit n => class n may use)
+    uint8_t item_class = 0;  // 1 melee, 2 armour, 4 projectile, 5 helmet, ...
+    uint8_t slot = 0;        // equipment slot
+};
+
+// The decoded table in engine order (index 0 = "Club").
+const std::vector<ItemRecord>& items();
+
+// 1-based item lookup as used by saves/maps; nullptr when out of range.
+const ItemRecord* item_by_index(int index);
+
+// Print the decoded table (for eyeballing).
+void dump_items(FILE* out);
+
 // Offsets into the 410-byte (0x19a) in-memory character struct.  ROST records
 // hold this struct at +0x01 (after the count byte) as records of 414 bytes; a
 // GAMES save holds it verbatim at +4.  The offsets below are the ones the

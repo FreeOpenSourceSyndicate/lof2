@@ -198,6 +198,30 @@ Exposed as `CharOffset` in `port/char.h`; `char_test` asserts them on a save.
 The rest of the struct (the play-loop stat view at `es:[bx+0x27xx]`) is only
 reachable from the main loop and is left to the maintainer.
 
+### Item table (transcribed from LOF.EXE) — new
+
+The item table is **not** in any data file: the engine keeps it inside `LOF.EXE`
+at image offset `0x42cec` (data segment `0x2cec`) as **185 records of 32 bytes**:
+
+    off 0 : 16-byte NUL-padded name ("Club", "Short sword", …)
+    off 16: seven little-endian int16 fields
+    off 30: byte item class, byte equipment slot
+
+Because the drop-in must run without the original EXE, the table is transcribed
+into `port/char_items.inc` (regenerate with `tools/spec.py --emit-items`, which
+reads the EXE once as a dev aid) and exposed as `items()` / `item_by_index()` /
+`dump_items()` in `port/char.{h,cpp}`.
+
+Field guesses (weapons line up cleanly; armour's third field is the raw AC bonus):
+
+- melee weapons (class 1): `f0` = hands, `f1` = damage, `f2` = cost,
+  `f4` = class/penalty mask; e.g. Short sword `(1,10,50,…,1536)`, two-handed
+  sword `f0 = 2`.
+- armour (class 2): `f1` = hands-ish cost, `f2` = raw AC, `f3` = equipped AC;
+  e.g. Leather `(4,15,150,35)`, Full plate `(1,2000,650,90)`.
+- projectiles (class 4): `f3` = ammo count; e.g. Bullets `(2,2,2,2560,1024…)`.
+- `f6` is a class-eligibility mask (magic items set the high bits, e.g. 4095).
+
 ### ROST record structure (refined)
 
 The file stride is 414, but the engine treats a character as a **410-byte
@@ -220,6 +244,7 @@ is in the maintainer's main-loop domain), so it is left as a follow-up.
 - [x] Oracle-confirmed ROST (414 = 410+4) and SHOP (190) strides; ROST `tail`.
 - [x] SPEC dispatch-type semantics (all 25 observed values) + `spec_type_name`.
 - [x] Save-game (`GAMES/GAMEn`) parser + format (header `\0FOL`, 410 stride).
+- [x] Item table (185 x 32 bytes) transcribed from LOF.EXE -> `port/char_items.inc`.
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
       all-present roster slots, and the save header/records/trailer.
 - [ ] Remaining B: named stat-field semantics of the SNSC 40-byte block and the
