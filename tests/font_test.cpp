@@ -20,8 +20,8 @@ int main() {
     set_glyph(f, 1, 0, 1, 0x01);   // rightmost pixel of the second row
     // Digit '0' -> band 0, cell 26.
     set_glyph(f, 0, 26, 2, 0x40);
-    // '(' -> band 1, cell 2.
-    set_glyph(f, 1, 2, 3, 0x02);
+    // '(' -> band 1, cell 38 (cell recovered from the menu capture).
+    set_glyph(f, 1, 38, 3, 0x02);
 
     Screen scr;
     scr.resize(64, 16);
