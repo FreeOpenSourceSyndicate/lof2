@@ -113,6 +113,25 @@ like wall + orientation variants.
 - [ ] Object-code semantics (doors/stairs/items/traps?).
 - [ ] Draw one dungeon screen matching the oracle frame (blocked; see below).
 
+## Save file also carries a 36x36 map region
+
+The oracle reads 11834 + 4 + 1296 bytes from `GAMES/GAME  1` (13134 bytes
+total). The trailing 1296 bytes look exactly like a map tile layer (town is
+mostly code 6 = floor, with a few 0/2/4/5/8) and the 4 bytes before it are
+`f5 5c 00 00`. BUT: rewriting that 1296-byte region to all-`3` (walls) and
+re-running the oracle produces a **pixel-identical** frame, so this cached
+region is not the town's displayed map. It may be a scratch/automap buffer or a
+different level. Either way it does not give me a dungeon frame.
+
+## Debug mode (a possible unblocking hook)
+
+`LOF.EXE` contains debug strings `"Debugmode activ!"` / `"Debugmode inactiv!"`
+followed by `"Enter dungeon-number?"`, `"Enter level-number?"`,
+`"Enter room-number?"`, `"Akt. room: %d"`. If the maintainer can trigger debug
+mode (a key sequence, or a `LOF_*` hook in the emulator) the game can be sent
+straight to a dungeon, which would produce the oracle frame this workstream
+needs. This is the single most useful thing to enable.
+
 ## What is blocking, precisely
 
 To finish the "matches the oracle frame" definition of done I need **a real
