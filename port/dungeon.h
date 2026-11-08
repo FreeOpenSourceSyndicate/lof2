@@ -81,11 +81,23 @@ std::vector<std::string> dungeon_ascii(const Dungeon& d, bool show_objects = fal
 
 // --- Walkable map ---------------------------------------------------------
 
-// Whether a cell can be stepped on.  PROVISIONAL: the mapping from tile code
-// to solid/open has not yet been confirmed against the oracle.  The clearly
-// structural codes (3 and 12) are treated as walls; 0/2/6/7/8 are walkable.
-// Out-of-range cells are solid.
+// The full tile-code set seen across the 29 files is
+//   0,1,2,3,4,5,6,7,8,9,10,11,12,13,20,21,36,37,52,53,68,69,84,85,101,244
+// with 0/6 dominating (0 = "nothing"/void, 6 = floor) and 3/12 the structural
+// walls.  The four stride-16 groups (20/21, 36/37, 52/53, 68/69, 84/85) are
+// almost certainly wall/orientation variants, but their solid/open status is
+// PROVISIONAL until a real dungeon frame is captured from the oracle.
+//
+// A cell is treated as solid iff its tile code is in kSolidTiles.  Everything
+// else (including the void code 0) is walkable; out-of-range cells are solid.
+bool dungeon_is_solid_tile(uint8_t code);
 bool dungeon_passable(const Dungeon& d, int x, int y);
+
+// Flood-fill reachability on the walkable graph (4-neighbour).  Returns true
+// if (x1,y1) can be reached from (x0,y0) without stepping on a solid cell.
+// Both endpoints must themselves be walkable.  Used by the play loop and to
+// sanity-check that a level is connected.
+bool dungeon_reachable(const Dungeon& d, int x0, int y0, int x1, int y1);
 
 // Draw a top-down map of the level onto `scr`, `cell` pixels per tile,
 // centred, with the player drawn at (px,py).  Tile codes are colour-coded and

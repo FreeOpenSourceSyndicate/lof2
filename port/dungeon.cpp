@@ -91,10 +91,46 @@ std::vector<std::string> dungeon_ascii(const Dungeon& d, bool show_objects) {
     return lines;
 }
 
+bool dungeon_is_solid_tile(uint8_t code) {
+    // Structural walls.  PROVISIONAL set (see dungeon.h); refined once a real
+    // dungeon frame is available from the oracle.
+    switch (code) {
+        case 3:
+        case 12:
+            return true;
+        default:
+            return false;
+    }
+}
+
 bool dungeon_passable(const Dungeon& d, int x, int y) {
     if (x < 0 || y < 0 || x >= kDungeonW || y >= kDungeonH) return false;
-    uint8_t t = d.tile(x, y);
-    return t != 3 && t != 12;
+    return !dungeon_is_solid_tile(d.tile(x, y));
+}
+
+bool dungeon_reachable(const Dungeon& d, int x0, int y0, int x1, int y1) {
+    if (!dungeon_passable(d, x0, y0) || !dungeon_passable(d, x1, y1))
+        return false;
+    std::vector<char> seen((size_t)kDungeonTiles, 0);
+    std::vector<int> stack;
+    stack.push_back(y0 * kDungeonW + x0);
+    seen[(size_t)y0 * kDungeonW + x0] = 1;
+    const int dx[4] = {1, -1, 0, 0}, dy[4] = {0, 0, 1, -1};
+    while (!stack.empty()) {
+        int c = stack.back();
+        stack.pop_back();
+        int x = c % kDungeonW, y = c / kDungeonW;
+        if (x == x1 && y == y1) return true;
+        for (int k = 0; k < 4; k++) {
+            int nx = x + dx[k], ny = y + dy[k];
+            if (!dungeon_passable(d, nx, ny)) continue;
+            int nc = ny * kDungeonW + nx;
+            if (seen[(size_t)nc]) continue;
+            seen[(size_t)nc] = 1;
+            stack.push_back(nc);
+        }
+    }
+    return false;
 }
 
 // Colour per tile code (EGA 16-colour indices).

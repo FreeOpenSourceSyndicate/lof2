@@ -142,11 +142,60 @@ static void test_render() {
     assert(found);
 }
 
+static void test_reachable() {
+    Dungeon d;
+    d.tiles.assign(kDungeonTiles, 6);
+    d.objects.assign(kDungeonTiles, 0);
+    // A vertical wall at x=10 splits the level into two rooms.
+    for (int y = 0; y < kDungeonH; y++) d.tiles[y * kDungeonW + 10] = 3;
+    assert(dungeon_reachable(d, 1, 1, 9, 30));    // same room
+    assert(!dungeon_reachable(d, 1, 1, 11, 1));   // across the wall
+    assert(dungeon_reachable(d, 11, 1, 35, 35));  // other room
+    // Punch a doorway and the two rooms connect.
+    d.tiles[5 * kDungeonW + 10] = 6;
+    assert(dungeon_reachable(d, 1, 1, 11, 1));
+    // A solid tile is never a valid endpoint.
+    assert(!dungeon_reachable(d, 1, 1, 10, 1));
+    assert(dungeon_is_solid_tile(3) && dungeon_is_solid_tile(12));
+    assert(!dungeon_is_solid_tile(0) && !dungeon_is_solid_tile(6));
+}
+
+// The 2592-byte tail is 1296 two-byte records, NOT three 1296-byte planes.
+// Decisive evidence: read as words, the feature bytes are spatially coherent
+// (adjacent non-zero cells), whereas reading the tail as fixed 1296-byte
+// planes gives near-random scatter.  This test pins that decision down.
+static int coherence(const std::vector<uint8_t>& g) {
+    int adj = 0;
+    for (int y = 0; y < kDungeonH; y++)
+        for (int x = 0; x < kDungeonW; x++) {
+            if (!g[y * kDungeonW + x]) continue;
+            if (x + 1 < kDungeonW && g[y * kDungeonW + x + 1]) adj++;
+            if (y + 1 < kDungeonH && g[(y + 1) * kDungeonW + x]) adj++;
+        }
+    return adj;
+}
+
+static void test_object_layout(const std::string& dir) {
+    FILE* f = std::fopen((dir + "/DNG17").c_str(), "rb");
+    if (!f) { std::printf("dungeon_test: no DNG17, skipping layout check\n"); return; }
+    std::vector<uint8_t> raw; uint8_t buf[4096]; size_t got;
+    while ((got = std::fread(buf, 1, sizeof buf, f)) > 0) raw.insert(raw.end(), buf, buf + got);
+    std::fclose(f);
+    std::vector<uint8_t> d = dngs_rle_decode(raw);
+    assert(d.size() == (size_t)kDungeonDecoded);
+    const uint8_t* tail = d.data() + kDungeonHeader + kDungeonTiles;
+    std::vector<uint8_t> hi(kDungeonTiles), blk(tail, tail + kDungeonTiles);
+    for (int i = 0; i < kDungeonTiles; i++) hi[i] = tail[2 * i + 1];
+    assert(coherence(hi) > 4 * coherence(blk));  // words are the right reading
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_render();
+    test_reachable();
     std::string dir = (argc > 1) ? argv[1] : "game/DNGS";
     test_real(dir);
+    test_object_layout(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }
