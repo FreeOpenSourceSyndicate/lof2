@@ -180,6 +180,24 @@ The six party members appear first: Decker, Siegurd, Handy, Merlin, Cassandra,
 Assanla (present = 0x01). `SaveGame`/`load_save()` in `port/char.{h,cpp}` parse
 this; `tools/spec.py --save GAME1` dumps it.
 
+### 410-byte character struct — grounded offsets
+
+The character-init / erase routines (`analysis/lof.asm` `1B95A`..`1BA8E`, over
+the array `es:[0x30]` with the usual `imul …,0x19a`) read/write these directly:
+
+| off | size | note |
+|----:|-----:|------|
+| 0x00 | byte | `present`; non-zero = slot in use |
+| 0x01 | 14 | NUL-terminated name |
+| 0x10 | word | erase pass runs only when `!= -1`; **live** chars carry `-1` |
+| 0x12 | word | paired with 0x10 (`> 0`); cleared with the slot |
+| 0x1d | byte | set to `0x0a`, overridden to `5*level46-0x41+1` when `level46>0x0f` |
+| 0x46 | byte | clamped/derived stat driving 0x1d |
+
+Exposed as `CharOffset` in `port/char.h`; `char_test` asserts them on a save.
+The rest of the struct (the play-loop stat view at `es:[bx+0x27xx]`) is only
+reachable from the main loop and is left to the maintainer.
+
 ### ROST record structure (refined)
 
 The file stride is 414, but the engine treats a character as a **410-byte

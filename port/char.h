@@ -119,6 +119,26 @@ struct RostRecord {
 // Load ROST/ROST (count byte + N x 414-byte records).
 std::vector<RostRecord> load_rost(const std::string& path);
 
+// Offsets into the 410-byte (0x19a) in-memory character struct.  ROST records
+// hold this struct at +0x01 (after the count byte) as records of 414 bytes; a
+// GAMES save holds it verbatim at +4.  The offsets below are the ones the
+// engine's character-init routine writes/reads directly (analysis/lof.asm
+// 1B95A.., on the struct array es:[0x30]); the remaining fields are only
+// touched through the play-loop view (es:[bx+0x27xx]) and are not mapped here.
+enum CharOffset : size_t {
+    kCharPresent   = 0x00,  // byte: non-zero -> slot in use
+    kCharName      = 0x01,  // 14 bytes, NUL-terminated
+    // The erase pass at 1B9C2 acts only when word10 != -1 and word12 > 0, and
+    // then clears the slot (present=0, word10=-1, word12=0).  So -1 marks a
+    // slot the pass leaves alone; live characters carry -1 here.
+    kCharFlags10   = 0x10,  // word
+    kCharCounter12 = 0x12,  // word: paired with flags10 in the erase condition
+    // The init routine at 1BA40 sets stat1d = 0x0a, and when level46 > 0x0f
+    // overrides it with 5*level46 - 0x41 + 1; both are byte quantities.
+    kCharStat1d    = 0x1d,  // byte
+    kCharLevel46   = 0x46,  // byte
+};
+
 // --- GAMES/GAMEn (saved game / "gamestanding") ----------------------------
 
 // A saved game file is a 4-byte header (0x00 'F' 'O' 'L') followed by the
