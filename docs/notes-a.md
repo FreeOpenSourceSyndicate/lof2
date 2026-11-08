@@ -231,3 +231,28 @@ The dungeon entry point is a function that loads the level, loads
 writes the dungeon number/level to the fields the debug path reads and calls
 that function would produce the frame directly — no key sequence needed. I
 cannot add it because `src/` is maintainer-owned.
+
+### Additional sweeps (all negative) — round 2
+
+After the first sweep I tried more inputs, none of which reaches a dungeon:
+
+- **Arrow-key walk test.** From the town, 25x `Up` (0x48) with 30-tick spacing:
+  the town viewport never re-reads `EGA/TWN/TWN00..05` and never touches
+  `DNGS/`. So the town panel is not walked with the arrows on this build/save.
+- **Modifier combos** on the town: Alt+F1, Ctrl+F1, Alt+X, Alt+D,
+  Ctrl+Alt+Del, Alt+Tab, Shift+F10, Ctrl+C, Alt+Enter, Ctrl+Shift+F12 — all
+  pixel-identical to the plain town frame, i.e. no debug toggle.
+- **Boot-time single keys** (letters, digits, F1..F10, Esc, Tab, Space, Enter):
+  the only frames that change are the ones whose key is a documented menu
+  hot-key or advances the credits; none opens debug mode.
+- **Command tail**: `START.BAT` forwards `%1..%6` to `lof`, but the emulator's
+  `LOF_CMDLEN` only writes a blank tail; no arg string is parsed as a switch by
+  the game (its only tail check is the "started from START.BAT" gate).
+
+### Static GFA check (negative)
+
+`LOF.EXE` is a GFA-BASIC-compiled program, so a *tokenised* BASIC body would be
+the way to read the map->tile-index computation statically. It is not present
+unpacked: no `GFA`/`BASIC` signature and no plaintext of the debug strings'
+*code* (only the string pool), so there is nothing tokenised to walk offline.
+Static tracing remains a dead end for the tile mapping.
