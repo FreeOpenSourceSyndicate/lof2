@@ -121,16 +121,16 @@ def emit_items(exe_path, out_path):
                 "`tools/spec.py --emit-items`.\n")
         f.write("// 185 records of 32 bytes: 16-byte NUL-padded name, seven "
                 "little-endian\n// int16 fields, then a byte item class and a "
-                "byte equipment slot.\n\n")
+                "byte use-effect index.\n\n")
         f.write("static const char kItemNames[kItemCount][16] = {\n")
         for nm in names:
             f.write('    "%s",\n' % nm.replace("\\", "\\\\").replace('"', '\\"'))
-        f.write("};\n\n// The seven int16 fields, then the class and slot "
+        f.write("};\n\n// The seven int16 fields, then the class and use-effect "
                 "bytes.\n")
         f.write("static const int16_t kItemFields[kItemCount][7] = {\n")
         for fs in fields:
             f.write("    {%s},\n" % ",".join(str(v) for v in fs))
-        f.write("};\n\nstatic const uint8_t kItemClassSlot[kItemCount][2] = {\n")
+        f.write("};\n\nstatic const uint8_t kItemClassEffect[kItemCount][2] = {\n")
         for t in tail:
             f.write("    {%d,%d},\n" % t)
         f.write("};\n")
