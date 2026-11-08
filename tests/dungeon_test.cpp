@@ -231,12 +231,38 @@ static void test_walk() {
     assert(!(q.x == 5 && q.y == 4));       // that cell is the wall
 }
 
+// A hand-built maze should be fully connected.  With the {3,12} wall set,
+// 24/29 levels are; DNG01 is one of them, so assert it here as a real-data
+// regression on the wall classification.
+static void test_level_connected(const std::string& dir) {
+    Dungeon d;
+    std::string err;
+    if (!load_dungeon(dir + "/DNG01", d, &err)) {
+        std::printf("dungeon_test: no DNG01, skipping connectivity check\n");
+        return;
+    }
+    int sx = -1, sy = -1;
+    for (int y = 0; y < kDungeonH && sx < 0; y++)
+        for (int x = 0; x < kDungeonW; x++)
+            if (dungeon_passable(d, x, y)) { sx = x; sy = y; break; }
+    assert(sx >= 0);
+    int total = 0, hit = 0;
+    for (int y = 0; y < kDungeonH; y++)
+        for (int x = 0; x < kDungeonW; x++)
+            if (dungeon_passable(d, x, y)) {
+                total++;
+                hit += dungeon_reachable(d, sx, sy, x, y);
+            }
+    assert(hit == total);   // DNG01 is fully connected under {3,12}
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_render();
     test_reachable();
     test_render_facing();
     test_walk();
+    test_level_connected((argc > 1) ? argv[1] : "game/DNGS");
     std::string dir = (argc > 1) ? argv[1] : "game/DNGS";
     test_real(dir);
     test_object_layout(dir);

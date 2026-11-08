@@ -113,6 +113,16 @@ like wall + orientation variants.
 - [ ] Object-code semantics (doors/stairs/items/traps?).
 - [ ] Draw one dungeon screen matching the oracle frame (blocked; see below).
 
+## Connectivity sanity check on the wall set
+
+Treating only `{3,12}` as solid, the passable region is **fully connected
+(frac = 1.000)** in 24 of 29 levels — exactly what a hand-built maze should look
+like. `DNG00` is only 9.6% connected, which fits it being the *town* (separate
+buildings/areas); `DNG10`/`DNG17` are 0.97-0.99 (a few sealed pockets). So the
+`{3,12}` wall classification is at least self-consistent and does not shred the
+levels; a wrong wall set would fragment them far more. Still PROVISIONAL
+pending an oracle frame, but this raises confidence.
+
 ## Save file also carries a 36x36 map region
 
 The oracle reads 11834 + 4 + 1296 bytes from `GAMES/GAME  1` (13134 bytes
