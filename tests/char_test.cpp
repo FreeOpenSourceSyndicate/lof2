@@ -268,6 +268,23 @@ static int real_data() {
            stat_short[3] == "Poisn" && stat_short[7] == "Dead");
     assert(stat_long.size() == kStatusCount && stat_long[3] == "Poisoned" &&
            stat_long[6] == "Stoned");
+    auto gp = gender_profession_names();
+    auto ra = race_adjective_names();
+    auto al = alignment_lower_names();
+    auto pp = profession_padded_names();
+    auto ac = action_names();
+    auto mo = morale_names();
+    assert(gp.size() == kGenderProfessionCount && gp[0] == "female Warrior" &&
+           gp[5] == "Priestess");
+    assert(ra.size() == kRaceAdjectiveCount && ra[0] == "Human-" &&
+           ra[5] == "Half-Orc-");
+    assert(al.size() == kAlignmentLowerCount && al[0] == "lawful " &&
+           al[1] == "chaotic ");
+    assert(pp.size() == kProfessionDisplayCount && pp[0] == "Warrior" &&
+           pp[12] == "??");
+    assert(ac.size() == kActionCount && ac[0] == "Defends" &&
+           ac[4] == "Cast Spell");
+    assert(mo.size() == kMoraleCount && mo[0] == "Good" && mo[4] == "Bad");
 
     printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells/names ok\n");
     return 0;

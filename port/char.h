@@ -201,6 +201,12 @@ constexpr size_t kAlignmentCount = 2;
 constexpr size_t kSkillCount = 9;
 constexpr size_t kLanguageCount = 8;
 constexpr size_t kStatusCount = 8;
+constexpr size_t kGenderProfessionCount = 12;
+constexpr size_t kRaceAdjectiveCount = 6;
+constexpr size_t kAlignmentLowerCount = 2;
+constexpr size_t kProfessionDisplayCount = 13;
+constexpr size_t kActionCount = 5;
+constexpr size_t kMoraleCount = 5;
 
 std::vector<std::string> sex_names();
 std::vector<std::string> race_names();
@@ -213,6 +219,17 @@ std::vector<std::string> language_names();
 // line shows, and the full word (e.g. "Poisn" / "Poisoned").
 std::vector<std::string> status_short_names();
 std::vector<std::string> status_long_names();
+
+// Character-sheet display tables (party / status screens): the female
+// profession forms ("female Warrior".."Priestess"), race adjectives used in
+// compound names ("Human-".."Half-Orc-"), lower-case alignments, the padded
+// profession column, the per-turn actions and the morale labels.
+std::vector<std::string> gender_profession_names();
+std::vector<std::string> race_adjective_names();
+std::vector<std::string> alignment_lower_names();
+std::vector<std::string> profession_padded_names();
+std::vector<std::string> action_names();
+std::vector<std::string> morale_names();
 
 // Offsets into the 410-byte (0x19a) in-memory character struct.  ROST records
 // hold this struct at +0x01 (after the count byte) as records of 414 bytes; a

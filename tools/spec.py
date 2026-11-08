@@ -199,8 +199,16 @@ PROF_OFF, PROF_N = 0x41E98, 12
 ALIGN_OFF, ALIGN_N = 0x41F28, 2
 SKILL_OFF, SKILL_N = 0x41D52, 9
 LANG_OFF, LANG_N = 0x41DBE, 8
-STATUS_OFF, STATUS_N = 0x42190, 8  # short forms, 5-byte records
+STATUS_OFF, STATUS_N = 0x42190, 8  # short forms, 6-byte records
 STATUS_LONG_OFF = 0x421C0        # long forms, packed
+# Character display tables used by the party/status screens.
+GENDERPROF_OFF, GENDERPROF_N = 0x41F87, 12  # packed "female X" / "Priestess"
+RACEADJ_OFF, RACEADJ_N = 0x4202E, 6         # packed "Human-", "Elven-", ...
+ALIGNLOWER_OFF, ALIGNLOWER_N = 0x42013, 2   # packed "lawful ", "chaotic "
+PROFABBR_OFF, PROFABBR_N, PROFABBR_REC = 0x420DA, 13, 3
+PROF_PADDED_OFF, PROF_PADDED_N, PROF_PADDED_REC = 0x42101, 13, 11
+ACTION_OFF, ACTION_N = 0x42204, 5           # 12-byte records
+MORALE_OFF, MORALE_N, MORALE_REC = 0x423F8, 5, 13
 NAME_REC = 12
 
 
@@ -213,7 +221,7 @@ def _packed_names(d, off, n):
     out, i = [], off
     for _ in range(n):
         j = d.find(b"\x00", i)
-        out.append(d[i:j].decode("latin1").rstrip())
+        out.append(d[i:j].decode("latin1"))
         i = j + 1
     return out
 
@@ -229,6 +237,15 @@ def emit_names(exe_path, out_path):
         ("kLanguageNames", _packed_names(d, LANG_OFF, LANG_N)),
         ("kStatusShortNames", _fixed_names(d, STATUS_OFF, STATUS_N, 6)),
         ("kStatusLongNames", _packed_names(d, STATUS_LONG_OFF, STATUS_N)),
+        ("kGenderProfessionNames", _packed_names(d, GENDERPROF_OFF, GENDERPROF_N)),
+        ("kRaceAdjectiveNames", _packed_names(d, RACEADJ_OFF, RACEADJ_N)),
+        ("kAlignmentLowerNames", _packed_names(d, ALIGNLOWER_OFF, ALIGNLOWER_N)),
+        ("kProfessionAbbrevNames",
+         _fixed_names(d, PROFABBR_OFF, PROFABBR_N, PROFABBR_REC)),
+        ("kProfessionPaddedNames",
+         _fixed_names(d, PROF_PADDED_OFF, PROF_PADDED_N, PROF_PADDED_REC)),
+        ("kActionNames", _fixed_names(d, ACTION_OFF, ACTION_N)),
+        ("kMoraleNames", _fixed_names(d, MORALE_OFF, MORALE_N, MORALE_REC)),
     ]
     with open(out_path, "w") as f:
         f.write("// Legend of Faerghail character-generation name tables — "
