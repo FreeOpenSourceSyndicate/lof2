@@ -194,6 +194,13 @@ static int real_data() {
     assert(sv.chars[5].name == "Assanla");
     assert(sv.trailer.size() == 10);
 
+    // Character-struct offsets the engine's init/erase routines use directly
+    // (analysis/lof.asm 1B9C2..1BA7E).  Live slots carry word10 == -1.
+    assert((int16_t)(sv.chars[0].raw[kCharFlags10] |
+                     (sv.chars[0].raw[kCharFlags10 + 1] << 8)) == -1);
+    assert(sv.chars[0].raw[kCharStat1d] == 0x0a);
+    assert(sv.chars[0].raw[kCharLevel46] == 0x0e);
+
     printf("char_test: real SPEC/ROST/SHOP/GAMES ok\n");
     return 0;
 }
