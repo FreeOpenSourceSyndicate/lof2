@@ -157,21 +157,42 @@ Progress:
       main menu.
 - [x] LOF main menu artwork: `EGA/UP/MSCR` (full background) + `EGA/UP/MENU`
       (menu frame blitted at 7,4).
-- [ ] Text/font rendering (see below).
+- [x] Font decoding: `EGA/UP/CHR1`/`CHR2` glyph mapping (see below).
 - [ ] LOF play loop.
 
-### Font / text rendering (partially decoded)
+### Font / text rendering (decoded)
 
-`EGA/UP/CHR1` and `EGA/UP/CHR2` are 320x24 strips, each a row of 40 8x8 glyph
-cells. They are *not* plain ASCII in file order. Decoding so far: each glyph is
-8 bytes; the planes are read the same way as other EGA images (MSB = leftmost
-pixel), giving recognisable Latin capitals. The strip is a *two-row* alphabet:
-the upper 8 pixel rows hold one case (A-Z, 0-9, punctuation) and the lower 8 rows
-the other case / accents. The exact glyph->character mapping and which strip is
-used for which screen text still needs the blit routine in `LOF.EXE`
-(the loader reads the strip and indexes glyphs; the text itself comes from
-`SYST/TXTn` and the inline strings). Until then the drop-in draws no text and the
-menu is reproduced as artwork only.
+`EGA/UP/CHR1` and `EGA/UP/CHR2` are 320x24 strips, each 40 8x8 glyph cells
+stored as three 8-pixel bands (a plain 40-cell grid would only be 320 pixels
+wide, so the bands are stacked vertically). Reading each cell MSB-first (as for
+the other EGA images) gives recognisable glyphs, and the mapping is:
+
+| band | cells 0..3 | cells 4..29 | cells 30..39 |
+|------|-----------|-------------|--------------|
+| 0    | symbols   | upper A..Z  | digits 0..9  |
+| 1    | symbols   | lower a..z  | symbols      |
+| 2    | symbols   | -           | -            |
+
+The engine uses `CHR1` for the main-menu text, advancing 6 pixels per cell (the
+cells overlap: the next glyph is 6px right, so the last two columns are shared).
+The mapping, the two punctuation cells (`(` = band 1 cell 2, `)` = band 1
+cell 3) and the 6px advance were confirmed by template-matching the strip
+against a DOSBox capture of the main menu, whose entries are:
+
+```
+(P)ick-pocket
+(R)est
+                     <- blank row
+(L)ook for new character
+(E)rase a character
+(A)dd a new character
+(D)ismiss a character
+(O)pen file
+```
+
+drawn at x=139, rows at y=124+8*n (colour 0). `port/font.{h,cpp}` loads the
+strip at run time (no font data is embedded) and draws text; `tests/font_test.cpp`
+covers the mapping, the advance and the draw path.
 
 
 Roadmap:

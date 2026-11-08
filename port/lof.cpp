@@ -6,6 +6,7 @@
 #include "gfx.h"
 #include "data.h"
 #include "screens.h"
+#include "font.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -106,8 +107,25 @@ int main(int argc, char** argv) {
     menu.resize(320, 200);
     menu.clear(0);
     if (blit_ega(menu, dir + "/EGA/UP/MSCR", 0, 0, &err) &&
-        blit_ega(menu, dir + "/EGA/UP/MENU", 7, 4, &err))
+        blit_ega(menu, dir + "/EGA/UP/MENU", 7, 4, &err)) {
+        // The menu entry labels are drawn by the engine's own font, which lives
+        // in the EGA/UP/CHR1 strip.  Strings and layout come from LOF.EXE and a
+        // DOSBox capture of the main menu: entries at x=139, 8px rows starting
+        // at y=124, with a blank row after "Rest", and a 6px advance.
+        Font font;
+        if (font.load(dir + "/EGA/UP/CHR1", &err)) {
+            font.advance = 6;
+            static const struct { int y; const char* text; } kEntries[] = {
+                {124, "(P)ick-pocket"}, {132, "(R)est"},
+                {148, "(L)ook for new character"}, {156, "(E)rase a character"},
+                {164, "(A)dd a new character"}, {172, "(D)ismiss a character"},
+                {180, "(O)pen file"},
+            };
+            for (const auto& e : kEntries)
+                font.draw(menu, 139, e.y, e.text, 0);
+        }
         frames.push_back(menu);
+    }
 
     if (frames.empty()) { fprintf(stderr, "lof: %s\n", err.c_str()); return 1; }
     if (shot_frame >= 0 && (size_t)shot_frame < frames.size()) scr = frames[shot_frame];

@@ -23,9 +23,11 @@ lof-native: $(SRC) src/emu.h
 headless: $(SRC) src/emu.h
 	$(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -o lof-native $(SRC)
 
-test: tests/cpu_test.cpp src/cpu.cpp src/ega.cpp src/machine.cpp src/emu.h
+test: tests/cpu_test.cpp src/cpu.cpp src/ega.cpp src/machine.cpp src/emu.h tests/font_test.cpp port/font.cpp port/gfx.cpp port/gfx.h port/font.h
 	$(CXX) $(CXXFLAGS) -I src -o cpu_test tests/cpu_test.cpp src/cpu.cpp src/ega.cpp src/machine.cpp
 	./cpu_test
+	$(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port -o font_test tests/font_test.cpp port/font.cpp port/gfx.cpp
+	./font_test
 
 # --- Native drop-in (the deliverable) -------------------------------------
 # These binaries re-implement the engine and read the game data files; they do
@@ -41,11 +43,11 @@ endif
 
 port: lof vor
 
-lof: port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/gfx.h port/data.h port/screens.h
-	$(CXX) $(PORT_CFLAGS) -o $@ port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp $(PORT_LIBS)
+lof: port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp port/gfx.h port/data.h port/screens.h port/font.h
+	$(CXX) $(PORT_CFLAGS) -o $@ port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp $(PORT_LIBS)
 
-vor: port/vor.cpp port/gfx.cpp port/screens.cpp port/gfx.h port/screens.h
-	$(CXX) $(PORT_CFLAGS) -o $@ port/vor.cpp port/gfx.cpp port/screens.cpp $(PORT_LIBS)
+vor: port/vor.cpp port/gfx.cpp port/screens.cpp port/font.cpp port/gfx.h port/screens.h port/font.h
+	$(CXX) $(PORT_CFLAGS) -o $@ port/vor.cpp port/gfx.cpp port/screens.cpp port/font.cpp $(PORT_LIBS)
 
 # Regenerate the annotated disassembly listings (needs lof-native for the
 # LZEXE-unpacked VOR payload).
