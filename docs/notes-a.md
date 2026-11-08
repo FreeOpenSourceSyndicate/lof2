@@ -123,6 +123,30 @@ buildings/areas); `DNG10`/`DNG17` are 0.97-0.99 (a few sealed pockets). So the
 levels; a wrong wall set would fragment them far more. Still PROVISIONAL
 pending an oracle frame, but this raises confidence.
 
+## Level file naming and dungeon/debug string cluster
+
+The game builds dungeon filenames with its own format string at `LOF.EXE`
+offset `0x4bb2c`: `DNGS\DNG%01ld%01ld` — i.e. `DNG<dungeon><level>`, one digit
+each. The 29 shipped files confirm it: the first digit runs 0..6 (7 dungeons)
+and the second 0..7, e.g. `DNG00` (dungeon 0 level 0) .. `DNG66`. Dungeon 6 has
+only one level. `port/dungeon.{h,cpp}` now exposes
+`dungeon_file_name(dungeon, level)` and `tests/dungeon_test.cpp` round-trips
+all 29 real files through it.
+
+Adjacent to that format string is a small debug cluster (all still
+unreachable, kept for the record):
+
+- `Enter GFX-number?` (0x424f0) — likely the "dump any EGA image" debugger.
+- `Enter dungeon-number?` / `Enter level-number?` (0x425d3 / 0x425e9) — would
+  set the level directly; the pair maps onto the two `%01ld` fields above.
+- `Enter room-number?` / `Akt. room: %d` (0x42548 / 0x4253a) — room selection
+  once inside a dungeon.
+- `Debugmode activ!` / `Debugmode inactiv!` (0x42511 / 0x42522) — the toggle.
+
+No key or command-tail switch reaches this cluster (see the sweep above), so it
+does not unblock the oracle frame, but it confirms the intended internal model:
+a dungeon is identified by (dungeon, level) and rendered room by room.
+
 ## Dungeon graphics are layered, first-person, pre-scaled tiles
 
 `EGA/D0/DP001..DP066` (63 files) are the dungeon wall/floor/ceiling images and

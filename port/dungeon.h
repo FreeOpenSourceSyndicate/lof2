@@ -69,6 +69,13 @@ bool decode_dungeon(const std::vector<uint8_t>& raw, Dungeon& out,
 bool load_dungeon(const std::string& path, Dungeon& out,
                   std::string* err = nullptr);
 
+// The 29 levels are named DNGS/DNG<dungeon><level>: the first digit is the
+// dungeon number (0..6), the second the level within it (0..7), matching the
+// game's own format string `DNGS\DNG%01ld%01ld` (LOF.EXE offset 0x4bb2c).
+// E.g. "DNG17" is dungeon 1, level 7.  `dungeon` is a single digit, so
+// dungeon * 10 + level recovers the file's two-digit code.
+std::string dungeon_file_name(int dungeon, int level);
+
 // The raw RLE decoder shared with the EGA image loader's scheme: the first
 // byte is the escape marker, then literal bytes copy through and the escape
 // byte introduces a (count, value) pair emitting `value` `count` times.

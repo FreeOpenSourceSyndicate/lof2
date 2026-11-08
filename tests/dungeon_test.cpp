@@ -114,6 +114,32 @@ static void test_real(const std::string& dir) {
     else std::printf("dungeon_test: no game data, skipping real-file checks\n");
 }
 
+// DNGS file naming: DNG<dungeon><level>, matching the game's own
+// `DNGS\DNG%01ld%01ld` format string.  Every file present in game/DNGS must
+// round-trip through the helper.
+static void test_file_name(const std::string& dir) {
+    assert(dungeon_file_name(0, 0) == "DNG00");
+    assert(dungeon_file_name(1, 7) == "DNG17");
+    assert(dungeon_file_name(6, 6) == "DNG66");
+    assert(dungeon_file_name(12, -1) == "DNG90");   // clamped to single digits
+    int checked = 0;
+    for (int dg = 0; dg < 7; dg++) {
+        for (int lv = 0; lv < 8; lv++) {
+            std::string p = dir + "/" + dungeon_file_name(dg, lv);
+            FILE* f = std::fopen(p.c_str(), "rb");
+            if (!f) continue;
+            std::fclose(f);
+            Dungeon d;
+            assert(load_dungeon(p, d));
+            assert(dungeon_file_name(dg, lv) ==
+                   std::string("DNG") + (char)('0' + dg) + (char)('0' + lv));
+            checked++;
+        }
+    }
+    if (checked) std::printf("dungeon_test: %d levels load by (dungeon,level)\n",
+                             checked);
+}
+
 static void test_render() {
     Dungeon d;
     d.tiles.assign(kDungeonTiles, 6);
@@ -266,6 +292,7 @@ int main(int argc, char** argv) {
     std::string dir = (argc > 1) ? argv[1] : "game/DNGS";
     test_real(dir);
     test_object_layout(dir);
+    test_file_name(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }

@@ -234,4 +234,12 @@ bool load_dungeon(const std::string& path, Dungeon& out, std::string* err) {
     return decode_dungeon(raw, out, err);
 }
 
+std::string dungeon_file_name(int dungeon, int level) {
+    if (dungeon < 0) dungeon = 0;
+    if (dungeon > 9) dungeon = 9;
+    if (level < 0) level = 0;
+    if (level > 9) level = 9;
+    return std::string("DNG") + (char)('0' + dungeon) + (char)('0' + level);
+}
+
 }  // namespace lofport
