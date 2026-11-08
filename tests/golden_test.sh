@@ -38,7 +38,8 @@ scenario() {
 
 # "boot" = the main menu; the rest press a menu hot-key (the menu is
 # keyboard-driven) and capture the resulting screen: L=character, O=open,
-# A=add, D=dismiss, E=erase.
+# A=add, D=dismiss, E=erase.  "town" opens the save (O then Enter) and enters
+# the play loop -- the in-game screen the drop-in's play loop must reproduce.
 run() {
     scenario boot
     scenario look  LOF_KEYFRAME=10 --keys 0x26
@@ -46,6 +47,7 @@ run() {
     scenario add   LOF_KEYFRAME=10 --keys 0x1e
     scenario dism  LOF_KEYFRAME=10 --keys 0x20
     scenario erase LOF_KEYFRAME=10 --keys 0x12
+    scenario town  LOF_KEYFRAME=10 --keys 0x18,0x1c
 }
 
 if [ "${1:-}" = "--record" ] || [ ! -f "$GOLDEN_FILE" ]; then
