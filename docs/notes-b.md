@@ -65,4 +65,35 @@ plausible fields (verify against the emulator's reads with `LOF_I21=1` +
 
 - [x] SPEC count/stride + all field offsets verified against `analysis/lof.asm`.
 - [x] ROST count/stride verified (11 x 414).
-- [ ] `port/char.{h,cpp}`, `tools/spec.py`, `tests/char_test.cpp`.
+- [x] `port/char.{h,cpp}`, `tools/spec.py`, `tests/char_test.cpp` (wired in
+      `tests/local.mk`).
+- [x] `make test` green: synthetic layout test + real-data assertions on
+      SPEC0/SPEC6/SPEC7/ROST/SHOP (counts 24/182/41, record names, SHOP values).
+
+### Correction (verified)
+
+The offsets `+0x0b`, `+0x0e`, `+0x0f`, `+0x48` initially suspected as SPEC
+fields belong to a *different* structure — an NPC/class buffer with stride
+`0x19a` (see `mov ax,0x19a; imul [bp-0x44]` at `1F0A0`) or `0x4e`. They are NOT
+on the 238-byte `[0x7d04]` SPEC buffer, and `+0x0e`/`+0x0f` actually lie inside
+the `text_a` string. The parser therefore exposes only the fields that appear
+in a `mov ax,0xee`-strided function, all of which sit past the text regions.
+
+### Verification
+
+- Record counts match the files byte-exactly: `len == 1 + count*238` for all 8
+  SPEC files and `1 + 11*414` for ROST — an independent confirmation of both
+  strides.
+- The `0xee` stride and the `+0xc9`/`+0xe2`/`+0xe4`/`+0x4c`/`+0x4e` accesses are
+  read straight out of `analysis/lof.asm` on the loaded-SPEC buffer.
+- The emulator's own INT 21h trace (`LOF_I21=1`) shows it opening
+  `SYST\SNSC`; reaching the dungeon/event screens that open `SYST\SPECn`
+  requires scripted menu input (an open follow-up in HANDOFF.md), so the SPEC
+  ground truth here is the static disassembly + exact file-size match.
+
+### Request for the maintainer (do not edit `port/lof.cpp` myself)
+
+`lof.cpp` is `[SERIAL]` and owned by the maintainer. Please wire
+`--dump-spec` into the front-end: include `char.h`, and on `--dump-spec` call
+`load_spec(dir + "/SYST/SPEC" + n)` for n=0..7 and `dump_spec(stdout, t, label)`.
+(The same dump is already runnable now via `./char_test --dump-spec`.)
