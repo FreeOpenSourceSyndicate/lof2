@@ -76,4 +76,8 @@ dropin: lof vor
 clean:
 	rm -f lof-native cpu_test lof vor port/*.o
 
-.PHONY: all headless test asm dropin port clean check local-test
+.PHONY: all headless test asm dropin port clean check local-test golden
+
+# Oracle regression: emulator must render the same frames (needs game data).
+golden:
+	./tests/golden_test.sh
