@@ -69,7 +69,9 @@ int main(int argc, char** argv) {
         if (std::string(argv[i]) == "--screen" && i + 1 < argc) screen = argv[++i];
     if (!screen.empty()) {
         std::string err;
-        if (!show_ega(scr, dir + "/EGA/IN/" + screen, false, &err)) {
+        // NAME -> EGA/IN/NAME (full screens); SUB/NAME -> EGA/SUB/NAME.
+        std::string rel = screen.find('/') == std::string::npos ? "IN/" + screen : screen;
+        if (!show_ega(scr, dir + "/EGA/" + rel, false, &err)) {
             fprintf(stderr, "lof: %s\n", err.c_str());
             return 1;
         }

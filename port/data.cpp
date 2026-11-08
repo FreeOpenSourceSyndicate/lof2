@@ -58,17 +58,15 @@ std::vector<SnsRecord> load_nsc(const std::string& path) {
 std::vector<std::string> load_txt(const std::string& path) {
     std::vector<uint8_t> d = read_file(path);
     std::vector<std::string> out;
-    if (d.size() < 2) return out;
-    // The offset table runs up to the first string body; walk it while each
-    // offset is a plausible word value pointing inside the file.
-    size_t first = d[0] | (d[1] << 8);
-    if (first < 2 || first > d.size()) first = d.size();
-    for (size_t i = 0; i + 2 <= first; i += 2) {
-        size_t o = d[i] | (d[i + 1] << 8);
-        if (o >= d.size()) break;
-        size_t e = o;
-        while (e < d.size() && d[e]) e++;
-        out.push_back(std::string((const char*)&d[o], e - o));
+    // Layout: a table of little-endian (offset, length) word pairs, followed by
+    // the string bodies.  The table ends where the first body begins.
+    size_t table_end = d.size();
+    for (size_t i = 0; i + 4 <= d.size(); i += 4) {
+        size_t off = d[i] | (d[i + 1] << 8);
+        size_t len = d[i + 2] | (d[i + 3] << 8);
+        if (len == 0 || off + len > d.size()) break;
+        if (off < table_end) table_end = off;
+        out.push_back(std::string((const char*)&d[off], len));
     }
     return out;
 }

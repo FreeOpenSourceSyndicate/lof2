@@ -71,12 +71,25 @@ palettes.
 
 ### VOR intro text page
 
-After a key press, VOR shows a **credits page** (game credits, reLINE Software
+After a key press, VOR shows the **credits page** (game credits, reLINE Software
 Hannover; "IBM-PC Version & GFA-converting: Holger Heinrich", etc.). The page is
-drawn with an **encoded vector font** — the credits text is *not* stored as
-plaintext in the unpacked payload (only the error strings are), so reproducing it
-exactly requires decoding VOR's font/string tables (`INT 10h AH=11h` font
-handling is used). This is the next VOR target after the title graphic.
+the pre-rendered full-screen bitmap `EGA/IN/CRED` (320x200, standard EGA image
+format) — it is *not* a vector font and the text is *not* stored as plaintext.
+`lof --screen CRED` reproduces it exactly. (VOR draws only `EGA/IN/DRAG` + this
+still; the menu/game come from LOF.EXE.)
+
+### Boot / menu screens
+
+`START.BAT` runs `vor` then `lof`. LOF **refuses to start unless launched from
+START.BAT** (it inspects the DOS command tail / parent and prints "Please start
+LOF with START.BAT"). The emulator's `LOF_CMDLEN=n` injects a non-empty PSP
+command tail to get past this.
+
+Visible sequence (EGA 320x200): credits still (`CRED`) → the main menu, whose
+static artwork is `EGA/UP/MSCR` (full 320x200 background) plus `EGA/UP/MENU`
+(184x105 menu frame). Menu entries (OCR): pick-pocket / Rest / Look for new
+character / Erase a character / Add a new character / Dismiss a character /
+Open file, ...
 
 ### System data files (`SYST/`)
 
@@ -87,9 +100,9 @@ handling is used). This is the next VOR target after the title graphic.
   Water, Air, Angel, Woodkeeper, Phantomfighter, Warrior, Werewolf).
 - `SYST/NSCnn` — a count byte followed by that many 78-byte records in the same
   layout (per-scenario NPC/monster tables).
-- `SYST/TXTn` — a table of little-endian word offsets (N of them) followed by
-  NUL-terminated strings; the offsets point at the string bodies. `TXT0` holds
-  the long dialogue texts (English).
+- `SYST/TXTn` — a table of little-endian **(offset, length) word pairs** followed
+  by the string bodies (the offsets point at the bodies; the table ends where the
+  first body begins). `TXT0` holds the long dialogue texts (English).
 - `DSKTAB.DFS` — 140 bytes, all zero in this release (disk/volume table; zeroed
   because the game was installed to a hard disk).
 
