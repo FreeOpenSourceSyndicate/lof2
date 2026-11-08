@@ -59,6 +59,25 @@ bitplanes concatenated (plane0=blue, 1=green, 2=red, 3=intensity), each
 Loader code: `LOF.EXE` image offset `0x1A378` (`lcall 0x18d:0x16a8`); the
 blitter that consumes the decoded buffer is at image offset `0x1C7B`.
 
+### EGA palette (VOR intro)
+
+`VOR.EXE` programs the EGA attribute palette at run time with
+`INT 10h AH=10h AL=02h` (set all 16 palette registers from `ES:DX`), using five
+17-byte tables in its data segment (`ES`=image segment, table at `0x4834`,
+`0x4845`, `0x4856`, `0x4867`, `0x4878`; 16 registers + 1 overscan). The values
+are the standard EGA 6-bit colour selectors; the emulator's `ega_rgb()` decodes
+them (primary guns weight 2, secondary weight 1). The intro fades between these
+palettes.
+
+### VOR intro text page
+
+After a key press, VOR shows a **credits page** (game credits, reLINE Software
+Hannover; "IBM-PC Version & GFA-converting: Holger Heinrich", etc.). The page is
+drawn with an **encoded vector font** — the credits text is *not* stored as
+plaintext in the unpacked payload (only the error strings are), so reproducing it
+exactly requires decoding VOR's font/string tables (`INT 10h AH=11h` font
+handling is used). This is the next VOR target after the title graphic.
+
 ## Build
 
 ```sh

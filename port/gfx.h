@@ -13,10 +13,27 @@
 
 namespace lofport {
 
+// Decode an EGA 6-bit attribute colour selector (0..63) to RGB exactly like the
+// hardware: bits 0-2 are the secondary (1x) guns, bits 3-5 the primary (2x).
+void rgb_from_attr(uint8_t attr, uint8_t* rgb);
+
+// A 16-entry palette.  Defaults to the standard EGA colour set (the values the
+// BIOS programs at mode set, e.g. index 6 = brown, 8 = dark gray).
+struct Palette {
+    uint8_t rgb[16][3];
+    Palette();
+    // Program the palette from 16 attribute selectors (as the game does via
+    // INT 10h AH=10h AL=02h).
+    void set_from_attr(const uint8_t* attr16) {
+        for (int i = 0; i < 16; i++) rgb_from_attr(attr16[i], rgb[i]);
+    }
+};
+
 // A 320x200 (or up to 640x350) 16-colour indexed framebuffer.
 struct Screen {
     int width = 320;
     int height = 200;
+    Palette pal;
     std::vector<uint8_t> pixels;   // width*height palette indices (0..15)
 
     void resize(int w, int h) {

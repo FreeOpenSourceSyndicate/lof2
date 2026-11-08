@@ -9,13 +9,31 @@
 
 namespace lofport {
 
-// Standard EGA 16-colour palette (RGB triples), 0..15.
+// Decode an EGA 6-bit attribute colour selector to RGB, exactly like the
+// hardware: bits 0-2 are the secondary (1x) guns, bits 3-5 the primary (2x).
+void rgb_from_attr(uint8_t attr, uint8_t* rgb) {
+    attr &= 0x3F;
+    rgb[0] = (uint8_t)(((attr >> 2) & 1) * 170 + ((attr >> 5) & 1) * 85);  // R
+    rgb[1] = (uint8_t)(((attr >> 1) & 1) * 170 + ((attr >> 4) & 1) * 85);  // G
+    rgb[2] = (uint8_t)(((attr >> 0) & 1) * 170 + ((attr >> 3) & 1) * 85);  // B
+}
+
+// Standard EGA 16-colour palette (RGB triples), 0..15 — the default palette the
+// BIOS programs at mode set (index 6 = brown, 8 = dark gray).
 const uint8_t kEgaPalette[16][3] = {
     {0x00, 0x00, 0x00}, {0x00, 0x00, 0xAA}, {0x00, 0xAA, 0x00}, {0x00, 0xAA, 0xAA},
     {0xAA, 0x00, 0x00}, {0xAA, 0x00, 0xAA}, {0xAA, 0x55, 0x00}, {0xAA, 0xAA, 0xAA},
     {0x55, 0x55, 0x55}, {0x55, 0x55, 0xFF}, {0x55, 0xFF, 0x55}, {0x55, 0xFF, 0xFF},
     {0xFF, 0x55, 0x55}, {0xFF, 0x55, 0xFF}, {0xFF, 0xFF, 0x55}, {0xFF, 0xFF, 0xFF},
 };
+
+Palette::Palette() {
+    for (int i = 0; i < 16; i++) {
+        rgb[i][0] = kEgaPalette[i][0];
+        rgb[i][1] = kEgaPalette[i][1];
+        rgb[i][2] = kEgaPalette[i][2];
+    }
+}
 
 // The image header is: escape byte, 0x1234 magic, width (word), height (word).
 static const size_t kHeader = 7;
@@ -128,7 +146,7 @@ void present_sdl(const Screen& scr, const std::string& title) {
 
     std::vector<uint32_t> fb((size_t)scr.width * scr.height);
     for (size_t i = 0; i < fb.size(); i++) {
-        const uint8_t* c = kEgaPalette[scr.pixels[i] & 15];
+        const uint8_t* c = scr.pal.rgb[scr.pixels[i] & 15];
         fb[i] = 0xFF000000u | ((uint32_t)c[2] << 16) | ((uint32_t)c[1] << 8) | c[0];
     }
     bool done = false;
@@ -192,7 +210,7 @@ bool save_png(const std::string& path, const Screen& scr) {
     for (int y = 0; y < h; y++) {
         raw.push_back(0);  // filter: none
         for (int x = 0; x < w; x++) {
-            const uint8_t* c = kEgaPalette[scr.pixels[(size_t)y * w + x] & 15];
+            const uint8_t* c = scr.pal.rgb[scr.pixels[(size_t)y * w + x] & 15];
             raw.push_back(c[0]); raw.push_back(c[1]); raw.push_back(c[2]);
         }
     }
