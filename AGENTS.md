@@ -36,6 +36,28 @@ can observe behaviour and produce a decompilation (`tools/decompile.py`,
 - `LOF.EXE` loads its graphics from `EGA\...` (e.g. `ega\in\titl`, `ega\char0\ch00`,
   `ega\up\up00`..), its disk table from `DSKTAB.DFS`, and system data from
   `SYST\SNSC`.
+- `VOR.EXE` draws its title from `EGA\IN\DRAG` (320x200, 4-plane EGA image).
+
+## Data formats
+
+### EGA image files (`EGA/**`) — decoded, see `tools/ega.py`
+
+All `EGA` files are RLE-compressed 4-plane EGA images:
+
+    off 0 : escape byte (RLE marker; stream starts at off 7)
+    off 1 : 0x1234 magic (word)          <- the loader tests `cmp [si],0x1234`
+    off 3 : width in bytes per row (word)  -> pixel width = width*8
+    off 5 : height in rows (word)
+    off 7 : RLE stream
+
+RLE: literal bytes copy through; the escape byte introduces a (count, value)
+pair emitting `value` repeated `count` times. The decoded buffer is four EGA
+bitplanes concatenated (plane0=blue, 1=green, 2=red, 3=intensity), each
+`width*height` bytes; MSB is the leftmost pixel. Verified: the decoded
+`EGA/IN/DRAG` reproduces the emulator's VOR title frame.
+
+Loader code: `LOF.EXE` image offset `0x1A378` (`lcall 0x18d:0x16a8`); the
+blitter that consumes the decoded buffer is at image offset `0x1C7B`.
 
 ## Build
 
