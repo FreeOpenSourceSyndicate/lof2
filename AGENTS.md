@@ -252,6 +252,31 @@ Menu text is drawn at x=139, rows at y=124+8*n (colour 0). `port/font.{h,cpp}` l
 strip at run time (no font data is embedded) and draws text; `tests/font_test.cpp`
 covers the mapping, the advance and the draw path.
 
+**Known font-rendering gap (open).** The menu/town/panel text in the emulator
+oracle does *not* byte-match the `CHR1`/`CHR2` strip cells: sliding a rendered
+`(P)ick-pocket` / `Which building do you want to visit?` / `Welcome, hardy`
+against the oracle frame leaves a residual of a few hundred pixels, and the
+oracle glyph for the greeting's first letter is a *bold, double-struck* form
+(each stem two pixels wide) with no exact match anywhere in `CHR1`, `CHR2`, the
+decoded EGA planes, `MENU`, `MSCR`, `LOF.EXE` or `VOR.EXE`. The oracle's panel
+background is the correct colour (the custom-palette fix below) and the *strings
+and layout* are confirmed byte-for-byte from `LOF.EXE` (`Welcome, hardy` /
+`adventurers!` / `(P)ick-pocket` … / `(C)ontinue` at x=139, rows y=92,100,116,
+124,140,148,156,164,172,188), but the glyph *bitmaps* the engine blits are still
+unidentified — the engine appears to build them from `EGA\UP\CHR1`/`CHR2` at run
+time with an extra step (weighting/duplication) the drop-in does not yet model.
+`port/lof.cpp` draws them with the `CHR1` cells (colour 0) as the current best
+approximation. Next step: disassemble the engine's glyph-blit routine (the code
+that reads the `4130:` buffer `CHR1` is loaded into) to recover the transform.
+
+**Custom EGA palette.** The engine reprograms the attribute controller at
+start-up (`INT 10h AH=10h AL=02h`), mapping indices 0..7 to the low-intensity
+colours and 8..15 to the same hues at high intensity. `port/gfx.cpp` carries the
+game's programmed palette in `kEgaPalette`; using the stock BIOS palette instead
+mis-colours the menu, town and intro frames (the menu exact-match drops from
+0.78 to 0.58).
+
+
 
 Roadmap:
 
