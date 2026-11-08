@@ -87,6 +87,18 @@ static void synthetic_spec() {
     assert(parse_spec(none, bad));
     assert(bad.ok && bad.records.empty());
 
+    // Dispatch-type names (oracle-derived): the handler set the disassembly
+    // keys off must all have stable labels, and unknown values must not crash.
+    assert(std::string(spec_type_name(0)) == "text");
+    assert(std::string(spec_type_name(1)) == "recruit");
+    assert(std::string(spec_type_name(7)) == "door");
+    assert(std::string(spec_type_name(9)) == "sign");
+    assert(std::string(spec_type_name(0x0c)) == "button");
+    assert(std::string(spec_type_name(0x0e)) == "challenge");
+    assert(std::string(spec_type_name(0x11)) == "puzzle");
+    assert(std::string(spec_type_name(0x19)) == "elemental");
+    assert(std::string(spec_type_name(9999)) == "unknown");
+
     printf("char_test: synthetic SPEC ok\n");
 }
 
@@ -106,10 +118,39 @@ static int real_data() {
     assert(t.ok);
     assert(t.declared_count == 24);
     assert(t.records.size() == 24);
-    // SPEC0[0] is the Woodkeeper riddle (verified against the game file).
+    // SPEC0[0] is the Woodkeeper recruit (verified against the game file and
+    // the oracle's own event dispatcher, which prints text_b at +0x50).
     assert(t.records[0].text_a == "He shakes his head.");
     assert(t.records[0].text_b.rfind("A Woodkeeper plants himself", 0) == 0);
-    assert(t.records[0].type == SPEC_TYPE_ACTION);
+    assert(t.records[0].type == SPEC_TYPE_RECRUIT);
+
+    // SPEC0[15..18] are the four elemental guardians (type 25); the engine's
+    // 0x19 handler reads index_c9 (+0xc9) to pick which one.  The observed
+    // indices 6,7,8,9 correspond to Water, Earth, Air, Fire in text order.
+    assert(t.records[15].type == SPEC_TYPE_ELEMENTAL);
+    assert(t.records[15].index_c9 == 6);
+    assert(t.records[15].text_b.rfind("A Water Elemental appears", 0) == 0);
+    assert(t.records[16].index_c9 == 7);
+    assert(t.records[17].index_c9 == 8);
+    assert(t.records[18].type == SPEC_TYPE_ELEMENTAL);
+    assert(t.records[18].index_c9 == 9);
+    assert(t.records[18].text_b.rfind("A Fire Elemental appears", 0) == 0);
+
+    // Every record's type lies in the observed set 0..25 (no gaps above 22
+    // except 23; 23 never appears in this release).
+    for (const auto& r : t.records)
+        assert(r.type <= 25 && r.type != (SpecType)23);
+
+    // 665 records across the eight scenario files (stable for this release).
+    size_t total = 0;
+    for (int n = 0; n <= 7; n++) {
+        char p[64];
+        snprintf(p, sizeof p, "%s/SYST/SPEC%d", dir, n);
+        SpecTable tt = load_spec(p);
+        assert(tt.ok);
+        total += tt.records.size();
+    }
+    assert(total == 665);
 
     // SPEC6 has 182 records; SPEC7 has 41 (the counts are stable per file).
     SpecTable t6 = load_spec(std::string(dir) + "/SYST/SPEC6");

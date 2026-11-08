@@ -29,18 +29,44 @@ namespace lofport {
 constexpr size_t kSpecRecordSize = 238;  // 0xee
 constexpr size_t kRostRecordSize = 414;
 
-// The behaviour dispatch type at record offset 0xe2.  LOF compares it against
-// these values in its event handlers; 0 means "no automatic behaviour".
+// The behaviour dispatch type at record offset 0xe2.  LOF reads this word in
+// its event handlers (`cmp es:[bx+si+0xe2], TYPE`); the observed values are
+// 0..22, 24 and 25.  The names below are derived by correlating each value with
+// the record's text (all 665 records across SPEC0..7) and the handler set the
+// disassembly keys off (1, 7, 9, 0x0c, 0x0e, 0x11, 0x19).  They are descriptive
+// labels, not engine symbol names.
 enum SpecType : uint16_t {
-    SPEC_TYPE_NONE = 0,
-    SPEC_TYPE_ACTION = 1,       // yes/no prompt that acts immediately
-    SPEC_TYPE_ITEM = 2,         // an item to pick up
-    SPEC_TYPE_TEXT = 3,         // a pure description
-    SPEC_TYPE_QUESTION = 7,     // yes/no prompt (arg at 0x4c)
-    SPEC_TYPE_TELEPORT = 9,
-    SPEC_TYPE_TRAP = 14,
-    SPEC_TYPE_ELEMENTAL = 25,   // asks the riddle in text_b
+    SPEC_TYPE_TEXT = 0,        // pure description (scenery, gravestones) — the
+                               // common case; the engine just prints text_b
+    SPEC_TYPE_RECRUIT = 1,     // asks "may I join you (Yes/No)"
+    SPEC_TYPE_SPRING = 2,      // a fountain/spring to drink or fill at
+    SPEC_TYPE_SPRING2 = 3,     // a spring breaking through the ground
+    SPEC_TYPE_BATTLE = 4,      // battlefield / ambush marker
+    SPEC_TYPE_PASSAGE = 5,     // rumbling passageway
+    SPEC_TYPE_EMPTY6 = 6,      // (no text in this release)
+    SPEC_TYPE_DOOR = 7,        // "would you like to go through?" (uses arg_4c)
+    SPEC_TYPE_TRADE = 8,       // offers a deal for gold (Yes/No)
+    SPEC_TYPE_SIGN = 9,        // a notice/sign; arg_4c holds the text id
+    SPEC_TYPE_SPRING3 = 10,    // deep/clear spring variant
+    SPEC_TYPE_TELEPORT = 11,   // transports the party elsewhere
+    SPEC_TYPE_BUTTON = 12,     // "press it?" prompt
+    SPEC_TYPE_INSCRIPTION = 13,// inscribed stone / cauldron
+    SPEC_TYPE_CHALLENGE = 14,  // a figure blocks the way and speaks
+    SPEC_TYPE_EMPTY15 = 15,    // (often no text)
+    SPEC_TYPE_LAVA = 16,       // hazardous crossing (lava / sarcophagus)
+    SPEC_TYPE_PUZZLE = 17,     // item/puzzle interaction
+    SPEC_TYPE_TRAP = 18,       // damaging trap ("you lose all your worries")
+    SPEC_TYPE_BUTTON19 = 19,
+    SPEC_TYPE_BUTTON20 = 20,
+    SPEC_TYPE_BUTTON21 = 21,
+    SPEC_TYPE_BUTTON22 = 22,
+    SPEC_TYPE_DOOR24 = 24,     // massive stone door with a circle
+    SPEC_TYPE_ELEMENTAL = 25,  // elemental guardian asks the riddle in text_b;
+                               // uses index_c9 (the element/class index)
 };
+
+// Short human-readable name for a dispatch type (never null).
+const char* spec_type_name(uint16_t type);
 
 // One 238-byte SYST/SPECn record decoded into typed fields.
 struct SpecRecord {
@@ -54,7 +80,7 @@ struct SpecRecord {
     int16_t arg_4e = 0;       // 0x4e  signed word, `< 0` means "unset"
     uint8_t index_c9 = 0xff;  // 0xc9  class index 0..12, 0xff = none
     uint16_t arg_da = 0;      // 0xda  word argument
-    SpecType type = SPEC_TYPE_NONE;  // 0xe2  behaviour dispatch type
+    SpecType type = SPEC_TYPE_TEXT;  // 0xe2  behaviour dispatch type
     uint16_t counter = 0;     // 0xe4  countdown/counter
     uint16_t arg_e6 = 0;      // 0xe6  extra argument (type 7/14)
     uint16_t arg_e8 = 0;      // 0xe8  extra argument

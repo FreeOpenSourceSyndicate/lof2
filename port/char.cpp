@@ -103,13 +103,45 @@ ShopData load_shop(const std::string& path) {
     return s;
 }
 
+const char* spec_type_name(uint16_t type) {
+    switch (type) {
+        case 0: return "text";
+        case 1: return "recruit";
+        case 2: return "spring";
+        case 3: return "spring2";
+        case 4: return "battle";
+        case 5: return "passage";
+        case 6: return "empty6";
+        case 7: return "door";
+        case 8: return "trade";
+        case 9: return "sign";
+        case 10: return "spring3";
+        case 11: return "teleport";
+        case 12: return "button";
+        case 13: return "inscription";
+        case 14: return "challenge";
+        case 15: return "empty15";
+        case 16: return "lava";
+        case 17: return "puzzle";
+        case 18: return "trap";
+        case 19: return "button19";
+        case 20: return "button20";
+        case 21: return "button21";
+        case 22: return "button22";
+        case 24: return "door24";
+        case 25: return "elemental";
+        default: return "unknown";
+    }
+}
+
 void dump_spec(std::FILE* out, const SpecTable& t, const char* label) {
     std::fprintf(out, "%s: %u records\n", label, (unsigned)t.declared_count);
     for (size_t i = 0; i < t.records.size(); i++) {
         const SpecRecord& r = t.records[i];
-        std::fprintf(out, "  [%3zu] type=%-3u idx=%02x arg4c=%u arg4e=%d cnt=%u\n",
-                     i, (unsigned)r.type, r.index_c9, r.arg_4c, r.arg_4e,
-                     r.counter);
+        std::fprintf(out,
+                     "  [%3zu] type=%-3u (%-11s) idx=%02x arg4c=%u arg4e=%d cnt=%u\n",
+                     i, (unsigned)r.type, spec_type_name(r.type), r.index_c9,
+                     r.arg_4c, r.arg_4e, r.counter);
         if (!r.text_a.empty()) std::fprintf(out, "        a: %s\n", r.text_a.c_str());
         if (!r.text_b.empty()) std::fprintf(out, "        b: %s\n", r.text_b.c_str());
     }
