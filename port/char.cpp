@@ -1,8 +1,11 @@
 #include "char.h"
 
+#include <cstdio>
 #include <cstring>
 
 namespace lofport {
+
+#include "char_items.inc"
 
 namespace {
 
@@ -169,6 +172,45 @@ void dump_spec(std::FILE* out, const SpecTable& t, const char* label) {
                      r.arg_4c, r.arg_4e, r.counter);
         if (!r.text_a.empty()) std::fprintf(out, "        a: %s\n", r.text_a.c_str());
         if (!r.text_b.empty()) std::fprintf(out, "        b: %s\n", r.text_b.c_str());
+    }
+}
+
+const std::vector<ItemRecord>& items() {
+    static const std::vector<ItemRecord> table = [] {
+        std::vector<ItemRecord> v;
+        v.reserve(kItemCount);
+        for (size_t i = 0; i < kItemCount; i++) {
+            ItemRecord r;
+            r.name = kItemNames[i];
+            r.f0 = kItemFields[i][0];
+            r.f1 = kItemFields[i][1];
+            r.f2 = kItemFields[i][2];
+            r.f3 = kItemFields[i][3];
+            r.f4 = kItemFields[i][4];
+            r.f5 = kItemFields[i][5];
+            r.f6 = kItemFields[i][6];
+            r.item_class = kItemClassSlot[i][0];
+            r.slot = kItemClassSlot[i][1];
+            v.push_back(std::move(r));
+        }
+        return v;
+    }();
+    return table;
+}
+
+const ItemRecord* item_by_index(int index) {
+    if (index < 1 || (size_t)index > kItemCount) return nullptr;
+    return &items()[index - 1];
+}
+
+void dump_items(std::FILE* out) {
+    const auto& v = items();
+    for (size_t i = 0; i < v.size(); i++) {
+        const ItemRecord& r = v[i];
+        std::fprintf(out,
+                     "[%3zu] %-18s class=%u slot=%u f0..6=%d %d %d %d %d %d %d\n",
+                     i, r.name.c_str(), r.item_class, r.slot, r.f0, r.f1, r.f2,
+                     r.f3, r.f4, r.f5, r.f6);
     }
 }
 
