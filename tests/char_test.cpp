@@ -285,6 +285,11 @@ static int real_data() {
     assert(ac.size() == kActionCount && ac[0] == "Defends" &&
            ac[4] == "Cast Spell");
     assert(mo.size() == kMoraleCount && mo[0] == "Good" && mo[4] == "Bad");
+    auto ca = combat_abbrev_names();
+    auto sc = scenario_names();
+    assert(ca.size() == kCombatAbbrevCount && ca[0] == "KIL" && ca[3] == "RET");
+    assert(sc.size() == kScenarioCount && sc[0] == " Valley of Faerghail" &&
+           sc[7] == "    The Mountain");
 
     // Monster rosters (SYST/NSC0n, same 78-byte layout as SNSC).  NSC00 holds
     // 25 scenario-0 monsters; the first is the Ape.

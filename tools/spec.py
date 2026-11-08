@@ -209,6 +209,8 @@ PROFABBR_OFF, PROFABBR_N, PROFABBR_REC = 0x420DA, 13, 3
 PROF_PADDED_OFF, PROF_PADDED_N, PROF_PADDED_REC = 0x42101, 13, 11
 ACTION_OFF, ACTION_N = 0x42204, 5           # 12-byte records
 MORALE_OFF, MORALE_N, MORALE_REC = 0x423F8, 5, 13
+COMBAT_ABBR_OFF, COMBAT_ABBR_N, COMBAT_ABBR_REC = 0x421F0, 4, 5
+SCENARIO_OFF, SCENARIO_N, SCENARIO_REC = 0x42240, 8, 22  # maps scenario idx
 NAME_REC = 12
 
 
@@ -246,6 +248,10 @@ def emit_names(exe_path, out_path):
          _fixed_names(d, PROF_PADDED_OFF, PROF_PADDED_N, PROF_PADDED_REC)),
         ("kActionNames", _fixed_names(d, ACTION_OFF, ACTION_N)),
         ("kMoraleNames", _fixed_names(d, MORALE_OFF, MORALE_N, MORALE_REC)),
+        ("kCombatAbbrevNames",
+         _fixed_names(d, COMBAT_ABBR_OFF, COMBAT_ABBR_N, COMBAT_ABBR_REC)),
+        ("kScenarioNames",
+         _fixed_names(d, SCENARIO_OFF, SCENARIO_N, SCENARIO_REC)),
     ]
     with open(out_path, "w") as f:
         f.write("// Legend of Faerghail character-generation name tables — "

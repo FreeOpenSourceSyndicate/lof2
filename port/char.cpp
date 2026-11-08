@@ -302,6 +302,12 @@ std::vector<std::string> action_names() {
 std::vector<std::string> morale_names() {
     return to_vec(kMoraleNames, kMoraleCount);
 }
+std::vector<std::string> combat_abbrev_names() {
+    return to_vec(kCombatAbbrevNames, kCombatAbbrevCount);
+}
+std::vector<std::string> scenario_names() {
+    return to_vec(kScenarioNames, kScenarioCount);
+}
 
 std::vector<std::string> monster_names(const std::string& dir, int scenario) {
     std::vector<std::string> out;

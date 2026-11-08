@@ -159,3 +159,21 @@ static const char* const kMoraleNames[] = {
     "Bad",
 };
 
+static const char* const kCombatAbbrevNames[] = {
+    "KIL",
+    "ATK",
+    "DEF",
+    "RET",
+};
+
+static const char* const kScenarioNames[] = {
+    " Valley of Faerghail",
+    "Monastery of Sagacita",
+    " Sagacita catakombs",
+    "     The Mines",
+    "    The Pyramid",
+    "     The Temple",
+    "     The Castle",
+    "    The Mountain",
+};
+
