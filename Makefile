@@ -44,8 +44,8 @@ port: lof vor
 lof: port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/gfx.h port/data.h port/screens.h
 	$(CXX) $(PORT_CFLAGS) -o $@ port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp $(PORT_LIBS)
 
-vor: port/vor.cpp port/gfx.cpp port/gfx.h
-	$(CXX) $(PORT_CFLAGS) -o $@ port/vor.cpp port/gfx.cpp $(PORT_LIBS)
+vor: port/vor.cpp port/gfx.cpp port/screens.cpp port/gfx.h port/screens.h
+	$(CXX) $(PORT_CFLAGS) -o $@ port/vor.cpp port/gfx.cpp port/screens.cpp $(PORT_LIBS)
 
 # Regenerate the annotated disassembly listings (needs lof-native for the
 # LZEXE-unpacked VOR payload).

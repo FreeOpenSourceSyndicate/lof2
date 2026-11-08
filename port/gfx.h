@@ -74,6 +74,10 @@ void blit_image(Screen& scr, const EgaImage& img, int dx, int dy);
 // SDL2; otherwise a no-op.  `title` is the window caption.
 void present_sdl(const Screen& scr, const std::string& title);
 
+// Present several screens in one SDL window; each stays until a key is pressed
+// (advances) or the window is closed (stops).  Used for the intro sequence.
+void present_sdl_frames(const std::vector<Screen>& frames, const std::string& title);
+
 // Write the screen to a PNG file (used by --shot for headless verification).
 bool save_png(const std::string& path, const Screen& scr);
 

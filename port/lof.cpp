@@ -8,8 +8,10 @@
 #include "screens.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
 using namespace lofport;
 
@@ -47,6 +49,7 @@ int main(int argc, char** argv) {
     std::string dir = game_dir(argv[0]);
     bool headless = false, have_shot = false, dump = false;
     std::string shot;
+    long shot_frame = -1;
 
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
@@ -54,6 +57,7 @@ int main(int argc, char** argv) {
         else if (a == "--headless") headless = true;
         else if (a == "--dump-data") dump = true;
         else if (a == "--shot" && i + 1 < argc) { shot = argv[++i]; have_shot = true; }
+        else if (a == "--shot-frame" && i + 1 < argc) shot_frame = atol(argv[++i]);
     }
 
     if (dump) { dump_data(dir); return 0; }
@@ -80,18 +84,39 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    // LOF's boot screen draws the EGA/IN/TITL logo.  Its exact position and the
-    // rest of the boot sequence are still being reverse-engineered; render the
-    // logo centred for now so the drop-in already produces the opening image.
+    // LOF's intro sequence (from the asset table at image offset 0x35EC8):
+    // title graphic (EGA/IN/TITL) -> credits still (EGA/IN/CRED) -> main menu,
+    // which is the menu background (EGA/UP/MSCR) with the menu frame
+    // (EGA/UP/MENU) composited at (7,4).  Screen positions were recovered by
+    // template-matching the decoded assets against DOSBox captures.
     std::string err;
-    if (!show_ega(scr, dir + "/EGA/IN/TITL", true, &err)) {
-        fprintf(stderr, "lof: %s\n", err.c_str());
-    }
+    std::vector<Screen> frames;
+
+    Screen title;
+    title.resize(320, 200);
+    title.clear(0);
+    if (show_ega(title, dir + "/EGA/IN/TITL", true, &err)) frames.push_back(title);
+
+    Screen cred;
+    cred.resize(320, 200);
+    cred.clear(0);
+    if (show_ega(cred, dir + "/EGA/IN/CRED", false, &err)) frames.push_back(cred);
+
+    Screen menu;
+    menu.resize(320, 200);
+    menu.clear(0);
+    if (blit_ega(menu, dir + "/EGA/UP/MSCR", 0, 0, &err) &&
+        blit_ega(menu, dir + "/EGA/UP/MENU", 7, 4, &err))
+        frames.push_back(menu);
+
+    if (frames.empty()) { fprintf(stderr, "lof: %s\n", err.c_str()); return 1; }
+    if (shot_frame >= 0 && (size_t)shot_frame < frames.size()) scr = frames[shot_frame];
+    else scr = frames.back();
 
     if (have_shot && !save_png(shot, scr)) {
         fprintf(stderr, "lof: cannot write %s\n", shot.c_str());
         return 1;
     }
-    if (!headless) present_sdl(scr, "Legend of Faerghail");
+    if (!headless) present_sdl_frames(frames, "Legend of Faerghail");
     return 0;
 }

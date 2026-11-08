@@ -12,6 +12,9 @@ namespace lofport {
 // message in *err) if the file cannot be read/decoded.
 bool show_ega(Screen& scr, const std::string& path, bool center, std::string* err);
 
+// Decode an EGA image and blit it at an explicit position.
+bool blit_ega(Screen& scr, const std::string& path, int x, int y, std::string* err);
+
 }  // namespace lofport
 
 #endif

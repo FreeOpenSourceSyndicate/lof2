@@ -11,4 +11,11 @@ bool show_ega(Screen& scr, const std::string& path, bool center, std::string* er
     return true;
 }
 
+bool blit_ega(Screen& scr, const std::string& path, int x, int y, std::string* err) {
+    EgaImage img;
+    if (!load_ega_image(path, img, err)) return false;
+    blit_image(scr, img, x, y);
+    return true;
+}
+
 }  // namespace lofport

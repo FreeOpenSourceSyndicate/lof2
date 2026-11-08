@@ -130,46 +130,59 @@ void blit_image(Screen& scr, const EgaImage& img, int dx, int dy) {
 }
 
 void present_sdl(const Screen& scr, const std::string& title) {
+    std::vector<Screen> one{scr};
+    present_sdl_frames(one, title);
+}
+
+// Show a sequence of screens in one SDL window.  Each screen stays up until the
+// user presses a key (advance) or closes the window (stop).  Used to reproduce
+// the intro: title graphic -> credits still -> menu.
+void present_sdl_frames(const std::vector<Screen>& frames, const std::string& title) {
 #ifdef USE_SDL
+    if (frames.empty()) return;
+    const int W = frames[0].width, H = frames[0].height;
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return;
     }
     SDL_Window* win = SDL_CreateWindow(title.c_str(), SDL_WINDOWPOS_CENTERED,
-                                       SDL_WINDOWPOS_CENTERED, scr.width, scr.height,
+                                       SDL_WINDOWPOS_CENTERED, W, H,
                                        SDL_WINDOW_SHOWN);
     SDL_Renderer* ren = win ? SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED) : nullptr;
     if (ren && !ren) ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
     SDL_Texture* tex = ren ? SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
-                                               SDL_TEXTUREACCESS_STREAMING,
-                                               scr.width, scr.height) : nullptr;
+                                               SDL_TEXTUREACCESS_STREAMING, W, H) : nullptr;
 
-    std::vector<uint32_t> fb((size_t)scr.width * scr.height);
-    for (size_t i = 0; i < fb.size(); i++) {
-        const uint8_t* c = scr.pal.rgb[scr.pixels[i] & 15];
-        fb[i] = 0xFF000000u | ((uint32_t)c[2] << 16) | ((uint32_t)c[1] << 8) | c[0];
-    }
+    std::vector<uint32_t> fb((size_t)W * H);
     bool done = false;
-    while (!done) {
-        SDL_Event e;
-        while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_QUIT) done = true;
-            else if (e.type == SDL_KEYDOWN) done = true;
+    for (size_t f = 0; f < frames.size() && !done; f++) {
+        const Screen& scr = frames[f];
+        for (size_t i = 0; i < fb.size(); i++) {
+            const uint8_t* c = scr.pal.rgb[scr.pixels[i] & 15];
+            fb[i] = 0xFF000000u | ((uint32_t)c[2] << 16) | ((uint32_t)c[1] << 8) | c[0];
         }
-        if (tex) {
-            SDL_UpdateTexture(tex, nullptr, fb.data(), scr.width * 4);
-            SDL_RenderClear(ren);
-            SDL_RenderCopy(ren, tex, nullptr, nullptr);
-            SDL_RenderPresent(ren);
+        bool advance = false;
+        while (!advance && !done) {
+            SDL_Event e;
+            while (SDL_PollEvent(&e)) {
+                if (e.type == SDL_QUIT) done = true;
+                else if (e.type == SDL_KEYDOWN) advance = true;
+            }
+            if (tex) {
+                SDL_UpdateTexture(tex, nullptr, fb.data(), W * 4);
+                SDL_RenderClear(ren);
+                SDL_RenderCopy(ren, tex, nullptr, nullptr);
+                SDL_RenderPresent(ren);
+            }
+            SDL_Delay(16);
         }
-        SDL_Delay(16);
     }
     if (tex) SDL_DestroyTexture(tex);
     if (ren) SDL_DestroyRenderer(ren);
     if (win) SDL_DestroyWindow(win);
     SDL_Quit();
 #else
-    (void)scr; (void)title;
+    (void)frames; (void)title;
 #endif
 }
 
