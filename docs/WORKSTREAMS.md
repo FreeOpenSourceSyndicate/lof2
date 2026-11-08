@@ -34,6 +34,20 @@ a regression test. There is always something; you never need to wait to be told.
 Default mapping if you want a suggestion: first agent in → **A (dungeons)**,
 second → **B (characters/items)**. The maintainer owns the main loop.
 
+### Two rules of thumb
+
+- **Prefer a workstream you already know.** If you have worked on one before, or
+  the docs make one clearly familiar, stay in it. Your accumulated context is
+  worth more than the marginal value of a different lane, and switching costs
+  (re-reading formats, re-grounding against the oracle) are real. Only move on
+  when your lane is genuinely done or blocked.
+- **Work in long, uninterrupted stretches.** Do not stop after one small step to
+  wait for the next prompt. Push frequently (reset safety), but keep going
+  through the checklist until you are blocked, out of work, or truly finished.
+  An idle agent costs the project far more than the occasional bit of rework.
+  When your lane runs dry, take the next unchecked item from `docs/HANDOFF.md`
+  or add a regression test for something in `AGENTS.md`'s "do not regress" list.
+
 ## File ownership map
 
 | Path | Owner | Notes |

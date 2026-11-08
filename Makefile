@@ -56,8 +56,8 @@ endif
 
 port: lof vor
 
-lof: port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp port/gfx.h port/data.h port/screens.h port/font.h
-	$(CXX) $(PORT_CFLAGS) -o $@ port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp $(PORT_LIBS)
+lof: port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp port/char.cpp port/gfx.h port/data.h port/screens.h port/font.h port/char.h
+	$(CXX) $(PORT_CFLAGS) -o $@ port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp port/char.cpp $(PORT_LIBS)
 
 vor: port/vor.cpp port/gfx.cpp port/screens.cpp port/font.cpp port/gfx.h port/screens.h port/font.h
 	$(CXX) $(PORT_CFLAGS) -o $@ port/vor.cpp port/gfx.cpp port/screens.cpp port/font.cpp $(PORT_LIBS)
@@ -76,4 +76,8 @@ dropin: lof vor
 clean:
 	rm -f lof-native cpu_test lof vor port/*.o
 
-.PHONY: all headless test asm dropin port clean check local-test
+.PHONY: all headless test asm dropin port clean check local-test golden
+
+# Oracle regression: emulator must render the same frames (needs game data).
+golden:
+	./tests/golden_test.sh

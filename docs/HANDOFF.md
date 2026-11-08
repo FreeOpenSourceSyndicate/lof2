@@ -23,13 +23,30 @@ Anyone can spin up a fresh agent with just this:
 > You are working in `FreeOpenSourceSyndicate/lof2`. Start by running
 > `./bootstrap.sh` and reading `README.md`, then `docs/HANDOFF.md`,
 > `docs/RISKS.md`, and `docs/WORKSTREAMS.md` — they tell you everything,
-> including how to pick your own workstream. Do not edit files you do not own.
-> Commit and push after every meaningful step (the workspace can reset). Never
-> read the sibling repo `FreeOpenSourceSyndicate/lof`.
+> including how to pick your own workstream. Prefer a workstream you already
+> know. Work in long, uninterrupted stretches — keep pulling items off the
+> checklist rather than stopping after one step. Do not edit files you do not
+> own. Commit and push after every meaningful step (the workspace can reset).
+> Review and merge your own PRs. Never read the sibling repo
+> `FreeOpenSourceSyndicate/lof`.
 
 That prompt plus the repo is all a replacement agent needs — no prior context.
 The agent picks its own workstream from `docs/WORKSTREAMS.md` (see "Pick your own
 workstream"); you do not have to point it at one.
+
+### How to work (do this, do not wait to be told)
+
+- **Prefer the workstream you already know.** Stay in the lane whose formats and
+  code you have already learned; switching wastes the context you built. Move on
+  only when your lane is done or blocked.
+- **Work in long, uninterrupted stretches.** Push often for reset-safety, but do
+  not stop after one small step to await the next prompt. Keep pulling items off
+  the checklist in this file until you are blocked or the work is finished. Idle
+  agents cost the project the most time; when your lane runs dry, take the next
+  unchecked item here, or add a regression test for an entry in `AGENTS.md`'s
+  "do not regress" list.
+- **You own your PR end to end** — create it, review it, and squash-merge it when
+  `make check` is green (see below). Do not wait for the coordinator to merge.
 
 ### Merging your PR
 
@@ -112,11 +129,27 @@ screen, and `make test` still passes.
 ## 4. Current status (update this list as you go)
 
 - [x] Analysis emulator boots LOF to the main menu (EGA mode 0Dh).
+- [x] Scripted input drives the menu: `--keys`/`LOF_KEYFRAME` inject keys, and
+      letters switch screens (e.g. `L` opens the character screen). The menu is
+      keyboard-driven, not mouse-only — an earlier note said otherwise; it was
+      wrong (only Enter had been tried).
+- [x] Oracle golden-frame regression test — `tests/golden_test.sh` (`make golden`,
+      also run by `check.sh`). Guards the emulator output every drop-in screen is
+      verified against.
 - [x] EGA image format decoded (11-byte header) — `tools/ega.py`, `port/gfx.cpp`.
 - [x] Font strip decoded + menu text — `port/font.cpp`.
 - [x] Intro sequence (TITL -> CRED -> menu) in the drop-in.
 - [x] Data readers: `SYST/SNSC`, `SYST/NSCnn`, `SYST/TXTn` — `port/data.cpp`.
-- [ ] Emulator: scripted input to drive the menu into the game (oracle follow-up).
+- [x] Emulator: menu key map complete; **the in-game screen is reachable**:
+      `O` then Enter loads the save and the engine reads `ROST/ROST`,
+      `ROST/SHOP` and the town graphics (`EGA/TWN/TWN00..05`) — the town/play
+      screen. Scripted as the `town` scenario in `tests/golden_test.sh`.
+- [x] Drop-in exposes workstream B's reader: `./lof --dir game --dump-spec`
+      (decoded `SYST/SPEC0..7`).
+- [ ] Drop-in: reproduce the in-game (town) screen — compare against the `town`
+      golden frame.
 - [ ] Dungeon subsystem (`DNGS/`) — workstream A.
-- [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — workstream B.
+- [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — workstream B. **Unblocked:**
+      the SPEC/ROST reads now happen in the oracle (`town` scenario), so B can
+      ground the remaining stat/combat semantics against real in-game state.
 - [ ] Main game loop / UI state machine — maintainer.

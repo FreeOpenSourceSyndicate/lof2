@@ -39,6 +39,15 @@ if make -s port >/dev/null 2>&1; then ok "make port (drop-in) builds"; else bad 
 echo "[check] tests"
 if make -s test >/dev/null 2>&1; then ok "make test passes"; else bad "make test failed"; fi
 
+echo "[check] oracle golden frames"
+if ./tests/golden_test.sh 2>&1 | grep -q 'golden_test: ok'; then
+    ok "golden_test passes (emulator output unchanged)"
+elif ./tests/golden_test.sh 2>&1 | grep -q 'SKIP'; then
+    printf '  note golden_test skipped (no game data)\n'
+else
+    bad "golden_test failed — the emulator output changed; see tests/golden_test.sh"
+fi
+
 echo "[check] hygiene"
 if [ -n "$(git status --porcelain)" ]; then
     printf '  note uncommitted changes present (commit + push before you stop)\n'

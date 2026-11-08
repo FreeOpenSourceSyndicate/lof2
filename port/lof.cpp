@@ -7,6 +7,7 @@
 #include "data.h"
 #include "screens.h"
 #include "font.h"
+#include "char.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -46,9 +47,21 @@ static void dump_data(const std::string& dir) {
     }
 }
 
+// --dump-spec: decode SYST/SPEC0..7 (workstream B's reader) so the parsed
+// scenario specials are visible from the shipped front-end.
+static void dump_spec_files(const std::string& dir) {
+    for (int n = 0; n <= 7; n++) {
+        char p[32]; snprintf(p, sizeof p, "/SYST/SPEC%d", n);
+        SpecTable t = load_spec(dir + p);
+        if (!t.ok) continue;
+        char label[32]; snprintf(label, sizeof label, "SYST/SPEC%d", n);
+        dump_spec(stdout, t, label);
+    }
+}
+
 int main(int argc, char** argv) {
     std::string dir = game_dir(argv[0]);
-    bool headless = false, have_shot = false, dump = false;
+    bool headless = false, have_shot = false, dump = false, dump_spec = false;
     std::string shot;
     long shot_frame = -1;
 
@@ -57,11 +70,13 @@ int main(int argc, char** argv) {
         if (a == "--dir" && i + 1 < argc) dir = argv[++i];
         else if (a == "--headless") headless = true;
         else if (a == "--dump-data") dump = true;
+        else if (a == "--dump-spec") dump_spec = true;
         else if (a == "--shot" && i + 1 < argc) { shot = argv[++i]; have_shot = true; }
         else if (a == "--shot-frame" && i + 1 < argc) shot_frame = atol(argv[++i]);
     }
 
     if (dump) { dump_data(dir); return 0; }
+    if (dump_spec) { dump_spec_files(dir); return 0; }
 
     Screen scr;
     scr.resize(320, 200);
@@ -103,26 +118,55 @@ int main(int argc, char** argv) {
     cred.clear(0);
     if (show_ega(cred, dir + "/EGA/IN/CRED", false, &err)) frames.push_back(cred);
 
+    // Main menu.  The static artwork is EGA/UP/MSCR (the full 320x200 background,
+    // which already contains the menu frame -- no separate frame image is blitted).
+    // The engine then paints the town scene into the left viewport and draws the
+    // menu text with its own font.  Positions and strings were recovered by
+    // template-matching the decoded assets and font glyphs against a DOSBox
+    // capture of the menu.
     Screen menu;
     menu.resize(320, 200);
     menu.clear(0);
-    if (blit_ega(menu, dir + "/EGA/UP/MSCR", 0, 0, &err) &&
-        blit_ega(menu, dir + "/EGA/UP/MENU", 7, 4, &err)) {
-        // The menu entry labels are drawn by the engine's own font, which lives
-        // in the EGA/UP/CHR1 strip.  Strings and layout come from LOF.EXE and a
-        // DOSBox capture of the main menu: entries at x=139, 8px rows starting
-        // at y=124, with a blank row after "Rest", and a 6px advance.
+    if (blit_ega(menu, dir + "/EGA/UP/MSCR", 0, 0, &err)) {
+        // Left viewport (118x119).  The town scene EGA/TWN/TWN03 is scrolled so
+        // that its column 0 lands at screen x=26; the 14 columns that scroll off
+        // the left edge (TWN03 columns 106..119) wrap back in at x=12..25.  The
+        // wrapped strip is painted one scanline higher, matching the engine's
+        // two-tile blit (verified pixel-for-pixel against a DOSBox capture).
+        EgaImage twn;
+        if (load_ega_image(dir + "/EGA/TWN/TWN03", twn, nullptr)) {
+            int th = twn.height;
+            size_t pl = (size_t)twn.width_bytes * th;
+            auto px = [&](int x, int y) -> uint8_t {
+                int xb = x >> 3, s = 7 - (x & 7);
+                const uint8_t* p = twn.planes.data() + (size_t)y * twn.width_bytes + xb;
+                return (uint8_t)(((p[0] >> s) & 1) | (((p[pl] >> s) & 1) << 1) |
+                                 (((p[2 * pl] >> s) & 1) << 2) | (((p[3 * pl] >> s) & 1) << 3));
+            };
+            for (int sx = 26; sx < 130; sx++)           // main tile at (26,11)
+                for (int y = 0; y < th && 11 + y < 130; y++)
+                    menu.put(sx, 11 + y, px(sx - 26, y));
+            for (int sx = 10; sx < 26; sx++)            // wrapped strip at (10,12)
+                for (int y = 0; y < th && 12 + y < 130; y++)
+                    menu.put(sx, 12 + y, px(104 + (sx - 10), y));
+        }
+        // Menu text.  Greeting and "(C)ontinue" are drawn in white (15); the
+        // option list in black (0).  Entries are on 8px rows at x=139 with a
+        // blank row after "(R)est", and a 6px glyph advance.
         Font font;
         if (font.load(dir + "/EGA/UP/CHR1", &err)) {
             font.advance = 6;
+            font.draw(menu, 139, 92, "Welcome, hardy", 15);
+            font.draw(menu, 139, 100, "adventurers!", 15);
             static const struct { int y; const char* text; } kEntries[] = {
-                {124, "(P)ick-pocket"}, {132, "(R)est"},
-                {148, "(L)ook for new character"}, {156, "(E)rase a character"},
-                {164, "(A)dd a new character"}, {172, "(D)ismiss a character"},
-                {180, "(O)pen file"},
+                {116, "(P)ick-pocket"}, {124, "(R)est"},
+                {140, "(L)ook for new character"}, {148, "(E)rase a character"},
+                {156, "(A)dd a new character"}, {164, "(D)ismiss a character"},
+                {172, "(O)pen file"},
             };
             for (const auto& e : kEntries)
                 font.draw(menu, 139, e.y, e.text, 0);
+            font.draw(menu, 139, 188, "(C)ontinue", 15);
         }
         frames.push_back(menu);
     }
