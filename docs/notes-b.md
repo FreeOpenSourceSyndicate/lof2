@@ -453,8 +453,41 @@ scenarios 0..9 have a single-digit file name.)
       `time_of_day_names()`).
 - [x] SNSC/NSC 40-byte stats-block -> character-struct seed mapping
       (`sns_char_seed()`, `SnsOffset`, `CharSeed`); verified against the saves.
+- [x] Character-struct projection (`CharSheet`, `decode_char()`) plus the
+      level-derived `+0x1d` rule (`char_stat1d_from_level()`): the HP pair
+      `+0x20` (max) / `+0x22` (current) is proven by the sheet builder at
+      28054/28067 (`100*cur/max` as a percentage), and `+0x1d` by the routine at
+      1BA40 (`<16 -> 10`, else `5*level-65`).  Both verified against every
+      in-use save/ROST character.  `--dump-char [FILE]` prints the sheets.
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
       all-present roster slots, and the save header/records/trailer.
 - [ ] Remaining B: the full named stat-field semantics of the SNSC 40-byte block
       and the remaining 410-byte character-struct fields — both need the play
       loop (maintainer domain).
+
+## Character-struct projection (`CharSheet`) — 2026-11-08
+
+The engine's character-sheet builder (analysis/lof.asm around 27Fxx-28080)
+copies a handful of fields out of the 410-byte (0x19a) struct into a display
+buffer, and the copies pin the semantics:
+
+- `char +0x20` / `+0x22` are the **maximum / current hit points** (words).  At
+  28057 it stores `+0x22` directly (the current value it shows), then computes
+  `100 * [+0x22] / [+0x20]` and stores the quotient as the HP percentage.  So
+  `+0x22` is the numerator (current) and `+0x20` the divisor (maximum).  Every
+  in-use character in `GAMES/GAMEn` and `ROST/ROST` satisfies `current <= max`
+  (e.g. Handy 9/11, Connar 0/11).  Siegurd's max of 96 is exactly the value the
+  init routine writes (`rec[0x2e]=65` base, `+0x20 = +0x22 = rand(1..0x41/2)
+  + 0x41 = rand(1..32)+65`, upper half 96).
+
+- `char +0x1d` is the **level-derived stat** set by the routine at 1BA40: a
+  character below level 16 keeps the value 10 the init routine wrote; from
+  level 16 up it becomes `5*level - 0x41` (level 16 -> 15, 19 -> 30, and
+  level 0 -> 10 for Siegurd, whose `+0x46` is 0).  Verified against all six
+  party members and the full roster.
+
+`decode_char()` projects these plus the already-known fields (present, name,
+flags10/counter12, class18, base1c, stat1e, level46, speed56) into a `CharSheet`
+with `hp_percent()` reproducing the builder's integer division exactly.  Note
+the save carries spare slots with `+0x00 != 1` (garbage); only `present == 1`
+slots are real characters.

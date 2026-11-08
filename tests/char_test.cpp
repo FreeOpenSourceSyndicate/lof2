@@ -383,8 +383,48 @@ static int real_data() {
     CharSeed dseed = sns_char_seed(snsc[4]);
     assert(dseed.c18 == 2 && dseed.c1c == 45 && dseed.c56 == 4);
 
+    // decode_char() projects the fields the engine reads directly.  The HP pair
+    // (+0x20 max / +0x22 current) is proven by the sheet builder at 28054/28067
+    // (100 * cur / max as a percentage); every live character satisfies
+    // cur <= max.  Siegurd's max HP (96) is exactly the value 1BA40 writes.
+    CharSheet cs = decode_char(sv.chars[1].raw.data());
+    assert(cs.present == 1);
+    assert(cs.name == "Siegurd");
+    assert(cs.class18 == 1 && cs.base1c == 65 && cs.stat1e == 90);
+    assert(cs.hp_max == 96 && cs.hp_cur == 96);
+    assert(cs.hp_percent() == 100);
+    assert(cs.level46 == 0 && cs.speed56 == 4);   // Siegurd: level 0
+    // +0x1d is the level-derived stat (1BA40): <16 -> 10, else 5*level-65.
+    assert(cs.stat1d == char_stat1d_from_level(cs.level46));
+    assert(char_stat1d_from_level(0) == 10 && char_stat1d_from_level(15) == 10);
+    assert(char_stat1d_from_level(16) == 15 && char_stat1d_from_level(19) == 30);
+    // Every in-use character: current HP never exceeds the maximum, the HP
+    // percentage matches the integer-division formula, and +0x1d is consistent
+    // with the level rule.  The save carries spare/garbage slots too (the
+    // engine sets +0x00 == 1 for a used slot), so only check those.
+    for (const auto& sc : sv.chars) {
+        if (sc.present != 1) continue;
+        CharSheet c = decode_char(sc.raw.data());
+        assert(!c.name.empty());
+        assert(c.hp_cur <= c.hp_max);
+        assert(c.hp_percent() == (c.hp_max ? 100 * c.hp_cur / c.hp_max : 0));
+        assert(c.stat1d == char_stat1d_from_level(c.level46));
+    }
+    // A damaged character still projects consistently (Handy: 9 of 11 HP).
+    CharSheet dk = decode_char(sv.chars[2].raw.data());
+    assert(dk.name == "Handy" && dk.hp_cur == 9 && dk.hp_max == 11);
+    assert(dk.hp_percent() == 81);   // 100*9/11, integer division
+
     printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells/names ok\n");
     return 0;
+}
+
+static void print_char(FILE* out, const CharSheet& c, size_t i) {
+    fprintf(out, "[%2zu] %-12s present=%d class=%d base=%d stat1d=%d "
+                 "stat1e=%d hp=%d/%d (%d%%) lvl=%d spd=%d\n",
+            i, c.name.empty() ? "<none>" : c.name.c_str(), c.present, c.class18,
+            c.base1c, c.stat1d, c.stat1e, c.hp_cur, c.hp_max, c.hp_percent(),
+            c.level46, c.speed56);
 }
 
 int main(int argc, char** argv) {
@@ -407,6 +447,23 @@ int main(int argc, char** argv) {
 
     if (argc > 1 && std::string(argv[1]) == "--dump-items") {
         dump_items(stdout);
+        return 0;
+    }
+
+    // --dump-char [FILE] prints decoded character sheets from a save (default
+    // game/GAMES/GAME1) or a ROST file.
+    if (argc > 1 && std::string(argv[1]) == "--dump-char") {
+        const char* path = argc > 2 ? argv[2] : "game/GAMES/GAME1";
+        std::string p(path);
+        if (p.find("ROST") != std::string::npos) {
+            auto ro = load_rost(p);
+            for (size_t i = 0; i < ro.size(); i++)
+                print_char(stdout, decode_char(ro[i].raw.data()), i);
+        } else {
+            SaveGame sv = load_save(p);
+            for (size_t i = 0; i < sv.chars.size(); i++)
+                print_char(stdout, decode_char(sv.chars[i].raw.data()), i);
+        }
         return 0;
     }
 

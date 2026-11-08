@@ -354,7 +354,45 @@ enum CharOffset : size_t {
     kCharStat1e    = 0x1e,  // byte: body stat (100 - rec[0x2d])
     kCharSpeed56   = 0x56,  // byte: speed (1..4)
     kCharSeed7a    = 0x7a,  // byte: base of the +0x7a+n seed slots
+    // Hit points.  The character-sheet builder at 28054/28067 reads the current
+    // value from +0x22 and divides 100*current by the value at +0x20 to get the
+    // HP percentage it shows, so +0x20 is the maximum and +0x22 the current HP
+    // (both words).  Every live save character satisfies current <= maximum.
+    kCharHpMax20   = 0x20,  // word: maximum hit points
+    kCharHpCur22   = 0x22,  // word: current hit points
 };
+
+// A decoded view of the fields the engine's character code reads directly from
+// the 410-byte (0x19a) struct, with the verified semantics.  `raw` is one such
+// struct (e.g. `SaveChar::raw` or a ROST record at +0x01).  This is a read-only
+// projection; the struct is not modified.
+struct CharSheet {
+    uint8_t  present = 0;    // +0x00  non-zero: slot in use
+    std::string name;        // +0x01  14 bytes, NUL-terminated
+    int16_t  flags10 = 0;    // +0x10  word (erase-condition guard; -1 = leave)
+    int16_t  counter12 = 0;  // +0x12  word (paired with flags10)
+    uint8_t  class18 = 0;    // +0x18  class flag (1 PC / 2 monster)
+    uint8_t  base1c = 0;     // +0x1c  base stat (45..75)
+    uint8_t  stat1d = 0;     // +0x1d  stat (level-derived; overridden at 1BA40)
+    uint8_t  stat1e = 0;     // +0x1e  body stat (100 - rec[0x2d])
+    int16_t  hp_max = 0;     // +0x20  maximum hit points
+    int16_t  hp_cur = 0;     // +0x22  current hit points
+    uint8_t  level46 = 0;    // +0x46  level (0x0e -> char +0x1d = 0x0a)
+    uint8_t  speed56 = 0;    // +0x56  speed (1..4)
+
+    // HP as a percentage, computed exactly as the sheet builder does
+    // (100 * hp_cur / hp_max, integer division); 0 when hp_max is 0.
+    int hp_percent() const;
+};
+
+// Decode a 410-byte character struct into a CharSheet.  `raw` must point at a
+// 410-byte buffer.
+CharSheet decode_char(const uint8_t* raw);
+
+// char +0x1d as derived from the level at +0x46 by the routine at 1BA40: a
+// character below level 16 keeps 10; from level 16 up it is 5*level - 65
+// (level 16 -> 15, 19 -> 30).  Verified against every live save character.
+uint8_t char_stat1d_from_level(uint8_t level);
 
 // --- GAMES/GAMEn (saved game / "gamestanding") ----------------------------
 
