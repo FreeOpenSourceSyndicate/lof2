@@ -207,6 +207,8 @@ constexpr size_t kAlignmentLowerCount = 2;
 constexpr size_t kProfessionDisplayCount = 13;
 constexpr size_t kActionCount = 5;
 constexpr size_t kMoraleCount = 5;
+constexpr size_t kCombatAbbrevCount = 4;
+constexpr size_t kScenarioCount = 8;
 
 std::vector<std::string> sex_names();
 std::vector<std::string> race_names();
@@ -230,6 +232,14 @@ std::vector<std::string> alignment_lower_names();
 std::vector<std::string> profession_padded_names();
 std::vector<std::string> action_names();
 std::vector<std::string> morale_names();
+
+// Combat-menu action abbreviations (index 0 = "KIL"): KIL/ATK/DEF/RET, the
+// terse forms the combat status line shows alongside the full `action_names()`.
+std::vector<std::string> combat_abbrev_names();
+
+// Scenario titles, indexed by scenario number: they name the region the
+// scenario plays in and parallel `SYST/SPECn` / `SYST/NSC0n`.
+std::vector<std::string> scenario_names();
 
 // --- Monster / NPC rosters -------------------------------------------------
 //

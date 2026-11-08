@@ -278,18 +278,20 @@ tables (transcribed into `port/char_names.inc`, regenerate with
 | profession (padded) | `0x42101` | 13 x 11 | Warrior..Monk, then "??" |
 | actions | `0x42204` | 5 x 12 | Defends, Attacks, Stalks, Use object, Cast Spell |
 | morale | `0x423f8` | 5 x 13 | Good, Satisfactory, Mediocre, Alarming, Bad |
+| combat abbrev | `0x421f0` | 4 x 5 | KIL, ATK, DEF, RET |
+| scenario title | `0x42240` | 8 x 22 | Valley of Faerghail … The Mountain |
 
-The region also carries the fixed-width **location** (`0x42240`, 8 x 22:
-Valley of Faerghail, Monastery of Sagacita, Sagacita catakombs, The Mines,
-Pyramid, Temple, Castle, Mountain), **facing** (`0x422f0`, 4 x 22) and
-**time-of-day** (`0x42348`, 8 x 22) strings the play loop blits; those are
+The scenario titles above double as the location line the play loop blits, so
+`scenario_names()` (index = scenario number) names the region each
+`SYST/SPECn` / `SYST/NSC0n` pair belongs to.  The adjacent **facing**
+(`0x422f0`, 4 x 22) and **time-of-day** (`0x42348`, 8 x 22) strings are pure
 main-loop display strings and are left for the maintainer.
 
 Exposed as `sex_names()`/`race_names()`/`profession_names()`/`alignment_names()`/
 `skill_names()`/`language_names()`/`status_short_names()`/`status_long_names()`/
 `gender_profession_names()`/`race_adjective_names()`/`alignment_lower_names()`/
-`profession_padded_names()`/`action_names()`/`morale_names()` with
-`kSexCount`..`kMoraleCount`.  The 12-byte records are 11 chars + NUL
+`profession_padded_names()`/`action_names()`/`morale_names()`/
+`combat_abbrev_names()`/`scenario_names()` with `kSexCount`..`kScenarioCount`.  The 12-byte records are 11 chars + NUL
 (zero-padded between groups); the packed tables are NUL-terminated strings
 (their trailing spaces are significant — they are fixed-width columns).
 
