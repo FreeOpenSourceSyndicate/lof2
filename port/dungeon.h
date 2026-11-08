@@ -33,9 +33,19 @@ struct Dungeon {
     // is the "empty/floor" tile for most levels.
     std::vector<uint8_t> tiles;
 
-    // 36x36 per-cell object records, two bytes each (little-endian word), in
-    // the same row-major order as `tiles`.
+    // 36x36 per-cell object records, two bytes each, in the same row-major
+    // order as `tiles`.  In practice the low byte is 0 for almost every cell
+    // and the high byte carries a small code (values overlap the tile set:
+    // 0x06, 0x07, 0x35, 0x57, ...), so it reads as a feature/decoration layer.
+    // Stored as a little-endian word; use `obj_code`/`obj_low` for the parts.
     std::vector<uint16_t> objects;
+
+    inline uint8_t obj_low(int x, int y) const {
+        return (uint8_t)(object(x, y) & 0xFF);
+    }
+    inline uint8_t obj_code(int x, int y) const {
+        return (uint8_t)(object(x, y) >> 8);
+    }
 
     inline uint8_t tile(int x, int y) const {
         return (x >= 0 && y >= 0 && x < kDungeonW && y < kDungeonH)
@@ -60,6 +70,11 @@ bool load_dungeon(const std::string& path, Dungeon& out,
 // byte is the escape marker, then literal bytes copy through and the escape
 // byte introduces a (count, value) pair emitting `value` `count` times.
 std::vector<uint8_t> dngs_rle_decode(const std::vector<uint8_t>& raw);
+
+// One character per tile, for debugging / headless inspection.  `d` tiles are
+// mapped to a printable symbol (see tools/dngs.py for the same table); the
+// object code, when non-zero, is shown instead.  Returns kDungeonH lines.
+std::vector<std::string> dungeon_ascii(const Dungeon& d, bool show_objects = false);
 
 }  // namespace lofport
 

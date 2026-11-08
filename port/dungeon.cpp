@@ -62,6 +62,37 @@ bool decode_dungeon(const std::vector<uint8_t>& raw, Dungeon& out,
     return true;
 }
 
+static char tile_symbol(uint8_t v) {
+    switch (v) {
+        case 0:  return '#';
+        case 6:  return '.';
+        case 3:  return '%';
+        case 12: return '*';
+        case 7:  return '+';
+        case 8:  return 'o';
+        case 2:  return '~';
+        default: return '?';
+    }
+}
+
+std::vector<std::string> dungeon_ascii(const Dungeon& d, bool show_objects) {
+    std::vector<std::string> lines;
+    lines.reserve(kDungeonH);
+    for (int y = 0; y < kDungeonH; y++) {
+        std::string row;
+        row.reserve(kDungeonW);
+        for (int x = 0; x < kDungeonW; x++) {
+            uint8_t code = d.obj_code(x, y);
+            if (show_objects && code)
+                row.push_back(tile_symbol(code));
+            else
+                row.push_back(tile_symbol(d.tile(x, y)));
+        }
+        lines.push_back(row);
+    }
+    return lines;
+}
+
 bool load_dungeon(const std::string& path, Dungeon& out, std::string* err) {
     FILE* f = std::fopen(path.c_str(), "rb");
     if (!f) {
