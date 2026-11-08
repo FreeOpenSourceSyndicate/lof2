@@ -444,4 +444,42 @@ std::vector<std::string> monster_names(const std::string& dir, int scenario) {
     return out;
 }
 
+CharSeed sns_char_seed(const SnsRecord& rec) {
+    CharSeed s;
+    s.c18 = rec.stats[kSnsClass4c - 38];
+    s.c1c = rec.stats[kSnsBody2e - 38];
+    s.c1d = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);
+    s.c1e = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);
+    s.c56 = rec.stats[kSnsSpeed36 - 38];
+    s.c7a_index = rec.stats[kSnsIndex2a - 38];
+    return s;
+}
+
+int CharSheet::hp_percent() const {
+    if (hp_max == 0) return 0;
+    return 100 * hp_cur / hp_max;   // integer division, as the sheet builder does
+}
+
+uint8_t char_stat1d_from_level(uint8_t level) {
+    if (level < 16) return 10;
+    return (uint8_t)(5 * level - 65);   // 1BA40: 5*level - 0x41
+}
+
+CharSheet decode_char(const uint8_t* raw) {
+    CharSheet c;
+    c.present = raw[kCharPresent];
+    c.name = cstr(raw + kCharName, 14);
+    c.flags10 = (int16_t)rd16(raw + kCharFlags10);
+    c.counter12 = (int16_t)rd16(raw + kCharCounter12);
+    c.class18 = raw[kCharClass18];
+    c.base1c = raw[kCharBase1c];
+    c.stat1d = raw[kCharStat1d];
+    c.stat1e = raw[kCharStat1e];
+    c.hp_max = (int16_t)rd16(raw + kCharHpMax20);
+    c.hp_cur = (int16_t)rd16(raw + kCharHpCur22);
+    c.level46 = raw[kCharLevel46];
+    c.speed56 = raw[kCharSpeed56];
+    return c;
+}
+
 }  // namespace lofport

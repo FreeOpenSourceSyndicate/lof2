@@ -4,6 +4,12 @@
 `ROST/SHOP`. Own files: `port/char.{h,cpp}`, `tools/spec.py`,
 `tests/char_test.cpp`, this file.
 
+**Claim (2026-11-08, branch `work/agent-b-snsstats`):** decoding the SNSC 40-byte
+statistics block: the character-init routine's field mapping from an
+`SNSC`/`NSCnn` record into the runtime 410-byte character struct, grounded in
+`analysis/lof.asm` `1DA8E..1DCBB` and verified against `GAMES/GAMEn` +
+`ROST/ROST` (Siegurd == class 0).
+
 ## Goal (from WORKSTREAMS.md)
 
 Decode character/monster/item statistics and combat tables, expose them as
@@ -378,10 +384,39 @@ field.  The other 39 stat bytes have no comparable single-byte consumer here.
 The 40-byte statistics sub-block (record bytes 38..77) is a class template: a
 PC (Siegurd/Eljot) starts from a 14-value seed vector
 (`02 00 01 03 01 01 0c 0a 41 00 0c 00 01 01`), while monsters (Dragon, Warrior,
-Werewolf) carry combat stats inline. The named-field layout is only readable
-through the play loop (the runtime stat struct at `es:[bx+0x27xx]` is in the
-maintainer's main-loop domain), so only the low-risk offsets are named and the
-rest is left as a follow-up.
+Werewolf) carry combat stats inline.
+
+#### Decoded: the SNSC/NSC stats block -> character struct (verified)
+
+The class record is 78 bytes; the 40-byte stats block is at record byte 38.  The
+character-init routine (`analysis/lof.asm` 1DA8E..1DCBB) copies five of those
+bytes into the runtime 410-byte character struct.  The mapping (record offset ->
+character offset), grounded in the disassembly and confirmed **byte-for-byte**
+against the shipped `GAMES/GAMEn` + `ROST/ROST` saves (Siegurd == SNSC class 0):
+
+| record off | stats idx | char off | transform | meaning |
+|-----------:|----------:|---------:|-----------|---------|
+| `0x4c` | 38 | `+0x18` | copy | class flag: 1 for PCs, 2 for big monsters |
+| `0x2e` | 8  | `+0x1c` | copy | base stat (45..75) |
+| `0x2d` | 7  | `+0x1e` | `100 - n` | body/health stat |
+| `0x2d` | 7  | `+0x1d` | `100 - n` | same seed, then overridden by the level routine (1BA40) |
+| `0x36` | 16 | `+0x56` | copy | speed (1..4) |
+| `0x2a` | 4  | `+0x7a+idx` | set 2 | picks which `+0x7a+n` slot is initialised |
+
+The routine also writes fixed values (char `+0x1b`=0x0c, `+0x20`=`+0x22`=
+`rand(1..rec[0x2c]/2)`, `+0x64`=0x1324, `+0x4e`=0x64, `+0x142`/`+0x143` from the
+four `rec[0x3b+2n]`/`rec[0x3c+2n]` skill pairs).  Exposed as `sns_char_seed()`
+(returns a `CharSeed`) plus the `SnsOffset` enum; `tests/char_test.cpp` checks
+both the record bytes and the resulting live-character fields.
+
+Example (class 0 Siegurd): `rec[0x4c]=1 -> char[0x18]=1`,
+`rec[0x2e]=65 -> char[0x1c]=65`, `rec[0x2d]=10 -> char[0x1e]=90`,
+`rec[0x36]=4 -> char[0x56]=4`; class 4 Dragon: `char[0x18]=2`, `char[0x1c]=45`.
+
+The named-field layout for the *remaining* stat bytes (0x26..0x4d) is only
+readable through the play loop (the runtime stat struct at `es:[bx+0x27xx]` is in
+the maintainer's main-loop domain), so only the low-risk offsets are named and
+the rest is left as a follow-up.
 
 ### Monster rosters (`SYST/NSC0n`) — new
 
@@ -416,7 +451,43 @@ scenarios 0..9 have a single-digit file name.)
 - [x] SPEC keyword/password (`SpecRecord::keyword`) + `+0xeb` class reference.
 - [x] Status-line facing / time-of-day tables (`facing_names()`,
       `time_of_day_names()`).
+- [x] SNSC/NSC 40-byte stats-block -> character-struct seed mapping
+      (`sns_char_seed()`, `SnsOffset`, `CharSeed`); verified against the saves.
+- [x] Character-struct projection (`CharSheet`, `decode_char()`) plus the
+      level-derived `+0x1d` rule (`char_stat1d_from_level()`): the HP pair
+      `+0x20` (max) / `+0x22` (current) is proven by the sheet builder at
+      28054/28067 (`100*cur/max` as a percentage), and `+0x1d` by the routine at
+      1BA40 (`<16 -> 10`, else `5*level-65`).  Both verified against every
+      in-use save/ROST character.  `--dump-char [FILE]` prints the sheets.
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
       all-present roster slots, and the save header/records/trailer.
-- [ ] Remaining B: named stat-field semantics of the SNSC 40-byte block and the
-      410-byte character struct — both need the play loop (maintainer domain).
+- [ ] Remaining B: the full named stat-field semantics of the SNSC 40-byte block
+      and the remaining 410-byte character-struct fields — both need the play
+      loop (maintainer domain).
+
+## Character-struct projection (`CharSheet`) — 2026-11-08
+
+The engine's character-sheet builder (analysis/lof.asm around 27Fxx-28080)
+copies a handful of fields out of the 410-byte (0x19a) struct into a display
+buffer, and the copies pin the semantics:
+
+- `char +0x20` / `+0x22` are the **maximum / current hit points** (words).  At
+  28057 it stores `+0x22` directly (the current value it shows), then computes
+  `100 * [+0x22] / [+0x20]` and stores the quotient as the HP percentage.  So
+  `+0x22` is the numerator (current) and `+0x20` the divisor (maximum).  Every
+  in-use character in `GAMES/GAMEn` and `ROST/ROST` satisfies `current <= max`
+  (e.g. Handy 9/11, Connar 0/11).  Siegurd's max of 96 is exactly the value the
+  init routine writes (`rec[0x2e]=65` base, `+0x20 = +0x22 = rand(1..0x41/2)
+  + 0x41 = rand(1..32)+65`, upper half 96).
+
+- `char +0x1d` is the **level-derived stat** set by the routine at 1BA40: a
+  character below level 16 keeps the value 10 the init routine wrote; from
+  level 16 up it becomes `5*level - 0x41` (level 16 -> 15, 19 -> 30, and
+  level 0 -> 10 for Siegurd, whose `+0x46` is 0).  Verified against all six
+  party members and the full roster.
+
+`decode_char()` projects these plus the already-known fields (present, name,
+flags10/counter12, class18, base1c, stat1e, level46, speed56) into a `CharSheet`
+with `hp_percent()` reproducing the builder's integer division exactly.  Note
+the save carries spare slots with `+0x00 != 1` (garbage); only `present == 1`
+slots are real characters.
