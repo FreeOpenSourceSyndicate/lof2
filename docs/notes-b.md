@@ -222,6 +222,20 @@ Field guesses (weapons line up cleanly; armour's third field is the raw AC bonus
 - projectiles (class 4): `f3` = ammo count; e.g. Bullets `(2,2,2,2560,1024…)`.
 - `f6` is a class-eligibility mask (magic items set the high bits, e.g. 4095).
 
+### Handoff notes for the play loop (maintainer domain)
+
+- Character struct: only the head is written by the init/erase routine; the rest
+  (stats, inventory, equipment, spell list) is read/written through the play
+  loop's global view `es:[bx+0x27xx]` — hundreds of `mov ax,0x19a` sites follow
+  the town/shop code.  Naming those fields needs the live cursor/loop state, so
+  it is left to the maintainer rather than guessed.
+- Spells are stored as a **name pool** (NUL-terminated strings around image
+  `0x44478`..), not as fixed records like the item table; their effects live in
+  the interpreter code next to each name, so there is no data-only spell table
+  to transcribe.
+- The item table (above) is indexed by `shl ax,1` twice + `add` (×32), consistent
+  with the max record size seen on a single stack frame.
+
 ### ROST record structure (refined)
 
 The file stride is 414, but the engine treats a character as a **410-byte
