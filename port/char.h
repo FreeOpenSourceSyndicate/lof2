@@ -422,8 +422,6 @@ enum CharOffset : size_t {
     kCharInvStride = 4,
     // +0x25 is a load/carry capacity byte (10 for most, 15 for Cassandra).
     kCharLoad25    = 0x25,  // byte: carrying capacity / load
-    // +0x60 is a per-character word; 0x0e (14) on the shipped party.
-    kCharField60   = 0x60,  // word
     // Hit points.  The character-sheet builder at 28054/28067 reads the current
     // value from +0x22 and divides 100*current by the value at +0x20 to get the
     // HP percentage it shows, so +0x20 is the maximum and +0x22 the current HP
