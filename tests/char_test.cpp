@@ -167,6 +167,18 @@ static void synthetic_spec() {
     assert(ch.con44 == 14 && ch.str45 == 19 && ch.dex46 == 16 &&
            ch.int47 == 12 && ch.wis48 == 15);
     assert(ch.speed56 == 2);
+    // Party-status fields (builder 0x27F4E): body state +0x24, the attribute
+    // modifiers +0x5b/+0x5c/+0x5e/+0x5f and the mood flag +0x6a.
+    chr[kCharBody24] = 2;
+    chr[kCharFlg5b] = 3;
+    chr[kCharFlg5c] = 4;
+    chr[kCharFlg5e] = 5;
+    chr[kCharFlg5f] = 6;
+    chr[kCharFlag6a] = 1;
+    ch = decode_char(chr.data());
+    assert(ch.body24 == 2);
+    assert(ch.mod5b == 3 && ch.mod5c == 4 && ch.mod5e == 5 && ch.mod5f == 6);
+    assert(ch.flag6a == 1);
     // +0x1d is derived from Dexterity: 5*16 - 65 == 15, matching stat1d above.
     assert(ch.stat1d == char_stat1d_from_dex(ch.dex46));
 
@@ -496,6 +508,15 @@ static int real_data() {
     assert(dk.name == "Handy" && dk.hp_cur == 9 && dk.hp_max == 11);
     assert(dk.hp_percent() == 81);   // 100*9/11, integer division
 
+    // Party-status fields on the real save: GAME1's fresh characters carry
+    // zeroed attribute modifiers (+0x5b/+0x5c/+0x5e/+0x5f); the body state
+    // (+0x24) and flag (+0x6a) hold the values the character generator wrote
+    // (Handy body 1 flag 1, Merlin body 2 flag 2).
+    assert(dk.body24 == 1 && dk.mod5b == 0 && dk.mod5c == 0 &&
+           dk.mod5e == 0 && dk.mod5f == 0 && dk.flag6a == 1);
+    CharSheet merlin = decode_char(sv.chars[3].raw.data());
+    assert(merlin.name == "Merlin" && merlin.body24 == 2 && merlin.flag6a == 2);
+
     printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells/names ok\n");
     return 0;
 }
@@ -503,11 +524,11 @@ static int real_data() {
 static void print_char(FILE* out, const CharSheet& c, size_t i) {
     fprintf(out, "[%2zu] %-12s present=%d class=%d base=%d stat1d=%d "
                  "stat1e=%d hp=%d/%d (%d%%) rnk=%d con=%d str=%d dex=%d "
-                 "int=%d wis=%d spd=%d exp=%u\n",
+                 "int=%d wis=%d spd=%d exp=%u body=%d mods=%d/%d/%d/%d mood=%d\n",
             i, c.name.empty() ? "<none>" : c.name.c_str(), c.present, c.class18,
             c.base1c, c.stat1d, c.stat1e, c.hp_cur, c.hp_max, c.hp_percent(),
             c.level17, c.con44, c.str45, c.dex46, c.int47, c.wis48, c.speed56,
-            c.exp);
+            c.exp, c.body24, c.mod5b, c.mod5c, c.mod5e, c.mod5f, c.flag6a);
 }
 
 int main(int argc, char** argv) {

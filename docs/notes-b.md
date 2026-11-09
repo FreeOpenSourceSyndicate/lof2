@@ -535,9 +535,17 @@ scenarios 0..9 have a single-digit file name.)
       label "Experience " + `%011ld` (DS:0xaf83); asserted on the live save.
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
       all-present roster slots, and the save header/records/trailer.
+- [x] Party-status view of the struct: `+0x24` body state, the attribute
+      modifiers `+0x5b`/`+0x5c`/`+0x5e`/`+0x5f` and the flag `+0x6a`, grounded in
+      the party-status builder `27F4E..280A4` (adds each modifier to a base
+      field `+0x1c`/`+0x1e`/`+0x17`; `+0x6a` gates a `+50` to the HP byte) and
+      the death routine `1919C`/`191CC`.  Exposed as `kCharBody24`/`kCharFlg5b`…
+      /`kCharFlag6a` and `CharSheet::body24/mod5b/mod5c/mod5e/mod5f/flag6a`;
+      asserted on a synthetic struct and on `GAMES/GAME1`.
 - [ ] Remaining B: the full named stat-field semantics of the SNSC 40-byte block
-      and the remaining 410-byte character-struct fields — both need the play
-      loop (maintainer domain).
+      and the remaining 410-byte character-struct fields — the exact *names* the
+      engine prints for the `+0x5b`-family modifiers still need the live status
+      line (maintainer domain).
 
 ## Character-struct projection (`CharSheet`) — 2026-11-08
 
@@ -569,3 +577,41 @@ Correction (2026-11-08): an earlier revision of this section called `+0x46`
 "level" and named the helper `char_stat1d_from_level`.  `+0x46` is **Dexterity**;
 the level is `+0x17` (see the "410-byte character struct — grounded offsets"
 table above and the sheet builder at 0x2676E).
+
+## Party-status view of the character struct — 2026-11-08
+
+The town/play loop's **party-status builder** is a self-contained routine at
+`analysis/lof.asm` `27F4E..280A4` (its data-segment base comes from the same
+`imul …,0x19a` + `es:[0x30]` idiom the rest of the character code uses, so the
+offsets it reads are plain 410-byte-struct fields).  It walks the party, reads
+these fields, and packs them into a display block at `es:[si+0x179..0x181]`
+(segment `[0xb0b0]`); the block is then drawn by the party renderer at
+`0x134A2` (which reads the HP byte `+0x17c` and the "present" byte `+0x176`).
+
+Grounded reads (all directly from the 410-byte struct):
+
+| off | builder site | arithmetic | meaning (bounded) |
+|----:|-------------|------------|-------------------|
+| `+0x24` | 28007 | copied to display `+0x17b` | body/health state; the death routine (`1919C`/`191CC`) tests it `== 2` / `== 3` |
+| `+0x22` | 28057/28067 | `100*[+0x22]/[+0x20]` -> `+0x17a` | current HP / max HP (already known) |
+| `+0x20` | 2806F | divisor of the HP percentage | maximum HP (already known) |
+| `+0x5b` | 28017 | `100 - ([+0x5b]+[+0x1e])` -> `+0x17d` | attribute modifier |
+| `+0x5c` | 2802F | `[+0x5c]+[+0x1c]` -> `+0x17e` | attribute modifier |
+| `+0x5f` | 28043 | `[+0x5f]+[+0x17]` -> `+0x17f` | attribute modifier |
+| `+0x22` | 28057 | stored as a word -> `+0x180` | current HP (word copy) |
+| `+0x6a` | 28089 | when `!= 0`, `+= 50` to `+0x17c` | flag |
+
+So the five modifier bytes are **bounded signed values added to a base field**
+(the builder adds them to `+0x1c`/`+0x1e`/`+0x17`), and a `+0x5b`-style
+overflow clamps the pair.  The character generator zeroes all five
+(`1B8C0..1B92E`), so a fresh save carries 0; the encounter code adjusts
+`+0x5e`/`+0x5b` (`+0x5e += 2` at `0xE94F`, `+0x5b += 2` at `0xE9BA`, and
+`+0x5e + Strength >= 0x11` tests the buff at `0xE921`).
+
+`+0x6a` correlates with the class slot on the shipped save (Decker 0, Handy 1,
+Merlin 2, Cassandra 1, Assanla 0) and is *not* zeroed by the generator, so it is
+a per-character flag rather than a pure stat.  The exact name of each modifier
+(the game's own label for it) is not yet pinned; they are exposed descriptively
+as `kCharFlg5b/5c/5e/5f` and `kCharFlag6a` / `CharSheet::mod5b/5c/5e/5f`,
+`body24`, `flag6a`, and asserted by `char_test` on both a synthetic struct and
+`GAMES/GAME1` (modifiers all 0; Handy body 1 flag 1, Merlin body 2 flag 2).

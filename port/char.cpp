@@ -492,6 +492,12 @@ CharSheet decode_char(const uint8_t* raw) {
     c.int47 = raw[kCharInt47];
     c.wis48 = raw[kCharWis48];
     c.speed56 = raw[kCharSpeed56];
+    c.body24 = raw[kCharBody24];
+    c.mod5b = raw[kCharFlg5b];
+    c.mod5c = raw[kCharFlg5c];
+    c.mod5e = raw[kCharFlg5e];
+    c.mod5f = raw[kCharFlg5f];
+    c.flag6a = raw[kCharFlag6a];
     return c;
 }
 
