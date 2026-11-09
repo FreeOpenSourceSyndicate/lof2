@@ -15,6 +15,14 @@ namespace lof {
 
 static const uint16_t kPspSeg = 0x1000;
 
+static void klog(const char* who, uint8_t sc) {
+    if (getenv("LOF_KEYLOG")) fprintf(stderr, "[keylog] %s consumed sc=%02X ('%c')\n", who, sc, sc<128 && sc>=32 ? sc : '?');
+}
+
+static void klog2(const char* who, uint8_t sc, uint32_t ic) {
+    if (getenv("LOF_KEYLOG")) fprintf(stderr, "[keylog] %s consumed sc=%02X ('%c') instr=%u\n", who, sc, sc<128 && sc>=32 ? sc : '?', ic);
+}
+
 // ---------------------------------------------------------------- helpers ---
 [[maybe_unused]] static std::string upper(std::string s) {
     for (char& c : s) c = (char)toupper((unsigned char)c);
@@ -302,6 +310,7 @@ void Machine::dos_int(uint8_t n) {
             running = false; break; }
         case 0x01: {   // read char with echo
             if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+                klog("21/01", k);
                 c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k)); }
             else c.ax = (uint16_t)((c.ax & 0xFF00) | 0);
             break; }
@@ -309,12 +318,14 @@ void Machine::dos_int(uint8_t n) {
         case 0x06: {
             if ((c.dx & 0xFF) == 0xFF) {  // direct input, non-blocking
                 if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+                    klog("21/06", k);
                     c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k)); c.flags &= ~ZF; }
                 else { c.ax = (uint16_t)(c.ax & 0xFF00); c.flags |= ZF; }
             } else { fputc((char)(c.dx & 0xFF), stdout); fflush(stdout); }
             break; }
         case 0x07: case 0x08: {
             if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+                klog2("21/07", k, instr_count);
                 c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k)); }
             else c.ax = (uint16_t)((c.ax & 0xFF00));
             break; }
@@ -347,6 +358,7 @@ void Machine::dos_int(uint8_t n) {
             if (fn == 0x01 || fn == 0x06 || fn == 0x07 || fn == 0x08) {
                 if (!key_queue.empty()) {
                     uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+                    klog("21/0C", k);
                     c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k));
                 } else {
                     c.ax = (uint16_t)((c.ax & 0xFF00) | 0);
@@ -615,12 +627,14 @@ static void kbd_int(Machine& m, uint8_t) {
     switch (ah) {
         case 0x00: case 0x10: {
             if (!m.key_queue.empty()) { uint8_t k = m.key_queue.front(); m.key_queue.erase(m.key_queue.begin());
+                klog("int16/00", k);
                 if (ah == 0x10) c.ax = (uint16_t)(((c.ax & 0xFF00)) | scancode_ascii(k));
                 else c.ax = (uint16_t)((k << 8) | scancode_ascii(k)); }
             else c.ax = (uint16_t)(c.ax & 0xFF00);
             break; }
         case 0x01: case 0x11: {
-            if (!m.key_queue.empty()) { c.ax = (uint16_t)((m.key_queue.front() << 8) | scancode_ascii(m.key_queue.front())); c.flags &= ~ZF; }
+            if (!m.key_queue.empty()) { c.ax = (uint16_t)((m.key_queue.front() << 8) | scancode_ascii(m.key_queue.front())); c.flags &= ~ZF;
+                klog("int16/01peek", m.key_queue.front()); }
             else { c.ax = (uint16_t)(c.ax & 0xFF00); c.flags |= ZF; }
             break; }
         case 0x02: c.ax = (uint16_t)((c.ax & 0xFF00) | m.kbd_shift); break;

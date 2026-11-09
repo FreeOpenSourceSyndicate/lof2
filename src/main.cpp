@@ -190,8 +190,27 @@ int main(int argc, char** argv) {
     }
     size_t key_idx = 0;
     bool key_sent = false;
+    // LOF_KEYAUTO="sc,sc,...": deliver one scancode at a time, but only once the
+    // game has drained the previous one from key_queue.  Screen dwell times vary
+    // wildly (loading the town or a map runs tens of millions of instructions),
+    // so frame-scheduled delivery drops keys; gating on an empty queue adapts.
+    std::vector<uint8_t> key_auto;
+    if (const char* ka = getenv("LOF_KEYAUTO")) {
+        std::string s(ka), item; std::stringstream ss(s);
+        while (std::getline(ss, item, ',')) if (!item.empty())
+            key_auto.push_back((uint8_t)strtol(item.c_str(), nullptr, 0));
+    }
+    size_t auto_idx = 0;
+    long key_gap = getenv("LOF_KEYGAP") ? atol(getenv("LOF_KEYGAP")) : 30;
+    long next_auto_frame = key_gap;
     auto feed_keys = [&]() {
-        if (!key_at.empty()) {
+        if (!key_auto.empty()) {
+            if (auto_idx < key_auto.size() && m.key_queue.empty() && frame_no >= next_auto_frame) {
+                m.key_queue.push_back(key_auto[auto_idx++]);
+                if (getenv("LOF_KEYLOG")) fprintf(stderr, "[keylog] pushed sc=%02X frame=%ld\n", m.key_queue.back(), frame_no);
+                next_auto_frame = frame_no + key_gap;
+            }
+        } else if (!key_at.empty()) {
             while (key_idx < key_at.size() && frame_no >= key_at[key_idx].frame) {
                 m.key_queue.push_back(key_at[key_idx].sc);
                 key_idx++;

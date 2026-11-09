@@ -141,3 +141,44 @@ for the next session, in order:
 
 `game/` and `downloads/` are git-ignored (proprietary); the `GAME  1` copy lives
 only in the local `game/GAMES/` tree, not in git.
+
+## BREAKTHROUGH (2025 session): reach the outdoor map via save slot 2
+
+The user reported in DOSBox: **do not load slot 1** ("The file GAMESGAME1 is
+not a valid game"); **loading slot 2 places the player outside, in front of the
+town**.  That is the wilderness/map screen the workstream needed.
+
+Reproduced headlessly with the new `LOF_KEYAUTO` adaptive key feed:
+
+```sh
+LOF_CMDLEN=3 LOF_KEYAUTO="0x18,0x03" LOF_KEYGAP=10 \
+  ./lof-native --dir game --headless --frames 1000 --shot /tmp/o2.png
+```
+
+* `0x18` = `O` (Open file) at the inn, `0x03` = `2` (slot 2).
+* The engine opens `GAMES\GAME  2` (printf `"%3d"`, two spaces), same as the
+  `GAME  1` fix in `bootstrap.sh`.
+* Result screen hash `eb564253` — the outdoor view (left "sign post" panel
+  filled, right panel is the map viewport).  **This is NOT the town menu**
+  (`1ad8f17e`) and NOT the frozen `15e4e723`.
+
+Movement works: after `eb564253`, feeding three arrow scancodes
+(`0x48` up / `0x4b` left / `0x4d` right / `0x50` down) is *consumed* by the
+game (keylog shows 5 consumed reads) and changes the screen to `625cb439`
+with a 5032-pixel diff in x[139..303] y[92..195] — the map viewport redraws.
+
+### Why earlier attempts stalled
+
+* The new-game exit sequence `a - 2 - c - c - c - l` reaches a state
+  (`15e4e723`) that tight-polls `INT 21h AH=0Bh` forever after the 3rd key
+  and never consumes another key via DOS or INT 16h.  Do not use that path.
+* Frame-scheduled key injection (`LOF_KEYAT`) drops keys on screens whose
+  load time varies (the town load runs ~6M instructions).  Use `LOF_KEYAUTO`,
+  which feeds the next scancode only after the game drains the previous one.
+
+### Emulator additions this session
+
+* `LOF_KEYAUTO="sc,sc,..."` + `LOF_KEYGAP=N` — queue-drain-gated key feed
+  (`src/main.cpp`).
+* `LOF_KEYLOG=1` — logs every key the game consumes (who / scancode /
+  instruction count) and every push (`src/machine.cpp`).
