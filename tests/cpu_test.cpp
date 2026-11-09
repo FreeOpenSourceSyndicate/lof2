@@ -72,10 +72,52 @@ static void test_ega_write() {
     CHECK(m.ega.plane[3][0] == 0x00);
 }
 
+static void test_string_rep() {
+    // The MS-C run-time's strlen is "repne scasb; not cx; dec cx".  REP SCAS
+    // (and CMPS) must leave the *remaining* count in CX, not force it to 0,
+    // otherwise the length is garbage (0xFFFE) and every %s/%d width that
+    // depends on it mis-pads.  Scan "abc\0" in ES:DI with AL=0.
+    Machine m;
+    m.reset_cpu_state();
+    const uint8_t buf[] = {'a', 'b', 'c', 0};
+    std::memcpy(&m.ram[0x2000 << 4], buf, sizeof buf);
+    m.cpu.es = 0x2000; m.cpu.di = 0;
+    m.cpu.ax = 0x0000;                 // AL = 0 (search value)
+    m.cpu.cx = 0xFFFF;
+    m.cpu.flags &= ~DF;                // forward
+    const uint8_t code[] = { 0xF2, 0xAE, 0xF4 };   // repne scasb; hlt
+    std::memcpy(&m.ram[0x1000 << 4], code, sizeof code);
+    m.cpu.cs = 0x1000; m.cpu.ip = 0;
+    for (int i = 0; i < 12 && !m.cpu.halted; i++) cpu_step(m.cpu);
+    // 4 bytes scanned (a, b, c, NUL) -> CX = 0xFFFF - 4 = 0xFFFB, and
+    // strlen = ~CX - 1 = 4 - 1 = 3.
+    CHECK(m.cpu.cx == 0xFFFB);
+    uint16_t len = (uint16_t)(~m.cpu.cx);
+    CHECK((uint16_t)(len - 1) == 3);
+
+    // REPE CMPS stops at the first difference, leaving CX = remaining count.
+    m.reset_cpu_state();
+    const uint8_t s1[] = {'x', 'y', 'z'};
+    const uint8_t s2[] = {'x', 'y', 'w'};
+    std::memcpy(&m.ram[0x2000 << 4], s1, sizeof s1);
+    std::memcpy(&m.ram[0x3000 << 4], s2, sizeof s2);
+    m.cpu.ds = 0x2000; m.cpu.si = 0;
+    m.cpu.es = 0x3000; m.cpu.di = 0;
+    m.cpu.cx = 0x0005;
+    m.cpu.flags &= ~DF;
+    const uint8_t code2[] = { 0xF3, 0xA6, 0xF4 };  // repe cmpsb; hlt
+    std::memcpy(&m.ram[0x1000 << 4], code2, sizeof code2);
+    m.cpu.cs = 0x1000; m.cpu.ip = 0;
+    for (int i = 0; i < 12 && !m.cpu.halted; i++) cpu_step(m.cpu);
+    CHECK(m.cpu.cx == 2);              // 3 bytes consumed of 5
+    CHECK(!(m.cpu.flags & ZF));
+}
+
 int main() {
     test_alu();
     test_keyboard();
     test_ega_write();
+    test_string_rep();
     if (g_fail == 0) { std::printf("all tests passed\n"); return 0; }
     std::printf("%d test(s) failed\n", g_fail);
     return 1;

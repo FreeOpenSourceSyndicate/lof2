@@ -315,6 +315,7 @@ int main(int argc, char** argv) {
         }
         // Run in chunks, presenting a frame after each chunk.
         std::vector<std::string> ring;
+        uint16_t min_sp = 0xFFFF;
         ring.reserve(64);
         while (m.running) {
             for (int i = 0; i < 300000 && m.running; i++) {
@@ -337,6 +338,16 @@ int main(int argc, char** argv) {
                         left--;
                     }
                 }
+                if (getenv("LOF_SPLOW")) {
+                    static bool done = false;
+                    long lim = strtol(getenv("LOF_SPLOW"), nullptr, 16);
+                    if (!done && m.cpu.ss == 0x4C92 && m.cpu.sp > 0x8000 && m.cpu.sp < (uint16_t)lim) {
+                        fprintf(stderr, "[splow] instr=%u cs:ip=%04X:%04X sp=%04X bp=%04X ax=%04X bx=%04X cx=%04X dx=%04X si=%04X di=%04X\n",
+                            m.instr_count, m.cpu.cs, m.cpu.ip, m.cpu.sp, m.cpu.bp,
+                            m.cpu.ax, m.cpu.bx, m.cpu.cx, m.cpu.dx, m.cpu.si, m.cpu.di);
+                        done = true;
+                    }
+                }
                 if (getenv("LOF_RING")) {
                     char buf[160];
                     snprintf(buf, sizeof buf, "%08u %04X:%04X %02X | ax=%04X bx=%04X cx=%04X dx=%04X si=%04X di=%04X bp=%04X sp=%04X ds=%04X es=%04X ss=%04X fl=%04X",
@@ -345,7 +356,14 @@ int main(int argc, char** argv) {
                     if (ring.size() < 256) ring.push_back(buf);
                     else { ring[m.instr_count % 256] = buf; }
                 }
+                if (getenv("LOF_LOOPDBG")) {
+                    unsigned lc = 0, li = 0;
+                    sscanf(getenv("LOF_LOOPDBG"), "%x:%x", &lc, &li);
+                    if (m.cpu.cs == lc && m.cpu.ip == li)
+                        fprintf(stderr, "[loop] instr=%u sp=%04X bp=%04X\n", m.instr_count, m.cpu.sp, m.cpu.bp);
+                }
                 cpu_step(m.cpu);
+                if (m.cpu.ss == 0x4C92 && m.cpu.sp < min_sp) min_sp = m.cpu.sp;
                 if (getenv("LOF_CSCHG")) {
                     static uint16_t prev_cs = 0xFFFF;
                     static uint16_t prev_ss = 0xFFFF;
@@ -371,6 +389,30 @@ int main(int argc, char** argv) {
                             uint32_t a = sbase + (uint16_t)(m.cpu.sp + k);
                             fprintf(stderr, "  ss:[sp%+d]=%04X\n", k, (uint16_t)(m.rb(a) | (m.rb(a + 1) << 8)));
                         }
+                        uint32_t bptr = (uint32_t)m.rw(((uint32_t)m.cpu.ds << 4) + 0xb1fa)
+                                      | ((uint32_t)m.rw(((uint32_t)m.cpu.ds << 4) + 0xb1fc) << 16);
+                        fprintf(stderr, "  [b1fa]=%04X:%04X  [b226]=%04X:%04X  ds=%04X ss=%04X mins=%04X\n",
+                                (unsigned)(bptr >> 16), (unsigned)(bptr & 0xFFFF),
+                                (unsigned)m.rw(((uint32_t)m.cpu.ds << 4) + 0xb228),
+                                (unsigned)m.rw(((uint32_t)m.cpu.ds << 4) + 0xb226),
+                                m.cpu.ds, m.cpu.ss, (unsigned)min_sp);
+                        if (getenv("LOF_STACKDUMP")) {
+                            for (int k = 0; k < 0x80; k += 2) {
+                                uint32_t a = sbase + (uint16_t)(m.cpu.sp + k);
+                                fprintf(stderr, "  S+%02X %04X\n", k, (unsigned)m.rw(a));
+                            }
+                        }
+                        if (getenv("LOF_RAMDUMP")) {
+                            uint32_t lo = 0, hi = 0;
+                            sscanf(getenv("LOF_RAMDUMP"), "%x:%x", &lo, &hi);
+                            for (uint32_t a = lo; a < hi; a += 16) {
+                                fprintf(stderr, "  %05X ", a);
+                                for (int k = 0; k < 16; k++) fprintf(stderr, "%02X ", m.rb(a + k));
+                                fprintf(stderr, " |");
+                                for (int k = 0; k < 16; k++) { uint8_t c = m.rb(a + k); fprintf(stderr, "%c", (c >= 32 && c < 127) ? c : '.'); }
+                                fprintf(stderr, "|\n");
+                            }
+                        }
                     }
                     m.running = false;
                 }
@@ -383,7 +425,7 @@ int main(int argc, char** argv) {
             }
             if (getenv("LOF_FTRACE")) {
                 size_t nz=0; for (int pp=0;pp<4;pp++) for (uint8_t b : m.ega.plane[pp]) if(b) nz++;
-                fprintf(stderr,"[ft] frame=%ld mode=%d nz=%zu egaw=%llu cs:ip=%04X:%04X\n", frame_no, m.ega.mode, nz, (unsigned long long)m.ega.writes, m.cpu.cs, m.cpu.ip);
+                fprintf(stderr,"[ft] frame=%ld mode=%d nz=%zu egaw=%llu cs:ip=%04X:%04X ss:sp=%04X:%04X bp=%04X\n", frame_no, m.ega.mode, nz, (unsigned long long)m.ega.writes, m.cpu.cs, m.cpu.ip, m.cpu.ss, m.cpu.sp, m.cpu.bp);
             }
             m.ticks++;
             m.ww(0x46C, (uint16_t)(m.ticks & 0xFFFF));
