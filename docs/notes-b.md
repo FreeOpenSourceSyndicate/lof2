@@ -16,6 +16,9 @@ from the **raw image** (file offset `0x22F80..0x231A0`; the listing labels it
 fields previously recorded: `CharSeed` now also carries `c00` (+0x00 = 1),
 `c14` (+0x14 = `rec[0x3a]`), `c1b` (+0x1b = 0x0c), `c64` (+0x64 = 0x1324) and
 `c4e` (+0x4e = 100), with `kSnsField3a` and `kCharSeed14/1b/4e/64` added.
+The character-sheet builder was also located from the raw image (file offset
+`0x2BC8B`, listing `2676E`) and its `Weight`/`Rations`/`Gold` layout decoded (see
+the sheet section below); it exposed the inventory slot indices `+0x68`/`+0x69`.
 
 **Log (2026-11-08, branch `work/agent-b-23`):** the SNSC seed mapping now also
 carries the four `(value, level)` skill pairs — `char +0x142+2n = rec[0x3b+2n]`,
@@ -489,6 +492,34 @@ The named-field layout for the *remaining* stat bytes (0x26..0x4d) is only
 readable through the play loop (the runtime stat struct at `es:[bx+0x27xx]` is in
 the maintainer's main-loop domain), so only the low-risk offsets are named and
 the rest is left as a follow-up.
+
+### Character-sheet inventory fields (`Weight`/`Rations`/`Gold`) — decoded
+
+The character-sheet builder is the routine that copies the 410-byte struct onto
+its stack (`repne movsw`, `cx = 0xcd`) at **file offset `0x2BC8B`** (the listing
+labels it `2676E`; again the listing drifts, so the bytes are the ground truth).
+Because it copies the struct to `[bp-0x19e]`, a `[bp+disp]` read with
+`disp + 0x19e == off` *is* char field `+off`.
+
+The sheet prints, in order: `Rnk ` (`+0x17`), `Hit point ` (`+0x20`/`+0x22`),
+`Magic.... ` (`+0x20`/`+0x22`), `State...  ` (`+0x1b`), `Str`/`Con`/`Dex`/`Int`/
+`Wis` (`+0x45`/`+0x44`/`+0x46`/`+0x47`/`+0x48`), `Experience ` (`+0x64`/`+0x66`),
+`Weight... ` (`+0x64`/`+0x66`), then `Rations.. : ` and ` Gold:`.  The `Weight`
+line and the `Hit point`/`Magic` lines resolve item *names* from the character's
+two inventory slots at **`+0x68`/`+0x69`** (read as `[bp-0x19e+0x68/+0x69]`); the
+slot indices are exposed as `CharSheet::inv68`/`inv69` (`kCharInv68/69`).
+
+The `Rations`/`Gold` values themselves are **not** simple struct fields.  They
+are the result of iterating the character's inventory-slot list (a run of
+`+0x112`-based slots at a base slot index `+0x5a`), summing a per-item weight and
+accumulating a gold count that is rendered with the 32-bit format `%05ld$`.
+Decoding that item-table layout (the 185-record, 32-byte table inside `LOF.EXE`
+at image `0x42cec`) is a separate follow-up; the sheet's `Rations`/`Gold` are
+left unmodelled rather than guessed.
+
+Note `+0x64`/`+0x66` (a 32-bit value the sheet labels `Experience`/`Weight`)
+versus `+0x6c`/`+0x6e` (the reward-accumulator dword exposed as `CharSheet::exp`):
+they are distinct; the reward sites add to the `+0x6c` pair.
 
 ### Monster rosters (`SYST/NSC0n`) — new
 

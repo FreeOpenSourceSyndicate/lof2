@@ -390,6 +390,10 @@ enum CharOffset : size_t {
     kCharSeed1b    = 0x1b,  // byte: seeded 0x0c, later reduced by the char gen
     kCharSeed4e    = 0x4e,  // dword: seeded 100 (weight-style base value)
     kCharSeed64    = 0x64,  // word: seeded 0x1324 (4900), later adjusted
+    // The character's own inventory slot indices, read by the character-sheet
+    // builder (raw image 0x2BEC0/0x2BEE6 = [bp-0x19e+0x68/+0x69]).
+    kCharInv68     = 0x68,  // byte: inventory slot index 0 (sheet builder)
+    kCharInv69     = 0x69,  // byte: inventory slot index 1 (sheet builder)
     // The four seeded (value, level) skill pairs: +0x142+2n / +0x143+2n, n=0..3,
     // copied from rec[0x3b+2n] / rec[0x3c+2n] by the init routine's tail loop.
     kCharSkill142  = 0x142, // byte: first of four seeded skill values (stride 2)
@@ -471,6 +475,10 @@ struct CharSheet {
     uint8_t  mod5f = 0;      // +0x5f  attribute modifier (mod5f + level17)
     uint8_t  flag6a = 0;     // +0x6a  flag (adds 50 to display byte +0x17c)
     uint8_t  flag0f = 0;     // +0x0f  status flag (==0 subtracts 10 from +0x17d)
+    // The character's own inventory slot indices (the two weapon/armour slots the
+    // sheet's hit-point and magic lines resolve item names from; see kCharInv68).
+    uint8_t  inv68 = 0;      // +0x68  inventory slot index 0
+    uint8_t  inv69 = 0;      // +0x69  inventory slot index 1
 
     // HP as a percentage, computed exactly as the sheet builder does
     // (100 * hp_cur / hp_max, integer division); 0 when hp_max is 0.

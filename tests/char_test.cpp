@@ -196,6 +196,12 @@ static void synthetic_spec() {
     assert(ch.attr_a() == 7);
     // +0x1d is derived from Dexterity: 5*16 - 65 == 15, matching stat1d above.
     assert(ch.stat1d == char_stat1d_from_dex(ch.dex46));
+    // Inventory slot indices +0x68/+0x69 (the sheet's hit-point/magic lines
+    // resolve item names from these; see kCharInv68).
+    chr[kCharInv68] = 7;
+    chr[kCharInv69] = 9;
+    ch = decode_char(chr.data());
+    assert(ch.inv68 == 7 && ch.inv69 == 9);
 
     printf("char_test: synthetic SPEC ok\n");
 }
@@ -488,6 +494,7 @@ static int real_data() {
     assert(cs.class18 == 1 && cs.base1c == 65 && cs.stat1e == 90);
     assert(cs.hp_max == 96 && cs.hp_cur == 96);
     assert(cs.hp_percent() == 100);
+    assert(cs.inv68 == 0 && cs.inv69 == 0);   // template: no inventory slots set
     assert(cs.level17 == 0 && cs.speed56 == 4);   // Siegurd: rank 0
     // +0x1d is the Dexterity-derived stat (1BA40): <16 -> 10, else 5*dex-65.
     assert(cs.stat1d == char_stat1d_from_dex(cs.dex46));

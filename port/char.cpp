@@ -549,6 +549,8 @@ CharSheet decode_char(const uint8_t* raw) {
     c.mod5f = raw[kCharFlg5f];
     c.flag6a = raw[kCharFlag6a];
     c.flag0f = raw[kCharFlg0f];
+    c.inv68 = raw[kCharInv68];
+    c.inv69 = raw[kCharInv69];
     return c;
 }
 
