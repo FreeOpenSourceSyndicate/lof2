@@ -93,9 +93,11 @@ def dump_save(path):
         if r[0] or name:
             hp = struct.unpack_from("<h", r, 0x22)[0]
             hpmax = struct.unpack_from("<h", r, 0x20)[0]
+            # 32-bit experience: low word +0x6c, high word +0x6e.
+            exp = struct.unpack_from("<I", r, 0x6c)[0]
             print(f"  [{i:2d}] present={r[0]:#04x} name={name!r} "
                   f"rnk={r[0x17]} con={r[0x44]} str={r[0x45]} dex={r[0x46]} "
-                  f"int={r[0x47]} wis={r[0x48]} hp={hp}/{hpmax}")
+                  f"int={r[0x47]} wis={r[0x48]} hp={hp}/{hpmax} exp={exp}")
 
 
 # The item table lives only inside LOF.EXE (image offset 0x42cec, data segment

@@ -39,6 +39,15 @@ plausible fields (verify against the emulator's reads with `LOF_I21=1` +
   the level is `+0x17`.  Extended `CharSheet`/`CharOffset` in `port/char.{h,cpp}`,
   added `decode_char` coverage + a synthetic projection test in `char_test`, and
   taught `tools/spec.py --save` to print the attributes.  `make test` passes.
+- (2026-11-08, branch `work/agent-b-exp`) Decoded the 32-bit **experience**
+  accumulator at char `+0x6c` (low word) / `+0x6e` (high word): every reward
+  site adds to it with an `add`/`adc` pair (e.g. `0x412`, `0xf28`) and the
+  reward printer pushes the two words as one dword.  The character-sheet label
+  block carries "Experience " + `%011ld` (DS:0xaf83) and the party table has an
+  "Exp." column.  Added `kCharExp6c`/`CharSheet::exp` + `rd32`, projected it in
+  `decode_char`, printed it in `tools/spec.py --save`, and asserted it on the
+  synthetic struct and the live `GAMES/GAME1` characters (Decker 379, Siegurd
+  699, Handy 231).  `make test` passes.
 
 ## Format findings (from data + `analysis/lof.asm`)
 
@@ -228,6 +237,7 @@ The attribute block and level field are grounded independently in the character
 | 0x1e | byte | body stat `100 - rec[0x2d]` (SNSC seed) |
 | 0x20 | word | maximum hit points |
 | 0x22 | word | current hit points |
+| 0x6c | dword | **experience** (32-bit: low word `+0x6c`, high word `+0x6e`) |
 | 0x44 | byte | **Constitution** |
 | 0x45 | byte | **Strength** |
 | 0x46 | byte | **Dexterity** |
@@ -520,6 +530,9 @@ scenarios 0..9 have a single-digit file name.)
       grounded in the sheet builder (0x2676E) and the training/level-up routines
       (0x95B0/0x9144).  Resolves the earlier `+0x46` "level vs Dexterity"
       conflict: `+0x46` is Dexterity, the level is `+0x17`.
+- [x] 32-bit **experience** accumulator `+0x6c`/`+0x6e` (`kCharExp6c`,
+      `CharSheet::exp`), grounded in the reward add/adc pairs and the sheet
+      label "Experience " + `%011ld` (DS:0xaf83); asserted on the live save.
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
       all-present roster slots, and the save header/records/trailer.
 - [ ] Remaining B: the full named stat-field semantics of the SNSC 40-byte block

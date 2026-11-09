@@ -29,6 +29,9 @@ std::vector<uint8_t> read_file(const std::string& path) {
 }
 
 uint16_t rd16(const uint8_t* p) { return (uint16_t)(p[0] | (p[1] << 8)); }
+uint32_t rd32(const uint8_t* p) {
+    return (uint32_t)(p[0] | (p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24));
+}
 
 // Read a NUL-terminated string from `p`, at most `limit` bytes.
 std::string cstr(const uint8_t* p, size_t limit) {
@@ -482,6 +485,7 @@ CharSheet decode_char(const uint8_t* raw) {
     c.stat1e = raw[kCharStat1e];
     c.hp_max = (int16_t)rd16(raw + kCharHpMax20);
     c.hp_cur = (int16_t)rd16(raw + kCharHpCur22);
+    c.exp = rd32(raw + kCharExp6c);
     c.con44 = raw[kCharCon44];
     c.str45 = raw[kCharStr45];
     c.dex46 = raw[kCharDex46];

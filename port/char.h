@@ -386,6 +386,16 @@ enum CharOffset : size_t {
     // (both words).  Every live save character satisfies current <= maximum.
     kCharHpMax20   = 0x20,  // word: maximum hit points
     kCharHpCur22   = 0x22,  // word: current hit points
+    // 32-bit experience accumulator: +0x6c is the low word, +0x6e the high word.
+    // Identified by the pervasive 32-bit accumulator pattern on the pair -- the
+    // reward sites add with `add word [bx+si+0x6c], imm16` / `adc word
+    // [bx+si+0x6e], imm16` (e.g. +0x86a0:0x0001 at 0x412, +0x61a8 at 0xf28), and
+    // the reward printer pushes [bx+si+0x6e] then [bx+si+0x6c] as one dword --
+    // together with the character-sheet label block, which carries the label
+    // "Experience " followed by the 32-bit format `%011ld` (DS:0xaf83), and the
+    // party table's "Exp." column.  The 32-bit value is the only field in the
+    // struct that pair describes.
+    kCharExp6c     = 0x6c,  // dword (low word at 0x6c, high word at 0x6e)
 };
 
 // A decoded view of the fields the engine's character code reads directly from
@@ -404,6 +414,7 @@ struct CharSheet {
     uint8_t  stat1e = 0;     // +0x1e  body stat (100 - rec[0x2d])
     int16_t  hp_max = 0;     // +0x20  maximum hit points
     int16_t  hp_cur = 0;     // +0x22  current hit points
+    uint32_t exp = 0;        // +0x6c  32-bit experience (low +0x6c, high +0x6e)
     uint8_t  con44 = 0;      // +0x44  Constitution
     uint8_t  str45 = 0;      // +0x45  Strength
     uint8_t  dex46 = 0;      // +0x46  Dexterity
