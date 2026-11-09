@@ -555,6 +555,11 @@ static int real_data() {
     assert(dki.inv[2].item == 13 && dki.inv[2].cond == 100);
     assert(dki.inv[3].item == 120 && dki.inv[3].aux1 == 0);
     assert(dki.inv[4].item == 0);                     // rest empty
+    // The slot byte is a 1-based index into the 185-item table (0 = empty), the
+    // same base item_by_index() uses: 27 -> Leather armour, not Studded leather.
+    assert(dki.inv[0].item && item_by_index(dki.inv[0].item) &&
+           item_by_index(dki.inv[0].item)->name == "Leather armour");
+    assert(item_by_index(0) == nullptr);              // 0 is the empty marker
     assert(dk.inv[0].item == 27 && dk.inv[0].cond == 96);
     assert(dk.inv[1].item == 8 && dk.inv[2].item == 43);
     // +0x25 is the load/carry byte (10 for the shipped party; 15 for Cassandra).

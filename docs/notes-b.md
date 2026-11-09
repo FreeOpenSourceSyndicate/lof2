@@ -830,14 +830,15 @@ oracle trace of the sheet's reads.  This is the one open item left in workstream
 B; everything else in this file is grounded against the static image and the
 shipped saves.
 
-### Open question: the stored item index base
+### Resolved: the stored item index base is 1-based
 
-The `+0x82` byte is the item-table index.  Reading it as **1-based**
-(`item_by_index()`, `items()[v-1]`) yields the shipped party's canonical starting
-kits — Decker Leather armour (27) + Small shield (34) + Short sword (13); Handy
-Leather armour (27) + Warhammer (8) — while a 0-based reading would give War
-scythe/Warhammer.  The shipped data therefore supports **1-based**, matching the
-`item_by_index()` convention already in `port/char.*`, but the engine's own
-`[0xb094]` indexing (also `*32`) could not be confirmed statically to close the
-question.  `ROST/SHOP` (185 signed bytes) is 0-based over the item table (its
-`byte 0` is Club's slot, `-10`), so the two tables may use different bases.
+The `+0x82` byte is the item-table index.  It is **1-based** (`item_by_index()`,
+`items()[v-1]`): the shipped party's canonical starting kits read cleanly only
+that way — Decker Leather armour (27) + Small shield (34) + Short sword (13) +
+The Amulet (120); Handy Leather armour (27) + Warhammer (8).  A 0-based reading
+gives nonsense (27 -> Studded leather, 120 -> Broadsword+, two Broadswords in one
+pack).  `char_test` now asserts `item_by_index(dki.inv[0].item)->name ==
+"Leather armour"` and that `item_by_index(0) == nullptr` (0 is the empty marker),
+so the 1-based contract is pinned.  `ROST/SHOP` (185 signed bytes) is separately
+0-based over the item table (its `byte 0` is Club's slot, `-10`), so the two
+tables use different bases.
