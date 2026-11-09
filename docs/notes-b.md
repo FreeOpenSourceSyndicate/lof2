@@ -10,6 +10,13 @@ statistics block: the character-init routine's field mapping from an
 `analysis/lof.asm` `1DA8E..1DCBB` and verified against `GAMES/GAMEn` +
 `ROST/ROST` (Siegurd == class 0).
 
+**Log (2026-11-08, party-status work):** the SNSC/NSC init routine was re-decoded
+from the **raw image** (file offset `0x22F80..0x231A0`; the listing labels it
+`1DA8E`) after finding desync gaps in the listing.  It seeds more than the five
+fields previously recorded: `CharSeed` now also carries `c00` (+0x00 = 1),
+`c14` (+0x14 = `rec[0x3a]`), `c1b` (+0x1b = 0x0c), `c64` (+0x64 = 0x1324) and
+`c4e` (+0x4e = 100), with `kSnsField3a` and `kCharSeed14/1b/4e/64` added.
+
 **Log (2026-11-08, branch `work/agent-b-23`):** the SNSC seed mapping now also
 carries the four `(value, level)` skill pairs — `char +0x142+2n = rec[0x3b+2n]`,
 `char +0x143+2n = rec[0x3c+2n]`, n = 0..3 — copied by the init routine's tail
@@ -460,16 +467,17 @@ against the shipped `GAMES/GAMEn` + `ROST/ROST` saves (Siegurd == SNSC class 0):
 | `0x2d` | 7  | `+0x1e` | `100 - n` | body/health stat |
 | `0x2d` | 7  | `+0x1d` | `100 - n` | same seed, then overridden by the Dexterity rule (1BA40) |
 | `0x36` | 16 | `+0x56` | copy | speed (1..4) |
+| `0x3a` | 20 | `+0x14` | copy | per-class word value (Siegurd 18) |
 | `0x2a` | 4  | `+0x7a+idx` | set 2 | picks which `+0x7a+n` slot is initialised |
 | `0x3b+2n` | 17+2n | `+0x142+2n` | copy | skill *value* (n = 0..3) |
 | `0x3c+2n` | 18+2n | `+0x143+2n` | copy | skill *level* (n = 0..3) |
 
-The routine also writes fixed values (char `+0x1b`=0x0c, `+0x20`=`+0x22`=
-`rand(1..rec[0x2c]/2)`, `+0x64`=0x1324, `+0x4e`=0x64).  The four `+0x142`/`+0x143`
-skill pairs come from `rec[0x3b+2n]`/`rec[0x3c+2n]` (the loop at 1DC00/1DC40).
-Exposed as `sns_char_seed()` (returns a `CharSeed`, including `c142[4]`/`c143[4]`)
-plus the `SnsOffset` enum; `tests/char_test.cpp` checks both the record bytes and
-the resulting live-character fields.
+The routine also writes fixed values (char `+0x00`=1, `+0x1b`=0x0c, `+0x20`=
+`+0x22`=`rand(1..rec[0x2c]/2)`, `+0x64`=0x1324, `+0x4e`=0x64).  The four
+`+0x142`/`+0x143` skill pairs come from `rec[0x3b+2n]`/`rec[0x3c+2n]` (the loop at
+1DC00/1DC40).  All of these are in `CharSeed` (`c00`/`c14`/`c1b`/`c64`/`c4e` +
+`c142[4]`/`c143[4]`) with the `SnsOffset` enum; `tests/char_test.cpp` checks both
+the record bytes and the resulting live-character fields.
 
 Example (class 0 Siegurd): `rec[0x4c]=1 -> char[0x18]=1`,
 `rec[0x2e]=65 -> char[0x1c]=65`, `rec[0x2d]=10 -> char[0x1e]=90`,

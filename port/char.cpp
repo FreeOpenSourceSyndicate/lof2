@@ -449,6 +449,9 @@ std::vector<std::string> monster_names(const std::string& dir, int scenario) {
 
 CharSeed sns_char_seed(const SnsRecord& rec) {
     CharSeed s;
+    // Grounded in the raw image at file offset 0x22F80..0x231A0 (the listing's
+    // 1DA8E region).  Each field is `stats[off - 38]`.
+    s.c14 = rec.stats[kSnsField3a - 38];   // +0x14 word
     s.c18 = rec.stats[kSnsClass4c - 38];
     s.c1c = rec.stats[kSnsBody2e - 38];
     s.c1d = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);

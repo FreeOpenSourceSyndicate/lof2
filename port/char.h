@@ -309,6 +309,7 @@ enum SnsOffset : size_t {
     kSnsBody2d  = 0x2d,  // byte; char +0x1e = 100 - value, char +0x1d = same
     kSnsBody2e  = 0x2e,  // byte; char +0x1c (45..75, a base stat)
     kSnsSpeed36 = 0x36,  // byte; char +0x56 (1..4)
+    kSnsField3a = 0x3a,  // byte; char +0x14 (word; a per-class value, Siegurd 18)
     // Four (value, level) skill pairs: char +0x142+2n = rec[0x3b+2n] and
     // char +0x143+2n = rec[0x3c+2n], n = 0..3 (the loop at 1DC00/1DC40).
     kSnsSkill3b = 0x3b,  // byte; first of four skill values, stride 2
@@ -317,15 +318,22 @@ enum SnsOffset : size_t {
 };
 
 // The character-struct fields the SNSC/NSC init routine seeds from a class
-// record (analysis/lof.asm 1DA8E..1DCBB).  Offsets name the target byte in the
-// 410-byte character struct.
+// record.  Ground truth is the raw image at file offset 0x22F80..0x231A0 (the
+// listing labels it 1DA8E..1DCBB; again, trust the bytes).  Offsets name the
+// target byte in the 410-byte character struct.
 struct CharSeed {
-    uint8_t c18 = 0;  // rec[0x4c]
-    uint8_t c1c = 0;  // rec[0x2e]
-    uint8_t c1d = 0;  // 100 - rec[0x2d]
-    uint8_t c1e = 0;  // 100 - rec[0x2d]
-    uint8_t c56 = 0;  // rec[0x36]
-    uint8_t c7a_index = 0;  // rec[0x2a]; char[0x7a + index] is then set to 2
+    uint8_t  c00 = 1;   // +0x00  present marker (1)
+    uint8_t  c18 = 0;   // +0x18  rec[0x4c]  class flag (1 PC / 2 monster)
+    uint8_t  c1c = 0;   // +0x1c  rec[0x2e]  base stat (45..75)
+    uint8_t  c1d = 0;   // +0x1d  100 - rec[0x2d]  (transient: the attribute pass
+                        //         overwrites it with 0x0a / 5*dex-0x41)
+    uint8_t  c1e = 0;   // +0x1e  100 - rec[0x2d]  body stat
+    uint8_t  c56 = 0;   // +0x56  rec[0x36]  speed 1..4
+    uint8_t  c1b = 0x0c;  // +0x1b  const 12 (later reduced by the char gen)
+    uint16_t c14 = 0;   // +0x14  rec[0x3a]  (a per-class value; Siegurd 18)
+    uint16_t c64 = 0x1324;  // +0x64  const 4900 (later adjusted per character)
+    uint32_t c4e = 100;     // +0x4e  dword const 100 (weight base)
+    uint8_t  c7a_index = 0;  // rec[0x2a]; char[0x7a + index] is then set to 2
     // The four seeded skill pairs: c142[n] -> char +0x142 + 2n (rec[0x3b+2n]),
     // c143[n] -> char +0x143 + 2n (rec[0x3c+2n]).  Confirmed byte-for-byte on
     // Siegurd (class 0, all zero) and on the class-2/3 records that carry data.
@@ -377,6 +385,11 @@ enum CharOffset : size_t {
     kCharStat1e    = 0x1e,  // byte: body stat (100 - rec[0x2d])
     kCharSpeed56   = 0x56,  // byte: speed (1..4)
     kCharSeed7a    = 0x7a,  // byte: base of the +0x7a+n seed slots
+    // Additional fields the same init routine writes (raw image 0x22F80..):
+    kCharSeed14    = 0x14,  // word: from rec[0x3a] (per-class; Siegurd 18)
+    kCharSeed1b    = 0x1b,  // byte: seeded 0x0c, later reduced by the char gen
+    kCharSeed4e    = 0x4e,  // dword: seeded 100 (weight-style base value)
+    kCharSeed64    = 0x64,  // word: seeded 0x1324 (4900), later adjusted
     // The four seeded (value, level) skill pairs: +0x142+2n / +0x143+2n, n=0..3,
     // copied from rec[0x3b+2n] / rec[0x3c+2n] by the init routine's tail loop.
     kCharSkill142  = 0x142, // byte: first of four seeded skill values (stride 2)
