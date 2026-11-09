@@ -196,12 +196,22 @@ static void synthetic_spec() {
     assert(ch.attr_a() == 7);
     // +0x1d is derived from Dexterity: 5*16 - 65 == 15, matching stat1d above.
     assert(ch.stat1d == char_stat1d_from_dex(ch.dex46));
-    // Inventory slot indices +0x68/+0x69 (the sheet's hit-point/magic lines
-    // resolve item names from these; see kCharInv68).
-    chr[kCharInv68] = 7;
-    chr[kCharInv69] = 9;
+    // Magic points: +0x68 is the MAXIMUM, +0x69 the CURRENT; see kCharMagMax68.
+    chr[kCharMagMax68] = 7;
+    chr[kCharMagCur69] = 9;
     ch = decode_char(chr.data());
-    assert(ch.inv68 == 7 && ch.inv69 == 9);
+    assert(ch.mag_max68 == 7 && ch.mag_cur69 == 9);
+    // Inventory array: 48 four-byte slots at +0x82 (item/aux1/aux2/cond).
+    chr[kCharInv82 + 0] = 13; chr[kCharInv82 + 1] = 1;
+    chr[kCharInv82 + 2] = 0;  chr[kCharInv82 + 3] = 100;
+    chr[kCharInv82 + 4 * 3] = 34; chr[kCharInv82 + 4 * 3 + 3] = 92;
+    chr[kCharLoad25] = 10;
+    ch = decode_char(chr.data());
+    assert(ch.load25 == 10);
+    assert(ch.inv[0].item == 13 && ch.inv[0].aux1 == 1 &&
+           ch.inv[0].aux2 == 0 && ch.inv[0].cond == 100);
+    assert(ch.inv[3].item == 34 && ch.inv[3].cond == 92);
+    assert(ch.inv[1].item == 0 && ch.inv[47].item == 0);
 
     printf("char_test: synthetic SPEC ok\n");
 }
@@ -494,7 +504,8 @@ static int real_data() {
     assert(cs.class18 == 1 && cs.base1c == 65 && cs.stat1e == 90);
     assert(cs.hp_max == 96 && cs.hp_cur == 96);
     assert(cs.hp_percent() == 100);
-    assert(cs.inv68 == 0 && cs.inv69 == 0);   // template: no inventory slots set
+    assert(cs.mag_max68 == 0 && cs.mag_cur69 == 0);  // template: no magic
+    assert(cs.inv[0].item == 0);                      // template: empty pack
     assert(cs.level17 == 0 && cs.speed56 == 4);   // Siegurd: rank 0
     // +0x1d is the Dexterity-derived stat (1BA40): <16 -> 10, else 5*dex-65.
     assert(cs.stat1d == char_stat1d_from_dex(cs.dex46));
@@ -533,6 +544,34 @@ static int real_data() {
     CharSheet dk = decode_char(sv.chars[2].raw.data());
     assert(dk.name == "Handy" && dk.hp_cur == 9 && dk.hp_max == 11);
     assert(dk.hp_percent() == 81);   // 100*9/11, integer division
+
+    // Inventory array (+0x82, 48 x 4-byte slots).  GAME1's Decker carries
+    // Leather armour (27), Small shield (34), Short sword (13) and The Amulet
+    // (120); Handy carries Leather armour (27) then Warhammer (8) etc.  The
+    // first slot's condition byte is 100 except for worn armour (96/92).
+    CharSheet dki = decode_char(sv.chars[0].raw.data());
+    assert(dki.inv[0].item == 27 && dki.inv[0].aux1 == 1 && dki.inv[0].cond == 100);
+    assert(dki.inv[1].item == 34 && dki.inv[1].cond == 92);
+    assert(dki.inv[2].item == 13 && dki.inv[2].cond == 100);
+    assert(dki.inv[3].item == 120 && dki.inv[3].aux1 == 0);
+    assert(dki.inv[4].item == 0);                     // rest empty
+    assert(dk.inv[0].item == 27 && dk.inv[0].cond == 96);
+    assert(dk.inv[1].item == 8 && dk.inv[2].item == 43);
+    // +0x25 is the load/carry byte (10 for the shipped party; 15 for Cassandra).
+    assert(dki.load25 == 10 && dk.load25 == 10);
+    assert(decode_char(sv.chars[4].raw.data()).load25 == 15);
+    // Magic points (+0x68 max / +0x69 cur).  Merlin (class 7, level 1, Int 19,
+    // Wis 12) stores 3/3 -- the per-(class,level) table lookup plus the Int
+    // bonus; Handy stores 1/1.  They are equal at rest.
+    CharSheet mrl = decode_char(sv.chars[3].raw.data());
+    assert(mrl.name == "Merlin" && mrl.mag_max68 == 3 && mrl.mag_cur69 == 3);
+    assert(dk.mag_max68 == 1 && dk.mag_cur69 == 1);
+    // Every in-use character: no slot points past the 185-item table.
+    for (const auto& sc : sv.chars) {
+        if (sc.present != 1) continue;
+        CharSheet c = decode_char(sc.raw.data());
+        for (const auto& sl : c.inv) assert(sl.item <= 185);
+    }
 
     // Party-status fields on the real save: GAME1's fresh characters carry
     // zeroed attribute modifiers (+0x5b/+0x5c/+0x5e/+0x5f); the body state

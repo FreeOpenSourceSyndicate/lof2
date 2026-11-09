@@ -18,7 +18,9 @@ fields previously recorded: `CharSeed` now also carries `c00` (+0x00 = 1),
 `c4e` (+0x4e = 100), with `kSnsField3a` and `kCharSeed14/1b/4e/64` added.
 The character-sheet builder was also located from the raw image (file offset
 `0x2BC8B`, listing `2676E`) and its `Weight`/`Rations`/`Gold` layout decoded (see
-the sheet section below); it exposed the inventory slot indices `+0x68`/`+0x69`.
+the sheet section below).  (An earlier note here called `+0x68`/`+0x69`
+"inventory slot indices" — that was wrong; they are the maximum/current magic
+points.  See the correction and the inventory-array section.)
 
 **Log (2026-11-08, branch `work/agent-b-23`):** the SNSC seed mapping now also
 carries the four `(value, level)` skill pairs — `char +0x142+2n = rec[0x3b+2n]`,
@@ -502,12 +504,12 @@ Because it copies the struct to `[bp-0x19e]`, a `[bp+disp]` read with
 `disp + 0x19e == off` *is* char field `+off`.
 
 The sheet prints, in order: `Rnk ` (`+0x17`), `Hit point ` (`+0x20`/`+0x22`),
-`Magic.... ` (`+0x20`/`+0x22`), `State...  ` (`+0x1b`), `Str`/`Con`/`Dex`/`Int`/
+`Magic.... ` (`+0x68`/`+0x69`), `State...  ` (`+0x1b`), `Str`/`Con`/`Dex`/`Int`/
 `Wis` (`+0x45`/`+0x44`/`+0x46`/`+0x47`/`+0x48`), `Experience ` (`+0x64`/`+0x66`),
-`Weight... ` (`+0x64`/`+0x66`), then `Rations.. : ` and ` Gold:`.  The `Weight`
-line and the `Hit point`/`Magic` lines resolve item *names* from the character's
-two inventory slots at **`+0x68`/`+0x69`** (read as `[bp-0x19e+0x68/+0x69]`); the
-slot indices are exposed as `CharSheet::inv68`/`inv69` (`kCharInv68/69`).
+`Weight... ` (`+0x64`/`+0x66`), then `Rations.. : ` and ` Gold:`.  The `Hit point`
+line is the current/maximum HP pair (`+0x22`/`+0x20`); the `Magic.... ` line is
+the current/maximum magic-point pair **`+0x69`/`+0x68`** (see the correction and
+the inventory-array section).
 
 The `Rations`/`Gold` values themselves are **not** simple struct fields.  They
 are the result of iterating the character's inventory-slot list (a run of
@@ -516,6 +518,16 @@ accumulating a gold count that is rendered with the 32-bit format `%05ld$`.
 Decoding that item-table layout (the 185-record, 32-byte table inside `LOF.EXE`
 at image `0x42cec`) is a separate follow-up; the sheet's `Rations`/`Gold` are
 left unmodelled rather than guessed.
+
+> **Correction (2026-11-08).**  An earlier revision of this section (and of
+> `kCharInv68`) called `+0x68`/`+0x69` "inventory slot indices the hit-point and
+> magic lines resolve item names from".  That was wrong.  The pair is the
+> character's **maximum / current magic points** (`+0x68` = max, `+0x69` = cur;
+> the sheet's "Magic.... " line).  The routine at image `0xEC00..0xEC2B` fills
+> both from a per-(class,level) table (`es:[0xaf70:16*+0x1b + +0x17]`, level <
+> 16) plus Wisdom/Intelligence bonuses; the spell routine at `0x137AD` clamps the
+> current down to the maximum and the rest routine at `0x6440` restores it.  See
+> the "inventory array" section below.
 
 Note `+0x64`/`+0x66` (a 32-bit value the sheet labels `Experience`/`Weight`)
 versus `+0x6c`/`+0x6e` (the reward-accumulator dword exposed as `CharSheet::exp`):
@@ -690,3 +702,142 @@ consume it without re-deriving the arithmetic: `party_row(CharSheet, index)`
 builds one `PartyRow`, and `party_status(SaveGame)` builds the whole live party
 (slots with `present == 1`, in order).  `char_test` asserts the six-member
 `GAME1` projection.
+
+## Inventory array (+0x82) and magic points (+0x68/+0x69) — 2026-11-08
+
+The 410-byte character struct carries its **inventory** as a flat array of **48
+four-byte slots based at `+0x82`**, ending at `+0x82 + 48*4 = +0x142` — exactly
+where the four seeded `(value, level)` skill pairs begin (`+0x142`).  This is the
+array the character-sheet's `Weight`/`Rations`/`Gold` lines iterate.
+
+Ground truth is the **item-add routine** at raw image offset `0xBF00` (the
+listing desyncs here, so use the raw bytes):
+
+- It scans for the first free slot with `cmp byte es:[bx+si+0x82],0` over
+  `si = slot * 4`, `slot = 0..47` (`si` from `0` up, `cmp si,0x30` at `0xBEED`).
+- On a hit it stores the 1-based item index at `+0x82` and a per-item byte at
+  `+0x84`, and writes `100` to `+0x85`.
+
+So a slot is `{ +0x82 item index (0 = empty), +0x83 aux, +0x84 per-item byte,
++0x85 condition }`.  On the shipped data the three trailing bytes are `{0,1}` /
+`{1,0}` / `{0,0}` and the condition is `100` for everything except worn armour
+(`96`/`98`/`92`) — a durability/quality byte, not a count (it is decremented by
+`2`, e.g. `sub byte es:[bx+si+0x85],2` at `0x1ABDA`, and clamped to `0`/`100`).
+
+Decker's `GAME1` pack decodes cleanly as Leather armour (27), Small shield (34),
+Short sword (13), The Amulet (120); Handy's as Leather armour (27), Warhammer
+(8), Anvil (43), Sledge-hammer (44), The Amulet (120) x2.  Exposed as
+`InvSlot` + `CharSheet::inv[48]` (`kCharInv82`, `kCharInvCount`,
+`kCharInvStride`); `char_test` asserts the synthetic layout and Decker's/Handy's
+real slots.
+
+### Magic points `+0x68` (max) / `+0x69` (cur)
+
+`+0x68` is the **maximum** magic points and `+0x69` the **current** value.  The
+direction is proven by the spend/rest routines: the spell routine at image
+`0x137AD` clamps the current down to the maximum (`if +0x68 != 0 && +0x69 <
++0x68 then +0x69 = +0x68`, bytes `26 80 7f 68 00 74 71 26 8a 47 68 26 38 47 69
+73 67 26 88 47 69`), and the rest routine at `0x6440` restores it
+(`26 8a 47 68 26 88 47 69` = `+0x69 = +0x68`).  The sheet prints
+`(+0x69, +0x68)` = (current, maximum).
+
+The pair is filled by the routine at image `0xEC00..0xEC2B`, which looks up a
+per-(class,level) table in the loaded data segment `[0xaf70]:0xa38` (16 bytes
+per class, indexed `16 * class_field(+0x1b) + level(+0x17)`, only while
+`level < 16`) and then adds bonuses:
+
+```
+if (level(+0x17) < 16)
+    mp = es:[0xaf70 : 16*+0x1b + +0x17]      ; per-(class,level) table
+else
+    mp = 0
+if (mp != 0 && Wisdom(+0x48) > 15) mp += 1
+if (Intelligence(+0x47) > 15) mp += 2
++0x68 = mp ; +0x69 = mp
+```
+
+The table itself (DS `0xa38`, 14 classes x 16 levels) is a static block in the
+EXE: the casters' rows climb with level (classes 4/8/9/11 the high-magic
+classes), the fighter rows are flat.  A worked check: Merlin has `+0x1b = 7`,
+level 1, Int 19, Wis 12 -> table[7][1] = 1, +2 for Int -> 3, which is exactly the
+`3/3` the save stores.  Other stored pairs (e.g. Handy `1/1`) are one point above
+the static table, which is consistent with the table being **class-indexed by a
+different byte than the saved `+0x1b`** (the char-gen may remap `+0x1b` after the
+MP fill), so the table's row-to-class mapping is still open; only Merlin's row is
+pinned.  Because the pair is TRANSIENT (spell/rest mutate `+0x69`), `CharSheet`
+projects it verbatim rather than recomputing it.  Exposed as
+`kCharMagMax68`/`kCharMagCur69` + `CharSheet::mag_max68`/`mag_cur69`; asserted on
+the synthetic struct and on `GAME1`.
+
+`+0x25` is a small **load/carry** byte (`10` for most of the shipped party, `15`
+for Cassandra) — exposed as `kCharLoad25`/`CharSheet::load25`.
+
+## Boundary: the sheet's `Weight`/`Rations`/`Gold` lines (runtime segment) — 2026-11-08
+
+The character-sheet routine that prints `Weight... `, `Rations.. : ` and
+` Gold:` is at raw image offset **`0x2BFxx`–`0x2C6xx`** (its label block lives at
+DS `0x920d`..`0x9302`, DS base `0x41d00`; the "Experience " label it also prints
+is at DS `0x9283` = raw `0x4af83`).  It iterates the character's inventory
+array (the `+0x82` slots decoded above) and, for each occupied slot, reads a
+**per-item stats table**:
+
+```
+bx = stored_item_index * 32
+es = [0xb094]                       ; a RUNTIME segment, not the EXE image
+name   = es:[bx + 0xfbc]            ; 16-byte item name
+weight = es:[bx + 0xfd0] (word) / 10
+field  = es:[bx + 0xfd3] (byte)
+class  = es:[bx + 0xfda] (byte)
+flag   = es:[bx + 0xfd8] (word)
+```
+
+`[0xb094]:0xfbc` is **past the end of the EXE file** (`0x41d00 + 0xb094 + 0xfbc`
+= `0x4dd50` > file size `0x4cf10`), so the segment `[0xb094]` is not the image
+at that address.  **But** the offsets the sheet uses inside a record match the
+**static item table** exactly: `name@0`, `+0x14@20` (= `f2`), `+0x1c@28` (= `f6`),
+`+0x1e@30` (= the item class byte).  Four independent offset matches make it
+near-certain that `[0xb094]` is the **loaded item table** (the engine copies the
+185 x 32-byte table into a runtime segment at load).  So the sheet's per-item
+reads map onto the item record as:
+
+```
+weight  = f2 (record +0x14, word) / 10
+byte    = record +0x17 (the high byte of f3)
+flag    = f6 (record +0x1c, word)
+class   = the item class byte (record +0x1e = 30)
+name    = the 16-byte name (record +0)
+```
+
+That pins the sheet's per-item reads onto the item record, but it does **not**
+settle what each field means globally: the sheet divides record `+0x14` by 10 for
+its `Weight... ` line, yet the resulting values (Club 10.0, Broadsword 8.0,
+Leather armour 15.0) do not read like plausible weights, and the earlier
+item-table note called `+0x14` the *cost* (weapons) / AC bonus (armour).  So
+treat "`+0x14` = the weight the sheet shows" as the grounded part and the field's
+overall semantics as still open.  The sheet's ` Gold:` line is **not** summed
+from items at all: it prints the party's own 32-bit gold counter (`[bp-0x1a6]` +
+`0x31` = the `'$'` char) with the `%05ld$` format.  `Rations.. : ` formats a
+`%02d` count.
+
+The only residual uncertainty is whether the runtime copy is byte-identical to
+the static one (the loader may patch it), so mapping the sheet's reads onto the
+item record is a well-supported structural hypothesis rather than a fully
+oracle-confirmed fact.  The
+inventory *layout* (48 x 4-byte slots, item index at `+0x82`) is decoded and
+exposed (`CharSheet::inv`); confirming the patched fields needs the loader that
+populates `[0xb094]` (a main-loop/runtime concern, maintainer domain) or an
+oracle trace of the sheet's reads.  This is the one open item left in workstream
+B; everything else in this file is grounded against the static image and the
+shipped saves.
+
+### Open question: the stored item index base
+
+The `+0x82` byte is the item-table index.  Reading it as **1-based**
+(`item_by_index()`, `items()[v-1]`) yields the shipped party's canonical starting
+kits — Decker Leather armour (27) + Small shield (34) + Short sword (13); Handy
+Leather armour (27) + Warhammer (8) — while a 0-based reading would give War
+scythe/Warhammer.  The shipped data therefore supports **1-based**, matching the
+`item_by_index()` convention already in `port/char.*`, but the engine's own
+`[0xb094]` indexing (also `*32`) could not be confirmed statically to close the
+question.  `ROST/SHOP` (185 signed bytes) is 0-based over the item table (its
+`byte 0` is Club's slot, `-10`), so the two tables may use different bases.

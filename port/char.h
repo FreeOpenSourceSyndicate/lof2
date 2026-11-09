@@ -390,13 +390,38 @@ enum CharOffset : size_t {
     kCharSeed1b    = 0x1b,  // byte: seeded 0x0c, later reduced by the char gen
     kCharSeed4e    = 0x4e,  // dword: seeded 100 (weight-style base value)
     kCharSeed64    = 0x64,  // word: seeded 0x1324 (4900), later adjusted
-    // The character's own inventory slot indices, read by the character-sheet
-    // builder (raw image 0x2BEC0/0x2BEE6 = [bp-0x19e+0x68/+0x69]).
-    kCharInv68     = 0x68,  // byte: inventory slot index 0 (sheet builder)
-    kCharInv69     = 0x69,  // byte: inventory slot index 1 (sheet builder)
+    // The character's current / maximum magic points.  `+0x68` is the MAXIMUM
+    // and `+0x69` the CURRENT value: the spell routine at image 0x137AD clamps
+    // the current down to the maximum (`if +0x68 != 0 && +0x69 < +0x68:
+    // +0x69 = +0x68`) and the rest routine at 0x6440 restores it
+    // (`+0x69 = +0x68`).  Both are filled together by the routine at image
+    // 0xEC00..0xEC2B, which looks up a per-(class,level) table in the loaded
+    // data segment `[0xaf70]:0xa38` (16 bytes per class, indexed
+    // `16 * class_field(+0x1b) + level(+0x17)`, only while level < 16) and then
+    // adds +1 when Wisdom(+0x48) > 15 and +2 more when Intelligence(+0x47) > 15.
+    // The sheet's "Magic.... " line prints (current, maximum) = (+0x69, +0x68).
+    // NOTE: the pair is TRANSIENT in a save (a snapshot can hold a partly
+    // depleted current value), so it is projected verbatim, not recomputed.
+    kCharMagMax68  = 0x68,  // byte: maximum magic points
+    kCharMagCur69  = 0x69,  // byte: current magic points
     // The four seeded (value, level) skill pairs: +0x142+2n / +0x143+2n, n=0..3,
     // copied from rec[0x3b+2n] / rec[0x3c+2n] by the init routine's tail loop.
     kCharSkill142  = 0x142, // byte: first of four seeded skill values (stride 2)
+    // ---- inventory array ----------------------------------------------------
+    // The character carries 48 inventory slots of 4 bytes, based at +0x82
+    // (ends at +0x82 + 48*4 = +0x142, exactly where the skill pairs begin).
+    // Proven by the item-add routine (raw image 0xBF00): it scans for a free
+    // slot with `cmp byte es:[bx+si+0x82],0` over si = slot*4, and fills
+    //   +0x82 slot 0 : item index (0 = empty)
+    //   +0x83 slot 1 : auxiliary state byte (several routines store 0 here)
+    //   +0x84 slot 2 : per-item byte copied from a runtime table (small)
+    //   +0x85 slot 3 : condition/quality byte (100 = full; consumed down by 2)
+    // The sheet's "Weight"/"Rations"/"Gold" lines iterate this array.
+    kCharInv82     = 0x82,  // byte: base of the 48 x 4-byte inventory array
+    kCharInvCount  = 48,
+    kCharInvStride = 4,
+    // +0x25 is a load/carry capacity byte (10 for most, 15 for Cassandra).
+    kCharLoad25    = 0x25,  // byte: carrying capacity / load
     // Hit points.  The character-sheet builder at 28054/28067 reads the current
     // value from +0x22 and divides 100*current by the value at +0x20 to get the
     // HP percentage it shows, so +0x20 is the maximum and +0x22 the current HP
@@ -445,6 +470,16 @@ enum CharOffset : size_t {
                             //   subtracts 10 from the attribute byte +0x17d
 };
 
+// One 4-byte inventory slot (see kCharInv82).  `item` is the 1-based item-table
+// index (0 = empty); the remaining three bytes are auxiliary state the engine
+// keeps alongside it (class/condition/flag).
+struct InvSlot {
+    uint8_t item = 0;   // +0x00  item index (0 = empty slot)
+    uint8_t aux1 = 0;   // +0x01  auxiliary state byte
+    uint8_t aux2 = 0;   // +0x02  auxiliary state byte
+    uint8_t cond = 0;   // +0x03  condition/quality byte (100 = full)
+};
+
 // A decoded view of the fields the engine's character code reads directly from
 // the 410-byte (0x19a) struct, with the verified semantics.  `raw` is one such
 // struct (e.g. `SaveChar::raw` or a ROST record at +0x01).  This is a read-only
@@ -475,10 +510,13 @@ struct CharSheet {
     uint8_t  mod5f = 0;      // +0x5f  attribute modifier (mod5f + level17)
     uint8_t  flag6a = 0;     // +0x6a  flag (adds 50 to display byte +0x17c)
     uint8_t  flag0f = 0;     // +0x0f  status flag (==0 subtracts 10 from +0x17d)
-    // The character's own inventory slot indices (the two weapon/armour slots the
-    // sheet's hit-point and magic lines resolve item names from; see kCharInv68).
-    uint8_t  inv68 = 0;      // +0x68  inventory slot index 0
-    uint8_t  inv69 = 0;      // +0x69  inventory slot index 1
+    // The character's current / maximum magic points; the sheet's "Magic.... "
+    // line shows this pair (equal at rest).  See kCharMagMax68.
+    uint8_t  mag_max68 = 0;  // +0x68  maximum magic points
+    uint8_t  mag_cur69 = 0;  // +0x69  current magic points
+    uint8_t  load25 = 0;     // +0x25  carrying capacity / load
+    // The 48 four-byte inventory slots at +0x82 (see kCharInv82).
+    std::array<InvSlot, kCharInvCount> inv{};
 
     // HP as a percentage, computed exactly as the sheet builder does
     // (100 * hp_cur / hp_max, integer division); 0 when hp_max is 0.
