@@ -10,6 +10,14 @@ statistics block: the character-init routine's field mapping from an
 `analysis/lof.asm` `1DA8E..1DCBB` and verified against `GAMES/GAMEn` +
 `ROST/ROST` (Siegurd == class 0).
 
+**Log (2026-11-08, branch `work/agent-b-23`):** the SNSC seed mapping now also
+carries the four `(value, level)` skill pairs — `char +0x142+2n = rec[0x3b+2n]`,
+`char +0x143+2n = rec[0x3c+2n]`, n = 0..3 — copied by the init routine's tail
+loop (1DC00/1DC40, confirmed from the raw EXE bytes).  Added `kSnsSkill3b`/
+`kSnsSkill3c` + `kCharSkill142` to `SnsOffset`/`CharOffset`, extended `CharSeed`
+with `c142[4]`/`c143[4]`, taught `tools/spec.py --sns` to print the pairs, and
+asserted them in `char_test` (synthetic + real Ihl Kazar / Mask Bearer).
+
 ## Goal (from WORKSTREAMS.md)
 
 Decode character/monster/item statistics and combat tables, expose them as
@@ -443,16 +451,21 @@ against the shipped `GAMES/GAMEn` + `ROST/ROST` saves (Siegurd == SNSC class 0):
 | `0x2d` | 7  | `+0x1d` | `100 - n` | same seed, then overridden by the Dexterity rule (1BA40) |
 | `0x36` | 16 | `+0x56` | copy | speed (1..4) |
 | `0x2a` | 4  | `+0x7a+idx` | set 2 | picks which `+0x7a+n` slot is initialised |
+| `0x3b+2n` | 17+2n | `+0x142+2n` | copy | skill *value* (n = 0..3) |
+| `0x3c+2n` | 18+2n | `+0x143+2n` | copy | skill *level* (n = 0..3) |
 
 The routine also writes fixed values (char `+0x1b`=0x0c, `+0x20`=`+0x22`=
-`rand(1..rec[0x2c]/2)`, `+0x64`=0x1324, `+0x4e`=0x64, `+0x142`/`+0x143` from the
-four `rec[0x3b+2n]`/`rec[0x3c+2n]` skill pairs).  Exposed as `sns_char_seed()`
-(returns a `CharSeed`) plus the `SnsOffset` enum; `tests/char_test.cpp` checks
-both the record bytes and the resulting live-character fields.
+`rand(1..rec[0x2c]/2)`, `+0x64`=0x1324, `+0x4e`=0x64).  The four `+0x142`/`+0x143`
+skill pairs come from `rec[0x3b+2n]`/`rec[0x3c+2n]` (the loop at 1DC00/1DC40).
+Exposed as `sns_char_seed()` (returns a `CharSeed`, including `c142[4]`/`c143[4]`)
+plus the `SnsOffset` enum; `tests/char_test.cpp` checks both the record bytes and
+the resulting live-character fields.
 
 Example (class 0 Siegurd): `rec[0x4c]=1 -> char[0x18]=1`,
 `rec[0x2e]=65 -> char[0x1c]=65`, `rec[0x2d]=10 -> char[0x1e]=90`,
 `rec[0x36]=4 -> char[0x56]=4`; class 4 Dragon: `char[0x18]=2`, `char[0x1c]=45`.
+The skill pairs are non-zero only for classes 2 (Ihl Kazar), 3 (Mask Bearer) and
+4 (Dragon), which is where they are asserted.
 
 The named-field layout for the *remaining* stat bytes (0x26..0x4d) is only
 readable through the play loop (the runtime stat struct at `es:[bx+0x27xx]` is in
@@ -494,6 +507,8 @@ scenarios 0..9 have a single-digit file name.)
       `time_of_day_names()`).
 - [x] SNSC/NSC 40-byte stats-block -> character-struct seed mapping
       (`sns_char_seed()`, `SnsOffset`, `CharSeed`); verified against the saves.
+      Includes the four `+0x142`/`+0x143` skill pairs (`c142[4]`/`c143[4]`,
+      `rec[0x3b+2n]`/`rec[0x3c+2n]`), asserted on Ihl Kazar / Mask Bearer.
 - [x] Character-struct projection (`CharSheet`, `decode_char()`) plus the
       Dexterity-derived `+0x1d` rule (`char_stat1d_from_dex()`): the HP pair
       `+0x20` (max) / `+0x22` (current) is proven by the sheet builder at

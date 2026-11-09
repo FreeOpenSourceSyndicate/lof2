@@ -344,6 +344,11 @@ def dump_sns(path):
             v = r[off]
             out = (100 - v) & 0xFF if tf == "100-n" else v
             parts.append(f"rec[{off:#x}]={v}->{ch}={out}")
+        # Four (value, level) skill pairs -> char +0x142+2n / +0x143+2n.
+        for n in range(4):
+            parts.append(f"rec[{0x3b + 2 * n:#x}]={r[0x3b + 2 * n]}"
+                         f"/{r[0x3c + 2 * n]}->+{0x142 + 2 * n:#x}"
+                         f"/+{0x143 + 2 * n:#x}")
         print(f"        seed: " + "  ".join(parts))
 
 

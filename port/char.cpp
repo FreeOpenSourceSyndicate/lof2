@@ -452,6 +452,10 @@ CharSeed sns_char_seed(const SnsRecord& rec) {
     s.c1e = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);
     s.c56 = rec.stats[kSnsSpeed36 - 38];
     s.c7a_index = rec.stats[kSnsIndex2a - 38];
+    for (int n = 0; n < 4; ++n) {
+        s.c142[n] = rec.stats[kSnsSkill3b + 2 * n - 38];
+        s.c143[n] = rec.stats[kSnsSkill3c + 2 * n - 38];
+    }
     return s;
 }
 
