@@ -384,3 +384,45 @@ ega\twn\twn00..05 ega\up\*`.  So the town->wilderness transition is not reachabl
 with the current keys, and there is still no oracle dungeon frame.  This is
 purely a capture blocker; the decode and the code->sprite *structure* (below) are
 independent of it.
+
+### Round 4 — the maintainer's "play" golden does not reproduce (blocker report)
+
+Per the "if loading the file doesn't work, check whether the maintainer made
+progress on unblocking" instruction I re-checked the maintainer's branch
+(`origin/work/maintainer-town`, tip `5a6c7ea`).  Their new golden-test `play`
+scenario (the only oracle path they document) **does not reproduce** in this
+workspace, from a clean worktree at their exact tip:
+
+* Recipe: `LOF_EDUMP=<f> LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAUTO=0x18,0x03
+  LOF_KEYGAP=8 ./lof-native --dir game --headless --frames 1000 --shot /dev/null`.
+  Expected (their `tests/golden.txt`): `c46f4fe9be490a1b77560a1e8136441e`.
+  Observed: `b43512c10b9b22396b6b0dcdecf7a148` — for **every** game dir tried
+  (workspace, pristine extraction, slot-2-only) and every commit
+  (`ab42e4a`, `75dc673`, `5a6c7ea`).  The other six goldens (boot/look/open/add/
+  dism/erase) all match exactly, so my build and game data are sound.
+* Cause: after the save load the CPU jumps to `0000:0000` (the known
+  "zeroed return address" class) at a fixed `instr=10670017`, `frames=36`,
+  before the play loop starts.  `LOF_CRASHDBG=1` shows `ss:sp=4C92:B56A` with the
+  stack full of zeros.  The last INT 21h activity is the save read
+  (`GAMES\GAME  2`: 11834 + 4 + 1296 bytes); no `DNGS`/`EGA/Dn` file is opened.
+* The user's slot-1 save (`GAME1`, "The Temple") takes the same path: it is read
+  in full (`GAMES\GAME  1`: 11834 + 4 + 1296) then crashes identically.  It does
+  **not** read a DNGS dungeon, and its own 1296-byte region @11838 does not match
+  any `DNGS/DNGnn` tile layer (best 1201/1296 = floor-dominated, so it is not the
+  dungeon map either).  So neither save yields a dungeon oracle frame.
+
+### Data-hygiene bug found and fixed (do not re-break)
+
+`game/ROST/ROST` had drifted to 6625 bytes (shipped/pristine = 4555).  With the
+corrupted file, workstream B's `char_test` fails (`roster.size() == 11`); with
+the pristine file `make test` passes.  I restored `game/ROST/ROST` from
+`downloads/ext_msdos/legfaer/ROST/ROST`.  If a run ever mutates it, restore from
+the extraction — the engine only ever reads it.
+
+### Net state of workstream A
+
+Decode + walkable model are done and green (`dungeon_test`: 7 real cells, 29
+levels).  The DoD's remaining half — a first-person dungeon *render* — is blocked
+on an oracle frame, and the only two candidate oracles (maintainer's outdoor map,
+user's slot-1 save) are both unreachable here.  No further A work is possible
+without an unblock; stopping per the instruction.
