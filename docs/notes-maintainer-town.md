@@ -332,3 +332,24 @@ profession byte is the save record's offset **0x1b** (Decker=9/Paladin,
 Handy=3/Smith, Merlin=7/Magician, Cassandra=10/Healer, Assanla=2/Rogue;
 Siegurd=12, one past the end — likely `Scout` with a 0-based-vs-1-based skew).
 The stat line uses CHR2 band-1 symbol cells and is not yet decoded.
+
+### Party-panel professions (2026-11-09, later)
+
+The line under each name is the character's **profession**, drawn in the *same*
+CHR2 5x5 face but in **black (index 0)**; the names are white (index 15).  The
+profession byte is the save record's **+0x1b**, indexing the engine's own
+12-entry table (`Warrior Barbarian Rogue Smith Scout Priest Druid Magician
+Illusionist Paladin Healer Monk`) — already present in the port as
+`profession_names()` (`port/char_names.inc`, recovered from LOF.EXE 0x41e98).
+Verified: Decker=9/Paladin, Handy=3/Smith, Merlin=7/Magician,
+Cassandra=10/Healer, Assanla=2/Rogue all render exactly.  Play screen now
+**93.3%** (was 92.6%).
+
+Two remaining panel residues, both documented not guessed:
+- **Siegurd's profession** (byte 12) is one past the table, so the engine prints
+  two CHR2 band-1 symbol glyphs there; leaving it blank is the closest match.
+  Likely the byte is really *Scout* with a 0-vs-1 skew in the save format.
+- The **stat-number row** (y21-25 / y49-53, colour 8 dark gray) is 3 glyphs per
+  character; the first decodes to a digit (`2`,`6`,`2`,`5`,`1`,`3`) but the
+  glyphs are *not* plain CHR2 digit cells — a different (probably arithmetic)
+  encoding.  Not yet decoded; drawing it wrong lowers the match.

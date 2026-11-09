@@ -192,12 +192,13 @@ Progress:
 - [x] LOF play screen (static composition): `--play D0/DP001` draws the HUD
       background `EGA/UP/MSCR` with the first-person viewport tile
       `EGA/D0/DP001` blitted into the 120x119 window at (10,11), then the six
-      party-panel names from the save (`--save GAMES/GAMEn`) drawn in the
-      compact small-caps face. Matches the DOSBox slot-2 capture
-      `ref/oracle/play.png` at ~92.6% (residue = the engine's dynamic viewport
-      overlays and the panel's class/stat text). Guarded by
-      `tests/port_play_test.py` (`make golden-port`). The *interactive* play loop
-      (input, movement, re-rendering) is not yet implemented.
+      party-panel names and their professions from the save (`--save GAMES/GAMEn`)
+      drawn in the compact small-caps face (names white, professions black).
+      Matches the DOSBox slot-2 capture `ref/oracle/play.png` at ~93.3%
+      (residue = the engine's dynamic viewport overlays and the panel's
+      stat-number row). Guarded by `tests/port_play_test.py`
+      (`make golden-port`). The *interactive* play loop (input, movement,
+      re-rendering) is not yet implemented.
 - [x] VOR preloader: `EGA/IN/DRAG` (dragon title) then `EGA/IN/CRED` (credits).
       Both are pure image blits, so the port reproduces each *pixel-exactly*
       from the game data. Guarded by `tests/port_vor_test.py` (`make

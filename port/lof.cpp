@@ -125,13 +125,17 @@ int main(int argc, char** argv) {
             Font small;
             if (small.load(dir + "/EGA/UP/CHR2", &err)) {
                 SaveGame sg = load_save(save);
+                std::vector<std::string> profs = profession_names();
                 static const int kColX[3] = {148, 208, 268};
                 static const int kRowY[2] = {9, 37};
                 int slot = 0;
                 for (const SaveChar& c : sg.chars) {
                     if (slot >= 6) break;
                     if (c.present == 0 || c.name.empty()) continue;
-                    small.draw_small(s, kColX[slot % 3], kRowY[slot / 3], c.name, 15);
+                    int x = kColX[slot % 3], y = kRowY[slot / 3];
+                    small.draw_small(s, x, y, c.name, 15);
+                    if (c.profession < profs.size())
+                        small.draw_small(s, x, y + 6, profs[c.profession], 0);
                     slot++;
                 }
             }
