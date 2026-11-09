@@ -309,6 +309,10 @@ enum SnsOffset : size_t {
     kSnsBody2d  = 0x2d,  // byte; char +0x1e = 100 - value, char +0x1d = same
     kSnsBody2e  = 0x2e,  // byte; char +0x1c (45..75, a base stat)
     kSnsSpeed36 = 0x36,  // byte; char +0x56 (1..4)
+    // Four (value, level) skill pairs: char +0x142+2n = rec[0x3b+2n] and
+    // char +0x143+2n = rec[0x3c+2n], n = 0..3 (the loop at 1DC00/1DC40).
+    kSnsSkill3b = 0x3b,  // byte; first of four skill values, stride 2
+    kSnsSkill3c = 0x3c,  // byte; first of four skill levels, stride 2
     kSnsClass4c = 0x4c,  // byte; char +0x18 (1 for PCs, 2 for big monsters)
 };
 
@@ -322,6 +326,11 @@ struct CharSeed {
     uint8_t c1e = 0;  // 100 - rec[0x2d]
     uint8_t c56 = 0;  // rec[0x36]
     uint8_t c7a_index = 0;  // rec[0x2a]; char[0x7a + index] is then set to 2
+    // The four seeded skill pairs: c142[n] -> char +0x142 + 2n (rec[0x3b+2n]),
+    // c143[n] -> char +0x143 + 2n (rec[0x3c+2n]).  Confirmed byte-for-byte on
+    // Siegurd (class 0, all zero) and on the class-2/3 records that carry data.
+    uint8_t c142[4] = {0, 0, 0, 0};
+    uint8_t c143[4] = {0, 0, 0, 0};
 };
 
 // Apply the SNSC/NSC init mapping to a class record (see `SnsOffset`).
@@ -368,6 +377,9 @@ enum CharOffset : size_t {
     kCharStat1e    = 0x1e,  // byte: body stat (100 - rec[0x2d])
     kCharSpeed56   = 0x56,  // byte: speed (1..4)
     kCharSeed7a    = 0x7a,  // byte: base of the +0x7a+n seed slots
+    // The four seeded (value, level) skill pairs: +0x142+2n / +0x143+2n, n=0..3,
+    // copied from rec[0x3b+2n] / rec[0x3c+2n] by the init routine's tail loop.
+    kCharSkill142  = 0x142, // byte: first of four seeded skill values (stride 2)
     // Hit points.  The character-sheet builder at 28054/28067 reads the current
     // value from +0x22 and divides 100*current by the value at +0x20 to get the
     // HP percentage it shows, so +0x20 is the maximum and +0x22 the current HP

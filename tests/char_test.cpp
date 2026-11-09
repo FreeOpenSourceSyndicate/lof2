@@ -112,12 +112,21 @@ static void synthetic_spec() {
     sns.stats[kSnsBody2e - 38] = 65;
     sns.stats[kSnsSpeed36 - 38] = 4;
     sns.stats[kSnsClass4c - 38] = 2;
+    // Four (value, level) skill pairs, distinct so the stride-2 mapping is checked.
+    for (int n = 0; n < 4; ++n) {
+        sns.stats[kSnsSkill3b + 2 * n - 38] = (uint8_t)(10 + n);
+        sns.stats[kSnsSkill3c + 2 * n - 38] = (uint8_t)(1 + n);
+    }
     CharSeed s = sns_char_seed(sns);
     assert(s.c18 == 2);
     assert(s.c1c == 65);
     assert(s.c1d == 90 && s.c1e == 90);   // 100 - 10
     assert(s.c56 == 4);
     assert(s.c7a_index == 1);
+    for (int n = 0; n < 4; ++n) {
+        assert(s.c142[n] == (uint8_t)(10 + n));
+        assert(s.c143[n] == (uint8_t)(1 + n));
+    }
 
     // decode_char(): the 410-byte struct projection.  Build one with distinct
     // values at every mapped offset and confirm each lands in the right field.
@@ -423,6 +432,16 @@ static int real_data() {
     // Monsters carry class 2 (e.g. the Dragon) and a distinct body value.
     CharSeed dseed = sns_char_seed(snsc[4]);
     assert(dseed.c18 == 2 && dseed.c1c == 45 && dseed.c56 == 4);
+
+    // Skill pairs: the classes that carry skill data (2 = Ihl Kazar, 3 = Mask
+    // Bearer) seed char +0x142/+0x143 with stride 2 straight from rec[0x3b..].
+    CharSeed kseed = sns_char_seed(snsc[2]);
+    const uint8_t* kst = snsc[2].stats;
+    for (int n = 0; n < 4; ++n) {
+        assert(kseed.c142[n] == kst[kSnsSkill3b + 2 * n - 38]);
+        assert(kseed.c143[n] == kst[kSnsSkill3c + 2 * n - 38]);
+    }
+    assert(kseed.c142[0] == 28 && kseed.c143[0] == 2);   // Ihl Kazar
 
     // decode_char() projects the fields the engine reads directly.  The HP pair
     // (+0x20 max / +0x22 current) is proven by the sheet builder at 28054/28067
