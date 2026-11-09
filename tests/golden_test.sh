@@ -38,8 +38,12 @@ scenario() {
 
 # "boot" = the main menu; the rest press a menu hot-key (the menu is
 # keyboard-driven) and capture the resulting screen: L=character, O=open,
-# A=add, D=dismiss, E=erase.  "town" opens the save (O then Enter) and enters
-# the play loop -- the in-game screen the drop-in's play loop must reproduce.
+# A=add, D=dismiss, E=erase.  "play" opens save slot 2 and enters the play
+# loop -- the in-game screen the drop-in's play loop must reproduce.  Slot 2 is
+# the only shipped save the engine accepts ("GAMES\GAME  2"); the others fail
+# the validity check, so O+Enter (slot 1) never leaves the open dialog.  Slot 2
+# drops the party onto the wilderness map in front of the town, and the load is
+# long and its timing varies, so the key feed must be adaptive (LOF_KEYAUTO).
 run() {
     scenario boot
     scenario look  LOF_KEYFRAME=10 --keys 0x26
@@ -47,7 +51,7 @@ run() {
     scenario add   LOF_KEYFRAME=10 --keys 0x1e
     scenario dism  LOF_KEYFRAME=10 --keys 0x20
     scenario erase LOF_KEYFRAME=10 --keys 0x12
-    scenario town  LOF_KEYFRAME=10 --keys 0x18,0x1c
+    LOF_KEYAUTO=0x18,0x03 LOF_KEYGAP=8 scenario play --frames 1000
 }
 
 if [ "${1:-}" = "--record" ] || [ ! -f "$GOLDEN_FILE" ]; then
