@@ -209,8 +209,10 @@ template-matching one `D0` tile against a full frame failed — the frame is a
 - [ ] Tile code -> `EGA/Dn/DPnnn` mapping.  A first-person viewport render is
       almost certainly built from these tiles, but template-matching the `D0`
       tiles against the captured town frame failed (best match ~50% of pixels
-      differ = no match), so the viewport origin/geometry or the per-tile
-      masking is not what I assumed.  **See "The `ega\dN\dpNNN` string table"
+      differ = no match).  **Caveat:** that test was uninformative — the captured
+      frame was the *town*, which is drawn from `EGA/twn/twn00..05`, not from
+      `D0`, so a mismatch was expected and does not falsify the viewport idea.
+      **See "The `ega\dN\dpNNN` string table"
       below**: the map tile codes are *not* sprite indices, so a logical-tile ->
       sprite lookup table exists in `LOF.EXE` and must be found before the
       viewport can be drawn.
