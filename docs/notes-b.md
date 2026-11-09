@@ -755,3 +755,50 @@ on the synthetic struct and on `GAME1`.
 
 `+0x25` is a small **load/carry** byte (`10` for most of the shipped party, `15`
 for Cassandra) — exposed as `kCharLoad25`/`CharSheet::load25`.
+
+## Boundary: the sheet's `Weight`/`Rations`/`Gold` lines (runtime segment) — 2026-11-08
+
+The character-sheet routine that prints `Weight... `, `Rations.. : ` and
+` Gold:` is at raw image offset **`0x2BFxx`–`0x2C6xx`** (its label block lives at
+DS `0x920d`..`0x9302`, DS base `0x41d00`; the "Experience " label it also prints
+is at DS `0x9283` = raw `0x4af83`).  It iterates the character's inventory
+array (the `+0x82` slots decoded above) and, for each occupied slot, reads a
+**per-item stats table**:
+
+```
+bx = stored_item_index * 32
+es = [0xb094]                       ; a RUNTIME segment, not the EXE image
+name   = es:[bx + 0xfbc]            ; 16-byte item name
+weight = es:[bx + 0xfd0] (word) / 10
+field  = es:[bx + 0xfd3] (byte)
+class  = es:[bx + 0xfda] (byte)
+flag   = es:[bx + 0xfd8] (word)
+```
+
+`[0xb094]:0xfbc` is **past the end of the EXE file** (`0x41d00 + 0xb094 + 0xfbc`
+= `0x4dd50` > file size `0x4cf10`), so this table is **not** in the static image:
+the segment `[0xb094]` is built at load/run time (like the item table's own
+runtime copies) and cannot be recovered by reading `LOF.EXE`.  The sheet's
+`Gold:` also reads `[0xb094]` at `+0x10da` (the item's value/cost) and formats a
+32-bit `%05ld$`; `Rations.. : ` formats a `%02d` count.
+
+**Status:** the inventory *layout* (48 x 4-byte slots, item index at `+0x82`) is
+decoded and exposed (`CharSheet::inv`); the *per-item* weight/value/class fields
+the sheet sums are read from the runtime `[0xb094]` table and are therefore out
+of reach for a static reader.  Resolving them needs either the loader that
+populates `[0xb094]` (a main-loop/runtime concern, maintainer domain) or an
+oracle trace of the sheet's reads (`LOF_I21`/`LOF_READ` at the character sheet).
+This is the one open item left in workstream B; everything else in this file is
+grounded against the static image and the shipped saves.
+
+### Open question: the stored item index base
+
+The `+0x82` byte is the item-table index.  Reading it as **1-based**
+(`item_by_index()`, `items()[v-1]`) yields the shipped party's canonical starting
+kits — Decker Leather armour (27) + Small shield (34) + Short sword (13); Handy
+Leather armour (27) + Warhammer (8) — while a 0-based reading would give War
+scythe/Warhammer.  The shipped data therefore supports **1-based**, matching the
+`item_by_index()` convention already in `port/char.*`, but the engine's own
+`[0xb094]` indexing (also `*32`) could not be confirmed statically to close the
+question.  `ROST/SHOP` (185 signed bytes) is 0-based over the item table (its
+`byte 0` is Club's slot, `-10`), so the two tables may use different bases.
