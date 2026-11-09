@@ -394,40 +394,33 @@ Verified against the DOSBox oracle (`ref/oracle/`):
 * The status fields read `Direction`, `Time of day`, `Spirits`, `Rations`
   (e.g. `Spirits Good`, `Rations 19`).
 
-### KNOWN BUG — emulator crashes on the slot-1 (dungeon) load
+### FIXED BUG — emulator crashed on the slot-1 (dungeon) load
 
-The analysis emulator dies with `cs:ip=0000:0000` ~10.67M instructions after
-`O`+`1`, i.e. right after the save is read — the same class of bug as the fixed
-`RETF`-to-`0000:0000` (a corrupted far-return).  The real game (DOSBox) loads
-the same save fine, so this is an emulator-only defect and it is what blocks
-validating the first-person render against an oracle.  Repro:
+The analysis emulator used to die with `cs:ip=0000:0000` ~10.67M instructions
+after `O`+`1`, right after the save is read.  **Root cause: the REP CMPS/SCAS
+handlers in `src/cpu.cpp` forced `CX=0` after the loop instead of leaving the
+*remaining* count in `CX`.**  The MS-C run-time's `strlen` is `repne scasb; not
+cx; dec cx`, so it returned `0xFFFE`.  That garbage width reached the printf
+width field for `sprintf(dest, "%2d%%", 50)`, which then emitted `"    50"`
+(four spurious pad spaces) into the caller's 4-byte stack local at `[bp-4]`
+(`3A8D:46FE`), overwriting the saved `BP` and the far-return frame; the eventual
+`RETF` jumped to `0000:0000`.
+
+Fix (commit `cpu: fix REP CMPS/SCAS ...`): decrement `CX` per iteration and stop
+on the REP condition, so an early ZF exit leaves `CX != 0`.  Regression test:
+`tests/cpu_test.cpp::test_string_rep`.  After the fix the slot-1 load completes
+and the boot menu renders measurably closer to the DOSBox oracle (mean abs diff
+29.0 -> 20.9).  Slot 2 (wilderness) was unaffected because its formatted values
+happened not to overflow a buffer.
+
+Repro (now clean):
 
 ```sh
 LOF_RING=1 LOF_CRASHDBG=1 LOF_CMDLEN=3 LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 \
   ./lof-native --dir game --headless --frames 1500 --shot /dev/null
 ```
 
-Last instructions: `... 1895 C3 -> 1B41 CB -> 3A8D:2E9D 83 -> 3A8D:2EA0 CB ->
-3A8D:48FB 5E 5F 8B 5D CB` — a far return whose stack word (bp) is `3035`
-(ASCII `"50"`), so a value is being written over the return frame.  Slot 2
-(wilderness) loads cleanly, so it is data-dependent.
-
-**Root cause (located with `LOF_WATCH`).**  The return slot is clobbered by the
-C runtime's buffered-output path: the loop at `3F1E:12D7` reads a byte from the
-caller's buffer (`les bx,[bp+6]; mov al,es:[bx]`), takes the stream buffer
-pointer from `[0xb1fa]` and does `mov es:[di],al` (`3F1E:12EB`), i.e. it is
-`fputc`-style output into a stdio buffer.  The buffer address it uses
-(`0x57E84`, DS-relative `0xB564`) lies **inside LOF's own segment and above the
-current stack pointer** (`SS=DS=0x4C92`, `SP=0xB544`), so the write lands on the
-return address.  The bytes written are the formatted string `"    50"`
-(`20 20 20 20 35 30`).  In real DOS the C-runtime heap/buffer sits *below* the
-stack; here the bump allocator has grown it up into the stack, so this is the
-same memory-layout family as the fixed `AH=4Ah` bug and is emulator-only.
-
-```sh
-LOF_WATCH=57e80:57ea0 LOF_CMDLEN=3 LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 \
-  ./lof-native --dir game --headless --frames 1500 --shot /dev/null
-```
+### Internal clock (game behaviour, not a bug)
 
 The engine has an **internal clock** that advances on its own; the phase of day
 (`Midnight`, `Dawn`, `Early morning`, `Morning`, `Midday`, `Afternoon`,
