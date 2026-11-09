@@ -182,3 +182,17 @@ with a 5032-pixel diff in x[139..303] y[92..195] — the map viewport redraws.
   (`src/main.cpp`).
 * `LOF_KEYLOG=1` — logs every key the game consumes (who / scancode /
   instruction count) and every push (`src/machine.cpp`).
+
+## Residual menu diff: 100 px, all a 1-px seam in the top-left corner
+
+`make golden-port` reports `diff=100/64000` (left box=33, top chrome=37,
+right menu=0, bottom strip=0).  Every remaining pixel is in the rectangle
+`x[0..25] y[0..15]`, i.e. the top-left corner where the town image meets the
+`MSCR` frame bevel.
+
+Reading the colour indices side by side, the oracle paints the frame bevel
+(`F`/`3`/`8`) along a 1-px diagonal there while the port paints the town
+image's colours (`2`/`A`/`E`) — the port's town blit overruns the frame bevel by
+one pixel along that seam.  It is cosmetic (0.16%), not a palette or text bug.
+Not chased further: the town screen itself (a whole missing drop-in screen) is
+worth more than 100 corner pixels.
