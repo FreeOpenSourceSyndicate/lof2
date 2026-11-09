@@ -147,6 +147,9 @@ static void synthetic_spec() {
     chr[kCharStat1e] = 90;
     put16(chr, kCharHpMax20, 40);
     put16(chr, kCharHpCur22, 10);
+    // 32-bit experience: low word +0x6c, high word +0x6e.
+    put16(chr, kCharExp6c, 0x1234);
+    put16(chr, kCharExp6c + 2, 0x0001);
     chr[kCharCon44] = 14;
     chr[kCharStr45] = 19;
     chr[kCharDex46] = 16;
@@ -160,6 +163,7 @@ static void synthetic_spec() {
     assert(ch.class18 == 1 && ch.base1c == 65 && ch.stat1d == 15 &&
            ch.stat1e == 90);
     assert(ch.hp_max == 40 && ch.hp_cur == 10 && ch.hp_percent() == 25);
+    assert(ch.exp == 0x00011234u);   // low +0x6c, high +0x6e
     assert(ch.con44 == 14 && ch.str45 == 19 && ch.dex46 == 16 &&
            ch.int47 == 12 && ch.wis48 == 15);
     assert(ch.speed56 == 2);
@@ -467,6 +471,14 @@ static int real_data() {
     CharSheet dkr = decode_char(sv.chars[0].raw.data());
     assert(dkr.con44 == 14 && dkr.str45 == 19 && dkr.dex46 == 14 &&
            dkr.int47 == 12 && dkr.wis48 == 15);
+    // The 32-bit experience accumulator (+0x6c low / +0x6e high).  GAME1 holds
+    // non-zero, distinct values per character (Decker 379, Siegurd 699, Handy
+    // 231); they are small so the high word stays 0, and the accumulator must
+    // not borrow from a neighbour.  Siegurd is the un-rolled template, but its
+    // experience is still set.
+    assert(dkr.exp == 379);
+    assert(cs.exp == 699);
+    assert(decode_char(sv.chars[2].raw.data()).exp == 231);
     // Every in-use character: current HP never exceeds the maximum, the HP
     // percentage matches the integer-division formula, and +0x1d is consistent
     // with the Dexterity rule.  The save carries spare/garbage slots too (the
@@ -491,10 +503,11 @@ static int real_data() {
 static void print_char(FILE* out, const CharSheet& c, size_t i) {
     fprintf(out, "[%2zu] %-12s present=%d class=%d base=%d stat1d=%d "
                  "stat1e=%d hp=%d/%d (%d%%) rnk=%d con=%d str=%d dex=%d "
-                 "int=%d wis=%d spd=%d\n",
+                 "int=%d wis=%d spd=%d exp=%u\n",
             i, c.name.empty() ? "<none>" : c.name.c_str(), c.present, c.class18,
             c.base1c, c.stat1d, c.stat1e, c.hp_cur, c.hp_max, c.hp_percent(),
-            c.level17, c.con44, c.str45, c.dex46, c.int47, c.wis48, c.speed56);
+            c.level17, c.con44, c.str45, c.dex46, c.int47, c.wis48, c.speed56,
+            c.exp);
 }
 
 int main(int argc, char** argv) {
