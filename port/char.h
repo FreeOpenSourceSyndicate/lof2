@@ -292,6 +292,7 @@ enum CharOffset : size_t {
     // The init routine at 1BA40 sets stat1d = 0x0a, and when level46 > 0x0f
     // overrides it with 5*level46 - 0x41 + 1; both are byte quantities.
     kCharStat1d    = 0x1d,  // byte
+    kCharProf1b    = 0x1b,  // byte: index into profession_names()
     kCharLevel46   = 0x46,  // byte
 };
 

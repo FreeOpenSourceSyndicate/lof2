@@ -207,6 +207,15 @@ static int real_data() {
     assert(sv.chars[0].raw[kCharStat1d] == 0x0a);
     assert(sv.chars[0].raw[kCharLevel46] == 0x0e);
 
+    // The play-screen panel's profession line comes from byte 0x1b, indexing
+    // profession_names() (LOF.EXE table at 0x41e98).  GAME1's Decker is a
+    // Paladin (9) and Handy a Smith (3); Siegurd carries 12, one past the
+    // table, so the panel leaves his line blank.
+    assert(sv.chars[0].raw[kCharProf1b] == sv.chars[0].profession);
+    assert(sv.chars[0].profession == 9 && profession_names()[9] == "Paladin");
+    assert(sv.chars[2].profession == 3 && profession_names()[3] == "Smith");
+    assert(sv.chars[1].profession == 12 && sv.chars[1].profession >= kProfessionCount);
+
     // Item table (transcribed from LOF.EXE; no data file carries it).
     const auto& it = items();
     assert(it.size() == kItemCount);
