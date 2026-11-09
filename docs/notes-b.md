@@ -39,6 +39,15 @@ plausible fields (verify against the emulator's reads with `LOF_I21=1` +
   the level is `+0x17`.  Extended `CharSheet`/`CharOffset` in `port/char.{h,cpp}`,
   added `decode_char` coverage + a synthetic projection test in `char_test`, and
   taught `tools/spec.py --save` to print the attributes.  `make test` passes.
+- (2026-11-08, branch `work/agent-b-exp`) Decoded the 32-bit **experience**
+  accumulator at char `+0x6c` (low word) / `+0x6e` (high word): every reward
+  site adds to it with an `add`/`adc` pair (e.g. `0x412`, `0xf28`) and the
+  reward printer pushes the two words as one dword.  The character-sheet label
+  block carries "Experience " + `%011ld` (DS:0xaf83) and the party table has an
+  "Exp." column.  Added `kCharExp6c`/`CharSheet::exp` + `rd32`, projected it in
+  `decode_char`, printed it in `tools/spec.py --save`, and asserted it on the
+  synthetic struct and the live `GAMES/GAME1` characters (Decker 379, Siegurd
+  699, Handy 231).  `make test` passes.
 
 ## Format findings (from data + `analysis/lof.asm`)
 
@@ -228,6 +237,7 @@ The attribute block and level field are grounded independently in the character
 | 0x1e | byte | body stat `100 - rec[0x2d]` (SNSC seed) |
 | 0x20 | word | maximum hit points |
 | 0x22 | word | current hit points |
+| 0x6c | dword | **experience** (32-bit: low word `+0x6c`, high word `+0x6e`) |
 | 0x44 | byte | **Constitution** |
 | 0x45 | byte | **Strength** |
 | 0x46 | byte | **Dexterity** |
@@ -520,11 +530,22 @@ scenarios 0..9 have a single-digit file name.)
       grounded in the sheet builder (0x2676E) and the training/level-up routines
       (0x95B0/0x9144).  Resolves the earlier `+0x46` "level vs Dexterity"
       conflict: `+0x46` is Dexterity, the level is `+0x17`.
+- [x] 32-bit **experience** accumulator `+0x6c`/`+0x6e` (`kCharExp6c`,
+      `CharSheet::exp`), grounded in the reward add/adc pairs and the sheet
+      label "Experience " + `%011ld` (DS:0xaf83); asserted on the live save.
 - [x] Tests assert element types/indices, the 665-record total, ROST tail values,
       all-present roster slots, and the save header/records/trailer.
+- [x] Party-status view of the struct: `+0x24` body state, the attribute
+      modifiers `+0x5b`/`+0x5c`/`+0x5e`/`+0x5f` and the flag `+0x6a`, grounded in
+      the party-status builder `27F4E..280A4` (adds each modifier to a base
+      field `+0x1c`/`+0x1e`/`+0x17`; `+0x6a` gates a `+50` to the HP byte) and
+      the death routine `1919C`/`191CC`.  Exposed as `kCharBody24`/`kCharFlg5b`…
+      /`kCharFlag6a` and `CharSheet::body24/mod5b/mod5c/mod5e/mod5f/flag6a`;
+      asserted on a synthetic struct and on `GAMES/GAME1`.
 - [ ] Remaining B: the full named stat-field semantics of the SNSC 40-byte block
-      and the remaining 410-byte character-struct fields — both need the play
-      loop (maintainer domain).
+      and the remaining 410-byte character-struct fields — the exact *names* the
+      engine prints for the `+0x5b`-family modifiers still need the live status
+      line (maintainer domain).
 
 ## Character-struct projection (`CharSheet`) — 2026-11-08
 
@@ -556,3 +577,77 @@ Correction (2026-11-08): an earlier revision of this section called `+0x46`
 "level" and named the helper `char_stat1d_from_level`.  `+0x46` is **Dexterity**;
 the level is `+0x17` (see the "410-byte character struct — grounded offsets"
 table above and the sheet builder at 0x2676E).
+
+## Party-status view of the character struct — 2026-11-08
+
+The town/play loop's **party-status builder** walks the party and packs a
+**12-byte status row per member** into a display block at `es:[si+0x179..0x184]`
+(segment `[0xb0b0]`); the party renderer at `0x134A2` draws it.
+
+> **Listing caveat.** `analysis/lof.asm` *labels* this builder `27F4E`, but its
+> disassembly has **desync gaps** through the middle (the literal markers
+> `... ; (data / unreached bytes skipped)` between `27F71` and `27FA7`, and
+> again at `27FAC`/`27FAD`), so the lines inside those gaps are mis-decoded —
+> e.g. the bogus `and bl, byte ptr [bx + di - 0x3dcd]` at `27FAD`.  The tail
+> re-syncs and is correct.  Trust the raw image, not the listing, in this range.
+> The builder's real file offset is **`0x2D436`**; verify a read against raw
+> bytes, e.g. the `+50` gate is `26 80 7f 6a 00 74 0a` / `26 80 84 7c 01 32`
+> (`cmp byte es:[bx+0x6a],0` / `add byte es:[si+0x17c],0x32`) at file `0x2D4B8`.
+> (The listing's `27F4E` sits ~`0x1A9xx` below the file offset; the base is not
+> a single constant across routines, which is why the raw image is the oracle.)
+
+Display row (offsets into the display block), all read straight from the
+410-byte struct:
+
+| disp | builder (image) | source | value |
+|-----:|-----------------|--------|-------|
+| `+0x176` | `2D474` | const | `2` (slot-in-use marker) |
+| `+0x177` | `2D47A` | loop idx | party index |
+| `+0x178` | `2D484` | `[+0x18]` | class flag (verbatim) |
+| `+0x179` | `2D570` | loop idx | party index (again) |
+| `+0x17a` | `2D55C` | `[+0x22]`,`[+0x20]` | `100 * hp_cur / hp_max` |
+| `+0x17b` | `2D4F7` | `[+0x24]` | body/health state (verbatim) |
+| `+0x17c` | `2D49B` | `[+0x22]` | `hp_cur >> 3` (sar 3, `+0x32` if `+0x6a`) |
+| `+0x17d` | `2D50B` | `[+0x5b]`,`[+0x1e]` | `100 - (mod5b + stat1e)`, `-0xa` if `[+0x0f]==0` |
+| `+0x17e` | `2D523` | `[+0x5c]`,`[+0x1c]` | `mod5c + base1c` |
+| `+0x17f` | `2D537` | `[+0x5f]`,`[+0x17]` | `mod5f + level17` |
+| `+0x180` | `2D547` | `[+0x22]` | current HP (word copy) |
+| `+0x184` | `2D436`/… | `[+0x19a*idx+0x30]` | pointer to the struct (dword) |
+
+Grounded struct reads (all directly from the 410-byte struct):
+
+| off | builder (image) | arithmetic | meaning (bounded) |
+|----:|-----------------|------------|-------------------|
+| `+0x24` | `2D4F7` | copied to display `+0x17b` | body/health state; the death routine (`1919C`/`191CC`) tests it `== 2` / `== 3` |
+| `+0x22` | `2D49B`/`2D547`/`2D55C` | `100*[+0x22]/[+0x20]`, `>>3` | current HP |
+| `+0x20` | `2D560` | divisor of the HP percentage | maximum HP (already known) |
+| `+0x5b` | `2D50B` | `100 - ([+0x5b]+[+0x1e])` -> `+0x17d` | attribute modifier |
+| `+0x5c` | `2D523` | `[+0x5c]+[+0x1c]` -> `+0x17e` | attribute modifier |
+| `+0x5f` | `2D537` | `[+0x5f]+[+0x17]` -> `+0x17f` | attribute modifier |
+| `+0x0f` | `2D579` | `== 0` -> `-= 0xa` on `+0x17d` | status-line flag |
+| `+0x6a` | `2D4B8` | when `!= 0`, `+= 50` to `+0x17c` | flag |
+
+So the modifier bytes are **bounded signed values added to a base field** (the
+builder adds them to `+0x1c`/`+0x1e`/`+0x17`).  The character generator zeroes
+all of them (`1B8C0..1B92E`), so a fresh save carries 0.  The encounter code
+reads `signed(+0x5e) + Strength` and compares it against `0x11` (image `0x13E10`
+/ `0x1BD50`; an early `E9 …` branch in the listing range was another desync
+artifact, not a real `+= 2`), and has an `inc byte es:[bx+0x5e]` bump (image
+`0x1BD63`).
+
+`+0x6a` correlates with the class slot on the shipped save (Decker 0, Handy 1,
+Merlin 2, Cassandra 1, Assanla 0) and is *not* zeroed by the generator, so it is
+a per-character flag rather than a pure stat.  `+0x0f` is `1` for every live
+character.  The exact name of each modifier
+(the game's own label for it) is not yet pinned; they are exposed descriptively
+as `kCharFlg5b/5c/5e/5f`, `kCharFlag6a`, `kCharFlg0f` and
+`CharSheet::mod5b/5c/5e/5f`, `body24`, `flag6a`, `flag0f`; the derived display
+row is exposed as `CharSheet::hp_pct()/hp_mod()/attr_a()/attr_b()/attr_c()`.
+`char_test` asserts them on a synthetic struct and on `GAMES/GAME1` (modifiers
+all 0; Handy body 1 flag 1 row `[81 1 51 50 100]`, Merlin body 2 flag 2).
+
+`port/char.{h,cpp}` expose the projection so the front-end (maintainer) can
+consume it without re-deriving the arithmetic: `party_row(CharSheet, index)`
+builds one `PartyRow`, and `party_status(SaveGame)` builds the whole live party
+(slots with `present == 1`, in order).  `char_test` asserts the six-member
+`GAME1` projection.

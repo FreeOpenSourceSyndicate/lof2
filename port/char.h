@@ -386,6 +386,46 @@ enum CharOffset : size_t {
     // (both words).  Every live save character satisfies current <= maximum.
     kCharHpMax20   = 0x20,  // word: maximum hit points
     kCharHpCur22   = 0x22,  // word: current hit points
+    // 32-bit experience accumulator: +0x6c is the low word, +0x6e the high word.
+    // Identified by the pervasive 32-bit accumulator pattern on the pair -- the
+    // reward sites add with `add word [bx+si+0x6c], imm16` / `adc word
+    // [bx+si+0x6e], imm16` (e.g. +0x86a0:0x0001 at 0x412, +0x61a8 at 0xf28), and
+    // the reward printer pushes [bx+si+0x6e] then [bx+si+0x6c] as one dword --
+    // together with the character-sheet label block, which carries the label
+    // "Experience " followed by the 32-bit format `%011ld` (DS:0xaf83), and the
+    // party table's "Exp." column.  The 32-bit value is the only field in the
+    // struct that pair describes.
+    kCharExp6c     = 0x6c,  // dword (low word at 0x6c, high word at 0x6e)
+    // ---- party-status view (grounded in the party-status builder) ----
+    // The builder walks the party, reads the fields below from each 410-byte
+    // struct, and packs a 12-byte status row per member into the display block
+    // at es:[si+0x179..0x184] (segment [0xb0b0]); the party renderer at 0x134A2
+    // draws it.  NOTE: the annotated listing `analysis/lof.asm` labels the
+    // builder at 27F4E but is *desynced* through its middle (an extra/mis-decoded
+    // instruction shifts the later addresses), so its "+0x6a" line is wrong.
+    // The ground truth is the raw image: the builder lives at image offset
+    // 0x2D436 (the listing's 27F4E is 0x2D4xx there) and the +50 gate really is
+    // `cmp byte es:[bx+0x6a],0`.  These reads pin the offsets; the exact game
+    // meaning of each is only partly determined, so the names stay descriptive.
+    kCharBody24    = 0x24,  // byte: body/health state; the builder copies it to
+                            //   the display byte +0x17b, and the death routine
+                            //   (0x1919C/0x191CC) tests it for == 2 / == 3
+    kCharFlg5b     = 0x5b,  // byte: attribute modifier; builder shows
+                            //   100 - (mod5b + stat1e)
+    kCharFlg5c     = 0x5c,  // byte: attribute modifier; builder shows
+                            //   mod5c + base1c
+    kCharFlg5f     = 0x5f,  // byte: attribute modifier; builder shows
+                            //   mod5f + level17
+    kCharFlg5e     = 0x5e,  // byte: attribute modifier; the encounter code
+                            //   compares signed(mod5e) + Strength against 0x11
+                            //   (image 0x13E10 / 0x1BD50) and has an
+                            //   `inc byte es:[bx+0x5e]` bump (image 0x1BD63)
+    // The init routine zeroes all five (1B8C0..1B92E); a fresh save therefore
+    // carries 0.  They are bounded signed modifiers added to a base value.
+    kCharFlag6a    = 0x6a,  // byte: flag; when non-zero the builder adds 50 to
+                            //   the display byte +0x17c (the "hp_mod" row)
+    kCharFlg0f     = 0x0f,  // byte: status-line flag; when zero the builder
+                            //   subtracts 10 from the attribute byte +0x17d
 };
 
 // A decoded view of the fields the engine's character code reads directly from
@@ -404,16 +444,41 @@ struct CharSheet {
     uint8_t  stat1e = 0;     // +0x1e  body stat (100 - rec[0x2d])
     int16_t  hp_max = 0;     // +0x20  maximum hit points
     int16_t  hp_cur = 0;     // +0x22  current hit points
+    uint32_t exp = 0;        // +0x6c  32-bit experience (low +0x6c, high +0x6e)
     uint8_t  con44 = 0;      // +0x44  Constitution
     uint8_t  str45 = 0;      // +0x45  Strength
     uint8_t  dex46 = 0;      // +0x46  Dexterity
     uint8_t  int47 = 0;      // +0x47  Intelligence
     uint8_t  wis48 = 0;      // +0x48  Wisdom
     uint8_t  speed56 = 0;    // +0x56  speed (1..4)
+    uint8_t  body24 = 0;     // +0x24  body/health state (2 dying, 3 dead)
+    uint8_t  mod5b = 0;      // +0x5b  attribute modifier (100 - (mod5b+stat1e))
+    uint8_t  mod5c = 0;      // +0x5c  attribute modifier (mod5c + base1c)
+    uint8_t  mod5e = 0;      // +0x5e  attribute modifier (mod5e + Strength)
+    uint8_t  mod5f = 0;      // +0x5f  attribute modifier (mod5f + level17)
+    uint8_t  flag6a = 0;     // +0x6a  flag (adds 50 to display byte +0x17c)
+    uint8_t  flag0f = 0;     // +0x0f  status flag (==0 subtracts 10 from +0x17d)
 
     // HP as a percentage, computed exactly as the sheet builder does
     // (100 * hp_cur / hp_max, integer division); 0 when hp_max is 0.
     int hp_percent() const;
+
+    // --- party-status display row -----------------------------------------
+    // The party-status builder packs a 12-byte row per member into its display
+    // block; these reproduce each byte from the struct.  See the kCharFlg*
+    // notes for the raw-image grounding (builder at image offset 0x2D436).
+    //   +0x17a  hp_pct       100 * hp_cur / hp_max
+    //   +0x17b  body24       (verbatim)
+    //   +0x17c  hp_mod       (hp_cur >> 3) + (flag6a ? 50 : 0)
+    //   +0x17d  attr_a       100 - (mod5b + stat1e), minus 10 if flag0f == 0
+    //   +0x17e  attr_b       mod5c + base1c
+    //   +0x17f  attr_c       mod5f + level17
+    //   +0x180  hp_cur       (word copy)
+    uint8_t hp_pct() const;
+    uint8_t hp_mod() const;
+    uint8_t attr_a() const;
+    uint8_t attr_b() const;
+    uint8_t attr_c() const;
 };
 
 // Decode a 410-byte character struct into a CharSheet.  `raw` must point at a
@@ -450,6 +515,28 @@ struct SaveGame {
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
 SaveGame load_save(const std::string& path);
+
+// --- Party-status projection ----------------------------------------------
+// One member's row in the party-status display block the town/play loop builds
+// (segment [0xb0b0], at es:[si+0x179..0x184]).  Reproduced byte-for-byte from
+// the builder at image offset 0x2D436; see `CharSheet::hp_pct()` etc.
+struct PartyRow {
+    uint8_t  index    = 0;  // +0x179  party index (the builder also writes it
+                            //   at +0x177; +0x176 is the constant in-use marker 2)
+    uint8_t  hp_pct   = 0;  // +0x17a  100 * hp_cur / hp_max
+    uint8_t  body24   = 0;  // +0x17b  body/health state (verbatim)
+    uint8_t  hp_mod   = 0;  // +0x17c  (hp_cur >> 3) + (flag6a ? 50 : 0)
+    uint8_t  attr_a   = 0;  // +0x17d  100 - (mod5b + stat1e), -10 if flag0f == 0
+    uint8_t  attr_b   = 0;  // +0x17e  mod5c + base1c
+    uint8_t  attr_c   = 0;  // +0x17f  mod5f + level17
+    uint16_t hp_cur   = 0;  // +0x180  current HP (word copy)
+};
+
+// Project a decoded character into its party-status row.
+PartyRow party_row(const CharSheet& c, uint8_t index);
+
+// Project a whole save's live party (slots with `present == 1`, in order).
+std::vector<PartyRow> party_status(const SaveGame& sv);
 
 // --- ROST/SHOP ------------------------------------------------------------
 

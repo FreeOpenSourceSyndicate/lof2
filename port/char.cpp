@@ -29,6 +29,9 @@ std::vector<uint8_t> read_file(const std::string& path) {
 }
 
 uint16_t rd16(const uint8_t* p) { return (uint16_t)(p[0] | (p[1] << 8)); }
+uint32_t rd32(const uint8_t* p) {
+    return (uint32_t)(p[0] | (p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24));
+}
 
 // Read a NUL-terminated string from `p`, at most `limit` bytes.
 std::string cstr(const uint8_t* p, size_t limit) {
@@ -464,6 +467,53 @@ int CharSheet::hp_percent() const {
     return 100 * hp_cur / hp_max;   // integer division, as the sheet builder does
 }
 
+// --- party-status display row (builder at image offset 0x2D436) ------------
+uint8_t CharSheet::hp_pct() const {
+    if (hp_max == 0) return 0;
+    return (uint8_t)(100 * hp_cur / hp_max);
+}
+
+uint8_t CharSheet::hp_mod() const {
+    return (uint8_t)((hp_cur >> 3) + (flag6a ? 50 : 0));
+}
+
+uint8_t CharSheet::attr_a() const {
+    uint8_t v = (uint8_t)(100 - (mod5b + stat1e));   // neg al after sub 0x64
+    if (flag0f == 0) v = (uint8_t)(v - 10);
+    return v;
+}
+
+uint8_t CharSheet::attr_b() const {
+    return (uint8_t)(mod5c + base1c);
+}
+
+uint8_t CharSheet::attr_c() const {
+    return (uint8_t)(mod5f + level17);
+}
+
+PartyRow party_row(const CharSheet& c, uint8_t index) {
+    PartyRow r;
+    r.index  = index;
+    r.hp_pct = c.hp_pct();
+    r.body24 = c.body24;
+    r.hp_mod = c.hp_mod();
+    r.attr_a = c.attr_a();
+    r.attr_b = c.attr_b();
+    r.attr_c = c.attr_c();
+    r.hp_cur = (uint16_t)c.hp_cur;
+    return r;
+}
+
+std::vector<PartyRow> party_status(const SaveGame& sv) {
+    std::vector<PartyRow> rows;
+    uint8_t idx = 0;
+    for (const auto& sc : sv.chars) {
+        if (sc.present != 1) continue;   // only slots the engine marks in use
+        rows.push_back(party_row(decode_char(sc.raw.data()), idx++));
+    }
+    return rows;
+}
+
 uint8_t char_stat1d_from_dex(uint8_t dex) {
     if (dex < 16) return 10;
     return (uint8_t)(5 * dex - 65);   // 1BA40: 5*dex - 0x41
@@ -482,12 +532,20 @@ CharSheet decode_char(const uint8_t* raw) {
     c.stat1e = raw[kCharStat1e];
     c.hp_max = (int16_t)rd16(raw + kCharHpMax20);
     c.hp_cur = (int16_t)rd16(raw + kCharHpCur22);
+    c.exp = rd32(raw + kCharExp6c);
     c.con44 = raw[kCharCon44];
     c.str45 = raw[kCharStr45];
     c.dex46 = raw[kCharDex46];
     c.int47 = raw[kCharInt47];
     c.wis48 = raw[kCharWis48];
     c.speed56 = raw[kCharSpeed56];
+    c.body24 = raw[kCharBody24];
+    c.mod5b = raw[kCharFlg5b];
+    c.mod5c = raw[kCharFlg5c];
+    c.mod5e = raw[kCharFlg5e];
+    c.mod5f = raw[kCharFlg5f];
+    c.flag6a = raw[kCharFlag6a];
+    c.flag0f = raw[kCharFlg0f];
     return c;
 }
 

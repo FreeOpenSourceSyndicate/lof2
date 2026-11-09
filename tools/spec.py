@@ -93,9 +93,22 @@ def dump_save(path):
         if r[0] or name:
             hp = struct.unpack_from("<h", r, 0x22)[0]
             hpmax = struct.unpack_from("<h", r, 0x20)[0]
+            # 32-bit experience: low word +0x6c, high word +0x6e.
+            exp = struct.unpack_from("<I", r, 0x6c)[0]
+            # Party-status display row (builder at image offset 0x2D436).
+            hp_pct = (100 * hp // hpmax) if hpmax else 0
+            hp_mod = (hp >> 3) + (50 if r[0x6a] else 0)
+            attr_a = (100 - (r[0x5b] + r[0x1e])) & 0xff
+            if r[0x0f] == 0:
+                attr_a = (attr_a - 10) & 0xff
+            attr_b = (r[0x5c] + r[0x1c]) & 0xff
+            attr_c = (r[0x5f] + r[0x17]) & 0xff
             print(f"  [{i:2d}] present={r[0]:#04x} name={name!r} "
                   f"rnk={r[0x17]} con={r[0x44]} str={r[0x45]} dex={r[0x46]} "
-                  f"int={r[0x47]} wis={r[0x48]} hp={hp}/{hpmax}")
+                  f"int={r[0x47]} wis={r[0x48]} hp={hp}/{hpmax} exp={exp} "
+                  f"body={r[0x24]} mods={r[0x5b]}/{r[0x5c]}/{r[0x5e]}/{r[0x5f]} "
+                  f"flag={r[0x6a]} f0f={r[0x0f]} "
+                  f"row=[{hp_pct} {r[0x24]} {hp_mod} {attr_a} {attr_b} {attr_c}]")
 
 
 # The item table lives only inside LOF.EXE (image offset 0x42cec, data segment
