@@ -18,7 +18,9 @@ fields previously recorded: `CharSeed` now also carries `c00` (+0x00 = 1),
 `c4e` (+0x4e = 100), with `kSnsField3a` and `kCharSeed14/1b/4e/64` added.
 The character-sheet builder was also located from the raw image (file offset
 `0x2BC8B`, listing `2676E`) and its `Weight`/`Rations`/`Gold` layout decoded (see
-the sheet section below); it exposed the inventory slot indices `+0x68`/`+0x69`.
+the sheet section below).  (An earlier note here called `+0x68`/`+0x69`
+"inventory slot indices" — that was wrong; they are the maximum/current magic
+points.  See the correction and the inventory-array section.)
 
 **Log (2026-11-08, branch `work/agent-b-23`):** the SNSC seed mapping now also
 carries the four `(value, level)` skill pairs — `char +0x142+2n = rec[0x3b+2n]`,
@@ -506,7 +508,7 @@ The sheet prints, in order: `Rnk ` (`+0x17`), `Hit point ` (`+0x20`/`+0x22`),
 `Wis` (`+0x45`/`+0x44`/`+0x46`/`+0x47`/`+0x48`), `Experience ` (`+0x64`/`+0x66`),
 `Weight... ` (`+0x64`/`+0x66`), then `Rations.. : ` and ` Gold:`.  The `Hit point`
 line is the current/maximum HP pair (`+0x22`/`+0x20`); the `Magic.... ` line is
-the current/maximum magic-point pair **`+0x68`/`+0x69`** (see the correction and
+the current/maximum magic-point pair **`+0x69`/`+0x68`** (see the correction and
 the inventory-array section).
 
 The `Rations`/`Gold` values themselves are **not** simple struct fields.  They
@@ -519,13 +521,13 @@ left unmodelled rather than guessed.
 
 > **Correction (2026-11-08).**  An earlier revision of this section (and of
 > `kCharInv68`) called `+0x68`/`+0x69` "inventory slot indices the hit-point and
-> magic lines resolve item names from".  That was wrong.  The routine at image
-> offset `0xEC2B` (listing `0x973B`) fills `+0x68` from a per-(class,level)
-> magic-point table (`al = es:[0xaf70:bx+0xa38]`, `bx = 16*+0x1b + +0x17`,
-> level < 16) then bumps it by +1 when Wisdom `+0x48` > 15 and +2 more when
-> Intelligence `+0x47` > 15, and copies it to `+0x69`; so the pair is the
-> character's **current / maximum magic points** (the sheet's "Magic.... " line),
-> not item indices.  See the "inventory array" section below.
+> magic lines resolve item names from".  That was wrong.  The pair is the
+> character's **maximum / current magic points** (`+0x68` = max, `+0x69` = cur;
+> the sheet's "Magic.... " line).  The routine at image `0xEC00..0xEC2B` fills
+> both from a per-(class,level) table (`es:[0xaf70:16*+0x1b + +0x17]`, level <
+> 16) plus Wisdom/Intelligence bonuses; the spell routine at `0x137AD` clamps the
+> current down to the maximum and the rest routine at `0x6440` restores it.  See
+> the "inventory array" section below.
 
 Note `+0x64`/`+0x66` (a 32-bit value the sheet labels `Experience`/`Weight`)
 versus `+0x6c`/`+0x6e` (the reward-accumulator dword exposed as `CharSheet::exp`):
@@ -729,29 +731,43 @@ Short sword (13), The Amulet (120); Handy's as Leather armour (27), Warhammer
 `kCharInvStride`); `char_test` asserts the synthetic layout and Decker's/Handy's
 real slots.
 
-### Magic points `+0x68` / `+0x69`
+### Magic points `+0x68` (max) / `+0x69` (cur)
 
-The routine at raw image offset `0xEC2B` (listing `0x973B`) computes the
-character's magic points:
+`+0x68` is the **maximum** magic points and `+0x69` the **current** value.  The
+direction is proven by the spend/rest routines: the spell routine at image
+`0x137AD` clamps the current down to the maximum (`if +0x68 != 0 && +0x69 <
++0x68 then +0x69 = +0x68`, bytes `26 80 7f 68 00 74 71 26 8a 47 68 26 38 47 69
+73 67 26 88 47 69`), and the rest routine at `0x6440` restores it
+(`26 8a 47 68 26 88 47 69` = `+0x69 = +0x68`).  The sheet prints
+`(+0x69, +0x68)` = (current, maximum).
+
+The pair is filled by the routine at image `0xEC00..0xEC2B`, which looks up a
+per-(class,level) table in the loaded data segment `[0xaf70]:0xa38` (16 bytes
+per class, indexed `16 * class_field(+0x1b) + level(+0x17)`, only while
+`level < 16`) and then adds bonuses:
 
 ```
 if (level(+0x17) < 16)
-    mp = es:[0xaf70 : 16*class_field(+0x1b) + level]   ; per-(class,level) table
+    mp = es:[0xaf70 : 16*+0x1b + +0x17]      ; per-(class,level) table
 else
     mp = 0
 if (mp != 0 && Wisdom(+0x48) > 15) mp += 1
-if (Wisdom(+0x48) > 15 && mp != 0) +0x69 = mp + 1     ; then
 if (Intelligence(+0x47) > 15) mp += 2
-+0x68 = mp ; +0x69 = mp                               ; the pair is (cur, max)
++0x68 = mp ; +0x69 = mp
 ```
 
-i.e. `+0x68` is the **current** magic points and `+0x69` the **maximum**, the
-pair the sheet's "Magic.... " line prints (equal at rest).  Verified against the
-save: Handy (class 3, level 1, Int 15, Wis 13) -> `1/1`, Merlin (class 7, level
-1, Int 19, Wis 12) -> `3/3`, Cassandra (class 10, level 1, Int 11, Wis 16) ->
-`2/2`, and the non-casters (Decker, Assanla, Siegurd) -> `0/0`.  Exposed as
-`kCharMagCur68`/`kCharMagMax69` + `CharSheet::mag_cur68`/`mag_max69`; asserted
-on the synthetic struct and on `GAME1`.
+The table itself (DS `0xa38`, 14 classes x 16 levels) is a static block in the
+EXE: the casters' rows climb with level (classes 4/8/9/11 the high-magic
+classes), the fighter rows are flat.  A worked check: Merlin has `+0x1b = 7`,
+level 1, Int 19, Wis 12 -> table[7][1] = 1, +2 for Int -> 3, which is exactly the
+`3/3` the save stores.  Other stored pairs (e.g. Handy `1/1`) are one point above
+the static table, which is consistent with the table being **class-indexed by a
+different byte than the saved `+0x1b`** (the char-gen may remap `+0x1b` after the
+MP fill), so the table's row-to-class mapping is still open; only Merlin's row is
+pinned.  Because the pair is TRANSIENT (spell/rest mutate `+0x69`), `CharSheet`
+projects it verbatim rather than recomputing it.  Exposed as
+`kCharMagMax68`/`kCharMagCur69` + `CharSheet::mag_max68`/`mag_cur69`; asserted on
+the synthetic struct and on `GAME1`.
 
 `+0x25` is a small **load/carry** byte (`10` for most of the shipped party, `15`
 for Cassandra) — exposed as `kCharLoad25`/`CharSheet::load25`.

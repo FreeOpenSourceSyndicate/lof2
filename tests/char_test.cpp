@@ -196,11 +196,11 @@ static void synthetic_spec() {
     assert(ch.attr_a() == 7);
     // +0x1d is derived from Dexterity: 5*16 - 65 == 15, matching stat1d above.
     assert(ch.stat1d == char_stat1d_from_dex(ch.dex46));
-    // Magic points +0x68 (current) / +0x69 (maximum); see kCharMagCur68.
-    chr[kCharMagCur68] = 7;
-    chr[kCharMagMax69] = 9;
+    // Magic points: +0x68 is the MAXIMUM, +0x69 the CURRENT; see kCharMagMax68.
+    chr[kCharMagMax68] = 7;
+    chr[kCharMagCur69] = 9;
     ch = decode_char(chr.data());
-    assert(ch.mag_cur68 == 7 && ch.mag_max69 == 9);
+    assert(ch.mag_max68 == 7 && ch.mag_cur69 == 9);
     // Inventory array: 48 four-byte slots at +0x82 (item/aux1/aux2/cond).
     chr[kCharInv82 + 0] = 13; chr[kCharInv82 + 1] = 1;
     chr[kCharInv82 + 2] = 0;  chr[kCharInv82 + 3] = 100;
@@ -504,7 +504,7 @@ static int real_data() {
     assert(cs.class18 == 1 && cs.base1c == 65 && cs.stat1e == 90);
     assert(cs.hp_max == 96 && cs.hp_cur == 96);
     assert(cs.hp_percent() == 100);
-    assert(cs.mag_cur68 == 0 && cs.mag_max69 == 0);  // template: no magic
+    assert(cs.mag_max68 == 0 && cs.mag_cur69 == 0);  // template: no magic
     assert(cs.inv[0].item == 0);                      // template: empty pack
     assert(cs.level17 == 0 && cs.speed56 == 4);   // Siegurd: rank 0
     // +0x1d is the Dexterity-derived stat (1BA40): <16 -> 10, else 5*dex-65.
@@ -560,6 +560,12 @@ static int real_data() {
     // +0x25 is the load/carry byte (10 for the shipped party; 15 for Cassandra).
     assert(dki.load25 == 10 && dk.load25 == 10);
     assert(decode_char(sv.chars[4].raw.data()).load25 == 15);
+    // Magic points (+0x68 max / +0x69 cur).  Merlin (class 7, level 1, Int 19,
+    // Wis 12) stores 3/3 -- the per-(class,level) table lookup plus the Int
+    // bonus; Handy stores 1/1.  They are equal at rest.
+    CharSheet mrl = decode_char(sv.chars[3].raw.data());
+    assert(mrl.name == "Merlin" && mrl.mag_max68 == 3 && mrl.mag_cur69 == 3);
+    assert(dk.mag_max68 == 1 && dk.mag_cur69 == 1);
     // Every in-use character: no slot points past the 185-item table.
     for (const auto& sc : sv.chars) {
         if (sc.present != 1) continue;

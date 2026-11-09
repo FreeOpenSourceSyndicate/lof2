@@ -549,8 +549,8 @@ CharSheet decode_char(const uint8_t* raw) {
     c.mod5f = raw[kCharFlg5f];
     c.flag6a = raw[kCharFlag6a];
     c.flag0f = raw[kCharFlg0f];
-    c.mag_cur68 = raw[kCharMagCur68];
-    c.mag_max69 = raw[kCharMagMax69];
+    c.mag_max68 = raw[kCharMagMax68];
+    c.mag_cur69 = raw[kCharMagCur69];
     c.load25 = raw[kCharLoad25];
     for (size_t s = 0; s < kCharInvCount; ++s) {
         const uint8_t* p = raw + kCharInv82 + s * kCharInvStride;

@@ -390,16 +390,20 @@ enum CharOffset : size_t {
     kCharSeed1b    = 0x1b,  // byte: seeded 0x0c, later reduced by the char gen
     kCharSeed4e    = 0x4e,  // dword: seeded 100 (weight-style base value)
     kCharSeed64    = 0x64,  // word: seeded 0x1324 (4900), later adjusted
-    // The character's current / maximum magic points.  The routine at image
-    // offset 0xEC2B (listing 0x973B) fills the *current* value from a
-    // per-(class,level) table lookup -- `al = es:[0xaf70:bx+0xa38]` with
-    // `bx = 16*class_field(+0x1b) + level(+0x17)`, taken only while level < 16 --
-    // then bumps it by 1 when Wisdom (+0x48) exceeds 15 and by 2 more when
-    // Intelligence (+0x47) exceeds 15, and finally copies it to +0x69.  So the
-    // sheet's "Magic.... " line is (current, maximum) = (+0x68, +0x69); the two
-    // bytes are equal at rest.
-    kCharMagCur68  = 0x68,  // byte: current magic points
-    kCharMagMax69  = 0x69,  // byte: maximum magic points
+    // The character's current / maximum magic points.  `+0x68` is the MAXIMUM
+    // and `+0x69` the CURRENT value: the spell routine at image 0x137AD clamps
+    // the current down to the maximum (`if +0x68 != 0 && +0x69 < +0x68:
+    // +0x69 = +0x68`) and the rest routine at 0x6440 restores it
+    // (`+0x69 = +0x68`).  Both are filled together by the routine at image
+    // 0xEC00..0xEC2B, which looks up a per-(class,level) table in the loaded
+    // data segment `[0xaf70]:0xa38` (16 bytes per class, indexed
+    // `16 * class_field(+0x1b) + level(+0x17)`, only while level < 16) and then
+    // adds +1 when Wisdom(+0x48) > 15 and +2 more when Intelligence(+0x47) > 15.
+    // The sheet's "Magic.... " line prints (current, maximum) = (+0x69, +0x68).
+    // NOTE: the pair is TRANSIENT in a save (a snapshot can hold a partly
+    // depleted current value), so it is projected verbatim, not recomputed.
+    kCharMagMax68  = 0x68,  // byte: maximum magic points
+    kCharMagCur69  = 0x69,  // byte: current magic points
     // The four seeded (value, level) skill pairs: +0x142+2n / +0x143+2n, n=0..3,
     // copied from rec[0x3b+2n] / rec[0x3c+2n] by the init routine's tail loop.
     kCharSkill142  = 0x142, // byte: first of four seeded skill values (stride 2)
@@ -509,9 +513,9 @@ struct CharSheet {
     uint8_t  flag6a = 0;     // +0x6a  flag (adds 50 to display byte +0x17c)
     uint8_t  flag0f = 0;     // +0x0f  status flag (==0 subtracts 10 from +0x17d)
     // The character's current / maximum magic points; the sheet's "Magic.... "
-    // line shows this pair (equal at rest).  See kCharMagCur68.
-    uint8_t  mag_cur68 = 0;  // +0x68  current magic points
-    uint8_t  mag_max69 = 0;  // +0x69  maximum magic points
+    // line shows this pair (equal at rest).  See kCharMagMax68.
+    uint8_t  mag_max68 = 0;  // +0x68  maximum magic points
+    uint8_t  mag_cur69 = 0;  // +0x69  current magic points
     uint8_t  load25 = 0;     // +0x25  carrying capacity / load
     // The 48 four-byte inventory slots at +0x82 (see kCharInv82).
     std::array<InvSlot, kCharInvCount> inv{};
