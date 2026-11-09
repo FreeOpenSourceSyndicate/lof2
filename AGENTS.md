@@ -191,11 +191,13 @@ Progress:
 - [x] Font decoding: `EGA/UP/CHR1`/`CHR2` glyph mapping (see below).
 - [x] LOF play screen (static composition): `--play D0/DP001` draws the HUD
       background `EGA/UP/MSCR` with the first-person viewport tile
-      `EGA/D0/DP001` blitted into the 120x119 window at (10,11). Matches the
-      DOSBox slot-2 capture `ref/oracle/play.png` at ~92% (residue = the engine's
-      dynamic overlays and party text). Guarded by `tests/port_play_test.py`
-      (`make golden-port`). The *interactive* play loop (input, movement,
-      re-rendering) is not yet implemented.
+      `EGA/D0/DP001` blitted into the 120x119 window at (10,11), then the six
+      party-panel names from the save (`--save GAMES/GAMEn`) drawn in the
+      compact small-caps face. Matches the DOSBox slot-2 capture
+      `ref/oracle/play.png` at ~92.6% (residue = the engine's dynamic viewport
+      overlays and the panel's class/stat text). Guarded by
+      `tests/port_play_test.py` (`make golden-port`). The *interactive* play loop
+      (input, movement, re-rendering) is not yet implemented.
 - [x] VOR preloader: `EGA/IN/DRAG` (dragon title) then `EGA/IN/CRED` (credits).
       Both are pure image blits, so the port reproduces each *pixel-exactly*
       from the game data. Guarded by `tests/port_vor_test.py` (`make
@@ -213,6 +215,14 @@ the other EGA images) gives recognisable glyphs, and the mapping is:
 | 0    | symbols   | upper A..Z  | digits 0..9  |
 | 1    | symbols   | lower a..z  | symbols      |
 | 2    | symbols   | -           | -            |
+
+`CHR2` additionally carries a **compact small-caps face**: for every ASCII
+character the cell index is `toupper(ch) - 64` (so `A`..`Z` -> 1..26, `@` -> 0,
+`[` -> 27), the glyph is the **top-left 5x5** of that band-0 cell, and glyphs
+advance **5 px**. The engine uses this face for the party-panel names on the
+play screen (`Decker`, `Siegurd`, …); it is *not* a separate asset and it is not
+in `CHR1`. Decoded glyphs (`A C D H M S a c d e g i k l n r s u y`) are
+self-consistent and render the oracle names at 100%.
 
 The engine uses `CHR1` for the main-menu text, advancing 6 pixels per cell (the
 cells overlap: the next glyph is 6px right, so the last two columns are shared).

@@ -23,24 +23,28 @@ import numpy as np
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+GAME = os.path.join(ROOT, "game")
 ORACLE = os.path.join(ROOT, "ref", "oracle", "play.png")
 SHOT = "/tmp/port_play_test.png"
 VIEWPORT = "D0/DP001"
+SAVE = os.path.join(GAME, "GAMES", "GAME2")
 
-# The static composition (MSCR + DP001 at (10,11)) matches the DOSBox capture at
-# ~92%; the residue is the engine's dynamic overlays, which the port cannot
-# reproduce offline.  Fail if the match drops below this fraction.
-MIN_MATCH = 0.90
+# The composition (MSCR + DP001 at (10,11) + the party-panel names drawn from
+# the save) matches the DOSBox capture at ~92.6%; the residue is the engine's
+# dynamic viewport overlays and the panel's class/stat text, which the port does
+# not reproduce offline.  Fail if the match drops below this fraction.
+MIN_MATCH = 0.92
 
 
 def main() -> int:
     if not os.path.exists(ORACLE):
         print("port_play_test: SKIP (no oracle capture)")
         return 0
-    subprocess.run(
-        [os.path.join(ROOT, "lof"), "--dir", os.path.join(ROOT, "game"),
-         "--headless", "--play", VIEWPORT, "--shot", SHOT],
-        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    cmd = [os.path.join(ROOT, "lof"), "--dir", GAME,
+           "--headless", "--play", VIEWPORT, "--shot", SHOT]
+    if os.path.exists(SAVE):
+        cmd += ["--save", SAVE]
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     port = np.asarray(Image.open(SHOT).convert("RGB")).astype(int)
     oracle = np.asarray(Image.open(ORACLE).convert("RGB")).astype(int)

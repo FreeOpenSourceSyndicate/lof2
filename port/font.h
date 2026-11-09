@@ -33,6 +33,12 @@ struct Font {
     // Draw `text` at (x,y) in colour `idx`.  Unknown characters render as a
     // blank cell.  Returns the x coordinate just past the last glyph.
     int draw(Screen& scr, int x, int y, const std::string& text, uint8_t idx) const;
+
+    // Draw `text` with the game's compact "small caps" face: the *top-left 5x5*
+    // of the band-0 cell `toupper(ch) - 64`, advanced 5 px per glyph.  This is
+    // the font the engine uses for the party-panel names on the play screen
+    // (loaded from CHR2); lower case renders as upper case.
+    int draw_small(Screen& scr, int x, int y, const std::string& text, uint8_t idx) const;
 };
 
 }  // namespace lofport

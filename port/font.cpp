@@ -62,4 +62,23 @@ int Font::draw(Screen& scr, int x, int y, const std::string& text, uint8_t idx) 
     return x;
 }
 
+// The compact face used for the play-screen party panel.  Cell = toupper - 64
+// (so 'A'..'Z' -> 1..26, '@'/'[' -> 0/27, matching ASCII order); only the
+// top-left 5x5 of the 8x8 band-0 glyph is drawn, and glyphs advance 5 px.
+int Font::draw_small(Screen& scr, int x, int y, const std::string& text, uint8_t idx) const {
+    for (char ch : text) {
+        char u = (ch >= 'a' && ch <= 'z') ? (char)(ch - 32) : ch;
+        int cell = (unsigned char)u - 64;
+        if (ok && cell >= 0 && cell < 40) {
+            for (int gy = 0; gy < 5; gy++) {
+                uint8_t bits = glyph[0][cell][gy];
+                for (int gx = 0; gx < 5; gx++)
+                    if (bits & (0x80 >> gx)) scr.put(x + gx, y + gy, idx);
+            }
+        }
+        x += 5;
+    }
+    return x;
+}
+
 }  // namespace lofport

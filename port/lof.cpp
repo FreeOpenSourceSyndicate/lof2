@@ -102,14 +102,16 @@ int main(int argc, char** argv) {
 
     // --play SUB/DPNNN composes the in-game play screen and exits: the static
     // HUD background (EGA/UP/MSCR) with the first-person viewport tile
-    // (EGA/SUB/DPNNN, e.g. D0/DP001) blitted into the 120x119 window at (10,11).
-    // The window geometry and the background were recovered by matching the
-    // decoded assets against a DOSBox capture of save slot 2 (ref/oracle/play.png);
-    // the composition matches that capture at ~92%, the residue being the party
-    // panel and status text the engine draws with its own font.
-    std::string play;
-    for (int i = 1; i < argc; i++)
+    // (EGA/SUB/DPNNN, e.g. D0/DP001) blitted into the 120x119 window at (10,11),
+    // then the party-panel names (from the save named by --save) drawn in the
+    // compact small-caps face.  The window geometry, the background and the
+    // panel layout were recovered by matching the decoded assets against a
+    // DOSBox capture of save slot 2 (ref/oracle/play.png).
+    std::string play, save;
+    for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
+        else if (std::string(argv[i]) == "--save" && i + 1 < argc) save = argv[++i];
+    }
     if (!play.empty()) {
         std::string err;
         Screen s;
@@ -117,6 +119,23 @@ int main(int argc, char** argv) {
         s.clear(0);
         if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) { fprintf(stderr, "lof: %s\n", err.c_str()); return 1; }
         if (!blit_ega(s, dir + "/EGA/" + play, 10, 11, &err)) { fprintf(stderr, "lof: %s\n", err.c_str()); return 1; }
+        // Party panel: the six character names in a 3x2 grid, drawn with CHR2's
+        // 5x5 small-caps face.  Positions recovered from the oracle.
+        if (!save.empty()) {
+            Font small;
+            if (small.load(dir + "/EGA/UP/CHR2", &err)) {
+                SaveGame sg = load_save(save);
+                static const int kColX[3] = {148, 208, 268};
+                static const int kRowY[2] = {9, 37};
+                int slot = 0;
+                for (const SaveChar& c : sg.chars) {
+                    if (slot >= 6) break;
+                    if (c.present == 0 || c.name.empty()) continue;
+                    small.draw_small(s, kColX[slot % 3], kRowY[slot / 3], c.name, 15);
+                    slot++;
+                }
+            }
+        }
         if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
         if (!headless) present_sdl(s, "Legend of Faerghail");
         return 0;

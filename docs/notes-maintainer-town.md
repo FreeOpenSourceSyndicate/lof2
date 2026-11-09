@@ -307,3 +307,28 @@ Recovered layout (matched against a DOSBox capture of save slot 2,
 draws a blank 120x119 window over `MSCR`.  Root cause not isolated (the asset
 table is referenced by the EXE string block at image offset ~0x3b6d1, but the
 indexing/loader path the emulator takes diverges).  The drop-in side-steps it.
+
+### Correction: the party-panel font IS in CHR2 (2026-11-09)
+
+The earlier note above ("a compact 5x5 font ... **not** in `EGA/UP/CHR1`/`CHR2`")
+was **wrong**.  The font is `CHR2`'s band-0 glyphs, rendered as the **top-left
+5x5** of cell `toupper(ch) - 64` with a **5-px advance**.  Recovered by
+template-matching every 5x5 subwindow of every CHR1/CHR2 cell against the
+oracle's name glyphs (all 18 letters matched exactly, 0 inconsistent), then
+verified: rendering the six names this way reproduces the oracle panel at
+**100%**.
+
+The port now draws them: `lof --play D0/DP001 --save game/GAMES/GAME2` renders
+the six names in a 3x2 grid at x = {148,208,268}, y = {9,37}, colour 15 (white),
+and the play screen matches the DOSBox capture at **92.6%** (was 91.7%).
+`tests/port_play_test.py` passes `--save` and pins the higher figure.
+
+**Still open in the panel:** below each name the engine draws the character's
+*profession* ("PALADIN", "MAGICIAN", "SMITH", "HEALER", …) and a stat line of
+symbol glyphs.  The profession table is in `LOF.EXE` at image offset 0x41e98:
+12-byte NUL-padded records `Warrior Barbarian Rogue Smith Scout Priest Druid
+Magician Illusionist Paladin Healer Monk` (values 0..11); the per-character
+profession byte is the save record's offset **0x1b** (Decker=9/Paladin,
+Handy=3/Smith, Merlin=7/Magician, Cassandra=10/Healer, Assanla=2/Rogue;
+Siegurd=12, one past the end — likely `Scout` with a 0-based-vs-1-based skew).
+The stat line uses CHR2 band-1 symbol cells and is not yet decoded.
