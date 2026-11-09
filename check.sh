@@ -49,10 +49,10 @@ else
 fi
 
 echo "[check] drop-in golden screens"
-if make -s golden-port 2>&1 | grep -qE 'port_(menu|play)_test: FAIL'; then
-    bad "golden-port failed — the drop-in's menu/play screen changed"
+if make -s golden-port 2>&1 | grep -qE 'port_(menu|play|vor)_test: FAIL'; then
+    bad "golden-port failed — the drop-in's menu/play/vor screen changed"
 else
-    ok "golden-port passes (drop-in menu/play match the oracle)"
+    ok "golden-port passes (drop-in menu/play/vor match the oracle)"
 fi
 
 echo "[check] hygiene"

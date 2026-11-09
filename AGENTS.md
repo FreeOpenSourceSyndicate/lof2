@@ -196,6 +196,10 @@ Progress:
       dynamic overlays and party text). Guarded by `tests/port_play_test.py`
       (`make golden-port`). The *interactive* play loop (input, movement,
       re-rendering) is not yet implemented.
+- [x] VOR preloader: `EGA/IN/DRAG` (dragon title) then `EGA/IN/CRED` (credits).
+      Both are pure image blits, so the port reproduces each *pixel-exactly*
+      from the game data. Guarded by `tests/port_vor_test.py` (`make
+      golden-port`); no DOSBox capture needed.
 
 ### Font / text rendering (decoded)
 
