@@ -268,22 +268,31 @@ std::string Machine::resolve(const std::string& dos_path) {
     if (p.empty()) return game_dir;
     // DOS filenames are case-insensitive; the game stores paths in lower case
     // while the extracted archive uses upper case.  Walk the host tree,
-    // matching each component case-insensitively.
+    // matching each component case-insensitively.  The engine builds the save
+    // name with printf "%3d" ("GAME  2"); DOS and DOSBox ignore the padding
+    // spaces, so drop spaces when comparing -- "GAME  2" must match "GAME2".
+    auto normalize = [](std::string s) {
+        std::string out;
+        for (char ch : s) {
+            if (ch == ' ') continue;
+            out += (char)tolower((unsigned char)ch);
+        }
+        while (!out.empty() && out.back() == '.') out.pop_back();
+        return out;
+    };
     std::string full = game_dir;
     size_t i = 0;
     while (i <= p.size()) {
         size_t j = p.find('/', i);
         std::string comp = p.substr(i, j == std::string::npos ? std::string::npos : j - i);
         if (comp.empty()) { if (j == std::string::npos) break; i = j + 1; continue; }
-        std::string lc = comp; for (char& ch : lc) ch = (char)tolower((unsigned char)ch);
+        std::string lc = normalize(comp);
         std::string found;
         DIR* d = opendir(full.c_str());
         if (d) {
             struct dirent* e;
             while ((e = readdir(d))) {
-                std::string n = e->d_name;
-                std::string nl = n; for (char& ch : nl) ch = (char)tolower((unsigned char)ch);
-                if (nl == lc) { found = n; break; }
+                if (normalize(e->d_name) == lc) { found = e->d_name; break; }
             }
             closedir(d);
         }

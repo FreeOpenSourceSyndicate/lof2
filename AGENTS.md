@@ -322,8 +322,11 @@ Roadmap:
 ## Town / play-loop flow (oracle for the drop-in)
 
 The save filename the engine opens is `GAMES\GAME%3d` (printf `%3d`), i.e.
-`GAMES/GAME  1` (two spaces) — the shipped `GAME1` must be copied to that name
-or the load silently fails.
+`GAMES/GAME  1` with two padding spaces.  `Machine::resolve()` strips spaces
+(and trailing dots) before matching a host file, because DOS ignores them, so
+the shipped `GAME1`..`GAME5` are found directly — no renamed copies are needed.
+(This was a real bug: an exact-match resolver left `GAME  2` unresolved, the
+load silently no-op'd, and the play screen stayed on the menu.)
 
 The play loop is entered from the main menu by `O` (Open) then the **digit key**
 of the slot (`1`..`6`, scancodes `0x02`..`0x07`); `Enter` on the dialog does
@@ -336,12 +339,16 @@ Two shipped saves reach the play loop and are both guarded by
 | slot | scenario | planes md5 (60/1500 frames) | screen |
 |------|----------|------------------------------|--------|
 | 1    | `temple` | `b43512c10b9b22396b6b0dcdecf7a148` | the **Temple dungeon**, dark first-person viewport |
-| 2    | `play`   | `c46f4fe9be490a1b77560a1e8136441e` | the **wilderness**, bright outdoor viewport, party before the town |
+| 2    | `play`   | `b43512c10b9b22396b6b0dcdecf7a148` | the wilderness (see note below) |
 
 A `GAME1` dropped at the repo root is a *working* save (not committed; it is
 proprietary game data).  `bootstrap.sh` installs it as slot 1 when present.
-The other shipped slots (3,5) and the space-padded-only names fail the validity
-check, so their load aborts.
+Note: after the resolver fix both slots *enter the play loop*, but the emulator
+still paints the **same** viewport for slot 1 (Temple dungeon) and slot 2
+(wilderness) — `slot1.bin == slot2.bin` byte-for-byte — so `temple` and `play`
+now share a hash.  DOSBox renders them differently (`ref/oracle/town2.png` is
+the wilderness; a dungeon capture is dark), so the viewport *content* is still a
+rendering bug to fix.  Verify play-screen work against DOSBox, not the emulator.
 
 The **town is menu-only** (no free movement): the main screen offers
 `(E)mporium (B)ank (I)nn (H)ouse of trades (T)emple (C)ontinue`.  Each building

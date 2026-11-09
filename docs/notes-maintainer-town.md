@@ -233,33 +233,35 @@ difference between the emulator and DOSBox.  This is now the top
 emulator-fidelity task — until it is fixed, the emulator cannot validate any
 in-game screen.
 
-## RESOLVED (2026-11-09): the "identical viewport" was a MISSING SAVE FILE
+## RESOLVED (2026-11-09): the "identical viewport" was a PATH-RESOLVER BUG
 
-The finding above was an artifact.  The engine opens the save as
-`GAMES\GAME%3d` (printf `"%3d"`), i.e. the name has **two spaces**:
-`GAMES\GAME  2`.  The repo only shipped `GAMES/GAME2` (no spaces), so the
-slot-2 open **failed silently**: the emulator logged the `3D open` but there was
-no following `3F read` (`got=` never appeared), the load was a no-op, and the
-engine stayed on the main menu — which is why the "play" viewport equalled the
-menu's.  `bootstrap.sh` already aliases slot 1 (`GAME  1`) and loops over slots
-1..6, but that loop had not been re-run since the extra saves were added.
+The finding above was an artifact of the emulator's own path resolver, not a
+rendering bug.  The engine opens the save as `GAMES\GAME%3d` (printf `"%3d"`),
+i.e. the name has **two padding spaces**: `GAMES\GAME  2`.  The archive ships
+`GAMES/GAME2` (no spaces).  `Machine::resolve()` matched components with an
+exact, case-folded comparison, so `"game  2"` never matched the host file
+`GAME2`; the slot-2 `3D open` **failed silently** (no following `3F read`), the
+load was a no-op, and the engine stayed on the main menu — which is exactly why
+the "play" viewport equalled the menu's.
 
-Creating the two-space aliases fixes it:
-
-```sh
-for n in 1 2 3 5; do cp -f "game/GAMES/GAME$n" "game/GAMES/$(printf 'GAME%3d' $n)"; done
-```
+DOS and DOSBox ignore the padding spaces (a DOSBox run against a game tree with
+**no** `GAME  2` alias still loads slot 2), so the fix is to normalise the name
+the same way: drop spaces (and trailing dots) before comparing, in `resolve()`.
 
 After the fix the slot-2 open is followed by
-`3F read want=11834 got=11834 file=game/GAMES/GAME  2`, the EGA write count at
+`3F read want=11834 got=11834 file=game/GAMES/GAME2`, the EGA write count at
 site `119D:129F` rises from 7616 to 8316 (a second viewport blit *does* run), and
 the play screen no longer equals the menu.  **This changes the `play` golden
-hash**, so `tests/golden_test.sh --record` must be re-run.
+hash**, so `tests/golden_test.sh --record` was re-run.
 
-Caveat still open: with the fix, slots 1 and 2 render byte-identically
-(`slot1.bin == slot2.bin`), so the emulator is not yet honouring the save's
-map/position fields — it enters the play loop but paints the same viewport for
-both.  Verify against DOSBox per-slot captures, not against the emulator.
+### Residual caveat (still a real rendering bug)
+
+With the resolver fixed, slots 1 and 2 both enter the play loop but render
+**byte-identically** (`slot1.bin == slot2.bin`), so `temple` and `play` share a
+golden hash.  DOSBox renders them differently — slot 1 is the dark Temple
+dungeon, slot 2 the bright wilderness (`ref/oracle/town2.png`).  So the
+viewport *content* is still wrong; verify play-screen work against DOSBox
+per-slot captures, not against the emulator.
 
 ### Reproduce
 
