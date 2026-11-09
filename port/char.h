@@ -412,7 +412,8 @@ enum CharOffset : size_t {
     // (ends at +0x82 + 48*4 = +0x142, exactly where the skill pairs begin).
     // Proven by the item-add routine (raw image 0xBF00): it scans for a free
     // slot with `cmp byte es:[bx+si+0x82],0` over si = slot*4, and fills
-    //   +0x82 slot 0 : item index (0 = empty)
+    //   +0x82 slot 0 : item index (0 = empty), a 1-BASED index into the 185-item
+    //                  table -- i.e. item_by_index(slot) -- not a 0-based offset
     //   +0x83 slot 1 : auxiliary state byte (several routines store 0 here)
     //   +0x84 slot 2 : per-item byte copied from a runtime table (small)
     //   +0x85 slot 3 : condition/quality byte (100 = full; consumed down by 2)
