@@ -204,6 +204,9 @@ TILE_GREY = {0: 32, 6: 200, 3: 96, 12: 64, 1: 140, 2: 120, 7: 170, 8: 150}
 
 
 def cmd_png(path, out, cell=8):
+    """Render the level as a *walkable* top-down map: floor light, wall dark,
+    and object/feature cells (mostly doorways, see cmd_doors) marked bright.
+    This mirrors what port/dungeon.cpp::render_dungeon_map draws."""
     hdr, body = decode(path)
     tl = tiles(body)
     obj = objects(body)
@@ -211,9 +214,10 @@ def cmd_png(path, out, cell=8):
     pix = bytearray(w * h)
     for cy in range(LAYER_W):
         for cx in range(LAYER_W):
-            g = TILE_GREY.get(tl[cy * LAYER_W + cx], 255)
+            v = tl[cy * LAYER_W + cx]
+            g = 40 if v in SOLID_TILES else TILE_GREY.get(v, 180)
             if obj[cy * LAYER_W + cx][1]:
-                g = 230
+                g = 245                    # door/feature marker
             for dy in range(cell):
                 row = (cy * cell + dy) * w + cx * cell
                 for dx in range(cell):
