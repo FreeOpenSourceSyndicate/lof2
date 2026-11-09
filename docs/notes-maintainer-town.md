@@ -196,3 +196,47 @@ image's colours (`2`/`A`/`E`) — the port's town blit overruns the frame bevel 
 one pixel along that seam.  It is cosmetic (0.16%), not a palette or text bug.
 Not chased further: the town screen itself (a whole missing drop-in screen) is
 worth more than 100 corner pixels.
+
+## The emulator does NOT render the real play screen (2026-11-09)
+
+The analysis emulator (`lof-native`) renders the **same viewport** for the main
+menu, the dungeon (save slot 1) and the town/wilderness (save slot 2).  This was
+verified byte-for-byte, not eyeballed:
+
+* `emu_menu.left == emu_slot1.left == emu_slot2.left` — **0 differing pixels** in
+  the region `x < 139` (the viewport plus its frame).
+* The EGA plane dump of the play screen differs from the menu dump in only
+  **3154 bytes**, every one of them in the right-hand text rows (y 92..195).
+  The viewport rows (11..130) are never redrawn.  So the game updates the party
+  panel text but leaves the viewport showing the menu scene.
+
+The real game does not do this.  A DOSBox capture of the town screen
+(`ref/oracle/town2.png`), taken **in the same DOSBox session** as
+`ref/oracle/menu2.png` so both share one palette, has a viewport that differs
+from the menu's over the whole region — a genuine outdoor scene.
+
+### Why this matters
+
+* `tests/golden.txt`'s `temple` and `play` hashes pin the emulator's **wrong**
+  play screen.  They remain valid regression guards *for the emulator*, but they
+  must **not** be used as the target for the drop-in's play screen.
+* Play-screen work must be verified against a DOSBox capture
+  (`ref/oracle/town2.png`), not against the emulator.
+
+### What is still true
+
+The game does load the save (`GAMES\GAME  2` is opened three times) and does
+blit the viewport (EGA write site `119D:129F`, ~7616 writes ≈ one 120x119
+viewport blit).  Why the blitted scene equals the menu's is unresolved; the
+likely causes are a save-decode/file-read difference or an EGA graphics-state
+difference between the emulator and DOSBox.  This is now the top
+emulator-fidelity task — until it is fixed, the emulator cannot validate any
+in-game screen.
+
+### Reproduce
+
+```
+LOF_NO_TIMER=1 LOF_CMDLEN=3 LOF_KEYAUTO=0x18,0x03 LOF_KEYGAP=8 \
+  ./lof-native --dir game --headless --frames 1000 --shot /tmp/play.png
+# left region is identical to: ./lof-native ... --frames 60 --shot /tmp/menu.png
+```
