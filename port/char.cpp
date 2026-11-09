@@ -491,6 +491,29 @@ uint8_t CharSheet::attr_c() const {
     return (uint8_t)(mod5f + level17);
 }
 
+PartyRow party_row(const CharSheet& c, uint8_t index) {
+    PartyRow r;
+    r.index  = index;
+    r.hp_pct = c.hp_pct();
+    r.body24 = c.body24;
+    r.hp_mod = c.hp_mod();
+    r.attr_a = c.attr_a();
+    r.attr_b = c.attr_b();
+    r.attr_c = c.attr_c();
+    r.hp_cur = (uint16_t)c.hp_cur;
+    return r;
+}
+
+std::vector<PartyRow> party_status(const SaveGame& sv) {
+    std::vector<PartyRow> rows;
+    uint8_t idx = 0;
+    for (const auto& sc : sv.chars) {
+        if (sc.present != 1) continue;   // only slots the engine marks in use
+        rows.push_back(party_row(decode_char(sc.raw.data()), idx++));
+    }
+    return rows;
+}
+
 uint8_t char_stat1d_from_dex(uint8_t dex) {
     if (dex < 16) return 10;
     return (uint8_t)(5 * dex - 65);   // 1BA40: 5*dex - 0x41

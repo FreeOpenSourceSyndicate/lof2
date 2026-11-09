@@ -516,6 +516,28 @@ struct SaveGame {
 // not the expected magic.
 SaveGame load_save(const std::string& path);
 
+// --- Party-status projection ----------------------------------------------
+// One member's row in the party-status display block the town/play loop builds
+// (segment [0xb0b0], at es:[si+0x179..0x184]).  Reproduced byte-for-byte from
+// the builder at image offset 0x2D436; see `CharSheet::hp_pct()` etc.
+struct PartyRow {
+    uint8_t  index    = 0;  // +0x179  party index (the builder also writes it
+                            //   at +0x177; +0x176 is the constant in-use marker 2)
+    uint8_t  hp_pct   = 0;  // +0x17a  100 * hp_cur / hp_max
+    uint8_t  body24   = 0;  // +0x17b  body/health state (verbatim)
+    uint8_t  hp_mod   = 0;  // +0x17c  (hp_cur >> 3) + (flag6a ? 50 : 0)
+    uint8_t  attr_a   = 0;  // +0x17d  100 - (mod5b + stat1e), -10 if flag0f == 0
+    uint8_t  attr_b   = 0;  // +0x17e  mod5c + base1c
+    uint8_t  attr_c   = 0;  // +0x17f  mod5f + level17
+    uint16_t hp_cur   = 0;  // +0x180  current HP (word copy)
+};
+
+// Project a decoded character into its party-status row.
+PartyRow party_row(const CharSheet& c, uint8_t index);
+
+// Project a whole save's live party (slots with `present == 1`, in order).
+std::vector<PartyRow> party_status(const SaveGame& sv);
+
 // --- ROST/SHOP ------------------------------------------------------------
 
 struct ShopData {
