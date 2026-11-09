@@ -502,12 +502,12 @@ Because it copies the struct to `[bp-0x19e]`, a `[bp+disp]` read with
 `disp + 0x19e == off` *is* char field `+off`.
 
 The sheet prints, in order: `Rnk ` (`+0x17`), `Hit point ` (`+0x20`/`+0x22`),
-`Magic.... ` (`+0x20`/`+0x22`), `State...  ` (`+0x1b`), `Str`/`Con`/`Dex`/`Int`/
+`Magic.... ` (`+0x68`/`+0x69`), `State...  ` (`+0x1b`), `Str`/`Con`/`Dex`/`Int`/
 `Wis` (`+0x45`/`+0x44`/`+0x46`/`+0x47`/`+0x48`), `Experience ` (`+0x64`/`+0x66`),
-`Weight... ` (`+0x64`/`+0x66`), then `Rations.. : ` and ` Gold:`.  The `Weight`
-line and the `Hit point`/`Magic` lines resolve item *names* from the character's
-two inventory slots at **`+0x68`/`+0x69`** (read as `[bp-0x19e+0x68/+0x69]`); the
-slot indices are exposed as `CharSheet::inv68`/`inv69` (`kCharInv68/69`).
+`Weight... ` (`+0x64`/`+0x66`), then `Rations.. : ` and ` Gold:`.  The `Hit point`
+line is the current/maximum HP pair (`+0x22`/`+0x20`); the `Magic.... ` line is
+the current/maximum magic-point pair **`+0x68`/`+0x69`** (see the correction and
+the inventory-array section).
 
 The `Rations`/`Gold` values themselves are **not** simple struct fields.  They
 are the result of iterating the character's inventory-slot list (a run of
@@ -516,6 +516,16 @@ accumulating a gold count that is rendered with the 32-bit format `%05ld$`.
 Decoding that item-table layout (the 185-record, 32-byte table inside `LOF.EXE`
 at image `0x42cec`) is a separate follow-up; the sheet's `Rations`/`Gold` are
 left unmodelled rather than guessed.
+
+> **Correction (2026-11-08).**  An earlier revision of this section (and of
+> `kCharInv68`) called `+0x68`/`+0x69` "inventory slot indices the hit-point and
+> magic lines resolve item names from".  That was wrong.  The routine at image
+> offset `0xEC2B` (listing `0x973B`) fills `+0x68` from a per-(class,level)
+> magic-point table (`al = es:[0xaf70:bx+0xa38]`, `bx = 16*+0x1b + +0x17`,
+> level < 16) then bumps it by +1 when Wisdom `+0x48` > 15 and +2 more when
+> Intelligence `+0x47` > 15, and copies it to `+0x69`; so the pair is the
+> character's **current / maximum magic points** (the sheet's "Magic.... " line),
+> not item indices.  See the "inventory array" section below.
 
 Note `+0x64`/`+0x66` (a 32-bit value the sheet labels `Experience`/`Weight`)
 versus `+0x6c`/`+0x6e` (the reward-accumulator dword exposed as `CharSheet::exp`):
@@ -690,3 +700,58 @@ consume it without re-deriving the arithmetic: `party_row(CharSheet, index)`
 builds one `PartyRow`, and `party_status(SaveGame)` builds the whole live party
 (slots with `present == 1`, in order).  `char_test` asserts the six-member
 `GAME1` projection.
+
+## Inventory array (+0x82) and magic points (+0x68/+0x69) — 2026-11-08
+
+The 410-byte character struct carries its **inventory** as a flat array of **48
+four-byte slots based at `+0x82`**, ending at `+0x82 + 48*4 = +0x142` — exactly
+where the four seeded `(value, level)` skill pairs begin (`+0x142`).  This is the
+array the character-sheet's `Weight`/`Rations`/`Gold` lines iterate.
+
+Ground truth is the **item-add routine** at raw image offset `0xBF00` (the
+listing desyncs here, so use the raw bytes):
+
+- It scans for the first free slot with `cmp byte es:[bx+si+0x82],0` over
+  `si = slot * 4`, `slot = 0..47` (`si` from `0` up, `cmp si,0x30` at `0xBEED`).
+- On a hit it stores the 1-based item index at `+0x82` and a per-item byte at
+  `+0x84`, and writes `100` to `+0x85`.
+
+So a slot is `{ +0x82 item index (0 = empty), +0x83 aux, +0x84 per-item byte,
++0x85 condition }`.  On the shipped data the three trailing bytes are `{0,1}` /
+`{1,0}` / `{0,0}` and the condition is `100` for everything except worn armour
+(`96`/`98`/`92`) — a durability/quality byte, not a count (it is decremented by
+`2`, e.g. `sub byte es:[bx+si+0x85],2` at `0x1ABDA`, and clamped to `0`/`100`).
+
+Decker's `GAME1` pack decodes cleanly as Leather armour (27), Small shield (34),
+Short sword (13), The Amulet (120); Handy's as Leather armour (27), Warhammer
+(8), Anvil (43), Sledge-hammer (44), The Amulet (120) x2.  Exposed as
+`InvSlot` + `CharSheet::inv[48]` (`kCharInv82`, `kCharInvCount`,
+`kCharInvStride`); `char_test` asserts the synthetic layout and Decker's/Handy's
+real slots.
+
+### Magic points `+0x68` / `+0x69`
+
+The routine at raw image offset `0xEC2B` (listing `0x973B`) computes the
+character's magic points:
+
+```
+if (level(+0x17) < 16)
+    mp = es:[0xaf70 : 16*class_field(+0x1b) + level]   ; per-(class,level) table
+else
+    mp = 0
+if (mp != 0 && Wisdom(+0x48) > 15) mp += 1
+if (Wisdom(+0x48) > 15 && mp != 0) +0x69 = mp + 1     ; then
+if (Intelligence(+0x47) > 15) mp += 2
++0x68 = mp ; +0x69 = mp                               ; the pair is (cur, max)
+```
+
+i.e. `+0x68` is the **current** magic points and `+0x69` the **maximum**, the
+pair the sheet's "Magic.... " line prints (equal at rest).  Verified against the
+save: Handy (class 3, level 1, Int 15, Wis 13) -> `1/1`, Merlin (class 7, level
+1, Int 19, Wis 12) -> `3/3`, Cassandra (class 10, level 1, Int 11, Wis 16) ->
+`2/2`, and the non-casters (Decker, Assanla, Siegurd) -> `0/0`.  Exposed as
+`kCharMagCur68`/`kCharMagMax69` + `CharSheet::mag_cur68`/`mag_max69`; asserted
+on the synthetic struct and on `GAME1`.
+
+`+0x25` is a small **load/carry** byte (`10` for most of the shipped party, `15`
+for Cassandra) — exposed as `kCharLoad25`/`CharSheet::load25`.
