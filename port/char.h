@@ -396,6 +396,29 @@ enum CharOffset : size_t {
     // party table's "Exp." column.  The 32-bit value is the only field in the
     // struct that pair describes.
     kCharExp6c     = 0x6c,  // dword (low word at 0x6c, high word at 0x6e)
+    // ---- party-status view (grounded in the party-status builder 0x27F4E) ----
+    // The builder (27F4E..280A4) walks the party, reads the fields below from
+    // each 410-byte struct, and packs them into its display block (the block is
+    // then drawn by the party/status renderer at 0x134A2).  These reads pin the
+    // offsets and their arithmetic; the exact game meaning of each is only
+    // partly determined, so the names stay descriptive.
+    kCharBody24    = 0x24,  // byte: body/health state; the builder copies it to
+                            //   the display byte +0x17b, and the death routine
+                            //   (0x1919C/0x191CC) tests it for == 2 / == 3
+    kCharFlg5b     = 0x5b,  // byte: attribute modifier; builder shows
+                            //   100 - (mod5b + stat1e)
+    kCharFlg5c     = 0x5c,  // byte: attribute modifier; builder shows
+                            //   mod5c + base1c
+    kCharFlg5f     = 0x5f,  // byte: attribute modifier; builder shows
+                            //   mod5f + level17
+    kCharFlg5e     = 0x5e,  // byte: attribute modifier; the encounter code
+                            //   tests mod5e + Strength against 0x11 (0xE921)
+                            //   and bumps mod5e/mod5b by 2 on a buff
+                            //   (0xE94F/0xE9BA)
+    // The init routine zeroes all five (1B8C0..1B92E); a fresh save therefore
+    // carries 0.  They are bounded signed modifiers added to a base value.
+    kCharFlag6a    = 0x6a,  // byte: flag; when set the builder adds 50 to the
+                            //   display byte +0x17c
 };
 
 // A decoded view of the fields the engine's character code reads directly from
@@ -421,6 +444,12 @@ struct CharSheet {
     uint8_t  int47 = 0;      // +0x47  Intelligence
     uint8_t  wis48 = 0;      // +0x48  Wisdom
     uint8_t  speed56 = 0;    // +0x56  speed (1..4)
+    uint8_t  body24 = 0;     // +0x24  body/health state (2 dying, 3 dead)
+    uint8_t  mod5b = 0;      // +0x5b  attribute modifier (100 - (mod5b+stat1e))
+    uint8_t  mod5c = 0;      // +0x5c  attribute modifier (mod5c + base1c)
+    uint8_t  mod5e = 0;      // +0x5e  attribute modifier (mod5e + Strength)
+    uint8_t  mod5f = 0;      // +0x5f  attribute modifier (mod5f + level17)
+    uint8_t  flag6a = 0;     // +0x6a  flag (adds 50 to display byte +0x17c)
 
     // HP as a percentage, computed exactly as the sheet builder does
     // (100 * hp_cur / hp_max, integer division); 0 when hp_max is 0.

@@ -97,7 +97,9 @@ def dump_save(path):
             exp = struct.unpack_from("<I", r, 0x6c)[0]
             print(f"  [{i:2d}] present={r[0]:#04x} name={name!r} "
                   f"rnk={r[0x17]} con={r[0x44]} str={r[0x45]} dex={r[0x46]} "
-                  f"int={r[0x47]} wis={r[0x48]} hp={hp}/{hpmax} exp={exp}")
+                  f"int={r[0x47]} wis={r[0x48]} hp={hp}/{hpmax} exp={exp} "
+                  f"body={r[0x24]} mods={r[0x5b]}/{r[0x5c]}/{r[0x5e]}/{r[0x5f]} "
+                  f"flag={r[0x6a]}")
 
 
 # The item table lives only inside LOF.EXE (image offset 0x42cec, data segment
