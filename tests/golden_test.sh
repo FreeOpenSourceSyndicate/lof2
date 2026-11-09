@@ -38,12 +38,13 @@ scenario() {
 
 # "boot" = the main menu; the rest press a menu hot-key (the menu is
 # keyboard-driven) and capture the resulting screen: L=character, O=open,
-# A=add, D=dismiss, E=erase.  "play" opens save slot 2 and enters the play
-# loop -- the in-game screen the drop-in's play loop must reproduce.  Slot 2 is
-# the only shipped save the engine accepts ("GAMES\GAME  2"); the others fail
-# the validity check, so O+Enter (slot 1) never leaves the open dialog.  Slot 2
-# drops the party onto the wilderness map in front of the town, and the load is
-# long and its timing varies, so the key feed must be adaptive (LOF_KEYAUTO).
+# A=add, D=dismiss, E=erase.  "temple" opens save slot 1 (O then "1") and
+# "play" opens slot 2 (O then "2"); both enter the play loop.  Slot 1 starts
+# the party inside the Temple dungeon (dark first-person viewport); slot 2
+# starts them on the wilderness map in front of the town (bright viewport).
+# The load is long and its timing varies, so the key feed must be adaptive
+# (LOF_KEYAUTO) rather than frame-scheduled.  Note the slot is chosen with the
+# digit key, not Enter (Enter on the dialog does nothing).
 run() {
     scenario boot
     scenario look  LOF_KEYFRAME=10 --keys 0x26
@@ -51,7 +52,8 @@ run() {
     scenario add   LOF_KEYFRAME=10 --keys 0x1e
     scenario dism  LOF_KEYFRAME=10 --keys 0x20
     scenario erase LOF_KEYFRAME=10 --keys 0x12
-    LOF_KEYAUTO=0x18,0x03 LOF_KEYGAP=8 scenario play --frames 1000
+    LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 scenario temple --frames 1500
+    LOF_KEYAUTO=0x18,0x03 LOF_KEYGAP=8 scenario play   --frames 1000
 }
 
 if [ "${1:-}" = "--record" ] || [ ! -f "$GOLDEN_FILE" ]; then

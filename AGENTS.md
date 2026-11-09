@@ -313,16 +313,35 @@ The save filename the engine opens is `GAMES\GAME%3d` (printf `%3d`), i.e.
 `GAMES/GAME  1` (two spaces) — the shipped `GAME1` must be copied to that name
 or the load silently fails.
 
-The scripted path into the play loop is `--keys 0x18,0x1c` (O then Enter) with
-`LOF_CMDLEN=3`, which loads `GAMES/GAME  1` and draws the town screen.
+The play loop is entered from the main menu by `O` (Open) then the **digit key**
+of the slot (`1`..`6`, scancodes `0x02`..`0x07`); `Enter` on the dialog does
+nothing.  The load is long and its timing varies, so headless scripts must feed
+the keys adaptively (`LOF_KEYAUTO="0x18,0x02" LOF_KEYGAP=8`), not by frame.
+
+Two shipped saves reach the play loop and are both guarded by
+`tests/golden_test.sh`:
+
+| slot | scenario | planes md5 (60/1500 frames) | screen |
+|------|----------|------------------------------|--------|
+| 1    | `temple` | `b43512c10b9b22396b6b0dcdecf7a148` | the **Temple dungeon**, dark first-person viewport |
+| 2    | `play`   | `c46f4fe9be490a1b77560a1e8136441e` | the **wilderness**, bright outdoor viewport, party before the town |
+
+A `GAME1` dropped at the repo root is a *working* save (not committed; it is
+proprietary game data).  `bootstrap.sh` installs it as slot 1 when present.
+The other shipped slots (3,5) and the space-padded-only names fail the validity
+check, so their load aborts.
 
 The **town is menu-only** (no free movement): the main screen offers
 `(E)mporium (B)ank (I)nn (H)ouse of trades (T)emple (C)ontinue`.  Each building
 has its own sub-menu.  Leaving town is the `(C)ontinue` path; the sub-menu drawn
 after the first `C` (string `ds=0x5AA2`, x=139) is the town-exit menu, and a
-second `C` on it heads out.  Reaching the wilderness/dungeon is **still not
-scripted to completion** — see `docs/notes-maintainer-town.md` for the exact
-frame timings tried.
+second `C` on it heads out.
+
+The **wilderness and dungeons are reached by loading a save that starts there**
+(slots 1 and 2 above); walking out of town is not required.  The play screen is
+one shared UI — a 3D viewport on the right (drawn procedurally, no EGA-asset
+blits), a text/message box on the left, a party-status box and a compass below
+— and only the viewport contents differ between wilderness and dungeon.
 
 The engine has an **internal clock** that advances on its own; the phase of day
 (`Midnight`, `Dawn`, `Early morning`, `Morning`, `Midday`, `Afternoon`,
