@@ -536,6 +536,15 @@ static int real_data() {
     assert(dk.hp_pct() == 81 && dk.hp_mod() == 51);
     assert(dk.attr_a() == 50 && dk.attr_b() == 100 && dk.attr_c() == 1);
 
+    // The whole-party projection: only the six live slots, in order, each row
+    // carrying the same bytes the builder would pack.
+    std::vector<PartyRow> party = party_status(sv);
+    assert(party.size() == 6);
+    for (size_t i = 0; i < party.size(); i++) assert(party[i].index == i);
+    assert(party[0].hp_pct == 100 && party[0].body24 == 0);
+    assert(party[2].hp_pct == 81 && party[2].body24 == 1 &&
+           party[2].hp_mod == 51 && party[2].hp_cur == 9);
+
     printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells/names ok\n");
     return 0;
 }

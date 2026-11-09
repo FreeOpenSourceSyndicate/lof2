@@ -645,3 +645,9 @@ as `kCharFlg5b/5c/5e/5f`, `kCharFlag6a`, `kCharFlg0f` and
 row is exposed as `CharSheet::hp_pct()/hp_mod()/attr_a()/attr_b()/attr_c()`.
 `char_test` asserts them on a synthetic struct and on `GAMES/GAME1` (modifiers
 all 0; Handy body 1 flag 1 row `[81 1 51 50 100]`, Merlin body 2 flag 2).
+
+`port/char.{h,cpp}` expose the projection so the front-end (maintainer) can
+consume it without re-deriving the arithmetic: `party_row(CharSheet, index)`
+builds one `PartyRow`, and `party_status(SaveGame)` builds the whole live party
+(slots with `present == 1`, in order).  `char_test` asserts the six-member
+`GAME1` projection.
