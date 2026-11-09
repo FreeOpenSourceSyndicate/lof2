@@ -176,8 +176,9 @@ that read the game *data* files and never touch `LOF.EXE` / `VOR.EXE`.
 
 Both accept `--dir DIR`, `--headless`, `--shot FILE.png` (for verification).
 `lof` additionally accepts `--screen NAME` (render one named screen, e.g.
-`--screen CRED`, `--screen UP/MSCR`, `--screen EGA/UP/MENU`) and `--shot-frame N`
-(which frame of the intro sequence `--shot` captures; default = last).
+`--screen CRED`, `--screen UP/MSCR`, `--screen EGA/UP/MENU`), `--play SUB/DPNNN`
+(compose the in-game play screen, see below) and `--shot-frame N` (which frame of
+the intro sequence `--shot` captures; default = last).
 
 Progress:
 
@@ -188,7 +189,13 @@ Progress:
 - [x] LOF main menu artwork: `EGA/UP/MSCR` (full background) + `EGA/UP/MENU`
       (menu frame blitted at 7,4).
 - [x] Font decoding: `EGA/UP/CHR1`/`CHR2` glyph mapping (see below).
-- [ ] LOF play loop.
+- [x] LOF play screen (static composition): `--play D0/DP001` draws the HUD
+      background `EGA/UP/MSCR` with the first-person viewport tile
+      `EGA/D0/DP001` blitted into the 120x119 window at (10,11). Matches the
+      DOSBox slot-2 capture `ref/oracle/play.png` at ~92% (residue = the engine's
+      dynamic overlays and party text). Guarded by `tests/port_play_test.py`
+      (`make golden-port`). The *interactive* play loop (input, movement,
+      re-rendering) is not yet implemented.
 
 ### Font / text rendering (decoded)
 

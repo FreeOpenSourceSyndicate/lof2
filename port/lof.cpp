@@ -100,6 +100,28 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    // --play SUB/DPNNN composes the in-game play screen and exits: the static
+    // HUD background (EGA/UP/MSCR) with the first-person viewport tile
+    // (EGA/SUB/DPNNN, e.g. D0/DP001) blitted into the 120x119 window at (10,11).
+    // The window geometry and the background were recovered by matching the
+    // decoded assets against a DOSBox capture of save slot 2 (ref/oracle/play.png);
+    // the composition matches that capture at ~92%, the residue being the party
+    // panel and status text the engine draws with its own font.
+    std::string play;
+    for (int i = 1; i < argc; i++)
+        if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
+    if (!play.empty()) {
+        std::string err;
+        Screen s;
+        s.resize(320, 200);
+        s.clear(0);
+        if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) { fprintf(stderr, "lof: %s\n", err.c_str()); return 1; }
+        if (!blit_ega(s, dir + "/EGA/" + play, 10, 11, &err)) { fprintf(stderr, "lof: %s\n", err.c_str()); return 1; }
+        if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
+        if (!headless) present_sdl(s, "Legend of Faerghail");
+        return 0;
+    }
+
     // LOF's intro sequence (from the asset table at image offset 0x35EC8):
     // title graphic (EGA/IN/TITL) -> credits still (EGA/IN/CRED) -> main menu,
     // which is the menu background (EGA/UP/MSCR) with the menu frame
