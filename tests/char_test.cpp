@@ -111,6 +111,7 @@ static void synthetic_spec() {
     sns.stats[kSnsBody2d - 38] = 10;
     sns.stats[kSnsBody2e - 38] = 65;
     sns.stats[kSnsSpeed36 - 38] = 4;
+    sns.stats[kSnsField3a - 38] = 18;
     sns.stats[kSnsClass4c - 38] = 2;
     // Four (value, level) skill pairs, distinct so the stride-2 mapping is checked.
     for (int n = 0; n < 4; ++n) {
@@ -122,6 +123,8 @@ static void synthetic_spec() {
     assert(s.c1c == 65);
     assert(s.c1d == 90 && s.c1e == 90);   // 100 - 10
     assert(s.c56 == 4);
+    assert(s.c14 == 18);                  // rec[0x3a] -> char +0x14 word
+    assert(s.c1b == 0x0c && s.c64 == 0x1324 && s.c4e == 100);  // constants
     assert(s.c7a_index == 1);
     for (int n = 0; n < 4; ++n) {
         assert(s.c142[n] == (uint8_t)(10 + n));
@@ -444,7 +447,11 @@ static int real_data() {
     assert(seed.c1d == (uint8_t)(100 - st[kSnsBody2d - 38]));  // char +0x1d
     assert(seed.c1e == seed.c1d);               // char +0x1e mirrors +0x1d
     assert(seed.c56 == st[kSnsSpeed36 - 38]);   // char +0x56
+    assert(seed.c14 == st[kSnsField3a - 38]);   // char +0x14
     assert(seed.c7a_index == st[kSnsIndex2a - 38]);
+    // Seeded constants the routine writes verbatim.
+    assert(seed.c00 == 1 && seed.c1b == 0x0c && seed.c64 == 0x1324 &&
+           seed.c4e == 100);
     // And they equal the live character's fields (Siegurd == SNSC class 0).
     // Note: char +0x1d is written from the same 100-n value here, but the
     // Dexterity rule at 1BA40 then overrides it (Siegurd's Dexterity is 0, so
