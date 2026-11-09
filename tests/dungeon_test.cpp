@@ -286,6 +286,90 @@ static void test_level_connected(const std::string& dir) {
     assert(hit == total);   // DNG01 is fully connected under {3,12}
 }
 
+// The {3,12} wall set keeps the levels almost fully connected, which a
+// hand-built maze should be.  This guards the passability model across ALL
+// shipped levels: the mean largest-component fraction must stay high and the
+// vast majority of levels must be one connected region.  If a future change to
+// dungeon_is_solid_tile() wrongly makes floor tiles solid (or walls passable),
+// the levels shear into fragments and this fails.
+static void test_connectivity_stats(const std::string& dir) {
+    int levels = 0, connected = 0, total_open = 0, total_big = 0;
+    for (int dg = 0; dg < 7; dg++) {
+        for (int lv = 0; lv < 8; lv++) {
+            Dungeon d;
+            if (!load_dungeon(dir + "/" + dungeon_file_name(dg, lv), d)) continue;
+            levels++;
+            // Flood-fill components of the passable graph, 4-neighbour.
+            std::vector<int> comp((size_t)kDungeonTiles, -1);
+            int biggest = 0, open = 0;
+            std::vector<int> stack;
+            for (int s = 0; s < kDungeonTiles; s++) {
+                int sx = s % kDungeonW, sy = s / kDungeonW;
+                if (comp[(size_t)s] >= 0 || !dungeon_passable(d, sx, sy)) continue;
+                int n = 0;
+                stack.push_back(s);
+                comp[(size_t)s] = s;
+                while (!stack.empty()) {
+                    int c = stack.back(); stack.pop_back();
+                    n++;
+                    int x = c % kDungeonW, y = c / kDungeonW;
+                    const int dx[4] = {1, -1, 0, 0}, dy[4] = {0, 0, 1, -1};
+                    for (int k = 0; k < 4; k++) {
+                        int nx = x + dx[k], ny = y + dy[k];
+                        if (!dungeon_passable(d, nx, ny)) continue;
+                        int nc = ny * kDungeonW + nx;
+                        if (comp[(size_t)nc] >= 0) continue;
+                        comp[(size_t)nc] = s;
+                        stack.push_back(nc);
+                    }
+                }
+                if (n > biggest) biggest = n;
+                open += n;
+            }
+            total_open += open;
+            total_big += biggest;
+            if (open > 0 && biggest * 1000 >= open * 999) connected++;
+        }
+    }
+    if (!levels) { std::printf("dungeon_test: no levels, skipping connectivity stats\n"); return; }
+    std::printf("dungeon_test: connectivity %d/%d fully connected, "
+                "mean largest=%.3f\n", connected, levels,
+                total_open ? (double)total_big / total_open : 0.0);
+    assert(connected >= levels - 6);            // >= ~80% fully connected
+    assert(total_big * 100 >= total_open * 98); // mean largest-component >= 0.98
+}
+
+// Object-layer semantics: features sit predominantly on WALL cells that are
+// open straight through (classic doorways), not scattered on floor.  Pins the
+// "object layer = doors/features" reading for two structurally different
+// levels (DNG01 corridor-heavy, DNG17 room-heavy).
+static void test_object_doors(const std::string& dir) {
+    const char* names[] = {"DNG01", "DNG17"};
+    int checked = 0;
+    for (const char* nm : names) {
+        Dungeon d;
+        if (!load_dungeon(dir + "/" + std::string(nm), d)) continue;
+        int feat = 0, door = 0;
+        for (int y = 0; y < kDungeonH; y++)
+            for (int x = 0; x < kDungeonW; x++) {
+                if (!d.obj_code(x, y)) continue;
+                feat++;
+                if (!dungeon_passable(d, x, y)) {   // feature on a wall cell
+                    bool h = dungeon_passable(d, x - 1, y) &&
+                             dungeon_passable(d, x + 1, y);
+                    bool v = dungeon_passable(d, x, y - 1) &&
+                             dungeon_passable(d, x, y + 1);
+                    if (h || v) door++;
+                }
+            }
+        assert(feat > 0);
+        // Most wall features are doorways (open through), not blind stubs.
+        assert(door * 2 > feat);
+        checked++;
+    }
+    if (checked) std::printf("dungeon_test: %d levels checked for door features\n", checked);
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_render();
@@ -297,6 +381,8 @@ int main(int argc, char** argv) {
     test_real(dir);
     test_object_layout(dir);
     test_file_name(dir);
+    test_connectivity_stats(dir);
+    test_object_doors(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }

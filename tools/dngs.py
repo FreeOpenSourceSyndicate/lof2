@@ -22,8 +22,9 @@ near-random scatter.  `info` prints the coherence numbers.
 
 Usage:
     python3 tools/dngs.py info  game/DNGS/DNG00 [DNG01 ...]
-    python3 tools/dngs.py grid  game/DNGS/DNG00 [tiles|objects] [W]
+    python3 tools/dngs.py grid  game/DNGS/DNG00 [tiles|objects|feature] [W]
     python3 tools/dngs.py png   game/DNGS/DNG00 out.png [cell]
+    python3 tools/dngs.py doors game/DNGS/DNG00    # door/feature placement
     python3 tools/dngs.py tiles game/EGA          # layered dungeon tilesets
     python3 tools/dngs.py atlas game/EGA D0 out.png  # sheet of a tileset
     python3 tools/dngs.py all
@@ -129,11 +130,58 @@ def cmd_grid(path, layer='tiles', w=LAYER_W):
         blk = tiles(body)
     elif layer == 'objects':
         blk = bytes(o[1] for o in objects(body))
+    elif layer == 'feature':
+        # same data as objects but printed as hex digits, so a feature code >15
+        # is still visible (objects mode maps every code to one symbol).
+        blk = bytes(o[1] for o in objects(body))
     else:
-        sys.exit("layer must be 'tiles' or 'objects'")
+        sys.exit("layer must be 'tiles', 'objects' or 'feature'")
     print('--- %s %s (%dx%d) ---' % (os.path.basename(path), layer, w, len(blk) // w))
     for ln in render_grid(blk, w, symbol=(layer == 'tiles')):
         print(ln)
+
+
+# Solid (wall) tile codes.  PROVISIONAL: derived from connectivity across the
+# 29 levels (the {3,12} set keeps 24/29 levels fully connected, which a
+# hand-built maze should be) and from the object-feature placement below.  Not
+# yet confirmed against an oracle frame; see docs/notes-a.md.
+SOLID_TILES = {3, 12}
+
+
+def _is_solid(tl, x, y, w=LAYER_W, h=LAYER_W):
+    if x < 0 or y < 0 or x >= w or y >= h:
+        return True
+    return tl[y * w + x] in SOLID_TILES
+
+
+def cmd_doors(path):
+    """Classify the object layer: how many features sit on a wall cell that is
+    open straight through (a classic doorway), vs on a wall stub or on floor."""
+    hdr, body = decode(path)
+    tl = tiles(body)
+    ob = objects(body)
+    n_feat = door = stub = onfloor = 0
+    codes = collections.Counter()
+    for i in range(LAYER_W * LAYER_W):
+        code = ob[i][1]
+        if not code:
+            continue
+        n_feat += 1
+        codes[code] += 1
+        x, y = i % LAYER_W, i // LAYER_W
+        if not _is_solid(tl, x, y):
+            onfloor += 1
+            continue
+        horiz = (not _is_solid(tl, x - 1, y)) and (not _is_solid(tl, x + 1, y))
+        vert = (not _is_solid(tl, x, y - 1)) and (not _is_solid(tl, x, y + 1))
+        if horiz or vert:
+            door += 1
+        else:
+            stub += 1
+    print('%s: %d feature cells -> door-like %d, wall-stub %d, on-floor %d'
+          % (os.path.basename(path), n_feat, door, stub, onfloor))
+    print('  distinct feature codes: %d  top: %s'
+          % (len(codes), codes.most_common(8)))
 
 
 # A tiny, dependency-free PNG writer (grayscale) so the tool works in CI too.
@@ -156,6 +204,9 @@ TILE_GREY = {0: 32, 6: 200, 3: 96, 12: 64, 1: 140, 2: 120, 7: 170, 8: 150}
 
 
 def cmd_png(path, out, cell=8):
+    """Render the level as a *walkable* top-down map: floor light, wall dark,
+    and object/feature cells (mostly doorways, see cmd_doors) marked bright.
+    This mirrors what port/dungeon.cpp::render_dungeon_map draws."""
     hdr, body = decode(path)
     tl = tiles(body)
     obj = objects(body)
@@ -163,9 +214,10 @@ def cmd_png(path, out, cell=8):
     pix = bytearray(w * h)
     for cy in range(LAYER_W):
         for cx in range(LAYER_W):
-            g = TILE_GREY.get(tl[cy * LAYER_W + cx], 255)
+            v = tl[cy * LAYER_W + cx]
+            g = 40 if v in SOLID_TILES else TILE_GREY.get(v, 180)
             if obj[cy * LAYER_W + cx][1]:
-                g = 230
+                g = 245                    # door/feature marker
             for dy in range(cell):
                 row = (cy * cell + dy) * w + cx * cell
                 for dx in range(cell):
@@ -249,6 +301,9 @@ def main(argv):
     elif cmd == 'grid':
         cmd_grid(argv[1], argv[2] if len(argv) > 2 else 'tiles',
                  int(argv[3]) if len(argv) > 3 else LAYER_W)
+    elif cmd == 'doors':
+        for p in argv[1:]:
+            cmd_doors(p)
     elif cmd == 'png':
         cmd_png(argv[1], argv[2] if len(argv) > 2 else 'dungeon.png',
                 int(argv[3]) if len(argv) > 3 else 8)

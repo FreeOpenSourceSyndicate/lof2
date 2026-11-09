@@ -384,3 +384,98 @@ ega\twn\twn00..05 ega\up\*`.  So the town->wilderness transition is not reachabl
 with the current keys, and there is still no oracle dungeon frame.  This is
 purely a capture blocker; the decode and the code->sprite *structure* (below) are
 independent of it.
+
+### Round 4 — the maintainer's "play" golden does not reproduce (blocker report)
+
+Per the "if loading the file doesn't work, check whether the maintainer made
+progress on unblocking" instruction I re-checked the maintainer's branch
+(`origin/work/maintainer-town`, tip `5a6c7ea`).  Their new golden-test `play`
+scenario (the only oracle path they document) **does not reproduce** in this
+workspace, from a clean worktree at their exact tip:
+
+* Recipe: `LOF_EDUMP=<f> LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAUTO=0x18,0x03
+  LOF_KEYGAP=8 ./lof-native --dir game --headless --frames 1000 --shot /dev/null`.
+  Expected (their `tests/golden.txt`): `c46f4fe9be490a1b77560a1e8136441e`.
+  Observed: `b43512c10b9b22396b6b0dcdecf7a148` — for **every** game dir tried
+  (workspace, pristine extraction, slot-2-only) and every commit
+  (`ab42e4a`, `75dc673`, `5a6c7ea`).  The other six goldens (boot/look/open/add/
+  dism/erase) all match exactly, so my build and game data are sound.
+* Cause: after the save load the CPU jumps to `0000:0000` (the known
+  "zeroed return address" class) at a fixed `instr=10670017`, `frames=36`,
+  before the play loop starts.  `LOF_CRASHDBG=1` shows `ss:sp=4C92:B56A` with the
+  stack full of zeros.  The last INT 21h activity is the save read
+  (`GAMES\GAME  2`: 11834 + 4 + 1296 bytes); no `DNGS`/`EGA/Dn` file is opened.
+* The user's slot-1 save (`GAME1`, "The Temple") takes the same path: it is read
+  in full (`GAMES\GAME  1`: 11834 + 4 + 1296) then crashes identically.  It does
+  **not** read a DNGS dungeon, and its own 1296-byte region @11838 does not match
+  any `DNGS/DNGnn` tile layer (best 1201/1296 = floor-dominated, so it is not the
+  dungeon map either).  So neither save yields a dungeon oracle frame.
+
+### Data-hygiene bug found and fixed (do not re-break)
+
+`game/ROST/ROST` had drifted to 6625 bytes (shipped/pristine = 4555).  With the
+corrupted file, workstream B's `char_test` fails (`roster.size() == 11`); with
+the pristine file `make test` passes.  I restored `game/ROST/ROST` from
+`downloads/ext_msdos/legfaer/ROST/ROST`.  If a run ever mutates it, restore from
+the extraction — the engine only ever reads it.
+
+### Net state of workstream A
+
+Decode + walkable model are done and green (`dungeon_test`: 7 real cells, 29
+levels).  The DoD's remaining half — a first-person dungeon *render* — is blocked
+on an oracle frame, and the only two candidate oracles (maintainer's outdoor map,
+user's slot-1 save) are both unreachable here.  No further A work is possible
+without an unblock; stopping per the instruction.
+
+### Round 5 — object layer = doorways (oracle-free evidence), sprite ladder
+
+Still no oracle, so I hardened the parts of the format that can be settled
+without one.
+
+**The object/feature layer is door/feature placement, not a second map.**  For
+each non-zero feature cell, ask whether it sits on a solid (`{3,12}`) wall cell
+that is *open straight through* (both neighbours on the horizontal OR vertical
+axis are passable) — the classic doorway signature:
+
+| level | feature cells | door-like | wall-stub | on-floor |
+|-------|---------------|-----------|-----------|----------|
+| DNG01 | 62            | 46        | 0         | 16       |
+| DNG17 | 327           | 216       | 60        | 51       |
+| DNG00 | 100           | 9         | 69        | 22       |
+
+DNG01 (corridor level) is 46/62 doorways; DNG17 (room level) 216/327.  DNG00 is
+the outlier (9 doors, 69 stubs) — consistent with it being the *town*/special
+map rather than a plain dungeon.  `tests/dungeon_test.cpp::test_object_doors`
+asserts `door*2 > feat` for DNG01/DNG17.  `tools/dngs.py doors` prints the split.
+
+**Connectivity guard across all 29 levels.**  With the `{3,12}` wall set, 23/29
+levels are one connected region and the mean largest-component fraction is
+0.993.  `test_connectivity_stats` asserts `>= levels-6` fully connected and mean
+largest `>= 0.98`; a wrong `dungeon_is_solid_tile()` would shear the levels and
+fail it.  (I swept alternative solid sets — adding 1/2/13 changes nothing
+meaningful; `{3,12}` stays the right minimal set.  Treating 6 as solid instead,
+i.e. reading the grid inverted, fragments 8/29, so 6 = floor is confirmed.)
+
+**Sprite ladder tabulated.**  `EGA/D0` (63 sprites) sizes are a clean
+perspective ladder: `120x119` (k=1 full face), `64x59` (k=2), `32x29` (k=3),
+`24x19`/`16x29`/`16x19` (side faces), `8x29` (far), plus `120x11` floor/ceiling
+bands, `32x119` door frames and `120x59` wide bands.  The indices group into five
+families (`1..13, 14..25, 36..47, 48..57`, wide bands `61..66`), so one *logical*
+tile resolves to several depth-scaled sprites.  This is the geometry a viewport
+render will need; it still needs the code→family table (inside `LOF.EXE`, not yet
+located) plus an oracle frame to confirm.
+
+### Round 6 — deeper oracle attempts (all negative)
+
+Trying to unblock the frame without `src/` edits:
+
+- Long brute-force key feed on the maintainer build (O,1 then C/arrows/Enter/
+  letters, 4000 frames, `LOF_I21=1`): **no `DNGS/` or `EGA/Dn` read ever
+  occurs.**  The crash is before any dungeon code runs, so more keys cannot help.
+- `LOF_PLANT_LOFX=1`, `--vor`, `LOF_HOUR` sweep, key-gap sweep: all identical
+  crash (`b43512c1…`).  Data-independent.
+- Static: the `UCFRDLMPO` legend (ds 0xBB2C) is referenced exactly once, at file
+  `0x76D1` (`mov ax,0xbb2b`), inside a loader wrapper — no adjacent code→sprite
+  table is visible without disassembling the (GFA-compiled) body, and the
+  debug cluster (`Debugmode activ!` etc.) has no key/tail trigger.
+
