@@ -472,6 +472,7 @@ void Machine::dos_int(uint8_t n) {
             // program starts with a full, fresh heap; this mirrors DOS handing
             // out the largest free block below the video segment.
             uint16_t want = c.bx;
+            if (getenv("LOF_ALLOC")) fprintf(stderr, "[48] instr=%u want=%u free=%04X\n", instr_count, want, alloc_free);
             if ((uint32_t)alloc_free + want < 0xA000) {
                 c.ax = alloc_free; alloc_free += want + 1; set_cf(c, false);
             } else {

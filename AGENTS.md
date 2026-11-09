@@ -269,12 +269,21 @@ time with an extra step (weighting/duplication) the drop-in does not yet model.
 approximation. Next step: disassemble the engine's glyph-blit routine (the code
 that reads the `4130:` buffer `CHR1` is loaded into) to recover the transform.
 
-**Custom EGA palette.** The engine reprograms the attribute controller at
-start-up (`INT 10h AH=10h AL=02h`), mapping indices 0..7 to the low-intensity
-colours and 8..15 to the same hues at high intensity. `port/gfx.cpp` carries the
-game's programmed palette in `kEgaPalette`; using the stock BIOS palette instead
-mis-colours the menu, town and intro frames (the menu exact-match drops from
-0.78 to 0.58).
+**EGA palette.** The engine programs the attribute controller at start-up
+(`INT 10h AH=10h AL=02h`) with the **standard EGA/BGI attribute set**
+(`00 01 02 03 04 05 14 07 38 39 3A 3B 3C 3D 3E 3F`): index 6 is brown
+`(170,85,0)` and index 8 dark gray `(85,85,85)`. A naive "index i>=8 -> i+8"
+remap renders index 6 yellow and index 8 green and is **wrong**. Verified by
+decoding the DOSBox menu capture: its 13 on-screen colours are exactly the stock
+set. `port/gfx.cpp` carries the set in `kEgaAttr`; with it the port menu matches
+the DOSBox oracle to 0.16% (`make golden-port`).
+
+> **Emulator palette caveat.** The analysis emulator renders the menu with the
+> palette the game *programs* via `INT 10h AH=10h AL=02h` (its last such call
+> writes `00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17`, so index 6 becomes
+> dark yellow `(170,170,0)`). DOSBox — the ground-truth oracle — shows the
+> *stock* set instead (index 6 brown `(170,85,0)`). The drop-in follows DOSBox,
+> not the emulator; do **not** "fix" the port to match the emulator here.
 
 
 
@@ -306,6 +315,9 @@ Roadmap:
 | `LOF_KEYSTEP=N`      | deliver one `--keys` entry every N frames |
 | `LOF_KEYAT=f:sc,...` | queue each scancode at an exact frame (multi-screen scripts) |
 | `LOF_HOUR`/`LOF_MIN`/`LOF_SEC` | override the DOS clock (INT 21h AH=2Ch) |
+| `LOF_WATCH=lo:hi`   | log every byte/word write to `[lo,hi)` (hex) with the writing `cs:ip` |
+| `LOF_DISASM=seg:off:len` | hex-dump `len` bytes of the loaded image at `seg:off` |
+| `LOF_ALLOC=1`        | log each INT 21h AH=48 allocation (want, free paragraph) |
 
 ## Town / play-loop flow (oracle for the drop-in)
 
