@@ -353,3 +353,18 @@ Two remaining panel residues, both documented not guessed:
   character; the first decodes to a digit (`2`,`6`,`2`,`5`,`1`,`3`) but the
   glyphs are *not* plain CHR2 digit cells — a different (probably arithmetic)
   encoding.  Not yet decoded; drawing it wrong lowers the match.
+
+### Party-panel stat row (2026-11-09)
+
+The third panel row per character is the **status**: a dark-gray (index 8)
+number on the left and a **white (index 15) status word** on the right.  For all
+six party members the word is exactly `GOOD` — `status_short_names()[0]`,
+rendered in the same CHR2 5x5 face and verified 100% pixel-for-pixel against the
+oracle at (169,21),(229,21),(289,21),(169,49),(229,49),(289,49).
+
+The leading dark number is *not* a plain decimal: the glyphs are CHR2 band-0/1
+cells (`0x32`=`` ` ``, `0x0f`=`O`/`[`, `0x25`=band-1 `e`), so the row is an
+encoded stat rather than `itoa()`.  Neither `level46` nor `stat1d` maps to it,
+and no single save byte is constant across the six while the words are.  Left
+unrendered (drawing it wrong lowers the match); the status word is the
+documented next step if the engine's stat formatter is recovered.
