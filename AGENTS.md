@@ -442,6 +442,25 @@ committed oracle frames are in `ref/oracle/`.
 **The oracle is the ground truth, not the emulator.**  When the port and the
 emulator disagree with DOSBox, DOSBox wins.
 
+`tools/capture_dosbox_pair.sh` captures two frames in **one** DOSBox session, so
+both share a single EGA palette and can be diffed against each other directly.
+Use it to compare the menu with an in-game screen:
+
+```sh
+tools/capture_dosbox_pair.sh ref/oracle   # -> ref/oracle/menu2.png + town2.png
+```
+
+### The emulator does not render the real play screen
+
+The analysis emulator renders the **same viewport** for the main menu, the
+dungeon (save slot 1) and the town/wilderness (save slot 2): the left region
+(`x < 139`) is byte-for-byte identical across all three, and the play EGA dump
+differs from the menu dump in only 3154 bytes, all in the right-hand text rows.
+The viewport is never redrawn.  DOSBox, by contrast, shows a genuine outdoor
+scene on the town screen.  So the emulator's `temple`/`play` golden hashes pin a
+**wrong** screen; do not use the emulator as the target for any in-game screen —
+diff against `ref/oracle/town2.png` instead.  See `docs/notes-maintainer-town.md`.
+
 ## Architecture
 
 - `src/cpu.cpp`   — 8086 interpreter (`cpu_step`), decoder, REP prefix handling.
