@@ -112,12 +112,59 @@ static void synthetic_spec() {
     sns.stats[kSnsBody2e - 38] = 65;
     sns.stats[kSnsSpeed36 - 38] = 4;
     sns.stats[kSnsClass4c - 38] = 2;
+    // Four (value, level) skill pairs, distinct so the stride-2 mapping is checked.
+    for (int n = 0; n < 4; ++n) {
+        sns.stats[kSnsSkill3b + 2 * n - 38] = (uint8_t)(10 + n);
+        sns.stats[kSnsSkill3c + 2 * n - 38] = (uint8_t)(1 + n);
+    }
     CharSeed s = sns_char_seed(sns);
     assert(s.c18 == 2);
     assert(s.c1c == 65);
     assert(s.c1d == 90 && s.c1e == 90);   // 100 - 10
     assert(s.c56 == 4);
     assert(s.c7a_index == 1);
+    for (int n = 0; n < 4; ++n) {
+        assert(s.c142[n] == (uint8_t)(10 + n));
+        assert(s.c143[n] == (uint8_t)(1 + n));
+    }
+
+    // decode_char(): the 410-byte struct projection.  Build one with distinct
+    // values at every mapped offset and confirm each lands in the right field.
+    // The offsets are grounded in analysis/lof.asm: the sheet builder (0x2676E)
+    // prints +0x45/+0x44/+0x46/+0x47/+0x48 as Str/Con/Dex/Int/Wis, the level-up
+    // routine (0x9144) increments +0x17 ("enters the %ld rank"), the init
+    // routine (1BA40) writes +0x1d from the Dexterity at +0x46, and the SNSC
+    // seed writes +0x18/+0x1c/+0x1e/+0x56.
+    std::vector<uint8_t> chr(410, 0);
+    chr[kCharPresent] = 1;
+    putstr(chr, kCharName, "Tester", 14);
+    put16(chr, kCharFlags10, (uint16_t)(int16_t)-1);
+    put16(chr, kCharCounter12, 7);
+    chr[kCharLevel17] = 3;
+    chr[kCharClass18] = 1;
+    chr[kCharBase1c] = 65;
+    chr[kCharStat1d] = 15;
+    chr[kCharStat1e] = 90;
+    put16(chr, kCharHpMax20, 40);
+    put16(chr, kCharHpCur22, 10);
+    chr[kCharCon44] = 14;
+    chr[kCharStr45] = 19;
+    chr[kCharDex46] = 16;
+    chr[kCharInt47] = 12;
+    chr[kCharWis48] = 15;
+    chr[kCharSpeed56] = 2;
+    CharSheet ch = decode_char(chr.data());
+    assert(ch.present == 1 && ch.name == "Tester");
+    assert(ch.flags10 == -1 && ch.counter12 == 7);
+    assert(ch.level17 == 3);
+    assert(ch.class18 == 1 && ch.base1c == 65 && ch.stat1d == 15 &&
+           ch.stat1e == 90);
+    assert(ch.hp_max == 40 && ch.hp_cur == 10 && ch.hp_percent() == 25);
+    assert(ch.con44 == 14 && ch.str45 == 19 && ch.dex46 == 16 &&
+           ch.int47 == 12 && ch.wis48 == 15);
+    assert(ch.speed56 == 2);
+    // +0x1d is derived from Dexterity: 5*16 - 65 == 15, matching stat1d above.
+    assert(ch.stat1d == char_stat1d_from_dex(ch.dex46));
 
     printf("char_test: synthetic SPEC ok\n");
 }
@@ -233,7 +280,9 @@ static int real_data() {
     assert((int16_t)(sv.chars[0].raw[kCharFlags10] |
                      (sv.chars[0].raw[kCharFlags10 + 1] << 8)) == -1);
     assert(sv.chars[0].raw[kCharStat1d] == 0x0a);
-    assert(sv.chars[0].raw[kCharLevel46] == 0x0e);
+    // Decker: level/rank 1, Dexterity 14 (the stat +0x1d derives from).
+    assert(sv.chars[0].raw[kCharLevel17] == 0x01);
+    assert(sv.chars[0].raw[kCharDex46] == 0x0e);
 
     // Item table (transcribed from LOF.EXE; no data file carries it).
     const auto& it = items();
@@ -370,18 +419,29 @@ static int real_data() {
     assert(seed.c7a_index == st[kSnsIndex2a - 38]);
     // And they equal the live character's fields (Siegurd == SNSC class 0).
     // Note: char +0x1d is written from the same 100-n value here, but the
-    // level routine at 1BA40 then overrides it (0x0a for Siegurd, level 0x0e).
+    // Dexterity rule at 1BA40 then overrides it (Siegurd's Dexterity is 0, so
+    // it keeps 0x0a; Decker's Dexterity is 0x0e, still below 16 -> 0x0a).
     const uint8_t* ch = sv.chars[1].raw.data();  // GAME1 slot 1 = Siegurd
     assert(ch[kCharClass18] == seed.c18);
     assert(ch[kCharBase1c] == seed.c1c);
     assert(ch[kCharStat1e] == seed.c1e);
     assert(ch[kCharSpeed56] == seed.c56);
-    assert(ch[kCharStat1d] == 0x0a);   // overridden by the 1BA40 level routine
+    assert(ch[kCharStat1d] == 0x0a);   // overridden by the 1BA40 Dexterity rule
     assert(ch[kCharSeed7a + seed.c7a_index] == 2);
     assert(seed.c18 == 1 && seed.c1c == 65 && seed.c1d == 90 && seed.c56 == 4);
     // Monsters carry class 2 (e.g. the Dragon) and a distinct body value.
     CharSeed dseed = sns_char_seed(snsc[4]);
     assert(dseed.c18 == 2 && dseed.c1c == 45 && dseed.c56 == 4);
+
+    // Skill pairs: the classes that carry skill data (2 = Ihl Kazar, 3 = Mask
+    // Bearer) seed char +0x142/+0x143 with stride 2 straight from rec[0x3b..].
+    CharSeed kseed = sns_char_seed(snsc[2]);
+    const uint8_t* kst = snsc[2].stats;
+    for (int n = 0; n < 4; ++n) {
+        assert(kseed.c142[n] == kst[kSnsSkill3b + 2 * n - 38]);
+        assert(kseed.c143[n] == kst[kSnsSkill3c + 2 * n - 38]);
+    }
+    assert(kseed.c142[0] == 28 && kseed.c143[0] == 2);   // Ihl Kazar
 
     // decode_char() projects the fields the engine reads directly.  The HP pair
     // (+0x20 max / +0x22 current) is proven by the sheet builder at 28054/28067
@@ -393,14 +453,23 @@ static int real_data() {
     assert(cs.class18 == 1 && cs.base1c == 65 && cs.stat1e == 90);
     assert(cs.hp_max == 96 && cs.hp_cur == 96);
     assert(cs.hp_percent() == 100);
-    assert(cs.level46 == 0 && cs.speed56 == 4);   // Siegurd: level 0
-    // +0x1d is the level-derived stat (1BA40): <16 -> 10, else 5*level-65.
-    assert(cs.stat1d == char_stat1d_from_level(cs.level46));
-    assert(char_stat1d_from_level(0) == 10 && char_stat1d_from_level(15) == 10);
-    assert(char_stat1d_from_level(16) == 15 && char_stat1d_from_level(19) == 30);
+    assert(cs.level17 == 0 && cs.speed56 == 4);   // Siegurd: rank 0
+    // +0x1d is the Dexterity-derived stat (1BA40): <16 -> 10, else 5*dex-65.
+    assert(cs.stat1d == char_stat1d_from_dex(cs.dex46));
+    assert(char_stat1d_from_dex(0) == 10 && char_stat1d_from_dex(15) == 10);
+    assert(char_stat1d_from_dex(16) == 15 && char_stat1d_from_dex(19) == 30);
+    // The five primary attributes sit at +0x44..+0x48 (Con, Str, Dex, Int, Wis),
+    // verified against the sheet builder (0x2676E) and the training routine
+    // (0x95B0): Siegurd is the un-rolled template (all zero); Decker is a real
+    // character (Con 14, Str 19, Dex 14, Int 12, Wis 15).
+    assert(cs.con44 == 0 && cs.str45 == 0 && cs.dex46 == 0 &&
+           cs.int47 == 0 && cs.wis48 == 0);
+    CharSheet dkr = decode_char(sv.chars[0].raw.data());
+    assert(dkr.con44 == 14 && dkr.str45 == 19 && dkr.dex46 == 14 &&
+           dkr.int47 == 12 && dkr.wis48 == 15);
     // Every in-use character: current HP never exceeds the maximum, the HP
     // percentage matches the integer-division formula, and +0x1d is consistent
-    // with the level rule.  The save carries spare/garbage slots too (the
+    // with the Dexterity rule.  The save carries spare/garbage slots too (the
     // engine sets +0x00 == 1 for a used slot), so only check those.
     for (const auto& sc : sv.chars) {
         if (sc.present != 1) continue;
@@ -408,7 +477,7 @@ static int real_data() {
         assert(!c.name.empty());
         assert(c.hp_cur <= c.hp_max);
         assert(c.hp_percent() == (c.hp_max ? 100 * c.hp_cur / c.hp_max : 0));
-        assert(c.stat1d == char_stat1d_from_level(c.level46));
+        assert(c.stat1d == char_stat1d_from_dex(c.dex46));
     }
     // A damaged character still projects consistently (Handy: 9 of 11 HP).
     CharSheet dk = decode_char(sv.chars[2].raw.data());
@@ -421,10 +490,11 @@ static int real_data() {
 
 static void print_char(FILE* out, const CharSheet& c, size_t i) {
     fprintf(out, "[%2zu] %-12s present=%d class=%d base=%d stat1d=%d "
-                 "stat1e=%d hp=%d/%d (%d%%) lvl=%d spd=%d\n",
+                 "stat1e=%d hp=%d/%d (%d%%) rnk=%d con=%d str=%d dex=%d "
+                 "int=%d wis=%d spd=%d\n",
             i, c.name.empty() ? "<none>" : c.name.c_str(), c.present, c.class18,
             c.base1c, c.stat1d, c.stat1e, c.hp_cur, c.hp_max, c.hp_percent(),
-            c.level46, c.speed56);
+            c.level17, c.con44, c.str45, c.dex46, c.int47, c.wis48, c.speed56);
 }
 
 int main(int argc, char** argv) {

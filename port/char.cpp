@@ -452,6 +452,10 @@ CharSeed sns_char_seed(const SnsRecord& rec) {
     s.c1e = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);
     s.c56 = rec.stats[kSnsSpeed36 - 38];
     s.c7a_index = rec.stats[kSnsIndex2a - 38];
+    for (int n = 0; n < 4; ++n) {
+        s.c142[n] = rec.stats[kSnsSkill3b + 2 * n - 38];
+        s.c143[n] = rec.stats[kSnsSkill3c + 2 * n - 38];
+    }
     return s;
 }
 
@@ -460,9 +464,9 @@ int CharSheet::hp_percent() const {
     return 100 * hp_cur / hp_max;   // integer division, as the sheet builder does
 }
 
-uint8_t char_stat1d_from_level(uint8_t level) {
-    if (level < 16) return 10;
-    return (uint8_t)(5 * level - 65);   // 1BA40: 5*level - 0x41
+uint8_t char_stat1d_from_dex(uint8_t dex) {
+    if (dex < 16) return 10;
+    return (uint8_t)(5 * dex - 65);   // 1BA40: 5*dex - 0x41
 }
 
 CharSheet decode_char(const uint8_t* raw) {
@@ -471,13 +475,18 @@ CharSheet decode_char(const uint8_t* raw) {
     c.name = cstr(raw + kCharName, 14);
     c.flags10 = (int16_t)rd16(raw + kCharFlags10);
     c.counter12 = (int16_t)rd16(raw + kCharCounter12);
+    c.level17 = raw[kCharLevel17];
     c.class18 = raw[kCharClass18];
     c.base1c = raw[kCharBase1c];
     c.stat1d = raw[kCharStat1d];
     c.stat1e = raw[kCharStat1e];
     c.hp_max = (int16_t)rd16(raw + kCharHpMax20);
     c.hp_cur = (int16_t)rd16(raw + kCharHpCur22);
-    c.level46 = raw[kCharLevel46];
+    c.con44 = raw[kCharCon44];
+    c.str45 = raw[kCharStr45];
+    c.dex46 = raw[kCharDex46];
+    c.int47 = raw[kCharInt47];
+    c.wis48 = raw[kCharWis48];
     c.speed56 = raw[kCharSpeed56];
     return c;
 }

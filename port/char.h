@@ -309,6 +309,10 @@ enum SnsOffset : size_t {
     kSnsBody2d  = 0x2d,  // byte; char +0x1e = 100 - value, char +0x1d = same
     kSnsBody2e  = 0x2e,  // byte; char +0x1c (45..75, a base stat)
     kSnsSpeed36 = 0x36,  // byte; char +0x56 (1..4)
+    // Four (value, level) skill pairs: char +0x142+2n = rec[0x3b+2n] and
+    // char +0x143+2n = rec[0x3c+2n], n = 0..3 (the loop at 1DC00/1DC40).
+    kSnsSkill3b = 0x3b,  // byte; first of four skill values, stride 2
+    kSnsSkill3c = 0x3c,  // byte; first of four skill levels, stride 2
     kSnsClass4c = 0x4c,  // byte; char +0x18 (1 for PCs, 2 for big monsters)
 };
 
@@ -322,6 +326,11 @@ struct CharSeed {
     uint8_t c1e = 0;  // 100 - rec[0x2d]
     uint8_t c56 = 0;  // rec[0x36]
     uint8_t c7a_index = 0;  // rec[0x2a]; char[0x7a + index] is then set to 2
+    // The four seeded skill pairs: c142[n] -> char +0x142 + 2n (rec[0x3b+2n]),
+    // c143[n] -> char +0x143 + 2n (rec[0x3c+2n]).  Confirmed byte-for-byte on
+    // Siegurd (class 0, all zero) and on the class-2/3 records that carry data.
+    uint8_t c142[4] = {0, 0, 0, 0};
+    uint8_t c143[4] = {0, 0, 0, 0};
 };
 
 // Apply the SNSC/NSC init mapping to a class record (see `SnsOffset`).
@@ -341,10 +350,24 @@ enum CharOffset : size_t {
     // slot the pass leaves alone; live characters carry -1 here.
     kCharFlags10   = 0x10,  // word
     kCharCounter12 = 0x12,  // word: paired with flags10 in the erase condition
-    // The init routine at 1BA40 sets stat1d = 0x0a, and when level46 > 0x0f
-    // overrides it with 5*level46 - 0x41 + 1; both are byte quantities.
-    kCharStat1d    = 0x1d,  // byte
-    kCharLevel46   = 0x46,  // byte
+    // +0x17 is the character level / rank.  The level-up routine (0x9144) does
+    // `inc byte ptr es:[bx+si+0x17]` and then prints "X enters the %ld rank."
+    // (string at DS:0x4ea6), and the character sheet prints +0x17 under "Rnk ".
+    kCharLevel17   = 0x17,  // byte: level / rank
+    // The init routine at 1BA40 sets stat1d = 0x0a, and when +0x46 (Dexterity)
+    // exceeds 0x0f overrides it with 5*dex - 0x41; both are byte quantities.
+    kCharStat1d    = 0x1d,  // byte: Dexterity-derived stat (see 1BA40)
+    // The five primary attributes, in sheet display order Con, Str, Dex, Int,
+    // Wis.  The character-sheet builder (0x2676E) copies the 410-byte struct to
+    // its stack frame and prints "Str "(+0x45), "Con "(+0x44), "Dex "(+0x46),
+    // "Int "(+0x47), "Wis "(+0x48); the training routine (0x95B0) increments
+    // +0x45 with "Strength improves!", +0x46 with "Dexterity improves!", +0x48
+    // with "Wisdom improves!", and the Con->HP bonus reads +0x44.
+    kCharCon44     = 0x44,  // byte: Constitution
+    kCharStr45     = 0x45,  // byte: Strength
+    kCharDex46     = 0x46,  // byte: Dexterity
+    kCharInt47     = 0x47,  // byte: Intelligence
+    kCharWis48     = 0x48,  // byte: Wisdom
     // Fields seeded from an SNSC/NSC class record by the init routine at
     // 1DA8E..1DCBB (see `sns_char_seed`): +0x18 class flag, +0x1c base stat,
     // +0x1e body stat, +0x56 speed.  +0x7a is the base of the seed slots: the
@@ -354,6 +377,9 @@ enum CharOffset : size_t {
     kCharStat1e    = 0x1e,  // byte: body stat (100 - rec[0x2d])
     kCharSpeed56   = 0x56,  // byte: speed (1..4)
     kCharSeed7a    = 0x7a,  // byte: base of the +0x7a+n seed slots
+    // The four seeded (value, level) skill pairs: +0x142+2n / +0x143+2n, n=0..3,
+    // copied from rec[0x3b+2n] / rec[0x3c+2n] by the init routine's tail loop.
+    kCharSkill142  = 0x142, // byte: first of four seeded skill values (stride 2)
     // Hit points.  The character-sheet builder at 28054/28067 reads the current
     // value from +0x22 and divides 100*current by the value at +0x20 to get the
     // HP percentage it shows, so +0x20 is the maximum and +0x22 the current HP
@@ -371,13 +397,18 @@ struct CharSheet {
     std::string name;        // +0x01  14 bytes, NUL-terminated
     int16_t  flags10 = 0;    // +0x10  word (erase-condition guard; -1 = leave)
     int16_t  counter12 = 0;  // +0x12  word (paired with flags10)
+    uint8_t  level17 = 0;    // +0x17  level / rank
     uint8_t  class18 = 0;    // +0x18  class flag (1 PC / 2 monster)
     uint8_t  base1c = 0;     // +0x1c  base stat (45..75)
-    uint8_t  stat1d = 0;     // +0x1d  stat (level-derived; overridden at 1BA40)
+    uint8_t  stat1d = 0;     // +0x1d  Dexterity-derived stat (see 1BA40)
     uint8_t  stat1e = 0;     // +0x1e  body stat (100 - rec[0x2d])
     int16_t  hp_max = 0;     // +0x20  maximum hit points
     int16_t  hp_cur = 0;     // +0x22  current hit points
-    uint8_t  level46 = 0;    // +0x46  level (0x0e -> char +0x1d = 0x0a)
+    uint8_t  con44 = 0;      // +0x44  Constitution
+    uint8_t  str45 = 0;      // +0x45  Strength
+    uint8_t  dex46 = 0;      // +0x46  Dexterity
+    uint8_t  int47 = 0;      // +0x47  Intelligence
+    uint8_t  wis48 = 0;      // +0x48  Wisdom
     uint8_t  speed56 = 0;    // +0x56  speed (1..4)
 
     // HP as a percentage, computed exactly as the sheet builder does
@@ -389,10 +420,10 @@ struct CharSheet {
 // 410-byte buffer.
 CharSheet decode_char(const uint8_t* raw);
 
-// char +0x1d as derived from the level at +0x46 by the routine at 1BA40: a
-// character below level 16 keeps 10; from level 16 up it is 5*level - 65
-// (level 16 -> 15, 19 -> 30).  Verified against every live save character.
-uint8_t char_stat1d_from_level(uint8_t level);
+// char +0x1d as derived from the Dexterity at +0x46 by the routine at 1BA40: a
+// character below Dexterity 16 keeps 10; from 16 up it is 5*dex - 65 (dex 16 ->
+// 15, 19 -> 30).  Verified against every live save character.
+uint8_t char_stat1d_from_dex(uint8_t dex);
 
 // --- GAMES/GAMEn (saved game / "gamestanding") ----------------------------
 

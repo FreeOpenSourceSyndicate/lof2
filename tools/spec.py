@@ -91,7 +91,11 @@ def dump_save(path):
         r = d[4 + i * 410:4 + (i + 1) * 410]
         name = cstr(r, 1, 14)
         if r[0] or name:
-            print(f"  [{i:2d}] present={r[0]:#04x} name={name!r}")
+            hp = struct.unpack_from("<h", r, 0x22)[0]
+            hpmax = struct.unpack_from("<h", r, 0x20)[0]
+            print(f"  [{i:2d}] present={r[0]:#04x} name={name!r} "
+                  f"rnk={r[0x17]} con={r[0x44]} str={r[0x45]} dex={r[0x46]} "
+                  f"int={r[0x47]} wis={r[0x48]} hp={hp}/{hpmax}")
 
 
 # The item table lives only inside LOF.EXE (image offset 0x42cec, data segment
@@ -324,7 +328,7 @@ def dump_sns(path):
         (0x4c, "+0x18", "copy", "class flag (1 PC / 2 monster)"),
         (0x2e, "+0x1c", "copy", "base stat"),
         (0x2d, "+0x1e", "100-n", "body stat"),
-        (0x2d, "+0x1d", "100-n", "seed (overridden by level routine)"),
+        (0x2d, "+0x1d", "100-n", "seed (overridden by Dex at 1BA40)"),
         (0x36, "+0x56", "copy", "speed"),
         (0x2a, "+0x7a+n", "set 2", "seed-slot index"),
     ]
@@ -340,6 +344,11 @@ def dump_sns(path):
             v = r[off]
             out = (100 - v) & 0xFF if tf == "100-n" else v
             parts.append(f"rec[{off:#x}]={v}->{ch}={out}")
+        # Four (value, level) skill pairs -> char +0x142+2n / +0x143+2n.
+        for n in range(4):
+            parts.append(f"rec[{0x3b + 2 * n:#x}]={r[0x3b + 2 * n]}"
+                         f"/{r[0x3c + 2 * n]}->+{0x142 + 2 * n:#x}"
+                         f"/+{0x143 + 2 * n:#x}")
         print(f"        seed: " + "  ".join(parts))
 
 
