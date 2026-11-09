@@ -776,20 +776,43 @@ flag   = es:[bx + 0xfd8] (word)
 ```
 
 `[0xb094]:0xfbc` is **past the end of the EXE file** (`0x41d00 + 0xb094 + 0xfbc`
-= `0x4dd50` > file size `0x4cf10`), so this table is **not** in the static image:
-the segment `[0xb094]` is built at load/run time (like the item table's own
-runtime copies) and cannot be recovered by reading `LOF.EXE`.  The sheet's
-`Gold:` also reads `[0xb094]` at `+0x10da` (the item's value/cost) and formats a
-32-bit `%05ld$`; `Rations.. : ` formats a `%02d` count.
+= `0x4dd50` > file size `0x4cf10`), so the segment `[0xb094]` is not the image
+at that address.  **But** the offsets the sheet uses inside a record match the
+**static item table** exactly: `name@0`, `+0x14@20` (= `f2`), `+0x1c@28` (= `f6`),
+`+0x1e@30` (= the item class byte).  Four independent offset matches make it
+near-certain that `[0xb094]` is the **loaded item table** (the engine copies the
+185 x 32-byte table into a runtime segment at load).  So the sheet's per-item
+reads map onto the item record as:
 
-**Status:** the inventory *layout* (48 x 4-byte slots, item index at `+0x82`) is
-decoded and exposed (`CharSheet::inv`); the *per-item* weight/value/class fields
-the sheet sums are read from the runtime `[0xb094]` table and are therefore out
-of reach for a static reader.  Resolving them needs either the loader that
+```
+weight  = f2 (record +0x14, word) / 10
+byte    = record +0x17 (the high byte of f3)
+flag    = f6 (record +0x1c, word)
+class   = the item class byte (record +0x1e = 30)
+name    = the 16-byte name (record +0)
+```
+
+That pins the sheet's per-item reads onto the item record, but it does **not**
+settle what each field means globally: the sheet divides record `+0x14` by 10 for
+its `Weight... ` line, yet the resulting values (Club 10.0, Broadsword 8.0,
+Leather armour 15.0) do not read like plausible weights, and the earlier
+item-table note called `+0x14` the *cost* (weapons) / AC bonus (armour).  So
+treat "`+0x14` = the weight the sheet shows" as the grounded part and the field's
+overall semantics as still open.  The sheet's ` Gold:` line is **not** summed
+from items at all: it prints the party's own 32-bit gold counter (`[bp-0x1a6]` +
+`0x31` = the `'$'` char) with the `%05ld$` format.  `Rations.. : ` formats a
+`%02d` count.
+
+The only residual uncertainty is whether the runtime copy is byte-identical to
+the static one (the loader may patch it), so mapping the sheet's reads onto the
+item record is a well-supported structural hypothesis rather than a fully
+oracle-confirmed fact.  The
+inventory *layout* (48 x 4-byte slots, item index at `+0x82`) is decoded and
+exposed (`CharSheet::inv`); confirming the patched fields needs the loader that
 populates `[0xb094]` (a main-loop/runtime concern, maintainer domain) or an
-oracle trace of the sheet's reads (`LOF_I21`/`LOF_READ` at the character sheet).
-This is the one open item left in workstream B; everything else in this file is
-grounded against the static image and the shipped saves.
+oracle trace of the sheet's reads.  This is the one open item left in workstream
+B; everything else in this file is grounded against the static image and the
+shipped saves.
 
 ### Open question: the stored item index base
 
