@@ -368,9 +368,25 @@ LOF_RING=1 LOF_CRASHDBG=1 LOF_CMDLEN=3 LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 \
 
 Last instructions: `... 1895 C3 -> 1B41 CB -> 3A8D:2E9D 83 -> 3A8D:2EA0 CB ->
 3A8D:48FB 5E 5F 8B 5D CB` — a far return whose stack word (bp) is `3035`
-(ASCII `"05"`, a stray string), so a value is being written over the return
-frame.  Slot 2 (wilderness) loads cleanly, so it is data-dependent (likely a
-buffer/scan that the slot-1 save exercises).
+(ASCII `"50"`), so a value is being written over the return frame.  Slot 2
+(wilderness) loads cleanly, so it is data-dependent.
+
+**Root cause (located with `LOF_WATCH`).**  The return slot is clobbered by the
+C runtime's buffered-output path: the loop at `3F1E:12D7` reads a byte from the
+caller's buffer (`les bx,[bp+6]; mov al,es:[bx]`), takes the stream buffer
+pointer from `[0xb1fa]` and does `mov es:[di],al` (`3F1E:12EB`), i.e. it is
+`fputc`-style output into a stdio buffer.  The buffer address it uses
+(`0x57E84`, DS-relative `0xB564`) lies **inside LOF's own segment and above the
+current stack pointer** (`SS=DS=0x4C92`, `SP=0xB544`), so the write lands on the
+return address.  The bytes written are the formatted string `"    50"`
+(`20 20 20 20 35 30`).  In real DOS the C-runtime heap/buffer sits *below* the
+stack; here the bump allocator has grown it up into the stack, so this is the
+same memory-layout family as the fixed `AH=4Ah` bug and is emulator-only.
+
+```sh
+LOF_WATCH=57e80:57ea0 LOF_CMDLEN=3 LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 \
+  ./lof-native --dir game --headless --frames 1500 --shot /dev/null
+```
 
 The engine has an **internal clock** that advances on its own; the phase of day
 (`Midnight`, `Dawn`, `Early morning`, `Morning`, `Midday`, `Afternoon`,

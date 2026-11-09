@@ -30,6 +30,10 @@ test: tests/cpu_test.cpp src/cpu.cpp src/ega.cpp src/machine.cpp src/emu.h tests
 	./font_test
 	@$(MAKE) --no-print-directory local-test
 
+golden-port:
+	$(MAKE) -s port
+	python3 tests/port_menu_test.py
+
 # --- Per-agent tests -------------------------------------------------------
 # Agents add their own test commands to tests/local.mk (which they own) instead
 # of editing this Makefile.  LOCAL_TEST_CMDS is a list of shell commands.

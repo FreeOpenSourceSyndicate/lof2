@@ -18,17 +18,17 @@ void rgb_from_attr(uint8_t attr, uint8_t* rgb) {
     rgb[2] = (uint8_t)(((attr >> 0) & 1) * 170 + ((attr >> 3) & 1) * 85);  // B
 }
 
-// The palette the game programs at start-up via INT 10h AH=10h AL=02h.  LOF
-// remaps attribute indices 0..7 to the low-intensity colour set and 8..15 to
-// the same eight hues at high intensity (index 6 becomes yellow, not brown, and
-// index 8 dark green, not dark gray), so the stock EGA/BGI palette renders the
-// menu, town and intro in the wrong colours.
-//
-// The eight selectors are the low-intensity hues black/blue/green/cyan/
-// red/magenta/brown/gray; index i>=8 selects the same hue at double intensity.
-// These are the values LOF writes (the tracer at INT 10h AH=10h AL=02h shows
-// data 00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17).
-static uint8_t game_attr(int i) { return (uint8_t)(i < 8 ? i : i + 8); }
+// The palette the game programs at start-up via INT 10h AH=10h AL=02h is the
+// **standard EGA/BGI 16-colour set**.  The attribute selectors are NOT
+// `i < 8 ? i : i + 8`: the stock values are 00 01 02 03 04 05 14 07 38 39 3A 3B
+// 3C 3D 3E 3F, so index 6 is brown (170,85,0) and index 8 dark gray (85,85,85).
+// Verified against a DOSBox capture of the menu: its 13 on-screen colours are
+// exactly this set (a naive `i+8` remap renders green/yellow instead).
+static const uint8_t kEgaAttr[16] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x14, 0x07,
+    0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
+};
+static uint8_t game_attr(int i) { return kEgaAttr[i & 15]; }
 
 Palette::Palette() {
     for (int i = 0; i < 16; i++) rgb_from_attr(game_attr(i), rgb[i]);

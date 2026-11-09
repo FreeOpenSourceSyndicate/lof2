@@ -160,6 +160,12 @@ struct Machine {
         return (uint16_t)(ram[a] | (ram[(a + 1) & 0xFFFFF] << 8));
     }
     inline void wb(uint32_t a, uint8_t v) {
+        if (getenv("LOF_WATCH")) {
+            // LOF_WATCH=lo:hi (hex) — log every write to [lo,hi) with the
+            // writing cs:ip, to hunt stack/return-frame corruption.
+            static long lo=-1, hi=-1; if (lo<0){ const char* w=getenv("LOF_WATCH"); lo=strtol(w,(char**)nullptr,16); const char* c=strchr(w,':'); hi=c?strtol(c+1,(char**)nullptr,16):lo+1; }
+            if (a>=lo && a<hi) fprintf(stderr,"[watch] %05X <- %02X by %04X:%04X @%u\n", a, v, cpu.cs, cpu.ip, instr_count);
+        }
         if (getenv("LOF_BB") && a>=0xA2000 && a<0xA4000) { static unsigned long key[8192]; static unsigned cnt[8192],lo[8192],hi[8192]; static int nk=0; static bool reg=false; if(!reg){reg=true; atexit([]{ for(int i=0;i<nk;i++) if(cnt[i]>20) fprintf(stderr,"[bb] %04X:%04X n=%u off=%04X..%04X\n",(unsigned)(key[i]>>16),(unsigned)(key[i]&0xFFFF),cnt[i],lo[i],hi[i]); });} uint32_t k=((uint32_t)cpu.cs<<16)|cpu.ip; int f=-1; for(int i=0;i<nk;i++) if(key[i]==k){f=i;break;} if(f<0&&nk<8192){f=nk;key[nk]=k;cnt[nk]=0;lo[nk]=0xFFFF;hi[nk]=0;nk++;} if(f>=0){cnt[f]++; uint32_t o=a-0xA2000; if(o<lo[f])lo[f]=o; if(o>hi[f])hi[f]=o;} }
         if (is_ega(a) && getenv("LOF_PG1")) { uint32_t o=a-0xA0000; if(o>=0x2000&&o<0x4000){ static unsigned long key[8192]; static unsigned cnt[8192]; static int nk=0; static bool reg=false; if(!reg){reg=true; atexit([]{ for(int i=0;i<nk;i++) if(cnt[i]) fprintf(stderr,"[pg1] %04X:%04X n=%u\n",(unsigned)(key[i]>>16),(unsigned)(key[i]&0xFFFF),cnt[i]); });} uint32_t k=((uint32_t)cpu.cs<<16)|cpu.ip; int f=-1; for(int i=0;i<nk;i++) if(key[i]==k){f=i;break;} if(f<0&&nk<8192){f=nk;key[nk]=k;cnt[nk]=0;nk++;} if(f>=0)cnt[f]++; } }
         if (is_ega(a)) { if(getenv("LOF_VC")){ static unsigned long key[8192]; static unsigned cnt[8192],lo[8192],hi[8192]; static int nk=0; static bool reg=false; if(!reg){reg=true; atexit([]{ for(int i=0;i<nk;i++) if(cnt[i]>0) fprintf(stderr,"[vc] %04X:%04X n=%u off=%04X..%04X\n",(unsigned)(key[i]>>16),(unsigned)(key[i]&0xFFFF),cnt[i],lo[i],hi[i]); });} uint32_t k=((uint32_t)cpu.cs<<16)|cpu.ip; int f=-1; for(int i=0;i<nk;i++) if(key[i]==k){f=i;break;} if(f<0&&nk<8192){ f=nk; key[nk]=k; cnt[nk]=0; lo[nk]=0xFFFF; hi[nk]=0; nk++; } if(f>=0){ cnt[f]++; uint32_t o=a-0xA0000; if(o<lo[f])lo[f]=o; if(o>hi[f])hi[f]=o; } } ega.write(a - 0xA0000, v); fb_dirty = true; return; }
@@ -168,6 +174,10 @@ struct Machine {
         ram[a & 0xFFFFF] = v;
     }
     inline void ww(uint32_t a, uint16_t v) {
+        if (getenv("LOF_WATCH")) {
+            static long lo=-1, hi=-1; if (lo<0){ const char* w=getenv("LOF_WATCH"); lo=strtol(w,(char**)nullptr,16); const char* c=strchr(w,':'); hi=c?strtol(c+1,(char**)nullptr,16):lo+2; }
+            if (a+1>=lo && a<hi) fprintf(stderr,"[watchw] %05X <- %04X by %04X:%04X @%u\n", a, v, cpu.cs, cpu.ip, instr_count);
+        }
         if (is_ega(a)) { ega.write(a - 0xA0000, (uint8_t)v); ega.write(a + 1 - 0xA0000, (uint8_t)(v >> 8)); fb_dirty = true; return; }
         a &= 0xFFFFF;
         ram[a] = v & 0xFF; ram[(a + 1) & 0xFFFFF] = v >> 8;

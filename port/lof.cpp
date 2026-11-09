@@ -150,15 +150,15 @@ int main(int argc, char** argv) {
                 for (int y = 0; y < th && 12 + y < 130; y++)
                     menu.put(sx, 12 + y, px(104 + (sx - 10), y));
         }
-        // Menu text.  The greeting and "(C)ontinue" are drawn in the same black
-        // (0) as the option list, on the white (7) panel; the emulator oracle
-        // confirms every menu glyph pixel is index 0.  Entries are on 8px rows
-        // at x=139 with a blank row after "(R)est", and a 6px glyph advance.
+        // Menu text.  The greeting and "(C)ontinue" are drawn white (index 15)
+        // on the gray (7) panel, while the option list is black (0).  Verified
+        // against the DOSBox capture.  Entries are on 8px rows at x=139 with a
+        // blank row after "(R)est", and a 6px glyph advance.
         Font font;
         if (font.load(dir + "/EGA/UP/CHR1", &err)) {
             font.advance = 6;
-            font.draw(menu, 139, 92, "Welcome, hardy", 0);
-            font.draw(menu, 139, 100, "adventurers!", 0);
+            font.draw(menu, 139, 92, "Welcome, hardy", 15);
+            font.draw(menu, 139, 100, "adventurers!", 15);
             static const struct { int y; const char* text; } kEntries[] = {
                 {116, "(P)ick-pocket"}, {124, "(R)est"},
                 {140, "(L)ook for new character"}, {148, "(E)rase a character"},
@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
             };
             for (const auto& e : kEntries)
                 font.draw(menu, 139, e.y, e.text, 0);
-            font.draw(menu, 139, 188, "(C)ontinue", 0);
+            font.draw(menu, 139, 188, "(C)ontinue", 15);
         }
         frames.push_back(menu);
     }

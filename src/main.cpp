@@ -305,6 +305,14 @@ int main(int argc, char** argv) {
         m.running = true;
         m.reset_cpu_state();
         m.load_exe(img, path);
+        if (getenv("LOF_DISASM")) {
+            // LOF_DISASM=seg:off:len — hex-dump the loaded image at that address.
+            unsigned seg=0, off=0, len=32; sscanf(getenv("LOF_DISASM"), "%x:%x:%u", &seg, &off, &len);
+            uint32_t base = ((uint32_t)seg << 4) + off;
+            fprintf(stderr, "[disasm] %04X:%04X =", seg, off);
+            for (unsigned i = 0; i < len; i++) fprintf(stderr, " %02X", m.rb(base + i));
+            fprintf(stderr, "\n");
+        }
         // Run in chunks, presenting a frame after each chunk.
         std::vector<std::string> ring;
         ring.reserve(64);
