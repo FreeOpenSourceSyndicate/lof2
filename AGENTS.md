@@ -338,10 +338,39 @@ after the first `C` (string `ds=0x5AA2`, x=139) is the town-exit menu, and a
 second `C` on it heads out.
 
 The **wilderness and dungeons are reached by loading a save that starts there**
-(slots 1 and 2 above); walking out of town is not required.  The play screen is
-one shared UI — a 3D viewport on the right (drawn procedurally, no EGA-asset
-blits), a text/message box on the left, a party-status box and a compass below
-— and only the viewport contents differ between wilderness and dungeon.
+(slots 1 and 2 above); walking out of town is not required.
+
+**The play screen reuses the menu chrome.**  `EGA/UP/MSCR` is still blitted
+first (its bottom strip at y>=196 matches the oracle byte-for-byte); the engine
+then repaints the **left panel** (x6..135) with the party roster + location
+label and paints the 3D **viewport** on the right (x139..304, y92..196).
+
+Verified against the DOSBox oracle (`ref/oracle/`):
+
+* Loading slot 1 lands in **"The Temple"** with the party list on the left and a
+  *flat grey wall* (index 7) filling the viewport until the party turns/moves —
+  the viewport is drawn from tiles, not a full-screen asset.
+* The status fields read `Direction`, `Time of day`, `Spirits`, `Rations`
+  (e.g. `Spirits Good`, `Rations 19`).
+
+### KNOWN BUG — emulator crashes on the slot-1 (dungeon) load
+
+The analysis emulator dies with `cs:ip=0000:0000` ~10.67M instructions after
+`O`+`1`, i.e. right after the save is read — the same class of bug as the fixed
+`RETF`-to-`0000:0000` (a corrupted far-return).  The real game (DOSBox) loads
+the same save fine, so this is an emulator-only defect and it is what blocks
+validating the first-person render against an oracle.  Repro:
+
+```sh
+LOF_RING=1 LOF_CRASHDBG=1 LOF_CMDLEN=3 LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 \
+  ./lof-native --dir game --headless --frames 1500 --shot /dev/null
+```
+
+Last instructions: `... 1895 C3 -> 1B41 CB -> 3A8D:2E9D 83 -> 3A8D:2EA0 CB ->
+3A8D:48FB 5E 5F 8B 5D CB` — a far return whose stack word (bp) is `3035`
+(ASCII `"05"`, a stray string), so a value is being written over the return
+frame.  Slot 2 (wilderness) loads cleanly, so it is data-dependent (likely a
+buffer/scan that the slot-1 save exercises).
 
 The engine has an **internal clock** that advances on its own; the phase of day
 (`Midnight`, `Dawn`, `Early morning`, `Morning`, `Midday`, `Afternoon`,
@@ -366,12 +395,24 @@ Amiga/Atari ST only), so the international DOS release is the correct choice.
 
 ## Reference captures
 
-`tools/capture_dosbox.sh` runs DOSBox (EGA, 320x200) under Xvfb and grabs 320x200
-frames via DOSBox's own screenshot key, so we can diff emulator output against real
-hardware behaviour.  Requires `dosbox`, `xvfb-run`, `Xvfb`, `xdotool`, ImageMagick.
+`tools/capture_dosbox.sh` runs the **original** game under DOSBox (EGA, 320x200)
+in Xvfb and saves an exact 320x200 frame via DOSBox's own screenshot key, so we
+can diff the port against real hardware behaviour.  Requires `dosbox`, `Xvfb`,
+`xdotool` (`apt install dosbox xvfb xdotool`).
 
-Reference frames used during development live in `/tmp/native/` (ephemeral) and
-`ref/`.
+```sh
+tools/capture_dosbox.sh ref/oracle/menu --wait 30                 # boot/menu
+tools/capture_dosbox.sh /tmp/dung --wait 30 --keys "o 1" --post 20  # load slot 1
+```
+
+It mounts `game/` and runs **`START.BAT`**, not `LOF.EXE` directly: LOF refuses
+to start on its own (it prints `Please start LOF with START.BAT` and exits)
+because `VOR` must run first for the disk copy-protection check.  Reference
+frames used during development live in `/tmp/native/` (ephemeral) and `ref/`;
+committed oracle frames are in `ref/oracle/`.
+
+**The oracle is the ground truth, not the emulator.**  When the port and the
+emulator disagree with DOSBox, DOSBox wins.
 
 ## Architecture
 
