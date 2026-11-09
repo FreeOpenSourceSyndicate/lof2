@@ -478,4 +478,18 @@ Trying to unblock the frame without `src/` edits:
   `0x76D1` (`mov ax,0xbb2b`), inside a loader wrapper — no adjacent code→sprite
   table is visible without disassembling the (GFA-compiled) body, and the
   debug cluster (`Debugmode activ!` etc.) has no key/tail trigger.
+- The maintainer's branch `work/oracle-input-golden` (54cd84e) only *fixed the
+  input finding* (menu is keyboard-driven; L/E/A/D/O open screens) and added the
+  golden test.  No save-load fix.  `work/maintainer-town` (5a6c7ea) just guards
+  the wilderness `play` screen.  So directive (1) resolves to: the maintainer has
+  **not** fixed save loading → stop the oracle hunt.
+
+### Round 7 — render layer guard
+
+`render_dungeon_map` already distinguishes floor / wall / door (colours 8/7/4/1
+for floor/wall, 14 for a feature cell).  Added `test_render_layers`: render one
+floor, one wall (`3`) and one door feature (`0x0100`) cell and assert the three
+sampled centres carry three distinct colours, wall = 4 and door = 14.  This pins
+the walkable-map rendering the DoD asks for (the first-person *viewport* still
+needs the oracle).  Filed `docs/BLOCKED-agent-a.md`.
 
