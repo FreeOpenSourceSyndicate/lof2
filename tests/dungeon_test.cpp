@@ -235,6 +235,29 @@ static void test_render_facing() {
     assert(east > 0);
 }
 
+// The top-down map must distinguish the three cell kinds the model defines:
+// floor, wall and a door/feature.  Render a level with one of each and check
+// the sampled centre pixels carry three different colours.
+static void test_render_layers() {
+    Dungeon d;
+    d.tiles.assign(kDungeonTiles, 6);       // floor
+    d.objects.assign(kDungeonTiles, 0);
+    d.tiles[2 * kDungeonW + 3] = 3;         // wall at (3,2)
+    d.objects[4 * kDungeonW + 5] = 0x0100;  // door feature at (5,4)
+    Screen scr; scr.resize(320, 200); scr.clear(0);
+    render_dungeon_map(scr, d, 1, 1, 6);
+    int ox = (320 - kDungeonW * 6) / 2, oy = (200 - kDungeonH * 6) / 2;
+    auto at = [&](int x, int y) {
+        return scr.pixels[(size_t)(oy + y * 6 + 3) * scr.width + ox + x * 6 + 3];
+    };
+    uint8_t floor_c = at(1, 1), wall_c = at(3, 2), door_c = at(5, 4);
+    assert(floor_c != wall_c && wall_c != door_c && floor_c != door_c);
+    assert(wall_c == 4);                    // code 3 -> red
+    assert(door_c == 14);                   // feature marker
+    assert(dungeon_is_solid_tile(3) && dungeon_is_solid_tile(12));
+    assert(!dungeon_is_solid_tile(6) && !dungeon_is_solid_tile(0));
+}
+
 static void test_walk() {
     Dungeon d;
     d.tiles.assign(kDungeonTiles, 6);
@@ -375,6 +398,7 @@ int main(int argc, char** argv) {
     test_render();
     test_reachable();
     test_render_facing();
+    test_render_layers();
     test_walk();
     test_level_connected((argc > 1) ? argv[1] : "game/DNGS");
     std::string dir = (argc > 1) ? argv[1] : "game/DNGS";
