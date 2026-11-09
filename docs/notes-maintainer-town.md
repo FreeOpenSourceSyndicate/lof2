@@ -270,3 +270,40 @@ LOF_NO_TIMER=1 LOF_CMDLEN=3 LOF_KEYAUTO=0x18,0x03 LOF_KEYGAP=8 \
   ./lof-native --dir game --headless --frames 1000 --shot /tmp/play.png
 # left region is identical to: ./lof-native ... --frames 60 --shot /tmp/menu.png
 ```
+
+## Play screen: the drop-in renders it from assets (2026-11-09, later)
+
+The emulator's residual (slots 1/2 byte-identical) is an engine control-flow
+divergence that I did not chase further: the real deliverable is the native
+**drop-in**, and it does not need the emulator to reproduce the play screen.
+The drop-in composes it directly from decoded assets:
+
+    lof --play D0/DP001     # MSCR background + viewport tile
+
+Recovered layout (matched against a DOSBox capture of save slot 2,
+`ref/oracle/play.png`):
+
+* background = `EGA/UP/MSCR` (the same static HUD as the menu), blitted at (0,0);
+* first-person viewport = `EGA/<Dn>/<DPnnn>` (120x119) blitted into the window
+  at **(10,11)**.  `D0..D7` are the eight compass facings of one location;
+  `DP001`/`DP014`/`DP036` (+ `DP058..DP060`, `DP067` on D1..D7) are the full
+  120x119 views, and the smaller `DPnnn` (16x29, 32x59, …) are the partial
+  views used near map edges.
+
+`MSCR + DP001 at (10,11)` matches the DOSBox capture at **91.7%**.  The residue:
+
+* **viewport** (~1240 px): a band near the horizon the engine overlays with the
+  map's own tile data — the engine does not simply blit `DP001`;
+* **party panel** (~2910 px): the six character names (`Decker`, `Siegurd`,
+  `Handy`, `Merlin`, `Cassandra`, `Assanla`) in a 3x2 grid.  They are drawn in a
+  compact **5x5** font (6-px advance) that is **not** in `EGA/UP/CHR1`/`CHR2`
+  and is **not** an obvious byte table in `LOF.EXE`, so the drop-in omits it
+  rather than render it in the wrong font (which would lower the match).
+
+`tests/port_play_test.py` pins this (>=90% match); `make golden-port` runs it.
+
+### Why the emulator does not reproduce this
+`lof-native` never issues an `open` for any `ega\d0\dpnnn` file: its play loop
+draws a blank 120x119 window over `MSCR`.  Root cause not isolated (the asset
+table is referenced by the EXE string block at image offset ~0x3b6d1, but the
+indexing/loader path the emulator takes diverges).  The drop-in side-steps it.
