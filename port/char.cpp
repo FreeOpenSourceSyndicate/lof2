@@ -467,6 +467,30 @@ int CharSheet::hp_percent() const {
     return 100 * hp_cur / hp_max;   // integer division, as the sheet builder does
 }
 
+// --- party-status display row (builder at image offset 0x2D436) ------------
+uint8_t CharSheet::hp_pct() const {
+    if (hp_max == 0) return 0;
+    return (uint8_t)(100 * hp_cur / hp_max);
+}
+
+uint8_t CharSheet::hp_mod() const {
+    return (uint8_t)((hp_cur >> 3) + (flag6a ? 50 : 0));
+}
+
+uint8_t CharSheet::attr_a() const {
+    uint8_t v = (uint8_t)(100 - (mod5b + stat1e));   // neg al after sub 0x64
+    if (flag0f == 0) v = (uint8_t)(v - 10);
+    return v;
+}
+
+uint8_t CharSheet::attr_b() const {
+    return (uint8_t)(mod5c + base1c);
+}
+
+uint8_t CharSheet::attr_c() const {
+    return (uint8_t)(mod5f + level17);
+}
+
 uint8_t char_stat1d_from_dex(uint8_t dex) {
     if (dex < 16) return 10;
     return (uint8_t)(5 * dex - 65);   // 1BA40: 5*dex - 0x41
@@ -498,6 +522,7 @@ CharSheet decode_char(const uint8_t* raw) {
     c.mod5e = raw[kCharFlg5e];
     c.mod5f = raw[kCharFlg5f];
     c.flag6a = raw[kCharFlag6a];
+    c.flag0f = raw[kCharFlg0f];
     return c;
 }
 

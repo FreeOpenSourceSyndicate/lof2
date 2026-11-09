@@ -580,38 +580,68 @@ table above and the sheet builder at 0x2676E).
 
 ## Party-status view of the character struct — 2026-11-08
 
-The town/play loop's **party-status builder** is a self-contained routine at
-`analysis/lof.asm` `27F4E..280A4` (its data-segment base comes from the same
-`imul …,0x19a` + `es:[0x30]` idiom the rest of the character code uses, so the
-offsets it reads are plain 410-byte-struct fields).  It walks the party, reads
-these fields, and packs them into a display block at `es:[si+0x179..0x181]`
-(segment `[0xb0b0]`); the block is then drawn by the party renderer at
-`0x134A2` (which reads the HP byte `+0x17c` and the "present" byte `+0x176`).
+The town/play loop's **party-status builder** walks the party and packs a
+**12-byte status row per member** into a display block at `es:[si+0x179..0x184]`
+(segment `[0xb0b0]`); the party renderer at `0x134A2` draws it.
 
-Grounded reads (all directly from the 410-byte struct):
+> **Listing caveat.** `analysis/lof.asm` *labels* this builder `27F4E`, but its
+> disassembly has **desync gaps** through the middle (the literal markers
+> `... ; (data / unreached bytes skipped)` between `27F71` and `27FA7`, and
+> again at `27FAC`/`27FAD`), so the lines inside those gaps are mis-decoded —
+> e.g. the bogus `and bl, byte ptr [bx + di - 0x3dcd]` at `27FAD`.  The tail
+> re-syncs and is correct.  Trust the raw image, not the listing, in this range.
+> The builder's real file offset is **`0x2D436`**; verify a read against raw
+> bytes, e.g. the `+50` gate is `26 80 7f 6a 00 74 0a` / `26 80 84 7c 01 32`
+> (`cmp byte es:[bx+0x6a],0` / `add byte es:[si+0x17c],0x32`) at file `0x2D4B8`.
+> (The listing's `27F4E` sits ~`0x1A9xx` below the file offset; the base is not
+> a single constant across routines, which is why the raw image is the oracle.)
 
-| off | builder site | arithmetic | meaning (bounded) |
-|----:|-------------|------------|-------------------|
-| `+0x24` | 28007 | copied to display `+0x17b` | body/health state; the death routine (`1919C`/`191CC`) tests it `== 2` / `== 3` |
-| `+0x22` | 28057/28067 | `100*[+0x22]/[+0x20]` -> `+0x17a` | current HP / max HP (already known) |
-| `+0x20` | 2806F | divisor of the HP percentage | maximum HP (already known) |
-| `+0x5b` | 28017 | `100 - ([+0x5b]+[+0x1e])` -> `+0x17d` | attribute modifier |
-| `+0x5c` | 2802F | `[+0x5c]+[+0x1c]` -> `+0x17e` | attribute modifier |
-| `+0x5f` | 28043 | `[+0x5f]+[+0x17]` -> `+0x17f` | attribute modifier |
-| `+0x22` | 28057 | stored as a word -> `+0x180` | current HP (word copy) |
-| `+0x6a` | 28089 | when `!= 0`, `+= 50` to `+0x17c` | flag |
+Display row (offsets into the display block), all read straight from the
+410-byte struct:
 
-So the five modifier bytes are **bounded signed values added to a base field**
-(the builder adds them to `+0x1c`/`+0x1e`/`+0x17`), and a `+0x5b`-style
-overflow clamps the pair.  The character generator zeroes all five
-(`1B8C0..1B92E`), so a fresh save carries 0; the encounter code adjusts
-`+0x5e`/`+0x5b` (`+0x5e += 2` at `0xE94F`, `+0x5b += 2` at `0xE9BA`, and
-`+0x5e + Strength >= 0x11` tests the buff at `0xE921`).
+| disp | builder (image) | source | value |
+|-----:|-----------------|--------|-------|
+| `+0x176` | `2D474` | const | `2` (slot-in-use marker) |
+| `+0x177` | `2D47A` | loop idx | party index |
+| `+0x178` | `2D484` | `[+0x18]` | class flag (verbatim) |
+| `+0x179` | `2D570` | loop idx | party index (again) |
+| `+0x17a` | `2D55C` | `[+0x22]`,`[+0x20]` | `100 * hp_cur / hp_max` |
+| `+0x17b` | `2D4F7` | `[+0x24]` | body/health state (verbatim) |
+| `+0x17c` | `2D49B` | `[+0x22]` | `hp_cur >> 3` (sar 3, `+0x32` if `+0x6a`) |
+| `+0x17d` | `2D50B` | `[+0x5b]`,`[+0x1e]` | `100 - (mod5b + stat1e)`, `-0xa` if `[+0x0f]==0` |
+| `+0x17e` | `2D523` | `[+0x5c]`,`[+0x1c]` | `mod5c + base1c` |
+| `+0x17f` | `2D537` | `[+0x5f]`,`[+0x17]` | `mod5f + level17` |
+| `+0x180` | `2D547` | `[+0x22]` | current HP (word copy) |
+| `+0x184` | `2D436`/… | `[+0x19a*idx+0x30]` | pointer to the struct (dword) |
+
+Grounded struct reads (all directly from the 410-byte struct):
+
+| off | builder (image) | arithmetic | meaning (bounded) |
+|----:|-----------------|------------|-------------------|
+| `+0x24` | `2D4F7` | copied to display `+0x17b` | body/health state; the death routine (`1919C`/`191CC`) tests it `== 2` / `== 3` |
+| `+0x22` | `2D49B`/`2D547`/`2D55C` | `100*[+0x22]/[+0x20]`, `>>3` | current HP |
+| `+0x20` | `2D560` | divisor of the HP percentage | maximum HP (already known) |
+| `+0x5b` | `2D50B` | `100 - ([+0x5b]+[+0x1e])` -> `+0x17d` | attribute modifier |
+| `+0x5c` | `2D523` | `[+0x5c]+[+0x1c]` -> `+0x17e` | attribute modifier |
+| `+0x5f` | `2D537` | `[+0x5f]+[+0x17]` -> `+0x17f` | attribute modifier |
+| `+0x0f` | `2D579` | `== 0` -> `-= 0xa` on `+0x17d` | status-line flag |
+| `+0x6a` | `2D4B8` | when `!= 0`, `+= 50` to `+0x17c` | flag |
+
+So the modifier bytes are **bounded signed values added to a base field** (the
+builder adds them to `+0x1c`/`+0x1e`/`+0x17`).  The character generator zeroes
+all of them (`1B8C0..1B92E`), so a fresh save carries 0.  The encounter code
+reads `signed(+0x5e) + Strength` and compares it against `0x11` (image `0x13E10`
+/ `0x1BD50`; an early `E9 …` branch in the listing range was another desync
+artifact, not a real `+= 2`), and has an `inc byte es:[bx+0x5e]` bump (image
+`0x1BD63`).
 
 `+0x6a` correlates with the class slot on the shipped save (Decker 0, Handy 1,
 Merlin 2, Cassandra 1, Assanla 0) and is *not* zeroed by the generator, so it is
-a per-character flag rather than a pure stat.  The exact name of each modifier
+a per-character flag rather than a pure stat.  `+0x0f` is `1` for every live
+character.  The exact name of each modifier
 (the game's own label for it) is not yet pinned; they are exposed descriptively
-as `kCharFlg5b/5c/5e/5f` and `kCharFlag6a` / `CharSheet::mod5b/5c/5e/5f`,
-`body24`, `flag6a`, and asserted by `char_test` on both a synthetic struct and
-`GAMES/GAME1` (modifiers all 0; Handy body 1 flag 1, Merlin body 2 flag 2).
+as `kCharFlg5b/5c/5e/5f`, `kCharFlag6a`, `kCharFlg0f` and
+`CharSheet::mod5b/5c/5e/5f`, `body24`, `flag6a`, `flag0f`; the derived display
+row is exposed as `CharSheet::hp_pct()/hp_mod()/attr_a()/attr_b()/attr_c()`.
+`char_test` asserts them on a synthetic struct and on `GAMES/GAME1` (modifiers
+all 0; Handy body 1 flag 1 row `[81 1 51 50 100]`, Merlin body 2 flag 2).

@@ -167,18 +167,30 @@ static void synthetic_spec() {
     assert(ch.con44 == 14 && ch.str45 == 19 && ch.dex46 == 16 &&
            ch.int47 == 12 && ch.wis48 == 15);
     assert(ch.speed56 == 2);
-    // Party-status fields (builder 0x27F4E): body state +0x24, the attribute
-    // modifiers +0x5b/+0x5c/+0x5e/+0x5f and the mood flag +0x6a.
+    // Party-status fields (builder at image offset 0x2D436): body state +0x24,
+    // the attribute modifiers +0x5b/+0x5c/+0x5e/+0x5f, the hp-mod gate +0x6a
+    // and the status flag +0x0f.
     chr[kCharBody24] = 2;
     chr[kCharFlg5b] = 3;
     chr[kCharFlg5c] = 4;
     chr[kCharFlg5e] = 5;
     chr[kCharFlg5f] = 6;
     chr[kCharFlag6a] = 1;
+    chr[kCharFlg0f] = 0;
     ch = decode_char(chr.data());
     assert(ch.body24 == 2);
     assert(ch.mod5b == 3 && ch.mod5c == 4 && ch.mod5e == 5 && ch.mod5f == 6);
-    assert(ch.flag6a == 1);
+    assert(ch.flag6a == 1 && ch.flag0f == 0);
+    // Display row: hp_pct = 100*10/40 = 25; hp_mod = (10>>3) + 50 = 51;
+    // attr_a = 100 - (3 + 90) = 7, then -10 (flag0f == 0) = 253 (byte wrap);
+    // attr_b = 4 + 65 = 69; attr_c = 6 + 3 = 9.
+    assert(ch.hp_pct() == 25 && ch.hp_mod() == 51);
+    assert(ch.attr_a() == (uint8_t)(7 - 10) && ch.attr_b() == 69 &&
+           ch.attr_c() == 9);
+    // With flag0f non-zero the -10 is skipped: attr_a == 7.
+    chr[kCharFlg0f] = 1;
+    ch = decode_char(chr.data());
+    assert(ch.attr_a() == 7);
     // +0x1d is derived from Dexterity: 5*16 - 65 == 15, matching stat1d above.
     assert(ch.stat1d == char_stat1d_from_dex(ch.dex46));
 
@@ -517,6 +529,13 @@ static int real_data() {
     CharSheet merlin = decode_char(sv.chars[3].raw.data());
     assert(merlin.name == "Merlin" && merlin.body24 == 2 && merlin.flag6a == 2);
 
+    // Party-status display row for Handy (hp 9/11, +0x1c=100, +0x1e=50,
+    // +0x17=1, all modifiers 0, +0x6a=1, +0x0f=1): hp_pct 81, hp_mod 51,
+    // attr_a 50, attr_b 100, attr_c 1.
+    assert(dk.flag0f == 1);
+    assert(dk.hp_pct() == 81 && dk.hp_mod() == 51);
+    assert(dk.attr_a() == 50 && dk.attr_b() == 100 && dk.attr_c() == 1);
+
     printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells/names ok\n");
     return 0;
 }
@@ -524,11 +543,13 @@ static int real_data() {
 static void print_char(FILE* out, const CharSheet& c, size_t i) {
     fprintf(out, "[%2zu] %-12s present=%d class=%d base=%d stat1d=%d "
                  "stat1e=%d hp=%d/%d (%d%%) rnk=%d con=%d str=%d dex=%d "
-                 "int=%d wis=%d spd=%d exp=%u body=%d mods=%d/%d/%d/%d mood=%d\n",
+                 "int=%d wis=%d spd=%d exp=%u body=%d mods=%d/%d/%d/%d "
+                 "mood=%d flag0f=%d row=[%d %d %d %d %d]\n",
             i, c.name.empty() ? "<none>" : c.name.c_str(), c.present, c.class18,
             c.base1c, c.stat1d, c.stat1e, c.hp_cur, c.hp_max, c.hp_percent(),
             c.level17, c.con44, c.str45, c.dex46, c.int47, c.wis48, c.speed56,
-            c.exp, c.body24, c.mod5b, c.mod5c, c.mod5e, c.mod5f, c.flag6a);
+            c.exp, c.body24, c.mod5b, c.mod5c, c.mod5e, c.mod5f, c.flag6a,
+            c.flag0f, c.hp_pct(), c.body24, c.hp_mod(), c.attr_a(), c.attr_b());
 }
 
 int main(int argc, char** argv) {
