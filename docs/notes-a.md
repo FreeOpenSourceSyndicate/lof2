@@ -144,6 +144,59 @@ order. This is the artifact for the *next* step: once the oracle dungeon frame
 exists, read a tile code off the map and find its sprite by eye in the sheet
 (the sprites are pre-scaled first-person views, so sizes vary per cell).
 
+## The `ega\dN\dpNNN` string table (code -> sprite is a lookup, not identity)
+
+Static scan of `LOF.EXE` (all printable runs >= 4) yields the game's own path
+string table.  The relevant entries:
+
+- `DNGS\DNG%01ld%01ld` at file `0x4bb33` (`ds`-relative `0xbb33`), glued to a
+  cryptic legend `UCFRDLMPO` (file `0x4bb2c`).  Both are referenced from image
+  `0x76d1`/`0x76d3` via `mov ax,0xbb2b`-style loads — a single load covers the
+  legend byte *and* the first path character, so `UCFRDLMPO` is very likely a
+  per-letter orientation/shape legend used to select the sprite for a code
+  (e.g. `U/C/F/R/D/L/M/P/O` = the sprite to draw when that code is seen from
+  that facing).  Not yet decoded.
+- `ega\d0\dp000` .. `ega\d0\dp069` — **70 strings, one tileset (`d0`), indices
+  `000..069`**, all present in `game/EGA/D0/` except `DP000` (the file starts at
+  `DP001`, so index 0 has no art and is presumably "empty/floor").
+- Other `ega\...` dirs referenced: `in`, `up`, `twn`, `anim`, `char0`, `page`.
+
+The decoded tile codes (`0..13`, plus `variant*16+4/5` up to `244`) do **not**
+match the sprite indices `0..69`: code 6 (floor) and code 3/12 (wall) have no
+`DP006`/`DP003` counterpart by identity.  So the mapping from a map tile code to
+a `dpNNN` sprite is a **lookup table inside `LOF.EXE`**, not the code itself.
+(The `D0` file list has gaps — `058..060`, `067..069` missing, so it ships
+`001..057` + `061..066`.  `D1`..`D7` instead ship `001`, `014..060`,
+`067..069` — missing `002..013` and `061..066` — so the tilesets do not even
+share one index set; `D0` is the odd one out with a `dp000` string too.)
+
+Each dungeon has its own tileset (`D1`..`D7` are byte-different from `D0` and
+from each other for the same index), so a code resolves to art *per dungeon*.
+
+### Sprite structure (the perspective ladder)
+
+The sprites are a **pre-scaled perspective ladder**: for a wall/feature at
+distance `k` the game blits a sprite of a fixed size, and the set for one logical
+tile is the sizes across `k`:
+
+| size (w x h) | meaning |
+|--------------|---------|
+| 120x119 | k=1, full-face (closest) |
+| 64x59   | k=2 |
+| 32x29   | k=3 |
+| 16x29 / 16x59 | side faces at k=3..4 |
+| 8x29 / 8x28 | far side faces |
+| 120x11  | floor/ceiling band |
+| 32x119  | tall door frame |
+| 120x59  | wide wall band |
+
+`D0`'s indices group cleanly: `1..13` = a first family, `14..25` a second,
+`26..35` a third, `36..47` a fourth, `48..57` a fifth, `61..66` wide bands.
+So the viewport render is: for each of the up-to-4 map rows in front of the
+party, pick the sprite for `(code, distance)` and blit it.  This is exactly why
+template-matching one `D0` tile against a full frame failed — the frame is a
+*composition* of several such sprites, not one tile.
+
 ## Progress
 
 - [x] RLE scheme + fixed 3892-byte decode confirmed for all 29 files.
@@ -157,7 +210,10 @@ exists, read a tile code off the map and find its sprite by eye in the sheet
       almost certainly built from these tiles, but template-matching the `D0`
       tiles against the captured town frame failed (best match ~50% of pixels
       differ = no match), so the viewport origin/geometry or the per-tile
-      masking is not what I assumed.
+      masking is not what I assumed.  **See "The `ega\dN\dpNNN` string table"
+      below**: the map tile codes are *not* sprite indices, so a logical-tile ->
+      sprite lookup table exists in `LOF.EXE` and must be found before the
+      viewport can be drawn.
 - [ ] Object-code semantics (doors/stairs/items/traps?).
 - [ ] Draw one dungeon screen matching the oracle frame (blocked; see below).
 
@@ -304,3 +360,25 @@ the way to read the map->tile-index computation statically. It is not present
 unpacked: no `GFA`/`BASIC` signature and no plaintext of the debug strings'
 *code* (only the string pool), so there is nothing tokenised to walk offline.
 Static tracing remains a dead end for the tile mapping.
+
+### Round 3 — town oracle reproduced, exit still blocked (using the maintainer's hooks)
+
+The maintainer's `origin/work/maintainer-town` branch (not yet on `main`) adds
+`LOF_KEYAT`/`LOF_KEYSTEP`/`LOF_KEYONCE`/`LOF_HOUR` to the emulator and documents
+the reachable in-game town.  I built that branch in a throwaway worktree
+(read-only; no repo files touched) and reproduced its town oracle exactly:
+
+* `LOF_CMDLEN=3 LOF_KEYAT="10:0x18,60:0x02"` (O then 1) reaches the town; the
+  frame matches `ref/town_oracle.png` to 32/256200 bytes (the differing pixels
+  are the blinking cursor), FNV `0e5abc1d`.
+* The golden-test recipe `--keys 0x18,0x1c` (O then Enter) reproduces the
+  recorded `town` hash `8dcc44ac` exactly.
+
+Leaving town is still blocked from my side, same as the maintainer's notes: with
+`C` (0x2e) presses at every plausible frame (single, repeated, `LOF_KEYAT`-pinned
+after the sub-menu), plus `1`/Enter follow-ups, the emulator **never reads
+`DNGS/DNGnn` nor any `EGA/Dn` file** — the read list stays `ROST/ROST ROST/SHOP
+ega\twn\twn00..05 ega\up\*`.  So the town->wilderness transition is not reachable
+with the current keys, and there is still no oracle dungeon frame.  This is
+purely a capture blocker; the decode and the code->sprite *structure* (below) are
+independent of it.
