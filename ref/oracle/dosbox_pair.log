@@ -10,9 +10,9 @@ ALSA lib conf.c:5205:(_snd_config_evaluate) function snd_func_refer returned err
 ALSA lib conf.c:5728:(snd_config_expand) Evaluate error: No such file or directory
 ALSA lib pcm.c:2722:(snd_pcm_open_noupdate) Unknown PCM default
 ALSA lib seq_hw.c:540:(snd_seq_hw_open) open /dev/snd/seq failed: No such file or directory
-CONFIG:Loading primary settings from config file /tmp/tmp.tu9Oyge05v
+CONFIG:Loading primary settings from config file /tmp/tmp.fWwf8tZIbO
 MIXER:Can't open audio: ALSA: Couldn't open audio device: No such file or directory , running in nosound mode.
 ALSA:Can't open sequencer
 MIDI:Opened device:none
-Capturing Screenshot to /tmp/tmp.FEfcq7xi8v/lof_000.png
-Capturing Screenshot to /tmp/tmp.FEfcq7xi8v/lof_001.png
+Capturing Screenshot to /tmp/tmp.qhZdhKCWiU/lof_000.png
+Capturing Screenshot to /tmp/tmp.qhZdhKCWiU/lof_001.png

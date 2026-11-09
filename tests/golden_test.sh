@@ -27,6 +27,17 @@ if [ ! -x ./lof-native ]; then
     echo "golden_test: building emulator"; make -s >/dev/null || exit 2
 fi
 
+# The engine opens saves as GAMES\GAME%3d (printf "%3d"), i.e. with two spaces
+# in the name ("GAME  2").  The archive ships GAME1..GAME5 without them, so the
+# two-space aliases must exist or the "temple"/"play" loads silently no-op and
+# both scenarios fall back to the menu.  Mirror bootstrap.sh so the golden is
+# reproducible on a fresh checkout.
+for n in 1 2 3 4 5 6; do
+    src="game/GAMES/GAME$n"
+    dst="game/GAMES/$(printf 'GAME%3d' "$n")"
+    [ -f "$src" ] && [ ! -f "$dst" ] && cp "$src" "$dst"
+done
+
 # scenario <name> <extra lof-native args...>
 scenario() {
     local name="$1"; shift
