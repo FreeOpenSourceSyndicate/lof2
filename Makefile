@@ -34,6 +34,11 @@ golden-port:
 	$(MAKE) -s port
 	python3 tests/port_menu_test.py
 
+# The drop-in must run with the original EXEs absent (hard constraint #1).
+golden-noexe:
+	$(MAKE) -s port
+	python3 tests/port_noexe_test.py
+
 # --- Per-agent tests -------------------------------------------------------
 # Agents add their own test commands to tests/local.mk (which they own) instead
 # of editing this Makefile.  LOCAL_TEST_CMDS is a list of shell commands.
@@ -80,7 +85,7 @@ dropin: lof vor
 clean:
 	rm -f lof-native cpu_test lof vor port/*.o
 
-.PHONY: all headless test asm dropin port clean check local-test golden
+.PHONY: all headless test asm dropin port clean check local-test golden golden-port golden-noexe
 
 # Oracle regression: emulator must render the same frames (needs game data).
 golden:

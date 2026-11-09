@@ -487,6 +487,11 @@ emulator disagree with DOSBox, DOSBox wins.
   SNSC load.  AH=4Ah sets `alloc_free` to the shrunk block end; AH=48h then
   returns memory above the stack, as real DOS does.  Covered by the emulator
   booting LOF to the main menu.
+- **The drop-in must run with the original EXEs absent.** `lof`/`vor` read only
+  the game *data* files (`EGA/`, `SYST/`, `DNGS/`, `ROST/`, `DSKTAB.DFS`,
+  `*.SAV`); they must never open or execute `LOF.EXE`/`VOR.EXE`.  Verified by
+  `make golden-noexe` (`tests/port_noexe_test.py`), which renders the menu from a
+  game tree that contains no `.EXE` and checks it against the oracle.
 
 ## Dungeon files (`DNGS/`) — partial
 
