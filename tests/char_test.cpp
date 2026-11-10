@@ -201,17 +201,40 @@ static void synthetic_spec() {
     chr[kCharMagCur69] = 9;
     ch = decode_char(chr.data());
     assert(ch.mag_max68 == 7 && ch.mag_cur69 == 9);
-    // Inventory array: 48 four-byte slots at +0x82 (item/aux1/aux2/cond).
+    // Inventory array: 48 four-byte slots at +0x82
+    // (item/equipped/charges/condition).
     chr[kCharInv82 + 0] = 13; chr[kCharInv82 + 1] = 1;
     chr[kCharInv82 + 2] = 0;  chr[kCharInv82 + 3] = 100;
     chr[kCharInv82 + 4 * 3] = 34; chr[kCharInv82 + 4 * 3 + 3] = 92;
     chr[kCharLoad25] = 10;
     ch = decode_char(chr.data());
     assert(ch.load25 == 10);
-    assert(ch.inv[0].item == 13 && ch.inv[0].aux1 == 1 &&
-           ch.inv[0].aux2 == 0 && ch.inv[0].cond == 100);
-    assert(ch.inv[3].item == 34 && ch.inv[3].cond == 92);
+    assert(ch.inv[0].item == 13 && ch.inv[0].equipped == 1 &&
+           ch.inv[0].charges == 0 && ch.inv[0].condition == 100);
+    assert(ch.inv[0].is_equipped());
+    assert(ch.inv[3].item == 34 && ch.inv[3].condition == 92 &&
+           !ch.inv[3].is_equipped());
     assert(ch.inv[1].item == 0 && ch.inv[47].item == 0);
+    // Carried-weight pair +0x64/+0x66 (see kCharWeight64): the max is seeded
+    // from Strength, the current is the item-weight sum plus a base.  The
+    // helper sums item +0x14 over the slots (slot 0 = item #13 "Short sword"
+    // -> 50, slot 3 = item #34 "Small shield" -> 50).
+    put16(chr, kCharWeight64, 5300);
+    put16(chr, kCharWeight66, 100);
+    ch = decode_char(chr.data());
+    assert(ch.weight_max == 5300 && ch.weight_cur == 100);
+    assert(carried_item_weight(ch) == 100);
+    // The per-character base weight is 10*byte[+0x70] + word[+0x72].
+    chr[kCharWeightBase70] = 4;
+    put16(chr, kCharWeightBase72, 3);
+    ch = decode_char(chr.data());
+    assert(ch.weight_base70 == 4 && ch.weight_base72 == 3);
+    assert(weight_base(ch) == 43);
+    // An empty slot and an out-of-range index contribute nothing.
+    chr[kCharInv82 + 0] = 0;
+    chr[kCharInv82 + 4 * 3] = 200;  // > kItemCount
+    ch = decode_char(chr.data());
+    assert(carried_item_weight(ch) == 0);
 
     printf("char_test: synthetic SPEC ok\n");
 }
@@ -301,13 +324,69 @@ static int real_data() {
     for (size_t i = 0; i < roster.size(); i++)
         assert(roster[i].present == 1);  // all 11 slots hold a character
 
+    // Carried-weight pair (see kCharWeight64): the saved total (+0x66) is the
+    // sum of the inventory items' weights (item +0x14) plus the per-character
+    // base 10*byte[+0x70] + word[+0x72]; the max (+0x64) is the Strength-derived
+    // value (Connar Str 19 -> 5300).  Verified for Connar against ROST.
+    CharSheet connar = decode_char(roster[0].raw.data());
+    assert(connar.name == "Connar");
+    assert(connar.weight_max == 5300);
+    assert(connar.weight_cur == 289);
+    assert(weight_base(connar) == 39);  // 10*1 + 29
+    assert(carried_item_weight(connar) + weight_base(connar) == connar.weight_cur);
+    // Every shipped record whose carried total is *fresh* reconstructs exactly;
+    // Gorth's stored +0x66 is a stale snapshot the engine has not recomputed
+    // (same class of staleness as the +0x1e AC snapshot), so it is skipped.
+    for (const auto& rr : roster) {
+        CharSheet c = decode_char(rr.raw.data());
+        if (c.name == "Gorth") continue;
+        assert(carried_item_weight(c) + weight_base(c) == c.weight_cur);
+    }
+    // An empty-inventory character carries only the base (Siegurd: 23).
+    CharSheet siegurd = decode_char(roster[10].raw.data());
+    assert(siegurd.name == "Siegurd" && carried_item_weight(siegurd) == 0);
+    assert(siegurd.weight_cur == 23 && siegurd.weight_max == 4900);
+
+    // Total defence (see defense_from_items): the engine's armour routine
+    // (image 0x210E8) recomputes +0x1e from the Dexterity stat plus every
+    // EQUIPPED item's AC (item f3 scaled by condition) whenever the slot flag
+    // word +0x10 == -1, so the helper must reproduce the stored +0x1e exactly
+    // for those members.  Siegurd (+0x10 == 0) is a stale snapshot the engine
+    // leaves alone, so it is skipped.
+    for (const auto& rr : roster) {
+        if (rr.raw[0x10] != 0xff || rr.raw[0x11] != 0xff) continue;
+        CharSheet cs = decode_char(rr.raw.data());
+        assert(defense_from_items(cs) == cs.stat1e);
+    }
+    // Grounded anchors: Gorth's worn armour gives 50, Merlin's 20, while the
+    // lightly-equipped Connar stays at his Dexterity stat 10.
+    assert(defense_from_items(decode_char(roster[4].raw.data())) == 50);
+    assert(defense_from_items(decode_char(roster[7].raw.data())) == 20);
+    assert(defense_from_items(connar) == 10);
+
+    // Profession (+0x1b): an index into kProfessionNames; the display routine
+    // (image 0x2FB4A) rejects values > 0x0b, and the init routine seeds 0x0c
+    // ("no profession"), so 12 must map to an empty name.  Verified against the
+    // GAME1 party: Cassandra 10 -> Healer, Merlin 7 -> Magician, Connar 0.
+    assert(connar.prof1b == 0 && connar.profession() == "Warrior");
+    CharSheet cass = decode_char(roster[6].raw.data());
+    assert(cass.name == "Cassandra" && cass.prof1b == 10 &&
+           cass.profession() == "Healer");
+    CharSheet merlin_rost = decode_char(roster[7].raw.data());
+    assert(merlin_rost.name == "Merlin" && merlin_rost.prof1b == 7 &&
+           merlin_rost.profession() == "Magician");
+    assert(siegurd.prof1b == 12 && siegurd.profession().empty());
+
     ShopData shop = load_shop(std::string(dir) + "/ROST/SHOP");
     assert(shop.ok);
-    // One signed adjustment per item, parallel to the item table order.
-    assert(shop.adjustments[0] == -10);   // Club
-    assert(shop.adjustments[1] == -2);    // War scythe
-    assert(shop.adjustments[12] == -1);   // Short sword
-    assert(shop.adjustments[32] == -8);   // Full plate
+    // Per-item stock, parallel to the item table order.  The shipped shop
+    // carries items 1..44 only: 0 = not carried, 0xFF = unlimited (e.g. Short
+    // sword, Plate mail, Short arrows), 1..254 = finite stock (Club 246, Hand
+    // axe 252, Full plate 248).  Items 45+ are all 0.
+    assert(shop.stock[0] == 246 && shop.stock[1] == 254 && shop.stock[12] == 0xff);
+    assert(shop.stock[32] == 248 && shop.stock[44] == 0);
+    assert(shop.carries(1) && shop.carries(44) && !shop.carries(45));
+    assert(shop.unlimited(13) && !shop.unlimited(1));  // Short sword vs Club
     assert(shop.trailer == 0x1606);
 
     // Saved games ("gamestandings"): header 0x00 'F' 'O' 'L' + 410-byte
@@ -395,8 +474,32 @@ static int real_data() {
     assert(kItemCount == 185);
     assert(it[0].name == "Club" && it[0].item_class == 1);
     assert(it[12].name == "Short sword" && it[12].f0 == 1 &&
-           it[12].f1 == 10 && it[12].f2 == 50);
-    assert(it[0x1a].name == "Leather armour" && it[0x1a].item_class == 2);
+           it[12].price == 10 && it[12].weight == 50 && it[12].damage == 6);
+    // Item price (+0x12): the equipment list prints it as `%4d$` (image 0xc474)
+    // and the shop buy/sell routines read the same field; see ItemRecord::price.
+    assert(it[0].name == "Club" && it[0].price == 5 && it[0].damage == 5);
+    assert(it[13].name == "Broadsword" && it[13].price == 18 &&
+           it[13].damage == 8);
+    // Item weight (+0x14): the value the engine sums into a character's carried
+    // total, and the equipment list shows it divided by 10 as pounds.
+    // Grounded in the weight routine (image 0x21030) and the load check at
+    // image 0x19B54 / 0x2965f; see ItemRecord::weight.
+    assert(it[0].name == "Club" && it[0].weight == 100);
+    assert(it[32].name == "Full plate" && it[32].weight == 650);
+    // Item quantity/charges (+0x17, the high byte of f3): the item-add routine
+    // copies it into the inventory slot's count byte (+0x84, image 0xbf5d),
+    // and the armour routine reads only the LOW byte of f3 (image 0x2116b).
+    assert(it[0].name == "Club" && it[0].charges == 0);
+    assert(it[20].name == "Short arrows" && it[20].charges == 10);
+    assert(it[35].name == "Tinderbox" && it[35].charges == 200);
+    assert(it[63].name == "Striking staff" && it[63].charges == 23 &&
+           (it[63].f3 & 0xff) == 0);
+    // Weapon damage is the high byte of f4 (+0x18); armour has 0 there.
+    assert(it[0x1a].name == "Leather armour" && it[0x1a].item_class == 2 &&
+           it[0x1a].damage == 0);
+    // Paired-item index f5 (+0x1a) is 1-based: Short bow (idx 19) <-> arrows (20).
+    assert(it[19].name == "Short bow" && it[19].f5 == 21);
+    assert(it[20].name == "Short arrows" && it[20].f5 == 20);
     assert(it[184].name == "The Staff");
     // The trailing byte is a use-effect index (0 for plain gear), not a slot.
     assert(it[0x21].name == "Small shield" && it[0x21].item_class == 3 &&
@@ -409,15 +512,19 @@ static int real_data() {
     assert(item_by_index(13) && item_by_index(13)->name == "Short sword");
     assert(item_by_index(185) && item_by_index(185)->name == "The Staff");
     assert(item_by_index(0) == nullptr && item_by_index(186) == nullptr);
-    // Every class-eligibility mask fits the 14 SNSC classes.
-    for (const auto& r : it) assert(r.f6 >= 0 && r.f6 <= 0x3fff);
-    // Class table is in SNSC order and the mask lookup uses it.
+    // Every profession-eligibility mask fits the 12 professions.
+    for (const auto& r : it) assert(r.f6 >= 0 && r.f6 <= 0xfff);
+    // Class-name table is in SNSC order (14 entries).
     assert(kClassCount == 14 && std::string(kClassName[0]) == "Siegurd" &&
            std::string(kClassName[13]) == "Werewolf");
-    // Full plate (idx 33) is 0x0201: only class 0 (Siegurd) and class 9 (Angel).
+    // Full plate (idx 33) f6 = 0x027B: bits 0,1,3,4,5,6,9 (Warrior, Barbarian,
+    // Smith, Scout, Priest, Druid, Paladin) -- tested against the profession
+    // index (image 0xc553), so the Rogue (2) and Monk (11) may not.
     assert(item_usable_by_class(33, 0) && item_usable_by_class(33, 9));
-    assert(!item_usable_by_class(33, 4));  // not the Dragon
+    assert(!item_usable_by_class(33, 2));   // not the Rogue
+    assert(!item_usable_by_class(33, 11));  // not the Monk
     assert(!item_usable_by_class(0, 0) && !item_usable_by_class(186, 0));
+    assert(!item_usable_by_class(33, 12));  // out of range (only 12 professions)
     // Use-effect names + reverse lookup by effect value.
     assert(std::string(item_effect_name(0)) == "none");
     assert(std::string(item_effect_name(10)) == "healing");
@@ -533,6 +640,7 @@ static int real_data() {
     assert(seed.c1d == (uint8_t)(100 - st[kSnsBody2d - 38]));  // char +0x1d
     assert(seed.c1e == seed.c1d);               // char +0x1e mirrors +0x1d
     assert(seed.c56 == st[kSnsSpeed36 - 38]);   // char +0x56
+    assert(seed.hp_seed == st[kSnsHp2c - 38]);  // seeds char +0x20/+0x22
     assert(seed.c14 == st[kSnsField3a - 38]);   // char +0x14
     assert(seed.c7a_index == st[kSnsIndex2a - 38]);
     // Seeded constants the routine writes verbatim.
@@ -609,6 +717,10 @@ static int real_data() {
         assert(c.hp_cur <= c.hp_max);
         assert(c.hp_percent() == (c.hp_max ? 100 * c.hp_cur / c.hp_max : 0));
         assert(c.stat1d == char_stat1d_from_dex(c.dex46));
+        // +0x6b equals the number of non-empty inventory slots.
+        unsigned used = 0;
+        for (const InvSlot& sl : c.inv) if (sl.item) ++used;
+        assert(c.inv_used == used);
     }
     // A damaged character still projects consistently (wilderness Handy: 9 of
     // 11 HP; the Temple-start GAME1 Handy is undamaged at 11/11).
@@ -617,31 +729,52 @@ static int real_data() {
     assert(dk.hp_percent() == 81);   // 100*9/11, integer division
 
     // Inventory array (+0x82, 48 x 4-byte slots).  The wilderness Decker
-    // carries Leather armour (27), Small shield (34), Short sword (13) and The
-    // Amulet (120); Handy carries Leather armour (27) then Warhammer (8) etc.
-    // The first slot's condition byte is 100 except for worn armour (96/92).
+    // (GAME2) carries Leather armour (27), Small shield (34), Short sword (13)
+    // and The Amulet (120); Handy carries Leather armour (27) then Warhammer
+    // (8) etc.  The first slot's condition byte is 100 except for worn armour
+    // (96/92).
     CharSheet dki = decode_char(sv2.chars[0].raw.data());
-    assert(dki.inv[0].item == 27 && dki.inv[0].aux1 == 1 && dki.inv[0].cond == 100);
-    assert(dki.inv[1].item == 34 && dki.inv[1].cond == 92);
-    assert(dki.inv[2].item == 13 && dki.inv[2].cond == 100);
-    assert(dki.inv[3].item == 120 && dki.inv[3].aux1 == 0);
+    assert(dki.inv[0].item == 27 && dki.inv[0].equipped == 1 &&
+           dki.inv[0].condition == 100);
+    assert(dki.inv[1].item == 34 && dki.inv[1].condition == 92);
+    assert(dki.inv[2].item == 13 && dki.inv[2].condition == 100);
+    assert(dki.inv[3].item == 120 && dki.inv[3].equipped == 0);
     assert(dki.inv[4].item == 0);                     // rest empty
+    // +0x6b is the used-slot count; the engine's armour routine loops only
+    // these, so it equals the number of non-empty slots (Decker 4, Handy 6).
+    assert(dki.inv_used == 4 && dk.inv_used == 6);
     // The slot byte is a 1-based index into the 185-item table (0 = empty), the
     // same base item_by_index() uses: 27 -> Leather armour, not Studded leather.
     assert(dki.inv[0].item && item_by_index(dki.inv[0].item) &&
            item_by_index(dki.inv[0].item)->name == "Leather armour");
     assert(item_by_index(0) == nullptr);              // 0 is the empty marker
-    assert(dk.inv[0].item == 27 && dk.inv[0].cond == 96);
+    assert(dk.inv[0].item == 27 && dk.inv[0].condition == 96);
     assert(dk.inv[1].item == 8 && dk.inv[2].item == 43);
     // +0x25 is the load/carry byte (10 for the shipped party; 15 for Cassandra).
     assert(dki.load25 == 10 && dk.load25 == 10);
     assert(decode_char(sv.chars[4].raw.data()).load25 == 15);
-    // Magic points (+0x68 max / +0x69 cur).  Merlin (class 7, level 1, Int 19,
-    // Wis 12) stores 3/3 -- the per-(class,level) table lookup plus the Int
-    // bonus; Handy stores 1/1.  They are equal at rest.
+    // Magic points (+0x68 max / +0x69 cur).  Merlin (profession 7, level 1,
+    // Int 19, Wis 12) stores 3/3 -- the per-(profession,level) table lookup
+    // plus the Int bonus; Handy (profession 3) stores 1/1.  Equal at rest.
     CharSheet mrl = decode_char(sv.chars[3].raw.data());
     assert(mrl.name == "Merlin" && mrl.mag_max68 == 3 && mrl.mag_cur69 == 3);
     assert(dk.mag_max68 == 1 && dk.mag_cur69 == 1);
+    // The MP table is a 12 x 16 byte block in LOF.EXE (port/char_magic.inc),
+    // indexed by profession (+0x1b) and level (+0x17).  Spot values and the
+    // out-of-range guards (profession 12 = "none", level >= 16 -> 0).
+    assert(kMagicProfCount == 12 && kMagicLevels == 16);
+    assert(magic_table_value(7, 1) == 1 && magic_table_value(3, 1) == 1);
+    assert(magic_table_value(10, 1) == 1 && magic_table_value(9, 1) == 0);
+    assert(magic_table_value(7, 15) == 20);
+    assert(magic_table_value(12, 1) == 0 && magic_table_value(7, 16) == 0);
+    // magic_max() recomputes the fill routine's value from the stats and
+    // matches the stored maximum for every live character in the save.
+    for (const auto& sc : sv.chars) {
+        if (sc.present != 1) continue;
+        CharSheet c = decode_char(sc.raw.data());
+        assert(c.magic_max() == c.mag_max68);
+    }
+    assert(mrl.magic_max() == 3 && dk.magic_max() == 1);
     // Every in-use character: no slot points past the 185-item table.
     for (const auto& sc : sv.chars) {
         if (sc.present != 1) continue;

@@ -17,6 +17,7 @@ Usage:
     python3 tools/spec.py --dir game --shop       # dump SHOP
     python3 tools/spec.py --dir game --save GAME1 # dump a saved game
     python3 tools/spec.py --dir game --emit-items # regenerate port/char_items.inc
+    python3 tools/spec.py --dir game --emit-mp    # regenerate port/char_magic.inc
 """
 import argparse
 import os
@@ -103,19 +104,26 @@ def dump_save(path):
                 attr_a = (attr_a - 10) & 0xff
             attr_b = (r[0x5c] + r[0x1c]) & 0xff
             attr_c = (r[0x5f] + r[0x17]) & 0xff
+            # Carried-weight pair: +0x66 current / +0x64 max (item +0x14 sum
+            # plus the base 10*byte[+0x70] + word[+0x72]; see notes-b).
+            wmax = struct.unpack_from("<H", r, 0x64)[0]
+            wcur = struct.unpack_from("<H", r, 0x66)[0]
             print(f"  [{i:2d}] present={r[0]:#04x} name={name!r} "
                   f"rnk={r[0x17]} con={r[0x44]} str={r[0x45]} dex={r[0x46]} "
                   f"int={r[0x47]} wis={r[0x48]} hp={hp}/{hpmax} "
                   f"mp={r[0x69]}/{r[0x68]} load={r[0x25]} exp={exp} "
+                  f"wt={wcur}/{wmax} "
                   f"body={r[0x24]} mods={r[0x5b]}/{r[0x5c]}/{r[0x5e]}/{r[0x5f]} "
                   f"flag={r[0x6a]} f0f={r[0x0f]} "
                   f"row=[{hp_pct} {r[0x24]} {hp_mod} {attr_a} {attr_b} {attr_c}]")
-            # Inventory: 48 four-byte slots at +0x82 (item/aux1/aux2/cond).
+            # Inventory: 48 four-byte slots at +0x82
+            # (item/equipped/charges/condition).
             for s in range(48):
                 o = 0x82 + s * 4
                 if r[o]:
                     print(f"        inv[{s:2d}] item={r[o]:3d} "
-                          f"aux={r[o + 1]}/{r[o + 2]} cond={r[o + 3]}")
+                          f"equipped={r[o + 1]} charges={r[o + 2]} "
+                          f"cond={r[o + 3]}")
 
 
 # The item table lives only inside LOF.EXE (image offset 0x42cec, data segment
@@ -157,7 +165,11 @@ def emit_items(exe_path, out_path):
                 "`tools/spec.py --emit-items`.\n")
         f.write("// 185 records of 32 bytes: 16-byte NUL-padded name, seven "
                 "little-endian\n// int16 fields, then a byte item class and a "
-                "byte use-effect index.\n\n")
+                "byte use-effect index.\n"
+                "// The seven fields are at record offsets 0x10..0x1c; index 1 "
+                "(record\n// offset 0x12) is the price in gold and index 2 "
+                "(record offset 0x14) is\n// the item weight (see "
+                "ItemRecord::price / ::weight in port/char.h).\n\n")
         f.write("static const char kItemNames[kItemCount][16] = {\n")
         for nm in names:
             f.write('    "%s",\n' % c_string(nm))
@@ -244,6 +256,39 @@ def emit_spells(exe_path, out_path):
             f.write("    {%s},\n" % ",".join(str(b) for b in ds))
         f.write("};\n")
     print(f"wrote {out_path} ({SPELL_COUNT} spells)")
+
+
+# The magic-point table also lives only inside LOF.EXE: 12 professions x 16
+# levels of one byte each (image offset 0x42748).  The MP fill routine indexes
+# it by the character's profession (+0x1b) and level (+0x17), then adds +1 for
+# Wisdom > 15 and +2 more for Intelligence > 15.  Transcribed for the drop-in.
+MP_EXE_OFF = 0x42748
+MP_PROFS = 12
+MP_LEVELS = 16
+
+
+def emit_mp(exe_path, out_path):
+    d = open(exe_path, "rb").read()
+    rows = [[d[MP_EXE_OFF + p * MP_LEVELS + l] for l in range(MP_LEVELS)]
+            for p in range(MP_PROFS)]
+    with open(out_path, "w") as f:
+        f.write("// Legend of Faerghail magic-point table — transcribed from the "
+                "DOS release.\n")
+        f.write("// It lives only inside LOF.EXE (image offset 0x42748); no data "
+                "file carries it,\n")
+        f.write("// and the drop-in must run without the original EXE, so it "
+                "keeps this copy.\n")
+        f.write("// Regenerate with `tools/spec.py --emit-mp`.\n")
+        f.write("// 12 professions x 16 levels; the MP fill routine indexes it by "
+                "profession\n// (+0x1b) and level (+0x17).  A non-zero base gets "
+                "+1 for Wisdom > 15 and\n// +2 more for Intelligence > 15 (see "
+                "CharSheet::magic_max).\n\n")
+        f.write("static const uint8_t kMagicTable[kMagicProfCount][kMagicLevels] "
+                "= {\n")
+        for row in rows:
+            f.write("    {%s},\n" % ",".join(str(v) for v in row))
+        f.write("};\n")
+    print(f"wrote {out_path} ({MP_PROFS} professions x {MP_LEVELS} levels)")
 
 
 # Character-generation name tables (also only inside LOF.EXE).  The
@@ -420,6 +465,8 @@ def main():
                     help="regenerate port/char_itemuse.inc from LOF.EXE")
     ap.add_argument("--emit-spells", action="store_true",
                     help="regenerate port/char_spells.inc from LOF.EXE")
+    ap.add_argument("--emit-mp", action="store_true",
+                    help="regenerate port/char_magic.inc from LOF.EXE")
     ap.add_argument("--spells", action="store_true",
                     help="dump the LOF.EXE spell table")
     ap.add_argument("--emit-names", action="store_true",
@@ -439,6 +486,8 @@ def main():
         emit_itemuse(os.path.join(args.dir, "LOF.EXE"), "port/char_itemuse.inc")
     elif args.emit_spells:
         emit_spells(os.path.join(args.dir, "LOF.EXE"), "port/char_spells.inc")
+    elif args.emit_mp:
+        emit_mp(os.path.join(args.dir, "LOF.EXE"), "port/char_magic.inc")
     elif args.spells:
         dump_spells(os.path.join(args.dir, "LOF.EXE"))
     elif args.emit_names:

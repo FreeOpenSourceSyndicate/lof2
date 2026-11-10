@@ -10,6 +10,7 @@ namespace lofport {
 #include "char_items.inc"
 #include "char_itemuse.inc"
 #include "char_spells.inc"
+#include "char_magic.inc"
 #include "char_names.inc"
 
 namespace {
@@ -152,11 +153,11 @@ ShopData load_shop(const std::string& path) {
     ShopData s;
     std::vector<uint8_t> d = read_file(path);
     if (d.empty()) return s;
-    // Byte 0 is a header (zero in this release); the next 185 bytes are one
-    // signed adjustment per item, parallel to the item table order (the engine
-    // reads 186 then 4).  The file ends with a 16-bit trailer word.
+    // Byte 0 is a header (zero in this release); the next 185 bytes are the
+    // per-item stock counts, parallel to the item table order (the engine reads
+    // 186 bytes then a 4-byte trailer).  See ShopData for the value semantics.
     if (d.size() < 1 + kItemCount) return s;
-    for (size_t i = 0; i < kItemCount; i++) s.adjustments[i] = (int8_t)d[1 + i];
+    for (size_t i = 0; i < kItemCount; i++) s.stock[i] = d[1 + i];
     if (d.size() >= 4) s.trailer = rd16(d.data() + d.size() - 4);
     s.ok = true;
     return s;
@@ -216,10 +217,12 @@ const std::vector<ItemRecord>& items() {
             ItemRecord r;
             r.name = kItemNames[i];
             r.f0 = kItemFields[i][0];
-            r.f1 = kItemFields[i][1];
-            r.f2 = kItemFields[i][2];
+            r.price = kItemFields[i][1];
+            r.weight = kItemFields[i][2];
             r.f3 = kItemFields[i][3];
+            r.charges = static_cast<uint8_t>((kItemFields[i][3] >> 8) & 0xff);
             r.f4 = kItemFields[i][4];
+            r.damage = static_cast<uint8_t>((kItemFields[i][4] >> 8) & 0xff);
             r.f5 = kItemFields[i][5];
             r.f6 = kItemFields[i][6];
             r.item_class = kItemClassEffect[i][0];
@@ -242,10 +245,10 @@ const char* const kClassName[kClassCount] = {
     "Werewolf",
 };
 
-bool item_usable_by_class(int index, int cls) {
+bool item_usable_by_class(int index, int prof) {
     const ItemRecord* it = item_by_index(index);
-    if (!it || cls < 0 || (size_t)cls >= kClassCount) return false;
-    return (it->f6 & (1 << cls)) != 0;
+    if (!it || prof < 0 || (size_t)prof >= kProfessionCount) return false;
+    return (it->f6 & (1 << prof)) != 0;
 }
 
 uint8_t item_use_flags(int item_index) {
@@ -323,11 +326,11 @@ void dump_items(std::FILE* out) {
     for (size_t i = 0; i < v.size(); i++) {
         const ItemRecord& r = v[i];
         std::fprintf(out,
-                     "[%3zu] %-18s class=%u eff=%u (%-16s) f0..6=%d %d %d %d %d %d "
-                     "%d\n",
+                     "[%3zu] %-18s class=%u eff=%u (%-16s) price=%d wt=%d "
+                     "dmg=%u chg=%u f0=%d f3=%d f4=%d f5=%d f6=%d\n",
                      i, r.name.c_str(), r.item_class, r.effect,
-                     item_effect_name(r.effect), r.f0, r.f1, r.f2, r.f3, r.f4,
-                     r.f5, r.f6);
+                     item_effect_name(r.effect), r.price, r.weight, r.damage,
+                     r.charges, r.f0, r.f3, r.f4, r.f5, r.f6);
     }
 }
 
@@ -349,6 +352,11 @@ const std::vector<SpellRecord>& spells() {
 const SpellRecord* spell_by_index(int index) {
     if (index < 1 || (size_t)index > kSpellCount) return nullptr;
     return &spells()[index - 1];
+}
+
+uint8_t magic_table_value(uint8_t profession, uint8_t level) {
+    if (profession >= kMagicProfCount || level >= kMagicLevels) return 0;
+    return kMagicTable[profession][level];
 }
 
 const char* spell_effect_name(uint8_t code) {
@@ -499,6 +507,7 @@ CharSeed sns_char_seed(const SnsRecord& rec) {
     s.c1d = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);
     s.c1e = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);
     s.c56 = rec.stats[kSnsSpeed36 - 38];
+    s.hp_seed = rec.stats[kSnsHp2c - 38];
     s.c7a_index = rec.stats[kSnsIndex2a - 38];
     for (int n = 0; n < 4; ++n) {
         s.c142[n] = rec.stats[kSnsSkill3b + 2 * n - 38];
@@ -510,6 +519,20 @@ CharSeed sns_char_seed(const SnsRecord& rec) {
 int CharSheet::hp_percent() const {
     if (hp_max == 0) return 0;
     return 100 * hp_cur / hp_max;   // integer division, as the sheet builder does
+}
+
+std::string CharSheet::profession() const {
+    auto names = profession_names();
+    if (prof1b < names.size()) return names[prof1b];
+    return {};
+}
+
+uint8_t CharSheet::magic_max() const {
+    uint8_t base = magic_table_value(prof1b, level17);
+    if (base == 0) return 0;
+    if (wis48 > 15) base++;
+    if (int47 > 15) base += 2;
+    return base;
 }
 
 // --- party-status display row (builder at image offset 0x2D436) ------------
@@ -576,6 +599,7 @@ CharSheet decode_char(const uint8_t* raw) {
     c.counter12 = (int16_t)rd16(raw + kCharCounter12);
     c.level17 = raw[kCharLevel17];
     c.class18 = raw[kCharClass18];
+    c.prof1b = raw[kCharProf1b];
     c.base1c = raw[kCharBase1c];
     c.stat1d = raw[kCharStat1d];
     c.stat1e = raw[kCharStat1e];
@@ -598,11 +622,54 @@ CharSheet decode_char(const uint8_t* raw) {
     c.mag_max68 = raw[kCharMagMax68];
     c.mag_cur69 = raw[kCharMagCur69];
     c.load25 = raw[kCharLoad25];
+    c.inv_used = raw[kCharInvUsed6b];
+    c.weight_max = rd16(raw + kCharWeight64);
+    c.weight_cur = rd16(raw + kCharWeight66);
+    c.weight_base70 = raw[kCharWeightBase70];
+    c.weight_base72 = rd16(raw + kCharWeightBase72);
     for (size_t s = 0; s < kCharInvCount; ++s) {
         const uint8_t* p = raw + kCharInv82 + s * kCharInvStride;
         c.inv[s] = InvSlot{p[0], p[1], p[2], p[3]};
     }
     return c;
+}
+
+uint32_t carried_item_weight(const CharSheet& c) {
+    uint32_t sum = 0;
+    for (const InvSlot& s : c.inv) {
+        const ItemRecord* it = item_by_index(s.item);
+        if (it && it->weight > 0) sum += (uint32_t)it->weight;
+    }
+    return sum;
+}
+
+uint32_t weight_base(const CharSheet& c) {
+    return 10u * c.weight_base70 + c.weight_base72;
+}
+
+uint8_t defense_from_items(const CharSheet& c) {
+    uint32_t total = c.stat1d;
+    // The engine's armour routine (0x210E8) iterates the slots only up to the
+    // used count +0x6b, so cap here too (a stray non-empty slot past the count
+    // would otherwise leak into the AC).
+    size_t limit = (size_t)c.inv_used <= kCharInvCount ? (size_t)c.inv_used
+                                                       : kCharInvCount;
+    for (size_t s = 0; s < limit; ++s) {
+        const InvSlot& slot = c.inv[s];
+        if (slot.item == 0 || slot.equipped == 0) continue;
+        const ItemRecord* it = item_by_index(slot.item);
+        if (!it) continue;
+        // The armour routine reads the LOW byte of item +0x16 only
+        // (`mov al, es:[bx+0xfd2]`, image 0x2116b); the high byte is the
+        // initial quantity/charges, not part of the AC.
+        uint8_t ac = (uint8_t)((uint16_t)it->f3 & 0xff);
+        if (ac == 0) continue;
+        uint32_t v = (uint32_t)slot.condition + 10;
+        v -= v % 20;
+        total += (uint32_t)ac * v / 100;
+    }
+    if (total > 0x5f) total = 0x5f;
+    return (uint8_t)total;
 }
 
 }  // namespace lofport

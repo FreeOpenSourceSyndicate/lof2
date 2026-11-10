@@ -4,6 +4,9 @@
 // so it keeps this copy.  Regenerate with `tools/spec.py --emit-items`.
 // 185 records of 32 bytes: 16-byte NUL-padded name, seven little-endian
 // int16 fields, then a byte item class and a byte use-effect index.
+// The seven fields are at record offsets 0x10..0x1c; index 1 (record
+// offset 0x12) is the price in gold and index 2 (record offset 0x14) is
+// the item weight (see ItemRecord::price / ::weight in port/char.h).
 
 static const char kItemNames[kItemCount][16] = {
     "Club",

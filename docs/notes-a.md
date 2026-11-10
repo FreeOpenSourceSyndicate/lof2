@@ -530,9 +530,10 @@ Implemented:
   `tests/dungeon_test.cpp::test_view_sprite`, which blits `EGA/D5/DP001` and
   asserts every pixel equals the decoded sprite (and that a missing file is
   reported, not drawn).
-* `dungeon_view_path(dir, d, i)` / `render_dungeon_default_view(dir, d)` —
-  `<dir>/EGA/D<d>/DP%03d` and the canonical entry view (DP001).  `test_default_views`
-  confirms all 7 dungeons ship a DP001 that blits across the window.
+* `dungeon_view_path(dir, id, i)` / `dungeon_view_dir(id)` /
+  `render_dungeon_default_view(dir, id)` — `<dir>/EGA/D<ones-digit>/DP%03d` and
+  the canonical entry view (DP001).  `test_default_views` confirms the canonical
+  DP001 blits for a spread of map ids (see Round 10).
 * `render_dungeon_viewport()` — a synthetic ray-cast **fallback** (60-degree FOV
   DDA over the 36x36 grid, grey wall band on black) for levels with no view
   sprite / as an automap aid.  `test_viewport` pins: wall-ahead → whole window
@@ -563,6 +564,226 @@ by the local map structure.  Fully reproducing arbitrary views needs either the
 (GFA-compiled) selection code or a systematic oracle sweep; both are out of scope
 for this pass.  The drop-in draws the verified `DP001` entry view.
 
+### Round 10 — the view directory is the map id's ones digit (verified)
+
+The maintainer's `docs/notes-maintainer-town.md` (branch `work/maintainer-town`)
+pins the model, and I reproduced it against the shipped data:
+
+* The engine composes the map name as `DNGS\DNG%01ld%01ld` (two digit bytes: the
+  ones digit at save offset 0x9a2, the tens digit at 0x9a4) and reads the view
+  tiles from **`EGA\D<ones-digit>`**.  Verified by patching the bytes and
+  watching the emulator's open trace: GAME2's 0x9a2 `0 -> 1` opens `DNGS\DNG11`
+  + `ega\d1`; its 0x9a4 `1 -> 0` opens `DNGS\DNG00` + `ega\d0`.
+* So **dungeon 05 (Temple) -> `EGA/D5`** and **dungeon 10 (wilderness) ->
+  `EGA/D0`**.  `D8`/`D9` are never used; all 29 maps map onto `D0..D7`.
+* View dirs `D1..D7` each ship the same 51-sprite set (full views
+  `DP001/014/036/058/059/060/067` at 120x119, plus the 16x29 / 32x59 / … partial
+  tiles); `D0` is the odd one out with 63 sprites and only four full views
+  (`DP001/002/014/036`) — the wilderness.
+* The engine opens `DP001` first on a play-loop load (it is the base the viewport
+  is composited over), then overlays map tiles near the horizon.  A single
+  sprite therefore never reproduces an arbitrary view (spawn = `DP001` 95.2%;
+  the moved frame's best single sprite is 57.6%).
+
+`dungeon_view_path()` / `dungeon_view_dir()` now take the **map id** and use its
+ones digit, so `dungeon_view_path(root, 10)` -> `EGA/D0/DP001` and
+`dungeon_view_path(root, 11, 36)` -> `EGA/D1/DP036` (pinned by `test_view_sprite`;
+`test_default_views` blits the canonical `DP001` for a spread of ids including
+`10`, `11`, `17`, `23`, `66`).  This corrects the earlier bug where the path used
+the whole number (`EGA/D10/...`), which would fail for every map id >= 10.
+
+**Still open:** which `DPnnn` index/offsets the engine picks for a given
+(position, facing, local tile structure) — it is a runtime composition of the
+base view with partial tiles, and the exact rule needs either the (GFA-compiled)
+code or a systematic DOSBox oracle sweep.
+
+### Round 11 — the sprite library and why the rule needs the code
+
+Pulled the engine's own load trace from the analysis emulator on
+`work/maintainer-town` (the branch with the `REP CMPS/SCAS` fix), which reaches
+the play loop on **save slot 2** (`LOF_KEYAUTO="0x18,0x03"`):
+
+* Slot 2 loads `DNGS\DNG10` and opens **`ega\d0\dp001..dp069`** — the map id's
+  ones digit again (10 -> `D0`), independently confirming the Round-10 fix.
+* Slot 1 loads `DNGS\DNG05` and opens `ega\d5\dp001..dp069`.
+* So the engine **preloads the whole `DPnnn` library** (69 slots per map) *before*
+  it reads the map, then composes the viewport in memory.  It never re-opens a
+  sprite per move, which is why there is no per-view open to key the rule off.
+
+Library structure (all `D1..D7` share it; `D0` has fewer full views):
+
+* **Full views (120x119):** `DP001/014/036/058/059/060/067` for `D1..D7`;
+  `D0` has only `DP001/002/014/036`.
+* **Partial tiles:** distance-banded wall segments in size pairs
+  (8x29, 16x19/26/29/47/48/59, 24x19, 32x29/59/119, 64x59) — e.g. `DP015/037`
+  are the 64x59 pair, `DP018/019` the 32x59 pair.  `DP068/069` (32x119) are
+  fully transparent (all index 0): empty side-wall slots.
+
+What the two slot-1 DOSBox oracles show:
+
+* **spawn** viewport matches the single full view `DP001` at **95.2%** — the
+  entrance is pre-rendered;
+* the **moved** viewport's best single sprite (full view or partial) is only
+  **57.6%** (`DP067`), and no single overlay on any base reaches the spawn's
+  95% — so an arbitrary view is a **multi-tile composition**, not one blit.
+
+**Why this cannot be derived without guessing:** the composition is chosen at
+run time from (position, facing, local map structure) by GFA-compiled code that
+static disassembly cannot resolve (the path table is addressed via a computed
+base and carries no relocation entry; see Round 9).  The emulator cannot serve
+as an oracle for it — its EGA blit path leaves the viewport showing the menu
+scene (documented in `notes-maintainer-town.md`), so it renders the *same*
+window for menu, dungeon and town.  The only clean oracle is DOSBox, and each
+frame is one (position, facing) data point that requires reliably driving the
+game there first.  I therefore stop here rather than invent a heuristic.
+
+**What the drop-in does today:** draws the canonical entry view (`DP001`) for
+the save's map id via `render_dungeon_default_view()`, which is pixel-verified
+for the Temple spawn; the composition rule is the documented open item.
+
+Static confirmation in `LOF.EXE`: it ships a **contiguous 70-entry table**
+`ega\d0\dp000`, `ega\d0\dp001`, … `ega\d0\dp069` (file offsets ~0x3b6d1+, right
+after `ega\twn\twn00..05` and before `ega\anim\an00..`).  Every entry is `d0`;
+the digit is substituted at run time from the map id's ones digit.  `DP000` is
+absent on disk in every view dir (`D5` has 51 files `DP001..DP069`, `D0` 63),
+and the load trace opens `dp001..dp069` in order — so slot 0 is unused and the
+library is the 69 sprites `DP001..DP069`.  The selection rule is therefore a
+*table index* chosen in memory (never a filename opened per view).
+
+Negative evidence on the full views: for `D5` the other full views are **not**
+mirrors/rotations of `DP001` (best transform match 0.27–0.41), so they are not
+the four facings of one scene — they are distinct pre-rendered views selected
+per (position, facing, structure).  For `D0` the handful of full views are
+near-degenerate (`DP014` ≈ flipud of `DP001` at 0.01), i.e. the wilderness set
+is much smaller and flatter.  This is consistent with the engine pre-rendering
+a small set of canonical views and compositing the partial tiles around them.
 
 
 
+
+
+### Round 12 — composition experiment + oracle reproducibility (2026-11-08)
+
+**Greedy multi-tile composition.**  I ran an exhaustive/FFT-correlation greedy
+search that builds a viewport by repeatedly pasting the non-transparent `DPnnn`
+tile that removes the most mismatching pixels, against the Temple-spawn oracle
+(`ref/oracle/dungeon_slot1.png`).  Starting from the real entry view `DP001` the
+best it reaches is **0.209**; starting from `DP067` 0.581; starting from black
+**0.659**.  So no small paste set reproduces the spawn — the real frame is not
+`DP001` plus a couple of overlay tiles.  Combined with the *moved* frame: the
+spawn and the one-step-forward frames differ over **82.9 %** of the viewport
+(every 10px row/col band changes), i.e. the engine **recomposes the whole
+viewport per (position, facing)**, it is not a fixed background with local
+patches.  This is the strongest negative result yet and it rules out the
+"canonical view + overlay" model.
+
+**The emulator cannot be the oracle (confirmed).**  `./lof-native --dir game`
+with slot 1 loaded leaves the viewport region (rows 11..129, cols 10..129)
+**entirely black** — 0 % non-black pixels, and 90 % unlike the menu viewport.
+It reads `DNGS\DNG05` and opens `ega\d5\dp001..dp069` (per `LOF_I21=1`) but never
+blits the sprites.  So it is *not* a case of "renders the menu in the viewport";
+it renders nothing there.  Either way it cannot supply viewport ground truth.
+
+**DOSBox oracle is not reproducible by script.**  The maintainer's own recipe
+(`tools/capture_dosbox.sh <dir> --wait 30 --keys "o 1"`) and my key-driven runs
+(`space…,o,1`, then arrows) both land on the **main menu** — byte-identical to
+`ref/oracle/menu.png` (0.0 diff).  Keys do reach the guest (the right-hand panel
+redraws), so it is not a focus problem; the scripted path simply does not enter a
+dungeon.  `openbox` installed as a WM did not change this.  The committed
+`ref/oracle/dungeon_slot1*.png` were captured interactively and cannot be
+regenerated here.
+
+**Save format.**  Slot 1 is map 05 (`DNGS\DNG05` + `EGA/D5`) and slot 2 is map 10
+(`DNGS\DNG10` + `EGA/D0`) per the open trace.  The party (map, x, y, facing)
+offset inside `GAMES/GAME  n` is not decoded; that is workstream B/maintainer
+territory, so I cannot even pin a specific (pos, facing) to fit the rule against.
+
+### Round 13 — DP sprite-library geometry (data-only, no oracle needed)
+
+`EGA/D5/DPnnn` sizes cluster into a clean grid (width x height, indices):
+
+| size | n | indices |
+|------|---|---------|
+| 120x119 | 7 | 1, 14, 36, 58, 59, 60, 67 |
+| 64x59   | 2 | 15, 37 |
+| 32x59   | 4 | 18, 19, 40, 41 |
+| 32x119  | 6 | 24, 25, 46, 47, 68, 69 |
+| 32x29   | 2 | 16, 38 |
+| 24x19   | 2 | 17, 39 |
+| 16x59   | 4 | 26, 27, 48, 49 |
+| 16x48   | 2 | 52, 53 |
+| 16x47   | 2 | 30, 31 |
+| 16x29   | 10 | 20, 21, 32, 33, 42, 43, 54, 55, 56, 57 |
+| 16x26   | 2 | 34, 35 |
+| 16x19   | 4 | 22, 23, 44, 45 |
+| 8x29    | 4 | 28, 29, 50, 51 |
+
+Key structure: **indices 14..35 and 36..57 are the same size-pattern duplicated
+at offset 22** (14→36, 15→37, …; `[28,29]`→`[50,51]`, `[30,31]`→`[52,53]`,
+`[34,35]`→`[56,57]`).  The only mismatch is the last pair: the first block ends
+`[34,35]=16x26` and the second `[56,57]=16x29`, i.e. the copy is near-exact but
+not pixel-identical (`DP(14+k)` vs `DP(36+k)` best-case identity 0.89 at k=10,
+never a clean flip).  This looks like a **left/right pair of the same distant
+wall/door tile set** (a near-doubled block) rather than one shared block, which
+fits the "two off-centre columns of distant tiles" reading of the viewport.
+
+Some views are left-right symmetric and some are not: `DP067` is 99.7 %
+symmetric under `fliplr` (a straight corridor / symmetric room seen head-on),
+`DP001` only 56.8 % (an off-centre feature, e.g. a door on one side).  The
+Temple spawn oracle is 51.0 % symmetric, i.e. asymmetric — so the spawn is not a
+straight-down-corridor view, which is why `DP001` (asymmetric) matched it and
+`DP067` (symmetric) did not.
+
+Take-away for the rule: the library is a small set of *distant wall/door tiles*
+in two mirrored columns plus a full-view background, consistent with a
+ray-cast-like compositor, but the exact index→(distance, side, feature)
+assignment is still not derivable without more oracle frames.
+
+### Round 14 — theme structure, save location byte, procedural residue
+
+**D1..D7 are seven themes over one identical slot set.**  `EGA/D1..D7` each hold
+the *same 51 sprite indices* (`DP001 DP014..DP060 DP067 DP068 DP069`), with
+different pixel content per theme (all 51 md5s differ between D1 and D5).  So the
+structural slot set is fixed and the digit only selects the texture theme —
+strong evidence that the engine's selection rule maps (position, facing,
+structure) to a *slot index* independent of the theme, which is exactly the
+contiguous `ega\d0\dp000..dp069` table it ships.  `D0` is different: 63 slots
+(the full `DP002..DP069`), i.e. the wilderness uses a distinct, larger set.
+
+**Save location byte = the map id's ones digit.**  `GAMES/GAME  1` (the Temple)
+has byte `0x9a2 = 5`, and the engine reads `DNGS\DNG05` + `ega\d5\...`; slots
+2/3/5 have `0x9a2 = 0`.  So `0x9a2` is the **ones digit** of the dungeon number
+(the tens digit lives elsewhere): slot 1 is map 05 (`0x9a2=5`), slot 2 is map 10
+(`0x9a2=0`, and the engine reads `DNGS\DNG10`), and the view dir is `D<0x9a2>`.
+This is the origin of the ones-digit rule (the maintainer found it by patching
+this byte).
+
+**The spawn residue is procedural, not a sprite.**  The Temple spawn is `DP001`
+blitted at (10,11) to 95.2 %; the remaining 4.8 % is a compact darker-grey (8)
+block at x≈88..100, y≈49..71.  I searched **every** `EGA/*/*` image for a
+conflict-free match to that block (masked, all placements) and found **none**.
+So the engine does not composite it from a pre-rendered sprite — it *draws* that
+part of the view procedurally (a distance/feature overlay computed from the map
+and party state).  That is why a pure "pick the right DPnnn" rule cannot explain
+a frame: the viewport = a DPnnn base **plus** procedural geometry.
+
+This reframes the DoD: reproducing a dungeon screen needs (a) the DPnnn base
+index rule **and** (b) the procedural overlay rule — neither derivable from the
+two available oracle frames alone.
+
+### Round 15 — the full play screen is MSCR + the view sprite (verified)
+
+Composed the whole screen and diffed it against the oracle
+(`ref/oracle/dungeon_slot1.png`):
+
+- frame region (outside the window) vs `EGA/UP/MSCR`: **0.921**
+- viewport (10..129, 11..129) vs `EGA/D5/DP001`: **0.952**
+- full 320x200 composite (`MSCR` then `DP001` at (10,11)): **0.928**
+
+So the engine's model is exactly "blit the static frame `EGA/UP/MSCR`, then the
+view sprite at (10,11)" — the same `MSCR` artwork the main menu uses.  The
+remaining ~7 % is split between the viewport's procedural overlay (4.8 %) and the
+frame region, so the *structure* of a dungeon screen is now reproduced
+end-to-end; only the per-(position,facing) sprite-index and overlay rules are
+open.  Implemented as `render_dungeon_screen()` in `port/dungeon.cpp` and
+covered by `test_dungeon_screen` in `tests/dungeon_test.cpp`.

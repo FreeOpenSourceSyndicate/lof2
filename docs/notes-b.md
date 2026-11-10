@@ -60,6 +60,15 @@ plausible fields (verify against the emulator's reads with `LOF_I21=1` +
   `decode_char`, printed it in `tools/spec.py --save`, and asserted it on the
   synthetic struct and the live `GAMES/GAME1` characters (Decker 379, Siegurd
   699, Handy 231).  `make test` passes.
+- (2026-11-08, branch `work/agent-b-weight`) **Resolved the item-table field
+  `f2` (record `+0x14`): it is the item WEIGHT**, not cost/AC — proven by the
+  carried-weight accumulator (image `0x1BB32`), the load check
+  (`item+0x14 + char+0x66 <= char+0x64` at `0x19B54`/`0x2965f`) and the sheet's
+  `Weight:` line, and reproduced exactly on 10/11 ROST characters and every named
+  GAME1..3 character.  Renamed `ItemRecord::f2 -> weight`, added
+  `kCharWeight64/66` + `CharSheet::weight_max/weight_cur` + `carried_item_weight`,
+  corrected the item-field notes, and asserted it in `char_test`.  `make test`
+  passes.
 
 ## Format findings (from data + `analysis/lof.asm`)
 
@@ -99,11 +108,23 @@ plausible fields (verify against the emulator's reads with `LOF_I21=1` +
 
 ### `ROST/SHOP` — 190 bytes
 
-- Byte 0 = 0 header, then **185 signed bytes, one per item in item-table order**
-  (the engine reads 186 then 4; the first 33 line up exactly with the item
-  classes: Club `-10`, War scythe `-2`, … Full plate `-8`, Small shield `-1`).
-  Values are in `-1..-10` (Club alone is `-10`), so it is a per-item shop
-  adjustment / availability table; the rest are `0`.
+- Byte 0 = 0 header, then **185 stock bytes, one per item in item-table order**
+  (the engine reads 186 then 4).  This is the emporium's **stock table**, not a
+  price adjustment: `0` = the shop does not carry the item, `1..254` = finite
+  units on hand, `0xFF` = the "always in stock" sentinel.
+- Grounded from the buy/sell routines: the buy path reads the slot
+  (`mov al, es:0x4616(bx)`, image `0xc130`) and decrements it
+  (`dec es:0x4616(bx)`, image `0xc146`); the sell/restock path increments it
+  (`inc es:0x4616(bx)`, image `0xb64f`), and refuses only once the count would
+  reach `0xFF` (`cmp byte es:0x4616(bx),0xff; jb ok`, image `0xb644`).  So a
+  larger value means *more* units, not a bigger discount.
+- The shipped shop carries **items 1..44 only** (index 45 onward is all 0), e.g.
+  Club 246, Hand axe 252, Full plate 248, and 24 items at `0xFF` (Short sword,
+  Plate mail, Short arrows, ...).  Loader: `lcall 0x18d:0x2bb2` with path
+  `ROST\SHOP` reads 186 bytes to `DS:0x4616`, then 4 bytes to a local.
+- If `ROST\SHOP` cannot be opened the loader zero-fills the 186 bytes and then
+  sets `0xFF` for every index `< 0x2d` (= 45) except 0 (image
+  `0xa72f..0xa77b`) — a fresh game stocks the first 44 items, matching the file.
 - Last word `0x1606` at offset 186 (the separately-read 4-byte trailer).
 
 ### Progress
@@ -244,11 +265,13 @@ The attribute block and level field are grounded independently in the character
 | 0x12 | word | paired with 0x10 (`> 0`); cleared with the slot |
 | 0x17 | byte | **level / rank**; level-up does `inc es:[bx+si+0x17]` (0x9144) then prints "X enters the %ld rank." (DS:0x4ea6); sheet prints it under "Rnk " |
 | 0x18 | byte | class flag: 1 PC / 2 monster (SNSC seed) |
+| 0x1b | byte | **profession index** 0..11 into `kProfessionNames` (the display routine at image `0x2FB4A` reads it, rejects `> 0x0b` and switches on it via the jump table at `CS:0x93B6`); the SNSC seed writes `0x0c` = "no profession" (only Siegurd, an unfinished slot, keeps it) |
 | 0x1c | byte | base stat 45..75 (SNSC seed) |
 | 0x1d | byte | set to `0x0a`, overridden to `5*dex46-0x41` when `dex46>0x0f` (1BA40) |
-| 0x1e | byte | body stat `100 - rec[0x2d]` (SNSC seed) |
+| 0x1e | byte | **total defence / armour class**: seeded `100 - rec[0x2d]`, then the armour routine (0x210E8) overwrites it with `stat1d + Σ equipped-item AC`; the sheet reads it as the defence stat |
 | 0x20 | word | maximum hit points |
 | 0x22 | word | current hit points |
+| 0x6b | byte | **used inventory-slot count** (0..48); add routine `inc es:[bx+si+0x6b]` (`0xc11a`/`0x2ed8a`), remove `dec` (`0x2e36b`); the armour routine (0x210E8) loops the `+0x82` slots only up to this. Equals the non-empty-slot count in every shipped record. Exposed as `CharSheet::inv_used` |
 | 0x6c | dword | **experience** (32-bit: low word `+0x6c`, high word `+0x6e`) |
 | 0x44 | byte | **Constitution** |
 | 0x45 | byte | **Strength** |
@@ -301,18 +324,49 @@ into `port/char_items.inc` (regenerate with `tools/spec.py --emit-items`, which
 reads the EXE once as a dev aid) and exposed as `items()` / `item_by_index()` /
 `dump_items()` in `port/char.{h,cpp}`.
 
-Field semantics (weapons line up cleanly; `f1..f4` are only partially named —
-their exact combat use lives in the play-loop code, so treat them as unverified):
+Field semantics (`price`, `weight`, `damage` and `f6` are grounded; `f0`/`f3`/
+`f4`/`f5` are only partially named — their exact combat/shop use lives in the
+play-loop code, so treat them as unverified):
 
-- melee weapons (class 1): `f0` = weapon class code 1..4 (not a hands count),
-  `f1` = damage, `f2` = cost; e.g. Short sword `(1,10,50,…)`, Broadsword
-  `(2,18,80,…)`, Two handed swrd `(2,25,456,…)`.
-- armour (class 2): `f1` = cost, `f2` = AC bonus, `f3` = further AC;
-  e.g. Leather `(4,15,150,35)`, Full plate `(1,2000,650,90)`.
-- projectiles (class 4): `f3` = ammo count, `f5` = the launcher item index
-  (e.g. Bolts `f5 = 24` = Crossbow); the launcher's `f5` points back.
-- `f6` is a class-eligibility mask (14 bits; magic items set the high bits,
-  e.g. 4095 = every class).  `item_usable_by_class()` reads it.
+- **`f1` (record `+0x12`) = item price in gold.**  The equipment list prints it
+  with `%4d$` (image `0xc474`, format `%4d$ %3dlb` at DS:0x44ab) and the shop
+  buy/sell routines read the same field (image `0xb745` / `0xb122`, with
+  condition/Charisma scaling).  Values run 5..3800.
+- **`f2` (record `+0x14`) = item weight.**  Grounded three ways (see the
+  "item weight" section below): the carried-weight accumulator, the load check,
+  and the character-sheet `Weight:` line.  This supersedes the earlier note that
+  called `+0x14` the *cost* (weapons) / *AC bonus* (armour) — the numbers were
+  right, the label was wrong.  Values run 5..3500 (`Club 100`, `Short sword 50`,
+  `Broadsword 80`, `Leather armour 150`, `Full plate 650`); the equipment list
+  and the sheet display `weight / 10` as pounds.
+- melee weapons (class 1): `f0` = weapon class code 0..5 (not a hands count);
+  `f4`'s high byte is the **damage** (exposed as `ItemRecord::damage`, subtracted
+  from the target's HP at image `0x13ebd`); e.g. Short sword `(f0=1, price=10,
+  wt=50, f4=0x0600 => dmg 6)`, Broadsword `(2,18,80,dmg 8)`, Two handed swrd
+  `(2,25,456,dmg 11)`.
+- **`+0x17` (the HIGH byte of `f3`) = initial quantity / charges.**  The
+  item-add routine copies it straight into the inventory slot's count byte
+  `+0x84` (`mov al, es:[bx+0xfd3]` at image `0xbf5d`, stored at `+0x84`), so a
+  fresh stack starts at this count: arrows/bolts `10`, rations `1`, tinderbox
+  `200`; for charged magic items it is the charge count (staves 9..25, e.g.
+  Striking staff 23, Polymorph wand 17).  It is 0 for ordinary non-stackable
+  gear.  **Consequence for armour:** the armour routine reads only the LOW byte
+  of `+0x16` (`mov al, es:[bx+0xfd2]` at image `0x2116b`), so `defense_from_items`
+  must mask `f3 & 0xff` — otherwise a charged staff would contribute a huge
+  bogus AC.  Exposed as `ItemRecord::charges`.
+- armour (class 2): `f3` = AC (scaled by condition, image `0x2116b`), `f4` =
+  armour sub-type; e.g. Leather `(f0=4, price=15, wt=150, f3=35)`.
+- projectiles (class 4): `+0x17` = ammo count (10, see the charges bullet above);
+  `f5` = the paired item's 1-based index (e.g. Short arrows `f5 = 20` = Short bow
+  at index 19); the launcher's `f5` points back (Short bow `f5 = 21`).  `f5` also
+  pairs Flask of oil <-> Lantern and the quest items (Emerald <-> Corona,
+  Ring <-> Keystaff).
+- `f6` is a **profession-eligibility mask** (12 bits, max 4095).  The equipment
+  list tests it against the character's profession index `+0x1b` as
+  `test f6, 1<<char[+0x1b]` (image `0xc539..0xc553`), i.e. bit *n* = profession
+  *n* (Warrior..Monk), **not** the 14-entry SNSC class.  `item_usable_by_class()`
+  reads it.  Verified on the shipped roster: every item a character has equipped
+  passes the mask for that character's profession (Connar/Gorth/… all `True`).
 
 **Use-effect index (off 31).**  Grouping the 185 items by this byte yields a
 clean 1:1 behaviour table, so it *is* a use-effect id, not an equip slot.  The
@@ -469,9 +523,10 @@ against the shipped `GAMES/GAMEn` + `ROST/ROST` saves (Siegurd == SNSC class 0):
 |-----------:|----------:|---------:|-----------|---------|
 | `0x4c` | 38 | `+0x18` | copy | class flag: 1 for PCs, 2 for big monsters |
 | `0x2e` | 8  | `+0x1c` | copy | base stat (45..75) |
-| `0x2d` | 7  | `+0x1e` | `100 - n` | body/health stat |
+| `0x2d` | 7  | `+0x1e` | `100 - n` | seeded defence, then overwritten by the armour routine (0x210E8) with the total AC |
 | `0x2d` | 7  | `+0x1d` | `100 - n` | same seed, then overridden by the Dexterity rule (1BA40) |
 | `0x36` | 16 | `+0x56` | copy | speed (1..4) |
+| `0x2c` | 6  | `+0x20`/`+0x22` | `rand(1..n/2) + n/2` | seeds both max and current hit points (`hp_seed`) |
 | `0x3a` | 20 | `+0x14` | copy | per-class word value (Siegurd 18) |
 | `0x2a` | 4  | `+0x7a+idx` | set 2 | picks which `+0x7a+n` slot is initialised |
 | `0x3b+2n` | 17+2n | `+0x142+2n` | copy | skill *value* (n = 0..3) |
@@ -509,7 +564,10 @@ The sheet prints, in order: `Rnk ` (`+0x17`), `Hit point ` (`+0x20`/`+0x22`),
 `Weight... ` (`+0x64`/`+0x66`), then `Rations.. : ` and ` Gold:`.  The `Hit point`
 line is the current/maximum HP pair (`+0x22`/`+0x20`); the `Magic.... ` line is
 the current/maximum magic-point pair **`+0x69`/`+0x68`** (see the correction and
-the inventory-array section).
+the inventory-array section).  The `State...  ` label prints the **profession
+name** derived from `+0x1b` (see the `+0x1b` row above and `CharSheet::profession()`);
+the display routine at image `0x2FB4A` switches on `+0x1b` (rejecting `> 0x0b`)
+to pick the name, so `+0x1b` is a profession index, not a state flag.
 
 The `Rations`/`Gold` values themselves are **not** simple struct fields.  They
 are the result of iterating the character's inventory-slot list (a run of
@@ -523,11 +581,11 @@ left unmodelled rather than guessed.
 > `kCharInv68`) called `+0x68`/`+0x69` "inventory slot indices the hit-point and
 > magic lines resolve item names from".  That was wrong.  The pair is the
 > character's **maximum / current magic points** (`+0x68` = max, `+0x69` = cur;
-> the sheet's "Magic.... " line).  The routine at image `0xEC00..0xEC2B` fills
-> both from a per-(class,level) table (`es:[0xaf70:16*+0x1b + +0x17]`, level <
-> 16) plus Wisdom/Intelligence bonuses; the spell routine at `0x137AD` clamps the
-> current down to the maximum and the rest routine at `0x6440` restores it.  See
-> the "inventory array" section below.
+> the sheet's "Magic.... " line).  The routine at image `0xEBF0..0xEC87` fills
+> both from a per-(profession,level) table (`table_seg:[0xa38 + 16*+0x1b +
+> +0x17]`, level < 16) plus Wisdom/Intelligence bonuses; the spell routine at
+> `0x137AD` clamps the current down to the maximum and the rest routine at
+> `0x6440` restores it.  See the "inventory array" section below.
 
 Note `+0x64`/`+0x66` (a 32-bit value the sheet labels `Experience`/`Weight`)
 versus `+0x6c`/`+0x6e` (the reward-accumulator dword exposed as `CharSheet::exp`):
@@ -552,6 +610,9 @@ scenarios 0..9 have a single-digit file name.)
 - [x] Save-game (`GAMES/GAMEn`) parser + format (header `\0FOL`, 410 stride).
 - [x] Item table (185 x 32 bytes) transcribed from LOF.EXE -> `port/char_items.inc`.
 - [x] Spell table (141 x 36 bytes) transcribed from LOF.EXE -> `port/char_spells.inc`.
+- [x] Magic-point table (12 professions x 16 levels) transcribed from LOF.EXE ->
+      `port/char_magic.inc`; `magic_table_value()` + `CharSheet::magic_max()`
+      reproduce the stored `+0x68` for every live character.
 - [x] 14 SNSC classes exposed as `kClassName[]`; `item_usable_by_class()`.
 - [x] Character-generation name tables (sex/race/profession/alignment/skills/
       languages/status) -> `port/char_names.inc` + accessors.
@@ -617,6 +678,26 @@ buffer, and the copies pin the semantics:
   character whose Dexterity (`+0x46`) is below 16 keeps the value 10 the init
   routine wrote; from Dexterity 16 up it becomes `5*dex - 0x41` (dex 16 -> 15,
   19 -> 30).  Verified against all six party members and the full roster.
+
+- `char +0x1e` is the **total defence (armour class)**, computed by the armour
+  routine at image `0x210E8` (the accumulation is `0x2114E..0x211DA`; it stores
+  the result to `+0x1e`).  It starts from the Dexterity stat `+0x1d` and adds,
+  for every **equipped** inventory slot, the item's armour AC (item field `f3`,
+  record `+0x16`) scaled by the item's condition (slot byte `+0x85`, the 4th
+  byte):
+
+      v = cond + 10;  v -= v % 20;  ac += f3 * v / 100;
+
+  A slot counts only when its aux byte (`+0x83`, the 2nd byte) is non-zero
+  (worn / wielded) — a merely carried item adds nothing.  The running total is
+  clamped to `0x5f`.  Crucially the routine first checks the slot flag word
+  `+0x10`: it recomputes `+0x1e` only when `+0x10 == -1`, so for a live PC the
+  saved `+0x1e` is exactly this formula (verified on 10/11 roster members; the
+  one exception, Siegurd, carries `+0x10 == 0` and is a stale snapshot).  The
+  sheet's defence line reads `+0x1e` (`%2d%%`, string DS:0xa566) and the builder
+  computes `attr_a = 100 - (mod5b + stat1e)` from it.  This is exposed as
+  `defense_from_items()`; the earlier "body stat `100 - rec[0x2d]`" label was
+  only the seed value before the armour pass.
 
 `decode_char()` projects these plus the already-known fields (present, name,
 flags10/counter12, level17, class18, base1c, stat1e, con44/str45/dex46/int47/
@@ -718,18 +799,37 @@ listing desyncs here, so use the raw bytes):
 - On a hit it stores the 1-based item index at `+0x82` and a per-item byte at
   `+0x84`, and writes `100` to `+0x85`.
 
-So a slot is `{ +0x82 item index (0 = empty), +0x83 aux, +0x84 per-item byte,
-+0x85 condition }`.  On the shipped data the three trailing bytes are `{0,1}` /
-`{1,0}` / `{0,0}` and the condition is `100` for everything except worn armour
-(`96`/`98`/`92`) — a durability/quality byte, not a count (it is decremented by
-`2`, e.g. `sub byte es:[bx+si+0x85],2` at `0x1ABDA`, and clamped to `0`/`100`).
+So a slot is `{ +0x82 item index (0 = empty), +0x83 equipped, +0x84 charges,
++0x85 condition }`.  All four bytes are now grounded in the raw image (the
+earlier "aux1/aux2" names were guesses):
+
+- **`+0x83` = equipped flag** (1 = worn/wielded, 0 = carried only).  Set to 1 by
+  the equip routine (`mov byte es:[bx+si+0x83],1` at image `0x2f45e`); cleared to
+  0 by the unequip / "take off all" routine (image `0x2f136`, `0x2f170`,
+  `0x2f1a8`, `0x2f1e2`, `0x2f21a`, `0x2f278`, `0x2f2b0`, ...).  The armour
+  routine counts a slot only when this is non-zero (`cmp byte es:[bx+0x83],0`,
+  image `0x21139`).  On the shipped data it is `0`/`1` only.
+- **`+0x84` = remaining count / charges.**  Seeded from item `+0x17` when the
+  item is added (`mov es:[bx+si+0x84],cl` after `mov al, es:[bx+0xfd3]`, image
+  `0xbf5d`).  The "use" path decrements it (`dec byte es:[bx]` at image
+  `0x13c53`, where `bx` points at `+0x84`) and refills `+0x85` from it:
+  `+0x85 = 100 * slot[+0x84] / item[+0x17]`, i.e. the condition byte doubles as
+  the **charge percentage**; when the count hits 0 the slot's condition is reset
+  to `100`.  The attack path (image `0x1950d`) uses the same decrement.  This is
+  why `+0x84` is `0` on the shipped party (nothing is partially used).
+- **`+0x85` = condition / durability, 0..100** (100 = pristine).  Seeded to 100
+  on add (`movb $0x64, es:[bx+si+0x85]`, image `0xbf9d`).  Combat damage subtracts
+  `2` (`sub byte es:[bx+si+0x85],2`, image `0x1abda`); the armour formula scales
+  AC by `(cond+10) - (cond+10)%20` (image `0x21141..0x2117c`); the shop sell
+  routine divides the price by it (`div 0x19` after the `+0x85` read, image
+  `0xb152`).  Worn armour in the shipped saves is slightly damaged (`96`/`98`).
 
 Decker's `GAME1` pack decodes cleanly as Leather armour (27), Small shield (34),
 Short sword (13), The Amulet (120); Handy's as Leather armour (27), Warhammer
 (8), Anvil (43), Sledge-hammer (44), The Amulet (120) x2.  Exposed as
-`InvSlot` + `CharSheet::inv[48]` (`kCharInv82`, `kCharInvCount`,
-`kCharInvStride`); `char_test` asserts the synthetic layout and Decker's/Handy's
-real slots.
+`InvSlot{item, equipped, charges, condition}` + `CharSheet::inv[48]`
+(`kCharInv82`, `kCharInvCount`, `kCharInvStride`); `char_test` asserts the
+synthetic layout and Decker's/Handy's real slots.
 
 ### Magic points `+0x68` (max) / `+0x69` (cur)
 
@@ -741,33 +841,44 @@ direction is proven by the spend/rest routines: the spell routine at image
 (`26 8a 47 68 26 88 47 69` = `+0x69 = +0x68`).  The sheet prints
 `(+0x69, +0x68)` = (current, maximum).
 
-The pair is filled by the routine at image `0xEC00..0xEC2B`, which looks up a
-per-(class,level) table in the loaded data segment `[0xaf70]:0xa38` (16 bytes
-per class, indexed `16 * class_field(+0x1b) + level(+0x17)`, only while
-`level < 16`) and then adds bonuses:
+The pair is filled by the routine at image `0xEBF0..0xEC87` (file offset
+`0xEBF0`; the listing labels it `0xEC00`).  It computes the character's record
+pointer, then:
 
 ```
 if (level(+0x17) < 16)
-    mp = es:[0xaf70 : 16*+0x1b + +0x17]      ; per-(class,level) table
+    prof = +0x1b;  base = table_seg:[0xa38 + 16*prof + level]
 else
-    mp = 0
-if (mp != 0 && Wisdom(+0x48) > 15) mp += 1
-if (Intelligence(+0x47) > 15) mp += 2
-+0x68 = mp ; +0x69 = mp
+    base = 0
+if (base != 0 && Wisdom(+0x48) > 15) base += 1
+if (base != 0 && Intelligence(+0x47) > 15) base += 2
++0x68 = base ; +0x69 = base
 ```
 
-The table itself (DS `0xa38`, 14 classes x 16 levels) is a static block in the
-EXE: the casters' rows climb with level (classes 4/8/9/11 the high-magic
-classes), the fighter rows are flat.  A worked check: Merlin has `+0x1b = 7`,
-level 1, Int 19, Wis 12 -> table[7][1] = 1, +2 for Int -> 3, which is exactly the
-`3/3` the save stores.  Other stored pairs (e.g. Handy `1/1`) are one point above
-the static table, which is consistent with the table being **class-indexed by a
-different byte than the saved `+0x1b`** (the char-gen may remap `+0x1b` after the
-MP fill), so the table's row-to-class mapping is still open; only Merlin's row is
-pinned.  Because the pair is TRANSIENT (spell/rest mutate `+0x69`), `CharSheet`
-projects it verbatim rather than recomputing it.  Exposed as
-`kCharMagMax68`/`kCharMagCur69` + `CharSheet::mag_max68`/`mag_cur69`; asserted on
-the synthetic struct and on `GAME1`.
+The table is a **12 professions x 16 levels** byte block, `table_seg:[0xa38]`
+where `table_seg` is the segment word the loader stores at `DS:0xaf70` (the
+routine does `mov es,[0xaf70]` then `mov al, es:0xa38[bx]`).  The block itself
+ships in the EXE at file offset **`0x42748`** (= DS `0x2748`); transcription is
+into `port/char_magic.inc` (regenerate with `tools/spec.py --emit-mp`).
+
+> **Correction (2026-11-08).**  An earlier revision said the table was indexed
+> by the SNSC *class* and was "14 classes x 16 levels", which left Handy/Cassandra
+> one point off.  The index byte is `+0x1b` — the **profession**, not the class —
+> and the block is 12 x 16.  With that fix the formula reproduces the stored
+> `+0x68` for **every** live character in `GAMES/GAME*` (24/24) and `ROST/ROST`,
+> including Siegurd (`+0x1b = 12` is out of range -> base 0, so his saved 0 is
+> correct).  Merlin (prof 7, level 1, Int 19, Wis 12): `table[7][1] = 1`, +2 Int
+> -> 3.  Handy (prof 3): `table[3][1] = 1` -> 1.  Cassandra (prof 10): `1` +1
+> Wis -> 2.  The caster rows (professions 3,5,6,7,8,10) climb with level; the
+> fighter rows (0,1,2,11) are flat 0.
+
+Because the pair is TRANSIENT (spell/rest mutate `+0x69`), `CharSheet` projects
+the saved value verbatim as `mag_max68`/`mag_cur69`; `CharSheet::magic_max()`
+*recomputes* the fill value from `prof1b`/`level17`/`int47`/`wis48` and matches it
+for every live character.  Exposed as `kCharMagMax68`/`kCharMagCur69`,
+`kMagicProfCount`/`kMagicLevels`, `magic_table_value()` and
+`CharSheet::magic_max()`; asserted on the synthetic struct, on `GAME1` and
+against the whole save.
 
 `+0x25` is a small **load/carry** byte (`10` for most of the shipped party, `15`
 for Cassandra) — exposed as `kCharLoad25`/`CharSheet::load25`.
@@ -808,27 +919,66 @@ class   = the item class byte (record +0x1e = 30)
 name    = the 16-byte name (record +0)
 ```
 
-That pins the sheet's per-item reads onto the item record, but it does **not**
-settle what each field means globally: the sheet divides record `+0x14` by 10 for
-its `Weight... ` line, yet the resulting values (Club 10.0, Broadsword 8.0,
-Leather armour 15.0) do not read like plausible weights, and the earlier
-item-table note called `+0x14` the *cost* (weapons) / AC bonus (armour).  So
-treat "`+0x14` = the weight the sheet shows" as the grounded part and the field's
-overall semantics as still open.  The sheet's ` Gold:` line is **not** summed
-from items at all: it prints the party's own 32-bit gold counter (`[bp-0x1a6]` +
-`0x31` = the `'$'` char) with the `%05ld$` format.  `Rations.. : ` formats a
-`%02d` count.
+That pins the sheet's per-item reads onto the item record.  (The ` Gold:` line is
+**not** summed from items at all: it prints the party's own 32-bit gold counter
+(`[bp-0x1a6]` + `0x31` = the `'$'` char) with the `%05ld$` format.  `Rations.. : `
+formats a `%02d` count.)
 
-The only residual uncertainty is whether the runtime copy is byte-identical to
-the static one (the loader may patch it), so mapping the sheet's reads onto the
-item record is a well-supported structural hypothesis rather than a fully
-oracle-confirmed fact.  The
-inventory *layout* (48 x 4-byte slots, item index at `+0x82`) is decoded and
-exposed (`CharSheet::inv`); confirming the patched fields needs the loader that
-populates `[0xb094]` (a main-loop/runtime concern, maintainer domain) or an
-oracle trace of the sheet's reads.  This is the one open item left in workstream
-B; everything else in this file is grounded against the static image and the
-shipped saves.
+### Resolved (2026-11-08): `+0x14` is the item **weight**
+
+The open question above is now closed by three independent, mutually-consistent
+pieces of evidence, so the earlier "cost / AC bonus" label for `+0x14` is
+**wrong** and has been corrected:
+
+1. **The carried-weight accumulator** (image `0x21030`, storing the sum at
+   `0x210d4`).  It reads the character's item-count byte
+   `+0x6b`, then for each of the `+0x82` inventory slots it does
+   `ax = es:[item_index * 32 + 0xfd0]` (the item record's `+0x14`, since
+   `0xfd0 = 0xfbc + 0x14`) and accumulates it into a 32-bit running total,
+   finally storing the low word at char `+0x66`.  The accumulator also seeds the
+   total with a per-character base `10 * byte[+0x70] + word[+0x72]`.  Because the
+   inventory byte is a **1-based** index (see below), the record fetched for
+   slot value `v` is `items()[v-1]`; the routine's `* 32` matches that.
+2. **The load check** at image `0x19B54` / `0x2965f`: an action is refused while
+   `item[+0x14] + char[+0x66] > char[+0x64]` — i.e. the item's `+0x14` plus the
+   already-carried total must not exceed the character's capacity `+0x64`.
+3. **The character sheet** (`Weight... %04d / %04d` at DS:0x92c0) prints the
+   pair `(char[+0x66], char[+0x64])` **after dividing each by 10** (`div 0xa`
+   right before the format call at image 0x2c21d / 0x2c1f0), so the sheet shows
+   pounds.  The compact `Weight:%04d/%04d` at DS:0x92c8 is the same pair.  This
+   means the raw `+0x14` values (5..3500) are tenths of a pound, and the earlier
+   note in this file claiming the `/10` was *absent* was itself wrong.
+
+**Display, not identity.**  The `/10` does not affect the field *identity*: the
+accumulator sums the raw `+0x14` values and the sheet only divides for display.
+The equipment list (`%4d$ %3dlb` at DS:0x44ab, image 0xc474) confirms the same
+convention: it prints `price` with `%4d$` and `weight / 10` with `%3dlb`.
+
+**Oracle check.**  Recomputing `char[+0x66]` as
+`10*byte[+0x70] + word[+0x72] + Σ items()[v-1].weight` reproduces the stored
+value **exactly for 10 of the 11 ROST characters** (Connar 289, Stiletto 343,
+Lord Krynn 386, Shadow 374, Assanla 245, Cassandra 278, Merlin 223, Handy 573,
+Decker 273, Siegurd 23) and for `GAMES/GAME2`/`GAME3` (Decker 290).  The
+mismatches are single stale snapshots — Gorth (off by 10), `GAME1` Decker (off
+by 9), and the `GAME5` Decker record, whose inventory/`+0x70` bytes are
+themselves inconsistent in the file — i.e. the same class of snapshot drift the
+earlier note flagged for the ROST records generally; none affects the field
+identity.  `CharSheet::weight_base()` exposes the base so callers can
+reconstruct the total.
+
+**Capacity `+0x64`.**  The maximum carried weight is set by the routine at image
+`0x981d`: `+0x64 = 350 * Strength(+0x45)` while Strength ≤ 15, else
+`100 * Strength + 3400` (`mul 0x64; add 0xd48`).  Every shipped save matches
+(Str 19 → 5300, 17 → 5100, 13 → 4550, 11 → 3850); the init routine seeds
+`+0x64 = 0x1324` (4900) first and this routine overwrites it.
+
+**Exposed.**  `ItemRecord::f2` was renamed to `ItemRecord::weight`; char offsets
+`kCharWeight64`/`kCharWeight66` and `CharSheet::weight_max`/`weight_cur` were
+added, projected by `decode_char`, and `carried_item_weight(CharSheet)` sums the
+inventory item weights.  `char_test` asserts the item weights (Club 100, Short
+sword 50, Full plate 650), the two char fields, and that
+`carried_item_weight(connar) + base == connar.weight_cur` on the real ROST.
+`tools/spec.py --emit-items` now documents record `+0x14` as the weight.
 
 ### Resolved: the stored item index base is 1-based
 
@@ -839,8 +989,8 @@ The Amulet (120); Handy Leather armour (27) + Warhammer (8).  A 0-based reading
 gives nonsense (27 -> Studded leather, 120 -> Broadsword+, two Broadswords in one
 pack).  `char_test` now asserts `item_by_index(dki.inv[0].item)->name ==
 "Leather armour"` and that `item_by_index(0) == nullptr` (0 is the empty marker),
-so the 1-based contract is pinned.  `ROST/SHOP` (185 signed bytes) is separately
-0-based over the item table (its `byte 0` is Club's slot, `-10`), so the two
+so the 1-based contract is pinned.  `ROST/SHOP` (185 stock bytes) is separately
+0-based over the item table (its `byte 0` is Club's stock, 246), so the two
 tables use different bases.
 
 ## Play-screen party panel: the "dark stat number" — 2026-11-08
@@ -872,3 +1022,89 @@ two strips differ).  Glyphs use the panel's 5x5 face, same as the names.
 (`"<n>%"`); `char_test` asserts the six shipped values.  `stat1e` itself is
 already decoded into `CharSheet::stat1e` / `SaveChar::stat1e`, so this closes the
 panel-number question end to end.
+
+## Combat damage routine (image 0x18FC6..0x196E0) — 2026-11-08
+
+The melee-attack handler that the play loop calls lives in the raw image around
+`0x18FC6`–`0x196E0` (the listing desyncs, so these offsets are raw).  It is
+reached from the action dispatcher when a character's action byte `+0x0f == 3`
+(image `0x19343`), i.e. the "Attacks" action.  The parts that touch the item
+table and the character struct are:
+
+1. **Charge / quantity check** (`0x194A8`).  The weapon slot is read as
+   `char + 0x82 + slot*4`; the routine first tests `+0x84` (the slot's remaining
+   count): if it is exactly `1` *and* the item's `+0x17` (initial charges) is
+   non-zero, it delegates to a special routine (`lcall 0x212f:0x7b6e`) — this is
+   the "last arrow / bolt" path.  Otherwise it decrements `+0x84`
+   (`dec byte es:[bx]`, image `0x1950d`) and refills the slot's condition byte as
+   the charge percentage (`+0x85 = 100*slot[+0x84]/item[+0x17]`, image
+   `0x19553..0x1955c`); when `+0x84` hits 0 it is reset to `0x64` (100).
+2. **Base damage** (`0x1959E`).  It loads the weapon's **damage byte** item
+   `+0x19` (`mov al, es:[bx+0xfd5]`, image `0x195AD`), stores it, and calls
+   `lcall 0x2a7d:0x2f6a` (a random-roll helper) then `inc`s the result — so the
+   per-hit damage is `roll(item[+0x19]) + 1`.  `item[+0x19]` is exposed as
+   `ItemRecord::damage` (the high byte of item `+0x18`).
+3. **Strength / class bonus** (`0x1904B..0x1907E`).  Before the roll the routine
+   builds `-0x2e = ( (Str(+0x45) + mod5e(+0x5e))  +  base(-0xa) + (-0x3a) ) / 3`
+   (`add` of `+0x45`, `+0x5e`, two other stack operands, then `idiv 3`) and adds
+   a Strength-over-15 bonus: when `Str + mod5e > 15` it adds `(Str+mod5e-15)*5`
+   to the accumulator (image `0x1905F..0x1906C`).  So Strength (`+0x45`) plus the
+   Strength modifier (`+0x5e`) drives the to-hit/damage bonus.
+4. **Class-based multiplier** (`0x195D7..0x19634`).  The attacker's class field
+   `+0x1a` selects a scaling: `+0x1a == 1` adds `damage/3`, `+0x1a == 2` adds
+   `damage/4` (both signed, image `0x195D7`/`0x195FB`), then the total is
+   divided by `+0x55` (`mov es:0x55(%bx,%si),%al; idiv`, image `0x19627`).
+   `+0x1a` is a class/category byte seeded per class (the ROST has values 1..5;
+   it is **not** the profession index, which is `+0x1b`).
+5. **Action-time divisor `+0x55`** (not the SNSC speed).  `+0x55` is a per-action
+   byte set to `1` by the normal action handlers (image `0x10046`, `0x156f0`) and
+   to `2` by one slow/hasted action (image `0x1c62d`); on the shipped data every
+   character carries `1`, so it is normally a no-op divisor.  The **SNSC-seeded
+   speed** is `+0x56` (`mov es:[bx+si+0x56],cl` from `rec[0x36]`, image
+   `0x230c1`; e.g. Siegurd `4`, humanoid slots `1`), exposed as
+   `CharSheet::speed56`.
+
+Fields this grounds for the character struct (all read here, previously unnamed):
+`+0x0f` action byte (`3` = attack), `+0x0e` target slot, `+0x1a` class/category
+scaling byte, `+0x45` Strength, `+0x55` action-time divisor, `+0x56` SNSC speed, `+0x5e` Strength modifier.
+
+The play-loop **item-use** table is the 36-byte table `es:[bx*0x24 + 0x2712]`
+where `bx` is the item index (image `0x13A82`, `0x1CFD2`, `0x1D156`); its bit 2
+(`test al,4`) is the "usable" flag the use path checks.  It is a **runtime**
+table, not present in the data files, so its full contents are only reachable
+from the main loop (maintainer domain).
+
+## Blockers (Workstream B) — 2026-11-08
+
+Sorted by who is needed to unblock. Everything B can ground from the static
+image (`LOF.EXE` disassembly + the data files) is already done; the items below
+need runtime state or another lane.
+
+### Needs the maintainer (play loop / oracle)
+- **HIGH — reach combat/shop/item-use in the oracle.** The oracle currently
+  stops at `town` (`--keys 0x18,0x1c`). A scripted path into a combat encounter
+  (and the shop / item-use screens) would let B ground the last runtime tables
+  against real reads (`LOF_I21`/`LOF_READ`), exactly as SPEC/ROST were grounded.
+- **MEDIUM — expose the runtime item-use table.** The 36-byte item-use table
+  `es:[item*0x24 + 0x2712]` (bit 2 = "usable", read at `0x13A82`, `0x1CFD2`,
+  `0x1D156`) lives in a runtime segment that is not in any data file, so its
+  contents can only be captured from a running engine (a debug dump like
+  `LOF_EDUMP` but for that segment).
+- **MEDIUM — wire B's grounded model into `lof.cpp`.** `defense_from_items()`,
+  the slot semantics (`equipped`/`charges`/`condition`) and the combat-damage
+  model (above) are ready to use; consuming them is `lof.cpp` (SERIAL) work.
+- **LOW — remaining char-struct fields.** `+0x0e` (target slot), `+0x0f`
+  (action byte), `+0x1a` (class/category scaling) are read by the combat routine
+  but their *display* names need the live status/combat UI.
+
+### Needs workstream A (dungeons)
+- **MEDIUM — dungeon/event screens reachable.** B's SPEC dispatch types
+  (7/9/0x0c/0x0e/0x11/0x19/25) drive the dungeon event system that A owns; their
+  handler ground truth (e.g. the type-7 door countdown, the type-0x19 guardian
+  riddle) can only be confirmed once A can drive those screens in the oracle.
+
+### Needs B (me) — nothing currently unblocked
+The remaining SNSC/NSC 40-byte stat-block names (`rec[0x28]`, `0x29`, `0x2b`,
+`0x30`..`0x33`, `0x44`..`0x4e`) are consumed by the monster **runtime record**
+builder (`0x2CF0E`) and the combat routine (`0x1904B`), i.e. play-loop state, so
+naming them statically would be guesswork. Left as a documented follow-up.

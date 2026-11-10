@@ -12,7 +12,7 @@
 //                        `imul [bp-0x44]` in LOF's event dispatcher.
 //   ROST/ROST            one count byte, then N records of 414 bytes: the saved
 //                        party roster (name + stats + equipment).
-//   ROST/SHOP            a header byte, one signed adjustment per item, a word.
+//   ROST/SHOP            header byte + 185 per-item stock bytes + 4-byte trailer.
 #ifndef LOF_PORT_CHAR_H
 #define LOF_PORT_CHAR_H
 
@@ -150,15 +150,48 @@ extern const char* const kClassName[kClassCount];
 
 struct ItemRecord {
     std::string name;
-    // Seven little-endian int16 fields.  f1..f4 are only partially named (their
-    // exact combat semantics live in the play-loop code); f5/f6 are grounded.
-    int16_t f0 = 0;  // weapon/armour class code (1..4)
-    int16_t f1 = 0;  // weapon: damage; armour: cost
-    int16_t f2 = 0;  // weapon: cost; armour: AC bonus
-    int16_t f3 = 0;  // armour: further AC; projectiles: ammo count
-    int16_t f4 = 0;  // weapon: cost / damage multiplier
-    int16_t f5 = 0;  // projectile -> launcher item index (weapons: 0)
-    int16_t f6 = 0;  // class-eligibility mask (bit n => class n may use)
+    // Seven little-endian int16 fields at record offsets 0x10..0x1c.  `price`
+    // and `weight` are grounded; `f0`/`f3`/`f4` are partly named; `f5`/`f6`
+    // are grounded.  See docs/notes-b.md ("item table") for the byte-level map.
+    int16_t f0 = 0;     // +0x10  weapon/armour class code (weapons: 0..5)
+    // +0x12  Price in gold.  The equipment list prints it with `%4d$` (routine
+    // at image 0xc474), and the shop buy/sell routines read the same field
+    // (0xb745 / 0xb122).  Grounded.
+    int16_t price = 0;
+    // +0x14  Item weight.  Grounded three ways: the character's carried total
+    // (char +0x66) is accumulated as this value over the inventory slots
+    // (routine at image 0x21030, the sum ends at 0x210d4); the load check
+    // `weight + char[0x66] <= char[0x64]` (image 0x19B54 / 0x2965f); and the
+    // equipment list / character sheet, which DISPLAY it divided by 10 as
+    // pounds (`%3dlb` at image 0xc477; `div 0xa` before the sheet's `Weight`
+    // line at image 0x2c21d).  Raw values run 5..3500.
+    int16_t weight = 0;
+    int16_t f3 = 0;     // +0x16  armour AC in the LOW byte (the armour routine
+                        //        reads `es:[bx+0xfd2]`, image 0x2116b); the HIGH
+                        //        byte is the quantity/charges (`charges`)
+    // +0x17  Initial quantity / charges: the HIGH byte of `f3`.  A fresh stack
+    //        starts with this count (arrows 10, rations 1, tinderbox 200) and
+    //        the item-add routine copies it into the inventory slot's count
+    //        byte (`+0x84`, image 0xbf5d `mov al, es:[bx+0xfd3]`); for charged
+    //        magic items it is the charge count (staves 9..25).  0 for ordinary
+    //        non-stackable gear (weapons/armour/shields).  See
+    //        ItemRecord::charges.
+    uint8_t charges = 0;
+    int16_t f4 = 0;     // +0x18  armour sub-type / projectile flag; weapons:
+                        //        class code in the low byte, damage in the high
+                        //        byte (exposed as `damage`)
+    // +0x19  Weapon damage (the high byte of `f4`): subtracted from a target's
+    // HP in combat (image 0x13ebd `sub es:[bx+0x22],cx`).  0 for non-weapons.
+    uint8_t damage = 0;
+    int16_t f5 = 0;     // +0x1a  1-based index of the paired item: ammo<->launcher
+                        //        (Sling 19<->Bullets 18), Flask of oil<->Lantern,
+                        //        and quest pairs (Emerald<->Corona, Ring<->Keystaff).
+    // +0x1c  **profession**-eligibility mask (12 bits, bit n => profession n may
+    //        use the item).  The equipment list tests it against the character's
+    //        profession index `+0x1b` as `test f6, 1<<char[+0x1b]` (image
+    //        0xc539..0xc553); max value in the table is 4095 (all 12
+    //        professions).  It is *not* the 14-entry SNSC class mask.
+    int16_t f6 = 0;
     // Item class: 0 misc/key, 1 melee, 2 armour, 3 shield, 4 projectile,
     // 5 staff, 6 scroll/book/map, 8 ring, 9 potion, 10 treasure, 11 bow/sling.
     uint8_t item_class = 0;
@@ -184,9 +217,11 @@ const char* item_effect_name(uint8_t effect);
 // table order.  `effect == 0` returns the plain (non-magical) gear.
 std::vector<size_t> items_with_effect(uint8_t effect);
 
-// True if item `index` (1-based) is usable by SNSC class `cls` (0..13) per its
-// eligibility mask (f6); out-of-range item or class returns false.
-bool item_usable_by_class(int index, int cls);
+// True when profession `prof` (0..11, the value of a character's +0x1b field)
+// may use item `index`: it tests the item's `f6` profession mask
+// (`f6 & (1 << prof)`), exactly as the equipment list does at image 0xc553.
+// Out-of-range item or profession returns false.
+bool item_usable_by_class(int index, int prof);
 
 // --- Item-use table (runtime) ---------------------------------------------
 //
@@ -244,6 +279,19 @@ std::vector<size_t> spells_with_effect(uint8_t code);
 
 // Print the decoded table (for eyeballing).
 void dump_spells(FILE* out);
+
+// Magic-point table (also transcribed from LOF.EXE, see port/char_magic.inc).
+// The engine keeps a 12 x 16 byte table (profession x level); the MP fill
+// routine at image 0xEC00 indexes it by the character's profession (+0x1b) and
+// level (+0x17), then adds +1 when Wisdom > 15 and +2 more when Intelligence >
+// 15.  Regenerate with `tools/spec.py --emit-mp`.
+constexpr size_t kMagicProfCount = 12;
+constexpr size_t kMagicLevels = 16;
+
+// Per-(profession, level) magic-point base, before the Wisdom/Intelligence
+// bonuses (returns 0 for an out-of-range profession or level >= 16, matching
+// the engine's guards).
+uint8_t magic_table_value(uint8_t profession, uint8_t level);
 
 // Character-generation model: the name tables LOF.EXE uses when creating a
 // character (transcribed into port/char_names.inc; regenerate with
@@ -329,7 +377,8 @@ std::vector<std::string> monster_names(const std::string& dir, int scenario);
 // `stats[off - 38]`.
 enum SnsOffset : size_t {
     kSnsIndex2a = 0x2a,  // byte; selects a char +0x7a+n slot (set to 2)
-    kSnsBody2d  = 0x2d,  // byte; char +0x1e = 100 - value, char +0x1d = same
+    kSnsBody2d  = 0x2d,  // byte; seeds char +0x1d AND +0x1e = 100 - value; the
+                         //   armour routine later replaces +0x1e with the total AC
     kSnsBody2e  = 0x2e,  // byte; char +0x1c (45..75, a base stat)
     kSnsSpeed36 = 0x36,  // byte; char +0x56 (1..4)
     kSnsField3a = 0x3a,  // byte; char +0x14 (word; a per-class value, Siegurd 18)
@@ -337,6 +386,7 @@ enum SnsOffset : size_t {
     // char +0x143+2n = rec[0x3c+2n], n = 0..3 (the loop at 1DC00/1DC40).
     kSnsSkill3b = 0x3b,  // byte; first of four skill values, stride 2
     kSnsSkill3c = 0x3c,  // byte; first of four skill levels, stride 2
+    kSnsHp2c    = 0x2c,  // byte; char +0x20/+0x22 = rand(1..value/2) + value/2
     kSnsClass4c = 0x4c,  // byte; char +0x18 (1 for PCs, 2 for big monsters)
 };
 
@@ -350,8 +400,11 @@ struct CharSeed {
     uint8_t  c1c = 0;   // +0x1c  rec[0x2e]  base stat (45..75)
     uint8_t  c1d = 0;   // +0x1d  100 - rec[0x2d]  (transient: the attribute pass
                         //         overwrites it with 0x0a / 5*dex-0x41)
-    uint8_t  c1e = 0;   // +0x1e  100 - rec[0x2d]  body stat
+    uint8_t  c1e = 0;   // +0x1e  seeded 100 - rec[0x2d], then overwritten by the
+                        //         armour routine with the total defence (AC)
     uint8_t  c56 = 0;   // +0x56  rec[0x36]  speed 1..4
+    uint8_t  hp_seed = 0;  // rec[0x2c]: char +0x20 (max) and +0x22 (current) are
+                           //   seeded rand(1..rec[0x2c]/2) + rec[0x2c]/2
     uint8_t  c1b = 0x0c;  // +0x1b  const 12 (later reduced by the char gen)
     uint16_t c14 = 0;   // +0x14  rec[0x3a]  (a per-class value; Siegurd 18)
     uint16_t c64 = 0x1324;  // +0x64  const 4900 (later adjusted per character)
@@ -404,8 +457,13 @@ enum CharOffset : size_t {
     // +0x1e body stat, +0x56 speed.  +0x7a is the base of the seed slots: the
     // routine sets byte +0x7a + rec[0x2a] to 2.
     kCharClass18   = 0x18,  // byte: 1 for PCs, 2 for big monsters
+    kCharProf1b    = 0x1b,  // byte: profession index 0..11 (see profession());
+                            //   the init routine seeds it to 12 (0x0c), which the
+                            //   display routine treats as "no profession"
     kCharBase1c    = 0x1c,  // byte: base stat (45..75)
-    kCharStat1e    = 0x1e,  // byte: body stat (100 - rec[0x2d])
+    kCharStat1e    = 0x1e,  // byte: total defence (armour class); seeded
+                            //   100 - rec[0x2d] and replaced by the armour
+                            //   routine 0x210E8 (see defense_from_items)
     kCharSpeed56   = 0x56,  // byte: speed (1..4)
     kCharSeed7a    = 0x7a,  // byte: base of the +0x7a+n seed slots
     // Additional fields the same init routine writes (raw image 0x22F80..):
@@ -418,10 +476,12 @@ enum CharOffset : size_t {
     // the current down to the maximum (`if +0x68 != 0 && +0x69 < +0x68:
     // +0x69 = +0x68`) and the rest routine at 0x6440 restores it
     // (`+0x69 = +0x68`).  Both are filled together by the routine at image
-    // 0xEC00..0xEC2B, which looks up a per-(class,level) table in the loaded
-    // data segment `[0xaf70]:0xa38` (16 bytes per class, indexed
-    // `16 * class_field(+0x1b) + level(+0x17)`, only while level < 16) and then
-    // adds +1 when Wisdom(+0x48) > 15 and +2 more when Intelligence(+0x47) > 15.
+    // 0xEBF0..0xEC87, which looks up a per-(profession,level) table at
+    // `table_seg:[0xa38]` (12 professions x 16 levels, indexed
+    // `16 * +0x1b + +0x17`, only while level < 16) and then adds +1 when
+    // Wisdom(+0x48) > 15 and +2 more when Intelligence(+0x47) > 15.  The table
+    // ships in the EXE (file offset 0x42748) and is transcribed into
+    // port/char_magic.inc (see magic_table_value / CharSheet::magic_max).
     // The sheet's "Magic.... " line prints (current, maximum) = (+0x69, +0x68).
     // NOTE: the pair is TRANSIENT in a save (a snapshot can hold a partly
     // depleted current value), so it is projected verbatim, not recomputed.
@@ -444,8 +504,33 @@ enum CharOffset : size_t {
     kCharInv82     = 0x82,  // byte: base of the 48 x 4-byte inventory array
     kCharInvCount  = 48,
     kCharInvStride = 4,
+    // +0x6b is the number of *used* inventory slots.  The add routine
+    // (`0xc11a`, `0x2ed8a`) does `inc byte es:[bx+si+0x6b]` after storing a new
+    // item and the remove routine (`0x2e36b`) does `dec`; the armour routine
+    // (0x210E8) loops the slots only up to this count.  It equals the number of
+    // non-empty slots in every shipped ROST/GAMES record.
+    kCharInvUsed6b = 0x6b,  // byte: used inventory-slot count (0..48)
     // +0x25 is a load/carry capacity byte (10 for most, 15 for Cassandra).
     kCharLoad25    = 0x25,  // byte: carrying capacity / load
+    // The carried-weight pair, grounded in the weight routine (image 0x1BB32)
+    // and the load check (image 0x19B54 / 0x2965f):
+    //   +0x64  maximum carryable weight.  Seeded 0x1324 (4900) by the init
+    //          routine and recomputed from a per-class stat (+0x45): with
+    //          stat <= 15 it is 350 * stat, otherwise 100 * stat + 3400
+    //          (routine at image 0x9820).  Every shipped save character matches
+    //          this (Str 19 -> 5300, 17 -> 5100, 13 -> 4550, 11 -> 3850).
+    //   +0x66  currently carried weight.  Accumulated by the weight routine as
+    //          the sum of every inventory item's weight (item +0x14), plus a
+    //          per-character base (10 * byte[+0x70] + word[+0x72]).
+    // The load check refuses an action while `item_weight + +0x66 > +0x64`, and
+    // the sheet's "Weight" line prints the pair as `%04d/%04d` (DS:0xafd9).
+    kCharWeight64  = 0x64,  // word: maximum carryable weight
+    kCharWeight66  = 0x66,  // word: currently carried weight
+    // The per-character base weight added by the weight routine (0x21030) before
+    // the item sum: `10 * byte[+0x70] + word[+0x72]`.  Verified on every shipped
+    // record: base + Σ item weight (item +0x14) == the stored +0x66 exactly.
+    kCharWeightBase70 = 0x70,  // byte: base weight / 10
+    kCharWeightBase72 = 0x72,  // word: base weight remainder
     // Hit points.  The character-sheet builder at 28054/28067 reads the current
     // value from +0x22 and divides 100*current by the value at +0x20 to get the
     // HP percentage it shows, so +0x20 is the maximum and +0x22 the current HP
@@ -492,19 +577,39 @@ enum CharOffset : size_t {
                             //   the display byte +0x17c (the "hp_mod" row)
     kCharFlg0f     = 0x0f,  // byte: status-line flag; when zero the builder
                             //   subtracts 10 from the attribute byte +0x17d
-    // The play-screen party panel reads the profession byte +0x1b (index into
-    // profession_names()) and the numeric stat byte +0x1e (printed "%d%%").
-    kCharProf1b    = 0x1b,  // byte: index into profession_names()
 };
 
 // One 4-byte inventory slot (see kCharInv82).  `item` is the 1-based item-table
-// index (0 = empty); the remaining three bytes are auxiliary state the engine
-// keeps alongside it (class/condition/flag).
+// index (0 = empty); the remaining three bytes are the per-slot state the engine
+// keeps alongside it.  All three are grounded in the raw image:
+//
+//   byte 0  `item`      item-table index, 1-based (0 = empty).  The item-add
+//                       routine scans for the first slot with this byte == 0
+//                       (`cmp byte es:[bx+si+0x82],0`, image 0xbf0c).
+//   byte 1  `equipped`  worn / wielded flag: 1 = equipped, 0 = carried only.
+//                       Set to 1 by the equip routine (image 0x2f45e) and
+//                       cleared to 0 by the unequip / "take off all" routine
+//                       (image 0x2f136, 0x2f170, ...).  `defense_from_items`
+//                       (image 0x21139 `cmp byte es:[bx+0x83],0`) counts only
+//                       slots with this set.
+//   byte 2  `charges`   remaining count / charges.  Seeded from item +0x17
+//                       when the item is added (image 0xbf5d) and decremented
+//                       by the "use" path (image 0x13c53 `dec byte es:[bx]`).
+//                       The slot is consumed when it reaches 0 (image 0x13c4d
+//                       `cmp byte es:[bx],0`).
+//   byte 3  `condition` durability / quality, 0..100 (100 = pristine).  Seeded
+//                       to 100 on add (image 0xbf9d); worn armour is slightly
+//                       damaged in the shipped saves (96/98).  Combat damage
+//                       subtracts 2 (image 0x1abda) and the armour formula
+//                       scales AC by `(condition+10) - (condition+10)%20`
+//                       (image 0x21141..0x2117c).
 struct InvSlot {
-    uint8_t item = 0;   // +0x00  item index (0 = empty slot)
-    uint8_t aux1 = 0;   // +0x01  auxiliary state byte
-    uint8_t aux2 = 0;   // +0x02  auxiliary state byte
-    uint8_t cond = 0;   // +0x03  condition/quality byte (100 = full)
+    uint8_t item = 0;       // +0x00  item index (0 = empty slot)
+    uint8_t equipped = 0;   // +0x01  worn/wielded flag (1 = equipped)
+    uint8_t charges = 0;    // +0x02  remaining count / charges
+    uint8_t condition = 0;  // +0x03  durability/quality, 0..100 (100 = full)
+
+    bool is_equipped() const { return equipped != 0; }
 };
 
 // A decoded view of the fields the engine's character code reads directly from
@@ -518,9 +623,11 @@ struct CharSheet {
     int16_t  counter12 = 0;  // +0x12  word (paired with flags10)
     uint8_t  level17 = 0;    // +0x17  level / rank
     uint8_t  class18 = 0;    // +0x18  class flag (1 PC / 2 monster)
+    uint8_t  prof1b = 0;     // +0x1b  profession index 0..11 (0x0c = none)
     uint8_t  base1c = 0;     // +0x1c  base stat (45..75)
     uint8_t  stat1d = 0;     // +0x1d  Dexterity-derived stat (see 1BA40)
-    uint8_t  stat1e = 0;     // +0x1e  body stat (100 - rec[0x2d])
+    uint8_t  stat1e = 0;     // +0x1e  total defence / armour class (see
+                             //   defense_from_items); seeded 100 - rec[0x2d]
     int16_t  hp_max = 0;     // +0x20  maximum hit points
     int16_t  hp_cur = 0;     // +0x22  current hit points
     uint32_t exp = 0;        // +0x6c  32-bit experience (low +0x6c, high +0x6e)
@@ -542,12 +649,30 @@ struct CharSheet {
     uint8_t  mag_max68 = 0;  // +0x68  maximum magic points
     uint8_t  mag_cur69 = 0;  // +0x69  current magic points
     uint8_t  load25 = 0;     // +0x25  carrying capacity / load
+    uint16_t weight_max = 0; // +0x64  maximum carryable weight (see kCharWeight64)
+    uint16_t weight_cur = 0; // +0x66  currently carried weight (see kCharWeight66)
+    uint8_t  weight_base70 = 0;  // +0x70  base weight / 10 (see kCharWeightBase70)
+    uint16_t weight_base72 = 0;  // +0x72  base weight remainder
     // The 48 four-byte inventory slots at +0x82 (see kCharInv82).
     std::array<InvSlot, kCharInvCount> inv{};
+    // Number of used slots (+0x6b; see kCharInvUsed6b).  The engine's armour
+    // routine iterates only these; `defense_from_items` does the same.
+    uint8_t inv_used = 0;
 
     // HP as a percentage, computed exactly as the sheet builder does
     // (100 * hp_cur / hp_max, integer division); 0 when hp_max is 0.
     int hp_percent() const;
+
+    // The profession name from +0x1b (see kCharProf1b).  Returns an empty
+    // string when the index is out of range (0x0c = "no profession").
+    std::string profession() const;
+
+    // The magic-point maximum the engine's fill routine (image 0xEC00) would
+    // compute for this character: the per-(profession, level) table value plus
+    // +1 when Wisdom > 15 and +2 more when Intelligence > 15, and 0 when the
+    // table value is 0 (or the profession/level is out of range).  `mag_max68`
+    // projects the saved value; this recomputes it from the stats.
+    uint8_t magic_max() const;
 
     // --- party-status display row -----------------------------------------
     // The party-status builder packs a 12-byte row per member into its display
@@ -570,6 +695,31 @@ struct CharSheet {
 // Decode a 410-byte character struct into a CharSheet.  `raw` must point at a
 // 410-byte buffer.
 CharSheet decode_char(const uint8_t* raw);
+
+// Sum of the character's inventory items' weights (item +0x14) over its 48
+// slots.  The engine's carried total (`CharSheet::weight_cur`, char +0x66) is
+// this sum plus a small per-character base (10 * raw[+0x70] + word[+0x72]);
+// since the game stores the total, this only recomputes the item portion.
+// Empty slots (item == 0) and out-of-range indices contribute nothing.
+uint32_t carried_item_weight(const CharSheet& c);
+
+// The per-character base weight the weight routine adds before the item sum
+// (10 * +0x70 + +0x72; see kCharWeightBase70).  `weight_base(c) +
+// carried_item_weight(c)` reproduces the stored carried total `weight_cur`.
+uint32_t weight_base(const CharSheet& c);
+
+// The character's total defence (armour class), computed exactly as the engine's
+// armour routine does (image 0x210E8; the sum lives at 0x2114E..0x211DA).
+// Starting from the Dexterity-derived stat (+0x1d), it adds each EQUIPPED
+// inventory item's armour AC (item field f3 / record +0x16) scaled by the item's
+// condition (slot byte +0x85, the slot's 4th byte):
+//     v = cond + 10; v -= v % 20; ac += f3 * v / 100;
+// An item only counts when its aux byte (+0x83, the slot's 2nd byte) is non-zero
+// (worn / wielded); a merely carried item adds nothing.  The total is clamped to
+// 0x5f.  The engine stores the result in char +0x1e, but only recomputes it when
+// the slot flag word +0x10 == -1 (see `flags10`); otherwise the saved +0x1e is
+// authoritative.  Use this helper when +0x1e may be stale.
+uint8_t defense_from_items(const CharSheet& c);
 
 // char +0x1d as derived from the Dexterity at +0x46 by the routine at 1BA40: a
 // character below Dexterity 16 keeps 10; from 16 up it is 5*dex - 65 (dex 16 ->
@@ -666,12 +816,30 @@ std::string panel_stat_text(uint8_t stat1e);
 // --- ROST/SHOP ------------------------------------------------------------
 
 struct ShopData {
-    // ROST/SHOP is 190 bytes: a header byte (observed 0), then one signed byte
-    // per item (185 of them, parallel to the item table order), then a 4-byte
-    // trailer word.  Observed values are 0..-10, a per-item shop adjustment.
-    int8_t adjustments[kItemCount] = {0};
+    // ROST/SHOP is 190 bytes: a header byte (0), then 185 stock bytes, one per
+    // item in the item-table order, then a 4-byte trailer (word 0x1606 + a
+    // zeroed word).  This is the emporium's STOCK table: 0 = the shop does not
+    // carry the item, 1..254 = finite units in stock, 0xFF = an "always in
+    // stock" sentinel (the buy routine refuses only at 0xFF, image 0xb644).
+    // The buy routine reads the slot and does `dec es:0x4616(bx)` (image
+    // 0xc130..0xc146); the sell/restock routine does `inc` (image 0xb64f).  The
+    // engine copies the 190 bytes to DS:0x4616 at load; if the file cannot be
+    // opened it falls back to a default stock of 0xFF for items 1..44 (image
+    // 0xa72f..0xa77b), i.e. a fresh game stocks the first 44 items.
+    uint8_t stock[kItemCount] = {0};
     uint16_t trailer = 0;
     bool ok = false;
+
+    // Whether the shop carries the item (1-based index, as item_by_index).
+    bool carries(int item_index) const {
+        return item_index >= 1 && (size_t)item_index <= kItemCount &&
+               stock[item_index - 1] != 0;
+    }
+    // Whether the shop has an unlimited supply (the 0xFF sentinel).
+    bool unlimited(int item_index) const {
+        return item_index >= 1 && (size_t)item_index <= kItemCount &&
+               stock[item_index - 1] == 0xff;
+    }
 };
 
 ShopData load_shop(const std::string& path);
