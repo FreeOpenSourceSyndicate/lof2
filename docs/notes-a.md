@@ -650,6 +650,14 @@ and the load trace opens `dp001..dp069` in order — so slot 0 is unused and the
 library is the 69 sprites `DP001..DP069`.  The selection rule is therefore a
 *table index* chosen in memory (never a filename opened per view).
 
+Negative evidence on the full views: for `D5` the other full views are **not**
+mirrors/rotations of `DP001` (best transform match 0.27–0.41), so they are not
+the four facings of one scene — they are distinct pre-rendered views selected
+per (position, facing, structure).  For `D0` the handful of full views are
+near-degenerate (`DP014` ≈ flipud of `DP001` at 0.01), i.e. the wilderness set
+is much smaller and flatter.  This is consistent with the engine pre-rendering
+a small set of canonical views and compositing the partial tiles around them.
+
 
 
 
