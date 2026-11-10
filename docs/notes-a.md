@@ -661,3 +661,39 @@ a small set of canonical views and compositing the partial tiles around them.
 
 
 
+
+### Round 12 — composition experiment + oracle reproducibility (2026-11-08)
+
+**Greedy multi-tile composition.**  I ran an exhaustive/FFT-correlation greedy
+search that builds a viewport by repeatedly pasting the non-transparent `DPnnn`
+tile that removes the most mismatching pixels, against the Temple-spawn oracle
+(`ref/oracle/dungeon_slot1.png`).  Starting from the real entry view `DP001` the
+best it reaches is **0.209**; starting from `DP067` 0.581; starting from black
+**0.659**.  So no small paste set reproduces the spawn — the real frame is not
+`DP001` plus a couple of overlay tiles.  Combined with the *moved* frame: the
+spawn and the one-step-forward frames differ over **82.9 %** of the viewport
+(every 10px row/col band changes), i.e. the engine **recomposes the whole
+viewport per (position, facing)**, it is not a fixed background with local
+patches.  This is the strongest negative result yet and it rules out the
+"canonical view + overlay" model.
+
+**The emulator cannot be the oracle (confirmed).**  `./lof-native --dir game`
+with slot 1 loaded leaves the viewport region (rows 11..129, cols 10..129)
+**entirely black** — 0 % non-black pixels, and 90 % unlike the menu viewport.
+It reads `DNGS\DNG05` and opens `ega\d5\dp001..dp069` (per `LOF_I21=1`) but never
+blits the sprites.  So it is *not* a case of "renders the menu in the viewport";
+it renders nothing there.  Either way it cannot supply viewport ground truth.
+
+**DOSBox oracle is not reproducible by script.**  The maintainer's own recipe
+(`tools/capture_dosbox.sh <dir> --wait 30 --keys "o 1"`) and my key-driven runs
+(`space…,o,1`, then arrows) both land on the **main menu** — byte-identical to
+`ref/oracle/menu.png` (0.0 diff).  Keys do reach the guest (the right-hand panel
+redraws), so it is not a focus problem; the scripted path simply does not enter a
+dungeon.  `openbox` installed as a WM did not change this.  The committed
+`ref/oracle/dungeon_slot1*.png` were captured interactively and cannot be
+regenerated here.
+
+**Save format.**  Slot 1 is map 05 (`DNGS\DNG05` + `EGA/D5`) and slot 2 is map 10
+(`DNGS\DNG10` + `EGA/D0`) per the open trace.  The party (map, x, y, facing)
+offset inside `GAMES/GAME  n` is not decoded; that is workstream B/maintainer
+territory, so I cannot even pin a specific (pos, facing) to fit the rule against.
