@@ -8,6 +8,7 @@
 namespace lofport {
 
 #include "char_items.inc"
+#include "char_itemuse.inc"
 #include "char_spells.inc"
 #include "char_names.inc"
 
@@ -245,6 +246,25 @@ bool item_usable_by_class(int index, int cls) {
     const ItemRecord* it = item_by_index(index);
     if (!it || cls < 0 || (size_t)cls >= kClassCount) return false;
     return (it->f6 & (1 << cls)) != 0;
+}
+
+uint8_t item_use_flags(int item_index) {
+    if (item_index < 0 || (size_t)item_index >= kItemUseCount) return 0;
+    return kItemUse[item_index][0];
+}
+
+bool item_is_usable(int item_index) {
+    uint8_t f = item_use_flags(item_index);
+    return (f & 3) == 0 && (f & 4) != 0;
+}
+
+void dump_item_use(FILE* out) {
+    for (size_t i = 0; i < kItemUseCount; i++) {
+        const ItemRecord* it = (i == 0) ? nullptr : item_by_index((int)i);
+        std::fprintf(out, "  %3zu %-18s flags=0x%02x%s\n", i,
+                     it ? it->name.c_str() : "(none)", kItemUse[i][0],
+                     item_is_usable((int)i) ? "  [usable]" : "");
+    }
 }
 
 const char* item_effect_name(uint8_t effect) {

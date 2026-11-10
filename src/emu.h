@@ -150,6 +150,12 @@ struct Machine {
         return ega.graphics() && a >= 0xA0000 && a < 0xB0000;
     }
     inline uint8_t rb(uint32_t a) {
+        if (getenv("LOF_RWATCH")) {
+            // LOF_RWATCH=lo:hi (hex) — log every read of [lo,hi) with the
+            // reading cs:ip, to locate the routine that consumes a data table.
+            static long lo=-1, hi=-1; if (lo<0){ const char* w=getenv("LOF_RWATCH"); lo=strtol(w,(char**)nullptr,16); const char* c=strchr(w,':'); hi=c?strtol(c+1,(char**)nullptr,16):lo+1; }
+            if (a>=lo && a<hi) fprintf(stderr,"[rwatch] %05X by %04X:%04X @%u\n", a, cpu.cs, cpu.ip, instr_count);
+        }
         if (a>=0x41300 && a<0x49400 && getenv("LOF_RM")) { static unsigned long key[8192]; static unsigned cnt[8192]; static int nk=0; static bool reg=false; if(!reg){reg=true; atexit([]{ for(int i=0;i<nk;i++) if(cnt[i]>100) fprintf(stderr,"[rm] %04X:%04X n=%u\n",(unsigned)(key[i]>>16),(unsigned)(key[i]&0xFFFF),cnt[i]); });} uint32_t k=((uint32_t)cpu.cs<<16)|cpu.ip; int f=-1; for(int i=0;i<nk;i++) if(key[i]==k){f=i;break;} if(f<0&&nk<8192){f=nk;key[nk]=k;cnt[nk]=0;nk++;} if(f>=0)cnt[f]++; }
         if (is_ega(a)) return ega.read(a - 0xA0000);
         return ram[a & 0xFFFFF];

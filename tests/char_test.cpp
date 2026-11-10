@@ -427,6 +427,18 @@ static int real_data() {
     assert(items_with_effect(10)[0] == 0x2e);
     assert(items_with_effect(200).empty());
 
+    // Item-use table (transcribed from LOF.EXE image 0x42712; the play loop
+    // indexes it as `es:[item*0x24 + 0x2712]`).  41 records, 36 bytes each;
+    // record 0 is the null "no item" row and items are 1-based after it.
+    assert(kItemUseCount == 41 && kItemUseRec == 36);
+    assert(item_use_flags(0) == 0);       // null row
+    assert(item_use_flags(1) == 1);       // Club
+    assert(item_use_flags(11) == 220);    // Battle flail (0xdc)
+    assert(item_use_flags(41) == 0 && item_use_flags(-1) == 0);  // out of range
+    // "usable" = low two bits clear and bit 2 set; only Battle flail qualifies.
+    assert(item_is_usable(11));
+    assert(!item_is_usable(0) && !item_is_usable(1) && !item_is_usable(41));
+
     // Spell table (141 x 36 bytes, also transcribed from LOF.EXE).
     const auto& sp = spells();
     assert(sp.size() == kSpellCount && kSpellCount == 141);

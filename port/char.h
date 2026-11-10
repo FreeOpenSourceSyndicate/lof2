@@ -188,6 +188,29 @@ std::vector<size_t> items_with_effect(uint8_t effect);
 // eligibility mask (f6); out-of-range item or class returns false.
 bool item_usable_by_class(int index, int cls);
 
+// --- Item-use table (runtime) ---------------------------------------------
+//
+// The play loop keeps a 41-record, 36-byte table at `es:[0x2712]` and indexes
+// it as `es:[item_index * 0x24 + 0x2712]` (item_index is 1-based into the item
+// table; record 0 is a null "no item" row).  The use/attack handlers read byte
+// 0 as a bitfield (image 0x13a82, 0x1cfd2, 0x1d156); the remaining 35 bytes
+// are handler parameters.  The table ships inside LOF.EXE (image 0x42712) so
+// it is transcribed into port/char_itemuse.inc.
+constexpr size_t kItemUseCount = 41;
+constexpr size_t kItemUseRec = 36;
+
+// Byte 0 of record `item_index` (1-based; 0 = the null row).  Returns 0 for
+// out-of-range indices.
+uint8_t item_use_flags(int item_index);
+
+// True if the engine treats `item_index` as *usable*: byte 0 has neither bit 0
+// nor bit 1 set, and has bit 2 set.  This is the exact predicate the use
+// handlers compute before they dispatch the item's effect.
+bool item_is_usable(int item_index);
+
+// Print the decoded use table (for eyeballing).
+void dump_item_use(FILE* out);
+
 // Print the decoded table (for eyeballing).
 void dump_items(FILE* out);
 
