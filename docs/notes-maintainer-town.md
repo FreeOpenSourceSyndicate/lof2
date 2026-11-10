@@ -461,3 +461,32 @@ engine's dynamic viewport overlays).
 
 `Font::draw_small_cell` (band, cell) was added to blit individual glyphs for the
 digit/`%`/`?` cases; `SaveChar::panel_stat` exposes `+0x1e`.
+
+## Town screen port — investigation (2026-11-11)
+
+Tried to reproduce `ref/oracle/town2.png` in the drop-in; it is **not a single
+asset blit**, so it is left for a dedicated session.  Findings to save time:
+
+* The town viewport is a **130x119** window at screen `(6,11)`.  An exhaustive
+  scan of every `game/EGA/*/*` image (4-plane decode, 2-px stride, all offsets)
+  found **no** asset matching it; the closest is `UP/MSCR` (the menu
+  background, ~1667 mismatching sampled px), i.e. the viewport is composited at
+  runtime from several sources (a sky/ground gradient + a building sprite),
+  not blitted whole.
+* The scene's 11 colours are `{0,2,3,4,6,7,8,10,12,14,15}`; there is a wide
+  dark column band (`0`) on the right third of the window — a large building in
+  shadow.
+* The bottom-left box (`x6..134, y133..200`, frame at y132/y134) holds the
+  engine's **dynamic** text (location / phase-of-day / messages).  It is drawn
+  with a 5x5 small-caps face but the glyphs are heavily anti-aliased by the
+  capture, so OCR is unreliable — a clean DOSBox capture would be needed to pin
+  the exact strings.
+* The right party panel is identical to `play.png` (already exact) **except**
+  a dynamic bar at `y28/32` (the health/mood gauge, dark-gray `8` on the panel
+  `6`) and at `y56/60` — both driven by live character state, so they are not
+  static and should not be hard-coded.
+
+Net: the party panel, the play-screen viewport background, the menu and the VOR
+intro are all reproduced exactly; the remaining gaps (play-screen viewport
+foreground sprite, town scene, live gauges) all need either a decoder we have
+not written or runtime game state.
