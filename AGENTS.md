@@ -191,16 +191,17 @@ Progress:
 - [x] Font decoding: `EGA/UP/CHR1`/`CHR2` glyph mapping (see below).
 - [x] LOF play screen (static composition): `--play D0/DP001` draws the HUD
       background `EGA/UP/MSCR` with the first-person viewport tile
-      `EGA/D0/DP001` blitted into the 120x119 window at (10,11), then the six
-      party-panel names and their professions from the save (`--save GAMES/GAMEn`)
-      drawn in the compact small-caps face (names white, professions black).
+      `EGA/D0/DP001` blitted into the 120x119 window at (10,11), then the full
+      six-member party panel from the save (`--save GAMES/GAMEn`) in the compact
+      small-caps face: the name (white), the profession (black), the `+0x1e`
+      stat number (dark gray, `%d` + a `%` glyph) and the `GOOD` status word
+      (white).  The whole panel now matches the oracle **pixel-exactly**.
       `--play auto --save GAMES/GAMEn` picks the view directory from the save's
-      location (see the save-location note below).  Matches the DOSBox slot-2
-      capture `ref/oracle/play.png` at ~93.3%
-      (residue = the engine's dynamic viewport overlays and the panel's
-      stat-number row). Guarded by `tests/port_play_test.py`
-      (`make golden-port`). The *interactive* play loop (input, movement,
-      re-rendering) is not yet implemented.
+      location (see the save-location note below).  The full screen matches the
+      DOSBox slot-2 capture `ref/oracle/play.png` at ~94.2%
+      (residue = the engine's dynamic viewport overlays only). Guarded by
+      `tests/port_play_test.py` (`make golden-port`). The *interactive* play
+      loop (input, movement, re-rendering) is not yet implemented.
 - [x] VOR preloader: `EGA/IN/DRAG` (dragon title) then `EGA/IN/CRED` (credits).
       Both are pure image blits, so the port reproduces each *pixel-exactly*
       from the game data. Guarded by `tests/port_vor_test.py` (`make

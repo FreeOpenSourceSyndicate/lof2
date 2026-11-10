@@ -29,11 +29,11 @@ SHOT = "/tmp/port_play_test.png"
 VIEWPORT = "D0/DP001"
 SAVE = os.path.join(GAME, "GAMES", "GAME2")
 
-# The composition (MSCR + DP001 at (10,11) + the party-panel name/profession
-# text drawn from the save) matches the DOSBox capture at ~93.3%; the residue is
-# the engine's dynamic viewport overlays and the panel's stat-number row, which
-# the port does not reproduce offline.  Fail if the match drops below this.
-MIN_MATCH = 0.93
+# The composition (MSCR + DP001 at (10,11) + the full party panel drawn from the
+# save: name, profession, the +0x1e stat number and the "GOOD" status word)
+# matches the DOSBox capture at ~94.2%; the panel is now pixel-exact and the
+# only residue is the engine's dynamic viewport overlays.  Fail below this.
+MIN_MATCH = 0.94
 
 
 def main() -> int:

@@ -114,6 +114,7 @@ SaveGame load_save(const std::string& path) {
         std::memcpy(c.raw.data(), r, 410);
         c.present = r[0];
         c.profession = r[0x1b];
+        c.panel_stat = r[0x1e];
         std::string nm;
         for (int k = 1; k < 15 && r[k]; k++) nm.push_back((char)r[k]);
         c.name = std::move(nm);

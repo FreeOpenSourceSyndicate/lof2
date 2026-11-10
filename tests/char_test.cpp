@@ -210,11 +210,21 @@ static int real_data() {
     // The play-screen panel's profession line comes from byte 0x1b, indexing
     // profession_names() (LOF.EXE table at 0x41e98).  GAME1's Decker is a
     // Paladin (9) and Handy a Smith (3); Siegurd carries 12, one past the
-    // table, so the panel leaves his line blank.
+    // 12-entry table, so the panel prints two '?' glyphs there.
     assert(sv.chars[0].raw[kCharProf1b] == sv.chars[0].profession);
     assert(sv.chars[0].profession == 9 && profession_names()[9] == "Paladin");
     assert(sv.chars[2].profession == 3 && profession_names()[3] == "Smith");
     assert(sv.chars[1].profession == 12 && sv.chars[1].profession >= kProfessionCount);
+
+    // The panel's dark-gray stat number is record byte 0x1e printed with "%d"
+    // (disassembly 2EEC2: mov al, byte [bx+di+0x1e]); the oracle shows
+    // 50/90/50/20/40/65 for Decker..Assanla.
+    assert(sv.chars[0].panel_stat == 50 && sv.chars[0].raw[0x1e] == 50);
+    assert(sv.chars[1].panel_stat == 90);
+    assert(sv.chars[2].panel_stat == 50);
+    assert(sv.chars[3].panel_stat == 20);
+    assert(sv.chars[4].panel_stat == 40);
+    assert(sv.chars[5].panel_stat == 65);
 
     // The party's location is two digit bytes: ones at save offset 0x9a2 and
     // tens at 0x9a4 (verified by patching each and watching the emulator open

@@ -319,6 +319,7 @@ struct SaveChar {
     uint8_t present = 0;             // +0x00  non-zero: slot holds a character
     std::string name;                // +0x01  NUL-terminated name (<= 14 bytes)
     uint8_t profession = 0xff;       // +0x1b  index into profession_names()
+    uint8_t panel_stat = 0;          // +0x1e  the numeric stat the play panel shows
 };
 
 struct SaveGame {

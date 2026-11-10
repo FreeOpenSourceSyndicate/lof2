@@ -81,4 +81,15 @@ int Font::draw_small(Screen& scr, int x, int y, const std::string& text, uint8_t
     return x;
 }
 
+int Font::draw_small_cell(Screen& scr, int x, int y, int band, int cell, uint8_t idx) const {
+    if (ok && band >= 0 && band < 3 && cell >= 0 && cell < 40) {
+        for (int gy = 0; gy < 5; gy++) {
+            uint8_t bits = glyph[band][cell][gy];
+            for (int gx = 0; gx < 5; gx++)
+                if (bits & (0x80 >> gx)) scr.put(x + gx, y + gy, idx);
+        }
+    }
+    return x + 5;
+}
+
 }  // namespace lofport

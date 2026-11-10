@@ -164,6 +164,7 @@ int main(int argc, char** argv) {
             Font small;
             if (small.load(dir + "/EGA/UP/CHR2", &err)) {
                 std::vector<std::string> profs = profession_names();
+                std::vector<std::string> status = status_short_names();
                 static const int kColX[3] = {148, 208, 268};
                 static const int kRowY[2] = {9, 37};
                 int slot = 0;
@@ -172,8 +173,29 @@ int main(int argc, char** argv) {
                     if (c.present == 0 || c.name.empty()) continue;
                     int x = kColX[slot % 3], y = kRowY[slot / 3];
                     small.draw_small(s, x, y, c.name, 15);
-                    if (c.profession < profs.size())
+                    if (c.profession < profs.size()) {
                         small.draw_small(s, x, y + 6, profs[c.profession], 0);
+                    } else {
+                        // The engine's profession table has 12 entries; an index
+                        // past the end prints two '?' glyphs (band 1 cell 36).
+                        small.draw_small_cell(s, x,     y + 6, 1, 36, 0);
+                        small.draw_small_cell(s, x + 5, y + 6, 1, 36, 0);
+                    }
+                    // Status row: the character's stat (dark gray) at x, then
+                    // the status word ("GOOD" for the whole party) in white at
+                    // x+21.  The stat is the save record's +0x1e byte, which the
+                    // engine prints with "%d" (disassembly 2EEC2) using CHR2
+                    // digit cells 27..36, followed by the '%' glyph, which the
+                    // engine's glyph table places in band 1 cell 37.
+                    int v = c.panel_stat;
+                    char num[8];
+                    int n = snprintf(num, sizeof num, "%d", v);
+                    for (int k = 0; k < n; k++)
+                        small.draw_small_cell(s, x + 5 * k, y + 12, 0,
+                                              27 + (num[k] - '0'), 8);
+                    small.draw_small_cell(s, x + 5 * n, y + 12, 1, 37, 8);
+                    if (!status.empty())
+                        small.draw_small(s, x + 21, y + 12, status[0], 15);
                     slot++;
                 }
             }

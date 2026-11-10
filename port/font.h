@@ -39,6 +39,10 @@ struct Font {
     // the font the engine uses for the party-panel names on the play screen
     // (loaded from CHR2); lower case renders as upper case.
     int draw_small(Screen& scr, int x, int y, const std::string& text, uint8_t idx) const;
+
+    // Blit one 5x5 glyph by (band, cell), advancing 5 px.  The play-screen
+    // status row draws CHR2 cells directly rather than through a text string.
+    int draw_small_cell(Screen& scr, int x, int y, int band, int cell, uint8_t idx) const;
 };
 
 }  // namespace lofport

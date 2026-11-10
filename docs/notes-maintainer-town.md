@@ -415,3 +415,49 @@ The viewport region (x139..304, y92..196) is still a flat wall for both
 (oracle dungeon_slot1 is also flat at 170, but dungeon_slot1_moved shows 3
 colours after the party turns) — that is the separate, still-open "viewport is
 drawn from tiles, not a full-screen asset" task.
+
+## RESOLVED (2026-11-11): the party-panel stat + status rows are now exact
+
+The two "documented not guessed" residues in the party panel are both decoded,
+and the whole panel now renders **pixel-exactly** against `ref/oracle/play.png`
+(the play screen jumped from 93.3% to 94.2%; the only residue left is the
+engine's dynamic viewport overlays).
+
+* **Status word.** The white word right of the number is exactly `GOOD` =
+  CHR2 band-0 cells 7,15,15,4 (`G O O D`).  It is the same 5x5 small-caps face
+  as the names, colour 15, at `(x+21, y+12)`.  For the whole test party the
+  status is `Good` (`status_short_names()[0]`), so the port draws index 0.  The
+  per-character status byte is still unlocated, but it is `0` for every shipped
+  save, so index 0 is correct for all of them.
+
+* **Stat number.** The dark-gray (index 8) field is *not* an encoded symbol row
+  — it is the character's stat at record offset **`+0x1e`**, printed with a
+  plain `"%d"`.  Disassembly confirms it: `2EEC2: mov al, byte [bx+di+0x1e]`,
+  then `2EEC8: push ax` into the format call.  The engine's own glyph table
+  places `0..9` in **CHR2 band-0 cells 27..36** (`27 + digit`) and `%` in
+  **band-1 cell 37**.  Verified against the oracle for all six members:
+
+  | member | +0x1e | panel |
+  |---|---|---|
+  | Decker | 0x32 = 50 | `50%` |
+  | Siegurd | 0x5a = 90 | `90%` |
+  | Handy | 0x32 = 50 | `50%` |
+  | Merlin | 0x14 = 20 | `20%` |
+  | Cassandra | 0x28 = 40 | `40%` |
+  | Assanla | 0x41 = 65 | `65%` |
+
+  All six render exactly, and the trailing glyph is band-1 cell 37 (the `%`
+  cell).  Rank-correlation over every byte in the six 410-byte records found
+  **exactly one** candidate (offset 30 = `0x1e`) whose ordering matched the
+  oracle; the value *is* the field (no divisor).
+
+* **Out-of-range profession.** Siegurd's profession byte is `12`; the engine's
+  panel table (LOF.EXE 0x41e98) has only **12** usable entries, so index 12 runs
+  off the end and prints two `?` glyphs (band-1 cell 36).  `profession_names()`
+  is 12 entries, so the port now draws `??` for an out-of-range index, matching
+  the oracle exactly.  (The bytes at index 12/13 are `Lawful`/`Chaotic`, an
+  alignment table that happens to sit right after the professions — not used for
+  the panel.)
+
+`Font::draw_small_cell` (band, cell) was added to blit individual glyphs for the
+digit/`%`/`?` cases; `SaveChar::panel_stat` exposes `+0x1e`.
