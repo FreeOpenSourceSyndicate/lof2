@@ -146,22 +146,32 @@ void render_dungeon_map(Screen& scr, const Dungeon& d, const DungeonPos& p,
 
 // --- First-person viewport ------------------------------------------------
 
-// The in-game 3D window.  Verified against the DOSBox oracle
-// (`ref/oracle/dungeon_slot1.png`): the engine fills the window with the wall
-// colour and paints the corridor structure over it.  The window occupies
-// (10,11)..(129,129) of the 320x200 play screen, whose frame comes from
-// `EGA/UP/MSCR`; the drop-in draws this window over that background.
+// The engine draws the 3D window from **pre-rendered sprites**
+// `EGA/D<dungeon>/DPnnn`, blitted at (10,11) over the `EGA/UP/MSCR` frame — it
+// does not ray-cast.  Verified against the DOSBox oracle: `EGA/D5/DP001`
+// reproduces the slot-1 Temple spawn window at 95.2% (the residue is a thin
+// horizon band the engine overlays from map data).  The full 120x119 views are
+// DP001/DP014/DP036/DP058/DP059/DP060/DP067; the smaller `DPnnn` (64x59, 32x59,
+// 16x29, ...) are the side-wall pieces composited near map edges.  The index the
+// engine selects is not yet decoded (see docs/notes-a.md), so the caller names
+// the sprite.
 constexpr int kViewportX = 10;
 constexpr int kViewportY = 11;
 constexpr int kViewportW = 120;
 constexpr int kViewportH = 119;
 
-// Render the party's first-person view of `d` into `scr`, ray-casting the
-// 36x36 tile grid along `p.facing`.  A cell is opaque iff `dungeon_is_solid_tile`
-// is true.  The window is filled with the wall colour (index 7) first, so a
-// solid wall directly ahead fills the whole window with a flat grey sheet —
-// exactly what the oracle shows when the Temple save loads.  Open corridors
-// expose the dark floor (index 8) and the perspective side walls.
+// Blit the dungeon view sprite at `sprite_path` into `scr` at (vx,vy).  Returns
+// false (leaving `scr` untouched) if the image cannot be loaded.  This is the
+// engine's real model: a full-colour sprite blit, not a projection.
+bool render_dungeon_view(Screen& scr, const std::string& sprite_path,
+                         int vx = kViewportX, int vy = kViewportY);
+
+// Synthetic *fallback* for a level with no pre-rendered view sprite (and useful
+// as an automap-style aid): ray-cast the 36x36 tile grid along the party facing
+// with a 60-degree FOV and draw a grey (7) wall band whose height is the
+// projected wall height over a black (0) ceiling/floor.  A solid wall one cell
+// ahead clamps to the full window.  This approximates a first-person view but
+// is NOT what the engine does (the engine blits DPnnn sprites).
 void render_dungeon_viewport(Screen& scr, const Dungeon& d, const DungeonPos& p,
                              int vx = kViewportX, int vy = kViewportY,
                              int vw = kViewportW, int vh = kViewportH);
