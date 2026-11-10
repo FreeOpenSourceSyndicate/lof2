@@ -342,7 +342,31 @@ static void test_view_sprite(const std::string& dir) {
         }
     // A missing sprite is reported, not drawn.
     assert(!render_dungeon_view(scr, dir + "/../EGA/D5/NOPE"));
+    // Path helper: dungeon 5 -> EGA/D5/DP001.
+    std::string root = dir + "/..";
+    assert(dungeon_view_path(root, 5, 1) == root + "/EGA/D5/DP001");
+    assert(dungeon_view_path(root, 0, 12) == root + "/EGA/D0/DP012");
+    assert(render_dungeon_default_view(scr, root, 5));
     std::printf("dungeon_test: view sprite blit verified (%dx%d)\n", w, img.height);
+}
+
+// Every dungeon ships a canonical DP001 full view; blitting it must succeed and
+// cover the whole window (the engine's entry view).
+static void test_default_views(const std::string& dir) {
+    std::string root = dir + "/..";
+    int n = 0;
+    for (int d = 0; d <= 6; d++) {
+        Screen scr; scr.resize(320, 200); scr.clear(9);
+        if (!render_dungeon_default_view(scr, root, d)) continue;
+        int grey_or_nonbg = 0;
+        for (int y = 0; y < kViewportH; y++)
+            for (int x = 0; x < kViewportW; x++)
+                if (scr.pixels[(size_t)(kViewportY + y) * scr.width +
+                               kViewportX + x] != 9) grey_or_nonbg++;
+        assert(grey_or_nonbg > 0);   // something was actually drawn
+        n++;
+    }
+    if (n) std::printf("dungeon_test: %d canonical DP001 views blit ok\n", n);
 }
 
 static void test_walk() {
@@ -488,6 +512,7 @@ int main(int argc, char** argv) {
     test_render_layers();
     test_viewport();
     test_view_sprite((argc > 1) ? argv[1] : "game/DNGS");
+    test_default_views((argc > 1) ? argv[1] : "game/DNGS");
     test_walk();
     test_level_connected((argc > 1) ? argv[1] : "game/DNGS");
     std::string dir = (argc > 1) ? argv[1] : "game/DNGS";
