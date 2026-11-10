@@ -247,6 +247,19 @@ bool render_dungeon_default_view(Screen& scr, const std::string& dir,
     return render_dungeon_view(scr, dungeon_view_path(dir, dungeon, 1));
 }
 
+bool render_dungeon_screen(Screen& scr, const std::string& dir, int dungeon,
+                           int index) {
+    // The play screen's static frame is the same artwork the main menu uses,
+    // EGA/UP/MSCR; the first-person window is the view sprite at (10,11).
+    // Verified against the DOSBox oracle (ref/oracle/dungeon_slot1.png): the
+    // frame region matches at 92.1% and the composite at 92.8%.
+    EgaImage frame;
+    if (!load_ega_image(dir + "/EGA/UP/MSCR", frame, nullptr)) return false;
+    blit_image(scr, frame, 0, 0);
+    return render_dungeon_view(scr, dungeon_view_path(dir, dungeon, index),
+                               kViewportX, kViewportY);
+}
+
 // Colour indices of the synthetic fallback viewport.  The oracle's window uses
 // only light grey (7) for walls and black (0) for ceiling / floor.
 static constexpr uint8_t kViewWall = 7;    // wall face

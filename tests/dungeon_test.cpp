@@ -432,6 +432,29 @@ static void test_view_themes(const std::string& dir) {
                     themes, theme_slots.size(), wilderness);
 }
 
+// Full play-screen composition: the static frame (EGA/UP/MSCR) plus the view
+// sprite at (10,11).  The composite must equal the same two blits done by hand,
+// and must differ from the frame alone (i.e. the window really was overwritten).
+static void test_dungeon_screen(const std::string& dir) {
+    std::string root = dir + "/..";
+    Screen got; got.resize(320, 200); got.clear(9);
+    if (!render_dungeon_screen(got, root, 5, 1)) {
+        std::printf("dungeon_test: no MSCR/DP001, skipping screen check\n");
+        return;
+    }
+    EgaImage frame, view;
+    assert(load_ega_image(root + "/EGA/UP/MSCR", frame, nullptr));
+    assert(load_ega_image(root + "/EGA/D5/DP001", view, nullptr));
+    Screen ref; ref.resize(320, 200); ref.clear(9);
+    blit_image(ref, frame, 0, 0);
+    blit_image(ref, view, kViewportX, kViewportY);
+    assert(got.pixels == ref.pixels);
+    Screen frame_only; frame_only.resize(320, 200); frame_only.clear(9);
+    blit_image(frame_only, frame, 0, 0);
+    assert(got.pixels != frame_only.pixels);   // the window was replaced
+    std::printf("dungeon_test: dungeon screen composite verified\n");
+}
+
 static void test_walk() {
     Dungeon d;
     d.tiles.assign(kDungeonTiles, 6);
@@ -622,6 +645,7 @@ int main(int argc, char** argv) {
     test_object_doors(dir);
     test_walk_real(dir);
     test_view_themes(dir);
+    test_dungeon_screen(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }
