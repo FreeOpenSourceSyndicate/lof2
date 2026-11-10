@@ -24,12 +24,22 @@ and is blocked on an oracle that cannot be produced headlessly.**
   every id >= 10 pointed at a non-existent `EGA/D10/...`).
 - Canonical entry view `DP001` pixel-verified at 95.2% against the Temple spawn
   oracle (`ref/oracle/dungeon_slot1.png`); `render_dungeon_default_view()`.
+- Full play screen composed: `render_dungeon_screen()` blits the static frame
+  `EGA/UP/MSCR` then the view sprite at (10,11) — verified at 0.921 (frame),
+  0.952 (viewport) and 0.928 (whole screen) against the same oracle, so the
+  screen *structure* is reproduced end to end.  Covered by `test_dungeon_screen`.
+  (Not yet reachable from `lof`: `port/lof.cpp` has no dungeon wiring — a
+  maintainer-owned file.)
+- View-sprite themes pinned: `EGA/D1..D7` are seven themes over one identical
+  51-slot set; `EGA/D0` is a distinct 63-slot wilderness set.  Covered by
+  `test_view_themes`.
 - Sprite library characterised: `LOF.EXE` ships a contiguous 70-entry path table
   `ega\d0\dp000`..`ega\d0\dp069`; `DP000` is absent on disk everywhere, so the
   library is `DP001..DP069`, and the engine **preloads the whole table** then
   composes the viewport in memory (no per-view file open to key the rule off).
 - Tests: `tests/dungeon_test.cpp` — 7 real cells, 29-level load, connectivity
-  guard, door guard, and an end-to-end walk test on DNG05.  `make test` green.
+  guard, door guard, an end-to-end walk test on DNG05, the theme guard and the
+  full-screen composite check.  `make test` green.
 
 ## What is blocked
 
