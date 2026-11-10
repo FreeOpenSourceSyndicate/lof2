@@ -472,6 +472,12 @@ int CharSheet::hp_percent() const {
     return 100 * hp_cur / hp_max;   // integer division, as the sheet builder does
 }
 
+std::string CharSheet::profession() const {
+    auto names = profession_names();
+    if (prof1b < names.size()) return names[prof1b];
+    return {};
+}
+
 // --- party-status display row (builder at image offset 0x2D436) ------------
 uint8_t CharSheet::hp_pct() const {
     if (hp_max == 0) return 0;
@@ -536,6 +542,7 @@ CharSheet decode_char(const uint8_t* raw) {
     c.counter12 = (int16_t)rd16(raw + kCharCounter12);
     c.level17 = raw[kCharLevel17];
     c.class18 = raw[kCharClass18];
+    c.prof1b = raw[kCharProf1b];
     c.base1c = raw[kCharBase1c];
     c.stat1d = raw[kCharStat1d];
     c.stat1e = raw[kCharStat1e];

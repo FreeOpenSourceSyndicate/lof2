@@ -349,6 +349,19 @@ static int real_data() {
     assert(defense_from_items(decode_char(roster[7].raw.data())) == 20);
     assert(defense_from_items(connar) == 10);
 
+    // Profession (+0x1b): an index into kProfessionNames; the display routine
+    // (image 0x2FB4A) rejects values > 0x0b, and the init routine seeds 0x0c
+    // ("no profession"), so 12 must map to an empty name.  Verified against the
+    // GAME1 party: Cassandra 10 -> Healer, Merlin 7 -> Magician, Connar 0.
+    assert(connar.prof1b == 0 && connar.profession() == "Warrior");
+    CharSheet cass = decode_char(roster[6].raw.data());
+    assert(cass.name == "Cassandra" && cass.prof1b == 10 &&
+           cass.profession() == "Healer");
+    CharSheet merlin_rost = decode_char(roster[7].raw.data());
+    assert(merlin_rost.name == "Merlin" && merlin_rost.prof1b == 7 &&
+           merlin_rost.profession() == "Magician");
+    assert(siegurd.prof1b == 12 && siegurd.profession().empty());
+
     ShopData shop = load_shop(std::string(dir) + "/ROST/SHOP");
     assert(shop.ok);
     // One signed adjustment per item, parallel to the item table order.
