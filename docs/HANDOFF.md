@@ -146,8 +146,15 @@ screen, and `make test` still passes.
       screen. Scripted as the `town` scenario in `tests/golden_test.sh`.
 - [x] Drop-in exposes workstream B's reader: `./lof --dir game --dump-spec`
       (decoded `SYST/SPEC0..7`).
+- [x] Drop-in: play-screen static composition (`--play`) — HUD background +
+      viewport tile + the **full** party panel (name, profession, `+0x1e` stat
+      number, `GOOD` status).  The panel is pixel-exact; the screen matches the
+      DOSBox capture at ~94.2% (residue = the engine's dynamic viewport sprite).
+      Guarded by `tests/port_play_test.py`.
 - [ ] Drop-in: reproduce the in-game (town) screen — compare against the `town`
-      golden frame.
+      golden frame.  Investigated: the viewport is composited at runtime (no
+      single asset matches), so this needs its own session (see
+      `docs/notes-maintainer-town.md`).
 - [ ] Dungeon subsystem (`DNGS/`) — workstream A.
 - [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — workstream B. **Unblocked:**
       the SPEC/ROST reads now happen in the oracle (`town` scenario), so B can
