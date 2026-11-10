@@ -989,3 +989,47 @@ two strips differ).  Glyphs use the panel's 5x5 face, same as the names.
 (`"<n>%"`); `char_test` asserts the six shipped values.  `stat1e` itself is
 already decoded into `CharSheet::stat1e` / `SaveChar::stat1e`, so this closes the
 panel-number question end to end.
+
+## Combat damage routine (image 0x18FC6..0x196E0) — 2026-11-08
+
+The melee-attack handler that the play loop calls lives in the raw image around
+`0x18FC6`–`0x196E0` (the listing desyncs, so these offsets are raw).  It is
+reached from the action dispatcher when a character's action byte `+0x0f == 3`
+(image `0x19343`), i.e. the "Attacks" action.  The parts that touch the item
+table and the character struct are:
+
+1. **Charge / quantity check** (`0x194A8`).  The weapon slot is read as
+   `char + 0x82 + slot*4`; the routine first tests `+0x84` (the slot's remaining
+   count): if it is exactly `1` *and* the item's `+0x17` (initial charges) is
+   non-zero, it delegates to a special routine (`lcall 0x212f:0x7b6e`) — this is
+   the "last arrow / bolt" path.  Otherwise it decrements `+0x84`
+   (`dec byte es:[bx]`, image `0x1950d`) and refills the slot's condition byte as
+   the charge percentage (`+0x85 = 100*slot[+0x84]/item[+0x17]`, image
+   `0x19553..0x1955c`); when `+0x84` hits 0 it is reset to `0x64` (100).
+2. **Base damage** (`0x1959E`).  It loads the weapon's **damage byte** item
+   `+0x19` (`mov al, es:[bx+0xfd5]`, image `0x195AD`), stores it, and calls
+   `lcall 0x2a7d:0x2f6a` (a random-roll helper) then `inc`s the result — so the
+   per-hit damage is `roll(item[+0x19]) + 1`.  `item[+0x19]` is exposed as
+   `ItemRecord::damage` (the high byte of item `+0x18`).
+3. **Strength / class bonus** (`0x1904B..0x1907E`).  Before the roll the routine
+   builds `-0x2e = ( (Str(+0x45) + mod5e(+0x5e))  +  base(-0xa) + (-0x3a) ) / 3`
+   (`add` of `+0x45`, `+0x5e`, two other stack operands, then `idiv 3`) and adds
+   a Strength-over-15 bonus: when `Str + mod5e > 15` it adds `(Str+mod5e-15)*5`
+   to the accumulator (image `0x1905F..0x1906C`).  So Strength (`+0x45`) plus the
+   Strength modifier (`+0x5e`) drives the to-hit/damage bonus.
+4. **Class-based multiplier** (`0x195D7..0x19634`).  The attacker's class field
+   `+0x1a` selects a scaling: `+0x1a == 1` adds `damage/3`, `+0x1a == 2` adds
+   `damage/4` (both signed, image `0x195D7`/`0x195FB`), then the total is
+   divided by `speed(+0x55)` (`mov es:0x55(%bx,%si),%al; idiv`, image `0x19627`).
+   `+0x1a` is a class/category byte seeded per class (the ROST has values 1..5;
+   it is **not** the profession index, which is `+0x1b`).
+
+Fields this grounds for the character struct (all read here, previously unnamed):
+`+0x0f` action byte (`3` = attack), `+0x0e` target slot, `+0x1a` class/category
+scaling byte, `+0x45` Strength, `+0x55` speed, `+0x5e` Strength modifier.
+
+The play-loop **item-use** table is the 36-byte table `es:[bx*0x24 + 0x2712]`
+where `bx` is the item index (image `0x13A82`, `0x1CFD2`, `0x1D156`); its bit 2
+(`test al,4`) is the "usable" flag the use path checks.  It is a **runtime**
+table, not present in the data files, so its full contents are only reachable
+from the main loop (maintainer domain).
