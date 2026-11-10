@@ -164,3 +164,11 @@ screen, and `make test` still passes.
       and enters the play screen, `Q`/Esc quits.  Input via `Window` (SDL2);
       `--ui-keys` scripts a key sequence for head-less regression testing
       (`tests/port_ui_test.py`).  In-game movement/combat remain to do.
+- [x] Native walk loop (`--walk`) — maintainer.  Loads the save's dungeon
+      (`DNGS/DNG<d><l>` from the save's location byte), places the party and
+      replays a scancode sequence through agent A's walk model
+      (0x48 step, 0x50 turn 180, 0x4b/0x4d turn), then renders the play screen
+      with the level map in the viewport.  `--walk-keys` scripts the input;
+      guarded by `tests/port_walk_test.py`.  The first-person viewport is still
+      the static `DP001` tile (the engine's per-cell sprite composition is
+      workstream A's remaining task).

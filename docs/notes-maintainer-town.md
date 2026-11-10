@@ -490,3 +490,33 @@ Net: the party panel, the play-screen viewport background, the menu and the VOR
 intro are all reproduced exactly; the remaining gaps (play-screen viewport
 foreground sprite, town scene, live gauges) all need either a decoder we have
 not written or runtime game state.
+
+## Native walk loop (`--walk`) — 2026-11-11
+
+Added the front-end half of the in-game play loop to `port/lof.cpp` (my file).
+
+* `--walk --save <file> --walk-keys 0x48,0x4b,...` loads the save, derives the
+  dungeon map name from the save's location byte (`dungeon_map_name(
+  save_location(sg))` -> `DNGS/DNG<d><l>`), decodes it with agent A's
+  `load_dungeon`, places the party with `dungeon_place` and replays the scancode
+  sequence through the walk model (`dungeon_step` / `dungeon_turn`).  It prints
+  `walk: x=.. y=.. facing=..` so a headless test can assert the result.
+* Scancode map (matches the wilderness key map recovered earlier): `0x48` step
+  forward, `0x50` turn 180, `0x4b` turn left, `0x4d` turn right.
+* The play screen is composed as for `--play` (HUD + party panel) and the level
+  is then drawn into the viewport rectangle (`draw_viewport_map`, 3 px/cell at
+  108x108 centred in the 120x119 window) with the party as an arrow.
+* This reads only game data (`DNGS/`, `GAMES/`), never an executable, so it
+  satisfies hard constraint #1 and works with the EXEs absent.
+
+Guarded by `tests/port_walk_test.py` (wired into `make golden-port` and
+`check.sh`).  Verified: spawn (0,0) facing N; turn left -> W, turn right -> E;
+180 twice is the identity; a step into the level edge is refused; facing S steps
+to (0,2).  The walk screen differs from the static `--play` screen, proving the
+viewport carries the rendered level.
+
+Still open: the *first-person* viewport foreground.  The engine composes it from
+several `EGA/D<d>/DPnnn` sprites per cell (not one blit — an exhaustive match of
+the emulator's Temple frame against every `D5` sprite tops out at ~0.65), so the
+walk loop currently draws a top-down level map in the window instead.  Pinning
+the per-cell sprite composition is workstream A's remaining task.

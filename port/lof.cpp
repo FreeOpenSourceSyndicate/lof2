@@ -236,12 +236,74 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
     return true;
 }
 
+// Draw the dungeon level inside the viewport rectangle (walk mode): the 36x36
+// tiles at `cell` px each, coloured by code (walls grey, floor dark grey, void
+// black), with the party marked and its facing shown as an arrow.  Uses agent
+// A's Dungeon decoder; kept inside the 120x119 window so the HUD and party
+// panel stay visible around it.
+static void draw_viewport_map(Screen& s, const Dungeon& d, const DungeonPos& p) {
+    int cell = kViewportH / kDungeonH;
+    if (cell < 1) cell = 1;
+    int w = kDungeonW * cell, h = kDungeonH * cell;
+    int ox = kViewportX + (kViewportW - w) / 2;
+    int oy = kViewportY + (kViewportH - h) / 2;
+    for (int y = 0; y < kDungeonH; y++) {
+        for (int x = 0; x < kDungeonW; x++) {
+            uint8_t t = d.tile(x, y);
+            uint8_t c = dungeon_is_solid_tile(t) ? 7 : (t == 0 ? 0 : 8);
+            for (int dy = 0; dy < cell; dy++)
+                for (int dx = 0; dx < cell; dx++)
+                    s.put(ox + x * cell + dx, oy + y * cell + dy, c);
+        }
+    }
+    int cx = ox + p.x * cell + cell / 2, cy = oy + p.y * cell + cell / 2;
+    int dx = dungeon_facing_dx(p.facing), dy = dungeon_facing_dy(p.facing);
+    for (int k = 0; k <= cell; k++) {
+        s.put(cx + dx * k, cy + dy * k, 15);
+        s.put(cx + dx * k - dy, cy + dy * k - dx, 14);
+        s.put(cx + dx * k + dy, cy + dy * k + dx, 14);
+    }
+}
+
+// --walk: load the save's dungeon, place the party and replay a scancode
+// sequence through the walk model, then render the play screen with the
+// level map in the viewport.  Scancodes: up 0x48 step, down 0x50 turn 180,
+// left 0x4b turn left, right 0x4d turn right (the wilderness key map).  Prints
+// the resulting position so a headless test can assert the party moved.
+static bool walk_loop(const std::string& dir, const std::string& save,
+                      const std::vector<int>& keys, Screen& out, DungeonPos& pos) {
+    SaveGame sg = load_save(save);
+    if (!sg.ok) { fprintf(stderr, "lof: --walk needs a valid --save\n"); return false; }
+    std::string mapname = dungeon_map_name(save_location(sg));
+    std::string path = dir + "/DNGS/" + mapname;
+    Dungeon d;
+    std::string err;
+    if (!load_dungeon(path, d, &err)) {
+        fprintf(stderr, "lof: %s: %s\n", path.c_str(), err.c_str());
+        return false;
+    }
+    dungeon_place(d, pos, 0, 0);
+    for (int k : keys) {
+        switch (k) {
+            case 0x48: dungeon_step(d, pos); break;
+            case 0x50: dungeon_turn(pos, true); dungeon_turn(pos, true); break;
+            case 0x4b: dungeon_turn(pos, false); break;
+            case 0x4d: dungeon_turn(pos, true); break;
+            default: break;
+        }
+    }
+    if (!compose_play_screen(dir, "D0/DP001", sg, true, out, err)) return false;
+    draw_viewport_map(out, d, pos);
+    return true;
+}
+
 int main(int argc, char** argv) {
     std::string dir = game_dir(argv[0]);
     bool headless = false, have_shot = false, dump = false, dump_spec = false, dump_dng = false;
-    bool ui = false;
+    bool ui = false, walk = false;
     std::string shot;
     long shot_frame = -1;
+    std::string walk_save, walk_keys;
 
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
@@ -253,11 +315,37 @@ int main(int argc, char** argv) {
         else if (a == "--shot" && i + 1 < argc) { shot = argv[++i]; have_shot = true; }
         else if (a == "--shot-frame" && i + 1 < argc) shot_frame = atol(argv[++i]);
         else if (a == "--ui") ui = true;
+        else if (a == "--walk") walk = true;
+        else if (a == "--save" && i + 1 < argc) walk_save = argv[++i];
+        else if (a == "--walk-keys" && i + 1 < argc) walk_keys = argv[++i];
     }
 
     if (dump) { dump_data(dir); return 0; }
     if (dump_spec) { dump_spec_files(dir); return 0; }
     if (dump_dng) { dump_dungeon(dir); return 0; }
+
+    // --walk: drive the native walk model over the save's dungeon and render
+    // the play screen with the level map in the viewport.  This is the front-end
+    // half of the play loop; it reads only game data (DNGS/ + GAMES/), never an
+    // executable.
+    if (walk) {
+        std::string save = walk_save.empty() ? dir + "/GAMES/GAME1" : walk_save;
+        std::vector<int> keys;
+        std::string cur;
+        for (size_t j = 0; j <= walk_keys.size(); j++) {
+            if (j == walk_keys.size() || walk_keys[j] == ',') {
+                if (!cur.empty()) keys.push_back((int)strtol(cur.c_str(), nullptr, 0));
+                cur.clear();
+            } else cur.push_back(walk_keys[j]);
+        }
+        Screen s;
+        DungeonPos pos;
+        if (!walk_loop(dir, save, keys, s, pos)) return 1;
+        printf("walk: x=%d y=%d facing=%d\n", pos.x, pos.y, pos.facing);
+        if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
+        if (!headless) present_sdl(s, "Legend of Faerghail");
+        return 0;
+    }
 
     Screen scr;
     scr.resize(320, 200);
@@ -323,12 +411,12 @@ int main(int argc, char** argv) {
     }
 
     // --play SUB/DPNNN composes the in-game play screen and exits: the static
-    // HUD background (EGA/UP/MSCR) with the first-person viewport tile
-    // (EGA/SUB/DPNNN, e.g. D0/DP001) blitted into the 120x119 window at (10,11),
-    // then the party-panel names (from the save named by --save) drawn in the
-    // compact small-caps face.  The window geometry, the background and the
-    // panel layout were recovered by matching the decoded assets against a
-    // DOSBox capture of save slot 2 (ref/oracle/play.png).
+// HUD background (EGA/UP/MSCR) with the first-person viewport tile
+// (EGA/SUB/DPNNN, e.g. D0/DP001) blitted into the 120x119 window at (10,11),
+// then the party-panel names (from the save named by --save) drawn in the
+// compact small-caps face.  The window geometry, the background and the
+// panel layout were recovered by matching the decoded assets against a
+// DOSBox capture of save slot 2 (ref/oracle/play.png).
     std::string play, save;
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
