@@ -497,6 +497,7 @@ against the shipped `GAMES/GAMEn` + `ROST/ROST` saves (Siegurd == SNSC class 0):
 | `0x2d` | 7  | `+0x1e` | `100 - n` | seeded defence, then overwritten by the armour routine (0x210E8) with the total AC |
 | `0x2d` | 7  | `+0x1d` | `100 - n` | same seed, then overridden by the Dexterity rule (1BA40) |
 | `0x36` | 16 | `+0x56` | copy | speed (1..4) |
+| `0x2c` | 6  | `+0x20`/`+0x22` | `rand(1..n/2) + n/2` | seeds both max and current hit points (`hp_seed`) |
 | `0x3a` | 20 | `+0x14` | copy | per-class word value (Siegurd 18) |
 | `0x2a` | 4  | `+0x7a+idx` | set 2 | picks which `+0x7a+n` slot is initialised |
 | `0x3b+2n` | 17+2n | `+0x142+2n` | copy | skill *value* (n = 0..3) |
