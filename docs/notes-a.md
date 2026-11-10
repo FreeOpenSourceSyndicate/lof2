@@ -530,6 +530,9 @@ Implemented:
   `tests/dungeon_test.cpp::test_view_sprite`, which blits `EGA/D5/DP001` and
   asserts every pixel equals the decoded sprite (and that a missing file is
   reported, not drawn).
+* `dungeon_view_path(dir, d, i)` / `render_dungeon_default_view(dir, d)` —
+  `<dir>/EGA/D<d>/DP%03d` and the canonical entry view (DP001).  `test_default_views`
+  confirms all 7 dungeons ship a DP001 that blits across the window.
 * `render_dungeon_viewport()` — a synthetic ray-cast **fallback** (60-degree FOV
   DDA over the 36x36 grid, grey wall band on black) for levels with no view
   sprite / as an automap aid.  `test_viewport` pins: wall-ahead → whole window

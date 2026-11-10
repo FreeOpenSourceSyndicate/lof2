@@ -166,6 +166,19 @@ constexpr int kViewportH = 119;
 bool render_dungeon_view(Screen& scr, const std::string& sprite_path,
                          int vx = kViewportX, int vy = kViewportY);
 
+// Path of a view sprite inside the game directory: `<dir>/EGA/D<d>/DP%03d`.
+// `dungeon` is the dungeon number (the same `d` as `DNGS/DNG<d><l>`), so
+// dungeon 5 -> `EGA/D5/DP001`.  Index 1 is the canonical full view: the engine
+// drew exactly it at the Temple (dungeon 5) spawn, and every dungeon ships a
+// DP001.
+std::string dungeon_view_path(const std::string& dir, int dungeon, int index = 1);
+
+// Convenience: blit the dungeon's canonical view sprite (DP001) at (10,11).
+// This is the first-person view the engine shows on entry; it is verified for
+// dungeon 5 (the slot-1 Temple oracle) and structurally valid for all levels.
+bool render_dungeon_default_view(Screen& scr, const std::string& dir,
+                                 int dungeon);
+
 // Synthetic *fallback* for a level with no pre-rendered view sprite (and useful
 // as an automap-style aid): ray-cast the 36x36 tile grid along the party facing
 // with a 60-degree FOV and draw a grey (7) wall band whose height is the

@@ -231,6 +231,17 @@ bool render_dungeon_view(Screen& scr, const std::string& sprite_path,
     return true;
 }
 
+std::string dungeon_view_path(const std::string& dir, int dungeon, int index) {
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "/EGA/D%d/DP%03d", dungeon, index);
+    return dir + buf;
+}
+
+bool render_dungeon_default_view(Screen& scr, const std::string& dir,
+                                 int dungeon) {
+    return render_dungeon_view(scr, dungeon_view_path(dir, dungeon, 1));
+}
+
 // Colour indices of the synthetic fallback viewport.  The oracle's window uses
 // only light grey (7) for walls and black (0) for ceiling / floor.
 static constexpr uint8_t kViewWall = 7;    // wall face
