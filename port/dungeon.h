@@ -167,15 +167,23 @@ bool render_dungeon_view(Screen& scr, const std::string& sprite_path,
                          int vx = kViewportX, int vy = kViewportY);
 
 // Path of a view sprite inside the game directory: `<dir>/EGA/D<d>/DP%03d`.
-// `dungeon` is the dungeon number (the same `d` as `DNGS/DNG<d><l>`), so
-// dungeon 5 -> `EGA/D5/DP001`.  Index 1 is the canonical full view: the engine
-// drew exactly it at the Temple (dungeon 5) spawn, and every dungeon ships a
-// DP001.
+// `dungeon` is the map id (the same two digits as `DNGS/DNG<dd>`).  The view
+// directory is the map id's *ones digit*: the engine composes the map name as
+// `DNGS\DNG%01ld%01ld` and reads the tiles from `EGA\D<ones-digit>`, so dungeon
+// 05 (the Temple) -> `EGA/D5` and dungeon 10 (the wilderness) -> `EGA/D0`.
+// Verified by the maintainer by patching the save's location bytes and watching
+// the emulator's open trace (GAME2 0x9a2 0->1 opens `DNGS\DNG11` + `ega\d1`).
+// Index 1 is the canonical full view: the engine opens it first on entry and it
+// is the base the viewport is composited over.
 std::string dungeon_view_path(const std::string& dir, int dungeon, int index = 1);
 
+// The view directory name for a map id: `D<ones-digit>` (see dungeon_view_path).
+std::string dungeon_view_dir(int dungeon);
+
 // Convenience: blit the dungeon's canonical view sprite (DP001) at (10,11).
-// This is the first-person view the engine shows on entry; it is verified for
-// dungeon 5 (the slot-1 Temple oracle) and structurally valid for all levels.
+// This is the base first-person view the engine shows on entry; it is verified
+// for dungeon 5 (the slot-1 Temple oracle) and structurally valid for all
+// levels.  The engine then overlays map tiles over this base (see notes-a.md).
 bool render_dungeon_default_view(Screen& scr, const std::string& dir,
                                  int dungeon);
 

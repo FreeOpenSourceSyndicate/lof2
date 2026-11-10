@@ -231,9 +231,14 @@ bool render_dungeon_view(Screen& scr, const std::string& sprite_path,
     return true;
 }
 
+std::string dungeon_view_dir(int dungeon) {
+    return "D" + std::to_string(dungeon % 10);
+}
+
 std::string dungeon_view_path(const std::string& dir, int dungeon, int index) {
     char buf[32];
-    std::snprintf(buf, sizeof(buf), "/EGA/D%d/DP%03d", dungeon, index);
+    std::snprintf(buf, sizeof(buf), "/EGA/%s/DP%03d",
+                  dungeon_view_dir(dungeon).c_str(), index);
     return dir + buf;
 }
 

@@ -342,28 +342,33 @@ static void test_view_sprite(const std::string& dir) {
         }
     // A missing sprite is reported, not drawn.
     assert(!render_dungeon_view(scr, dir + "/../EGA/D5/NOPE"));
-    // Path helper: dungeon 5 -> EGA/D5/DP001.
+    // Path helper: the view dir is the map id's ones digit (DNG11 -> EGA/D1,
+    // DNG00 -> EGA/D0), matching the engine's `DNGS\DNG%01ld%01ld` + `EGA\D<d>`.
     std::string root = dir + "/..";
     assert(dungeon_view_path(root, 5, 1) == root + "/EGA/D5/DP001");
     assert(dungeon_view_path(root, 0, 12) == root + "/EGA/D0/DP012");
+    assert(dungeon_view_path(root, 10, 1) == root + "/EGA/D0/DP001");
+    assert(dungeon_view_path(root, 11, 36) == root + "/EGA/D1/DP036");
+    assert(dungeon_view_dir(15) == "D5");
     assert(render_dungeon_default_view(scr, root, 5));
     std::printf("dungeon_test: view sprite blit verified (%dx%d)\n", w, img.height);
 }
 
-// Every dungeon ships a canonical DP001 full view; blitting it must succeed and
-// cover the whole window (the engine's entry view).
+// Every map ships a canonical DP001 full view in its ones-digit view dir;
+// blitting it must succeed and cover the whole window (the engine's entry view).
 static void test_default_views(const std::string& dir) {
     std::string root = dir + "/..";
+    const int ids[] = {0, 1, 2, 3, 4, 5, 6, 7, 10, 11, 15, 17, 23, 66};
     int n = 0;
-    for (int d = 0; d <= 6; d++) {
+    for (int id : ids) {
         Screen scr; scr.resize(320, 200); scr.clear(9);
-        if (!render_dungeon_default_view(scr, root, d)) continue;
-        int grey_or_nonbg = 0;
+        if (!render_dungeon_default_view(scr, root, id)) continue;
+        int drawn = 0;
         for (int y = 0; y < kViewportH; y++)
             for (int x = 0; x < kViewportW; x++)
                 if (scr.pixels[(size_t)(kViewportY + y) * scr.width +
-                               kViewportX + x] != 9) grey_or_nonbg++;
-        assert(grey_or_nonbg > 0);   // something was actually drawn
+                               kViewportX + x] != 9) drawn++;
+        assert(drawn > 0);   // something was actually drawn
         n++;
     }
     if (n) std::printf("dungeon_test: %d canonical DP001 views blit ok\n", n);
