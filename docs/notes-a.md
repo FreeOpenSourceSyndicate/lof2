@@ -495,43 +495,52 @@ needs the oracle).  Filed `docs/BLOCKED-agent-a.md`.
 
 ### Round 8 — save-load fix confirmed + first-person viewport
 
-The maintainer's fix landed as PR #50 (`work/maintainer-town`, still open when
-this was written): **REP CMPS/SCAS must leave the remaining count in `CX`**, not
-force it to 0.  The MS-C run-time `strlen` (`repne scasb; not cx; dec cx`) then
-returns the real length, so the `sprintf("%2d%%")` width no longer overruns a
-4-byte stack local and the slot-1 `RETF` no longer jumps to `0000:0000`.  Built
-the PR head and ran both goldens — `temple` (`a3f719ed…`) and `play`
-(`585da631…`) match exactly, no crash.  **Save loading works.**
+The maintainer's fix landed as PR #50 (`work/maintainer-town`): **REP CMPS/SCAS
+must leave the remaining count in `CX`**, not force it to 0.  The MS-C run-time
+`strlen` (`repne scasb; not cx; dec cx`) then returns the real length, so the
+`%2d%%` width no longer overruns a 4-byte stack local and the slot-1 `RETF` no
+longer jumps to `0000:0000`.  Built the PR head and ran both goldens — `temple`
+(`a3f719ed…`) and `play` (`585da631…`) match exactly, no crash.  **Save loading
+works.**
 
-That PR also ships the missing oracle: `ref/oracle/dungeon_slot1.png` and
-`dungeon_slot1_moved.png` are real DOSBox captures of the slot-1 Temple dungeon
-(loaded with `O`,`1`).  Findings:
+That PR also ships the oracle: `ref/oracle/dungeon_slot1.png` and
+`dungeon_slot1_moved.png`, real DOSBox captures of the slot-1 Temple dungeon
+(loaded with `O`,`1`).  Slot 1 is **dungeon 5** (the engine reads `DNGS/DNG05`
+and the whole `EGA/D5/DPnnn` set).
 
-* Slot 1 is **dungeon 5**: the engine reads `DNGS/DNG05` (1464 bytes) and the
-  whole `ega\d5\dpnnn` sprite set (`DP001`, `DP014`..`DP069`).
-* The play-screen 3D window occupies **x139..319, y91..195** of the 320x200
-  frame (166x105); the static frame comes from `EGA/UP/MSCR`.
-* At spawn the window is **99% flat light grey (index 7)** — the party faces a
-  wall — with only a 9% dark-grey (8) floor strip at the bottom.  After a move
-  (`dungeon_slot1_moved.png`) black (0) and white (15) structure appears: a
-  ceiling edge, side-wall pillars and perspective floor lines.
-* **No single `DPnnn` sprite matches the window** (best template IoU ~0.5 for
-  the small 8x29/16x29 pieces, and the full-view sprites are 120x119 *left-hand*
-  views that don't line up).  The engine fills the window with the wall colour
-  and paints structure over it, so the drop-in derives that structure from the
-  map rather than blitting a sprite.
+**The 3D window is on the LEFT at (10,11) size 120x119** (correcting an earlier
+wrong guess of x139..319 — that grey rectangle is the party panel).  The engine
+draws this window by **blitting pre-rendered sprites** `EGA/D5/DPnnn`; it does
+not ray-cast.  Evidence: `EGA/D5/DP001` blitted at (10,11) reproduces the spawn
+window at **95.2%** pixel match (residue is a thin horizon band).  The oracle's
+viewport histograms are {0:0.35, 7:0.29, 8:0.28, 15:0.08} at spawn and
+{0:0.65, 2:0.11, 10:0.08, …} after a move.
 
-Implemented `render_dungeon_viewport()` (`port/dungeon.h/.cpp`): a DDA ray-cast
-of the 36x36 tile grid along the party facing, 60-degree FOV, drawing a grey (7)
-wall band whose height is the projected wall height on a black (0) ceiling/floor.
-A solid wall one cell ahead clamps to the full window → a flat grey sheet, which
-is exactly the oracle's spawn view; open corridors expose the floor and the
-perspective side walls.  `tests/dungeon_test.cpp::test_viewport` pins: (a) wall
-ahead → the whole window is index 7; (b) facing open space → mostly index 0 with
-some wall; (c) a nearer wall covers more of the window than a farther one.
-`tools/dngs.py viewport <file> [x y facing]` prints the same view offline (the
-Python and C++ renders agree cell-for-cell).
+The sprite set is a per-dungeon **view library**, not one image per cell.  For
+D5 (51 files) the sizes are 120x119 (7 full views: DP001/014/036/058/059/060/067),
+64x59, 32x119, 32x59, 32x29, 24x19, 16x59, 16x48, 16x47, 16x29, 16x26, 16x19,
+8x29 — i.e. full views plus left/right wall pieces at several distances, which
+the engine composites for corridor and junction views.  D0 (63 files) has the
+same block structure plus `120x11` horizon strips (DP012/013).
 
-Window constants `kViewportX/Y/W/H` = 10/11/120/119 for blitting over `MSCR`.
+Implemented:
+
+* `render_dungeon_view()` (`port/dungeon.h/.cpp`) — the engine's real model:
+  `load_ega_image` + `blit_image` of a named `DPnnn` at (10,11).  Pinned by
+  `tests/dungeon_test.cpp::test_view_sprite`, which blits `EGA/D5/DP001` and
+  asserts every pixel equals the decoded sprite (and that a missing file is
+  reported, not drawn).
+* `render_dungeon_viewport()` — a synthetic ray-cast **fallback** (60-degree FOV
+  DDA over the 36x36 grid, grey wall band on black) for levels with no view
+  sprite / as an automap aid.  `test_viewport` pins: wall-ahead → whole window
+  grey; open → mostly black with some wall; nearer wall covers more.
+* `tools/dngs.py viewport <file> [x y facing]` prints the fallback view offline.
+
+**Still open:** the rule that maps (dungeon, party position, facing, tile
+structure) → `DPnnn` index.  A single sprite explains the spawn view but not the
+moved view (best single-sprite match there is only 0.64), so the engine
+composites several pieces; pinning the index needs the selection code or more
+oracle frames.
+
 
 

@@ -221,9 +221,18 @@ void render_dungeon_map(Screen& scr, const Dungeon& d, const DungeonPos& p,
 
 // --- First-person viewport ------------------------------------------------
 
-// Colour indices of the dungeon viewport.  The DOSBox oracle uses only two
-// shades inside the window: light grey (7) for the walls and black (0) for the
-// ceiling / floor, so the drop-in matches it.
+// Blit the engine's pre-rendered view sprite.  load_ega_image + blit_image are
+// the same routines the rest of the drop-in uses for EGA art.
+bool render_dungeon_view(Screen& scr, const std::string& sprite_path,
+                         int vx, int vy) {
+    EgaImage img;
+    if (!load_ega_image(sprite_path, img, nullptr)) return false;
+    blit_image(scr, img, vx, vy);
+    return true;
+}
+
+// Colour indices of the synthetic fallback viewport.  The oracle's window uses
+// only light grey (7) for walls and black (0) for ceiling / floor.
 static constexpr uint8_t kViewWall = 7;    // wall face
 static constexpr uint8_t kViewFloor = 0;   // ceiling / floor / open space
 

@@ -316,6 +316,35 @@ static void test_viewport() {
     assert(wallcount(near) > wallcount(far));
 }
 
+// The engine's real model: blit a pre-rendered view sprite (EGA/D<n>/DPnnn)
+// into the window.  When the game data is present, the blit must reproduce the
+// decoded sprite byte-for-byte at (kViewportX,kViewportY).
+static void test_view_sprite(const std::string& dir) {
+    std::string path = dir + "/../EGA/D5/DP001";
+    EgaImage img;
+    if (!load_ega_image(path, img, nullptr)) {
+        std::printf("dungeon_test: no view sprite, skipping blit check\n");
+        return;
+    }
+    Screen scr; scr.resize(320, 200); scr.clear(9);
+    assert(render_dungeon_view(scr, path));
+    int w = img.width_bytes * 8;
+    size_t pl = (size_t)img.width_bytes * img.height;
+    for (int y = 0; y < img.height; y++)
+        for (int x = 0; x < w; x++) {
+            int xb = x >> 3, s = 7 - (x & 7);
+            const uint8_t* p = img.planes.data() + (size_t)y * img.width_bytes + xb;
+            uint8_t want = (uint8_t)(((p[0] >> s) & 1) | (((p[pl] >> s) & 1) << 1) |
+                                     (((p[2 * pl] >> s) & 1) << 2) |
+                                     (((p[3 * pl] >> s) & 1) << 3));
+            assert(scr.pixels[(size_t)(kViewportY + y) * scr.width +
+                              kViewportX + x] == want);
+        }
+    // A missing sprite is reported, not drawn.
+    assert(!render_dungeon_view(scr, dir + "/../EGA/D5/NOPE"));
+    std::printf("dungeon_test: view sprite blit verified (%dx%d)\n", w, img.height);
+}
+
 static void test_walk() {
     Dungeon d;
     d.tiles.assign(kDungeonTiles, 6);
@@ -458,6 +487,7 @@ int main(int argc, char** argv) {
     test_render_facing();
     test_render_layers();
     test_viewport();
+    test_view_sprite((argc > 1) ? argv[1] : "game/DNGS");
     test_walk();
     test_level_connected((argc > 1) ? argv[1] : "game/DNGS");
     std::string dir = (argc > 1) ? argv[1] : "game/DNGS";
