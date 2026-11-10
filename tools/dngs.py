@@ -184,6 +184,57 @@ def cmd_doors(path):
           % (len(codes), codes.most_common(8)))
 
 
+# First-person viewport preview.  Mirrors render_dungeon_viewport() in
+# port/dungeon.cpp: fill the window with black, ray-cast the tile grid, and
+# paint a grey (7) wall band whose height is the projected wall height.  Used
+# offline to eyeball a level against the DOSBox oracle frames.
+def _cast(tl, px, py, dx, dy, maxd, w=LAYER_W, h=LAYER_W):
+    mx, my = int(px), int(py)
+    ddx = 1e30 if dx == 0 else 1.0 / abs(dx)
+    ddy = 1e30 if dy == 0 else 1.0 / abs(dy)
+    sx = -1 if dx < 0 else 1
+    sy = -1 if dy < 0 else 1
+    sidex = (px - mx) if dx < 0 else (mx + 1 - px)
+    sidey = (py - my) if dy < 0 else (my + 1 - py)
+    sdx, sdy = sidex * ddx, sidey * ddy
+    dist = 0.0
+    for _ in range(4 * w):
+        if sdx < sdy:
+            dist, mx, sdx = sdx, mx + sx, sdx + ddx
+        else:
+            dist, my, sdy = sdy, my + sy, sdy + ddy
+        if dist > maxd:
+            return maxd
+        if _is_solid(tl, mx, my, w, h):
+            return dist
+    return maxd
+
+
+def cmd_viewport(path, x=0, y=0, facing=0, vw=120, vh=119):
+    """ASCII first-person view from (x,y) facing N/E/S/W (0..3)."""
+    _hdr, body = decode(path)
+    tl = tiles(body)
+    dirs = {0: (0, -1), 1: (1, 0), 2: (0, 1), 3: (-1, 0)}
+    dx, dy = dirs[facing % 4]
+    plane = 0.57735
+    planx, plany = -dy * plane, dx * plane
+    px, py = x + 0.5, y + 0.5
+    maxd = LAYER_W + LAYER_W
+    grid = [['.' for _ in range(vw)] for _ in range(vh)]
+    for cx in range(vw):
+        cam = 2.0 * cx / vw - 1.0
+        rx, ry = dx + planx * cam, dy + plany * cam
+        dist = _cast(tl, px, py, rx, ry, maxd)
+        wh = min(vh, max(1, int(vh / dist)))
+        top = (vh - wh) // 2
+        for yy in range(top, top + wh):
+            grid[yy][cx] = '#'
+    print('%s @(%d,%d) facing %d  tile=%d' %
+          (os.path.basename(path), x, y, facing, tl[y * LAYER_W + x]))
+    for yy in range(0, vh, 2):
+        print(''.join(grid[yy]))
+
+
 # A tiny, dependency-free PNG writer (grayscale) so the tool works in CI too.
 def _png(path, pix, w, h):
     import zlib
@@ -304,6 +355,12 @@ def main(argv):
     elif cmd == 'doors':
         for p in argv[1:]:
             cmd_doors(p)
+    elif cmd == 'viewport':
+        # dngs.py viewport <file> [x y facing]
+        x = int(argv[2]) if len(argv) > 2 else 0
+        y = int(argv[3]) if len(argv) > 3 else 0
+        fa = int(argv[4]) if len(argv) > 4 else 0
+        cmd_viewport(argv[1], x, y, fa)
     elif cmd == 'png':
         cmd_png(argv[1], argv[2] if len(argv) > 2 else 'dungeon.png',
                 int(argv[3]) if len(argv) > 3 else 8)

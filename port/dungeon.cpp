@@ -219,6 +219,72 @@ void render_dungeon_map(Screen& scr, const Dungeon& d, const DungeonPos& p,
     }
 }
 
+// --- First-person viewport ------------------------------------------------
+
+// Colour indices of the dungeon viewport.  The DOSBox oracle uses only two
+// shades inside the window: light grey (7) for the walls and black (0) for the
+// ceiling / floor, so the drop-in matches it.
+static constexpr uint8_t kViewWall = 7;    // wall face
+static constexpr uint8_t kViewFloor = 0;   // ceiling / floor / open space
+
+// Cast a single column.  Walks the grid from the party position along the
+// view ray until it leaves the level or hits a solid cell, and returns the wall
+// distance in tiles.  Uses the DDA (Amanatides & Woo) algorithm so sampling is
+// uniform and walls land on cell boundaries.  Off-map cells count as solid, so
+// a ray fired at open space still terminates at the level edge.
+static float view_cast(const Dungeon& d, float px, float py, float dx, float dy,
+                       float max_dist) {
+    int mapx = (int)px, mapy = (int)py;
+    float ddx = (dx == 0) ? 1e30f : 1.f / (dx > 0 ? dx : -dx);
+    float ddy = (dy == 0) ? 1e30f : 1.f / (dy > 0 ? dy : -dy);
+    int stepx = (dx < 0) ? -1 : 1;
+    int stepy = (dy < 0) ? -1 : 1;
+    float sidex = (dx < 0) ? (px - mapx) : (mapx + 1 - px);
+    float sidey = (dy < 0) ? (py - mapy) : (mapy + 1 - py);
+    float sdx = sidex * ddx;   // distance to the next x grid line
+    float sdy = sidey * ddy;
+    float dist = 0;
+    for (int guard = 0; guard < 4 * kDungeonW; guard++) {
+        if (sdx < sdy) { dist = sdx; mapx += stepx; sdx += ddx; }
+        else { dist = sdy; mapy += stepy; sdy += ddy; }
+        if (dist > max_dist) return max_dist;
+        bool off = (mapx < 0 || mapy < 0 || mapx >= kDungeonW || mapy >= kDungeonH);
+        if (off || dungeon_is_solid_tile(d.tile(mapx, mapy))) return dist;
+    }
+    return max_dist;
+}
+
+void render_dungeon_viewport(Screen& scr, const Dungeon& d, const DungeonPos& p,
+                             int vx, int vy, int vw, int vh) {
+    if (vw <= 0 || vh <= 0) return;
+    for (int y = 0; y < vh; y++)
+        for (int x = 0; x < vw; x++) scr.put(vx + x, vy + y, kViewFloor);
+
+    // 60-degree horizontal field of view.  The camera plane is the facing
+    // direction rotated 90 degrees and scaled by tan(fov/2).
+    const float plane = 0.57735f;
+    float dirx = (float)dungeon_facing_dx(p.facing);
+    float diry = (float)dungeon_facing_dy(p.facing);
+    float planx = -diry * plane, plany = dirx * plane;
+    float px = p.x + 0.5f, py = p.y + 0.5f;
+    float max_dist = (float)(kDungeonW + kDungeonH);
+
+    for (int x = 0; x < vw; x++) {
+        float cam = 2.f * x / (float)vw - 1.f;   // -1 .. +1 across the window
+        float rx = dirx + planx * cam, ry = diry + plany * cam;
+        float dist = view_cast(d, px, py, rx, ry, max_dist);
+        // A wall one tile away is as tall as the window; nearer walls clamp to
+        // it (a solid wall right ahead fills the window with a flat grey sheet,
+        // exactly as the oracle shows when the Temple save loads).
+        int wall_h = (int)(vh / dist);
+        if (wall_h > vh) wall_h = vh;
+        if (wall_h < 1) wall_h = 1;
+        int top = (vh - wall_h) / 2, bot = top + wall_h;
+        for (int y = top; y < bot; y++) scr.put(vx + x, vy + y, kViewWall);
+    }
+}
+
+
 bool load_dungeon(const std::string& path, Dungeon& out, std::string* err) {
     FILE* f = std::fopen(path.c_str(), "rb");
     if (!f) {
