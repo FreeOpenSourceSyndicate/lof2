@@ -129,11 +129,11 @@ ShopData load_shop(const std::string& path) {
     ShopData s;
     std::vector<uint8_t> d = read_file(path);
     if (d.empty()) return s;
-    // Byte 0 is a header (zero in this release); the next 185 bytes are one
-    // signed adjustment per item, parallel to the item table order (the engine
-    // reads 186 then 4).  The file ends with a 16-bit trailer word.
+    // Byte 0 is a header (zero in this release); the next 185 bytes are the
+    // per-item stock counts, parallel to the item table order (the engine reads
+    // 186 bytes then a 4-byte trailer).  See ShopData for the value semantics.
     if (d.size() < 1 + kItemCount) return s;
-    for (size_t i = 0; i < kItemCount; i++) s.adjustments[i] = (int8_t)d[1 + i];
+    for (size_t i = 0; i < kItemCount; i++) s.stock[i] = d[1 + i];
     if (d.size() >= 4) s.trailer = rd16(d.data() + d.size() - 4);
     s.ok = true;
     return s;
