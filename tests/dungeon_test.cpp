@@ -81,6 +81,21 @@ static void test_synthetic() {
     assert(!decode_dungeon(bad, d, nullptr));
     std::vector<uint8_t> empty;
     assert(!decode_dungeon(empty, d, nullptr));
+
+    // Malformed / truncated streams must be rejected, never crash: a lone
+    // escape byte, an escape run cut off before its value, and a stream that
+    // over-decodes past the fixed 3892-byte geometry.
+    std::vector<uint8_t> one = {0xFF};
+    assert(!decode_dungeon(one, d, nullptr));
+    std::vector<uint8_t> cut = {0xFF, 0xFF, 0x05};        // escape,count,no value
+    assert(!decode_dungeon(cut, d, nullptr));
+    std::vector<uint8_t> big = {0xFF, 0xFF, 0x20, 0x06};  // escape,count,value
+    for (int k = 0; k < 250; k++) {                       // + 250*16 bytes
+        big.push_back(0xFF);
+        big.push_back(0x10);
+        big.push_back(0x06);
+    }
+    assert(!decode_dungeon(big, d, nullptr));             // decodes too long
 }
 
 static void test_real(const std::string& dir) {
