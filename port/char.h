@@ -186,7 +186,12 @@ struct ItemRecord {
     int16_t f5 = 0;     // +0x1a  1-based index of the paired item: ammo<->launcher
                         //        (Sling 19<->Bullets 18), Flask of oil<->Lantern,
                         //        and quest pairs (Emerald<->Corona, Ring<->Keystaff).
-    int16_t f6 = 0;     // +0x1c  class-eligibility mask (bit n => class n may use)
+    // +0x1c  **profession**-eligibility mask (12 bits, bit n => profession n may
+    //        use the item).  The equipment list tests it against the character's
+    //        profession index `+0x1b` as `test f6, 1<<char[+0x1b]` (image
+    //        0xc539..0xc553); max value in the table is 4095 (all 12
+    //        professions).  It is *not* the 14-entry SNSC class mask.
+    int16_t f6 = 0;
     // Item class: 0 misc/key, 1 melee, 2 armour, 3 shield, 4 projectile,
     // 5 staff, 6 scroll/book/map, 8 ring, 9 potion, 10 treasure, 11 bow/sling.
     uint8_t item_class = 0;
@@ -212,9 +217,11 @@ const char* item_effect_name(uint8_t effect);
 // table order.  `effect == 0` returns the plain (non-magical) gear.
 std::vector<size_t> items_with_effect(uint8_t effect);
 
-// True if item `index` (1-based) is usable by SNSC class `cls` (0..13) per its
-// eligibility mask (f6); out-of-range item or class returns false.
-bool item_usable_by_class(int index, int cls);
+// True when profession `prof` (0..11, the value of a character's +0x1b field)
+// may use item `index`: it tests the item's `f6` profession mask
+// (`f6 & (1 << prof)`), exactly as the equipment list does at image 0xc553.
+// Out-of-range item or profession returns false.
+bool item_usable_by_class(int index, int prof);
 
 // Print the decoded table (for eyeballing).
 void dump_items(FILE* out);

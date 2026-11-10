@@ -348,8 +348,12 @@ play-loop code, so treat them as unverified):
   at index 19); the launcher's `f5` points back (Short bow `f5 = 21`).  `f5` also
   pairs Flask of oil <-> Lantern and the quest items (Emerald <-> Corona,
   Ring <-> Keystaff).
-- `f6` is a class-eligibility mask (14 bits; magic items set the high bits,
-  e.g. 4095 = every class).  `item_usable_by_class()` reads it.
+- `f6` is a **profession-eligibility mask** (12 bits, max 4095).  The equipment
+  list tests it against the character's profession index `+0x1b` as
+  `test f6, 1<<char[+0x1b]` (image `0xc539..0xc553`), i.e. bit *n* = profession
+  *n* (Warrior..Monk), **not** the 14-entry SNSC class.  `item_usable_by_class()`
+  reads it.  Verified on the shipped roster: every item a character has equipped
+  passes the mask for that character's profession (Connar/Gorth/… all `True`).
 
 **Use-effect index (off 31).**  Grouping the 185 items by this byte yields a
 clean 1:1 behaviour table, so it *is* a use-effect id, not an equip slot.  The

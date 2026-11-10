@@ -439,15 +439,19 @@ static int real_data() {
     assert(item_by_index(13) && item_by_index(13)->name == "Short sword");
     assert(item_by_index(185) && item_by_index(185)->name == "The Staff");
     assert(item_by_index(0) == nullptr && item_by_index(186) == nullptr);
-    // Every class-eligibility mask fits the 14 SNSC classes.
-    for (const auto& r : it) assert(r.f6 >= 0 && r.f6 <= 0x3fff);
-    // Class table is in SNSC order and the mask lookup uses it.
+    // Every profession-eligibility mask fits the 12 professions.
+    for (const auto& r : it) assert(r.f6 >= 0 && r.f6 <= 0xfff);
+    // Class-name table is in SNSC order (14 entries).
     assert(kClassCount == 14 && std::string(kClassName[0]) == "Siegurd" &&
            std::string(kClassName[13]) == "Werewolf");
-    // Full plate (idx 33) is 0x0201: only class 0 (Siegurd) and class 9 (Angel).
+    // Full plate (idx 33) f6 = 0x027B: bits 0,1,3,4,5,6,9 (Warrior, Barbarian,
+    // Smith, Scout, Priest, Druid, Paladin) -- tested against the profession
+    // index (image 0xc553), so the Rogue (2) and Monk (11) may not.
     assert(item_usable_by_class(33, 0) && item_usable_by_class(33, 9));
-    assert(!item_usable_by_class(33, 4));  // not the Dragon
+    assert(!item_usable_by_class(33, 2));   // not the Rogue
+    assert(!item_usable_by_class(33, 11));  // not the Monk
     assert(!item_usable_by_class(0, 0) && !item_usable_by_class(186, 0));
+    assert(!item_usable_by_class(33, 12));  // out of range (only 12 professions)
     // Use-effect names + reverse lookup by effect value.
     assert(std::string(item_effect_name(0)) == "none");
     assert(std::string(item_effect_name(10)) == "healing");
