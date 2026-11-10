@@ -34,10 +34,23 @@ and is blocked on an oracle that cannot be produced headlessly.**
 ## What is blocked
 
 The DoD also asks for a **walkable dungeon map screen that matches the oracle
-frame**.  The decode, the walk model and the entry view all work; what is missing
-is the rule the engine uses to pick/compose the `DPnnn` sprites for an arbitrary
-(position, facing, local structure).  Producing/validating it needs an oracle,
-and none is available here:
+frame**.  The decode, the walk model and the entry view all work.  The viewport
+turns out to have **two** undocumented halves, and reproducing either needs an
+oracle that is not available here:
+
+1. **The base-sprite rule.**  Which `DPnnn` slot the engine picks for a given
+   (position, facing, local structure).  The library is now well understood —
+   `EGA/D1..D7` are seven texture themes over one identical 51-slot set, so the
+   rule maps to a *slot index* independent of theme (the contiguous
+   `ega\d0\dp000..dp069` table in `LOF.EXE`) — but the mapping itself is
+   GFA-compiled code with no relocation entry to key off.
+2. **A procedural overlay.**  The Temple spawn is `DP001` at 95.2 %; the other
+   4.8 % is a compact grey block that **no** `EGA` image reproduces (searched
+   every sprite, every placement, conflict-free: none).  So the engine *draws*
+   part of the viewport from the map + party state — a "pick the right `DPnnn`"
+   rule alone cannot reproduce a frame.
+
+Producing/validating either half needs an oracle, and none is available here:
 
 - **The analysis emulator cannot be the oracle.**  Its slot-1 viewport is
   entirely black (0% non-black pixels; 90% unlike the menu viewport), i.e. it
@@ -70,6 +83,10 @@ and none is available here:
 3. Fix the shared emulator's EGA blit path so `src/` renders the viewport
    sprites (A must not edit `src/`), which would make the emulator a usable
    oracle.
+
+Note that because of the procedural half, a *single* oracle frame is not enough
+even to fit the base rule — a small set that varies (position, facing,
+structure) is needed.
 
 ## What the maintainer should do
 
