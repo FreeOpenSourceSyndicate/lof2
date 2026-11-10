@@ -49,10 +49,13 @@ else
 fi
 
 echo "[check] drop-in golden screens"
-if make -s golden-port 2>&1 | grep -qE 'port_(menu|play|ui|walk|vor)_test: FAIL'; then
-    bad "golden-port failed — the drop-in's menu/play/ui/walk/vor screen changed"
-else
+# Check the exit status, not just the log text: a missing Python dep (numpy /
+# Pillow) or a build failure makes `make golden-port` exit non-zero without
+# printing "FAIL", which a text-only grep would silently pass.
+if make -s golden-port >/tmp/lof_golden_port.log 2>&1; then
     ok "golden-port passes (drop-in menu/play/ui/walk/vor match the oracle)"
+else
+    bad "golden-port failed — the drop-in's menu/play/ui/walk/vor screen changed (see /tmp/lof_golden_port.log)"
 fi
 
 echo "[check] hygiene"
