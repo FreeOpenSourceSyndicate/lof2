@@ -8,6 +8,8 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -389,6 +391,47 @@ static void test_default_views(const std::string& dir) {
     if (n) std::printf("dungeon_test: %d canonical DP001 views blit ok\n", n);
 }
 
+// The dungeon view sprites are shipped as themes: EGA/D1..D7 are seven texture
+// themes over ONE identical slot set (same DPnnn indices, different pixels),
+// and EGA/D0 is a distinct, larger wilderness set.  The engine's selection rule
+// maps (position, facing, structure) to a slot index independent of the theme
+// (it ships one contiguous ega\d0\dp000..dp069 table).  Pins that structure.
+static void test_view_themes(const std::string& dir) {
+    namespace fs = std::filesystem;
+    std::string root = dir + "/..";
+    std::set<int> theme_slots;
+    int themes = 0, wilderness = 0;
+    for (int d = 1; d <= 7; d++) {
+        std::string vd = root + "/EGA/" + dungeon_view_dir(d);
+        if (!fs::is_directory(vd)) continue;
+        std::set<int> slots;
+        for (auto& e : fs::directory_iterator(vd)) {
+            std::string n = e.path().filename().string();
+            if (n.rfind("DP", 0) == 0 && n.size() == 5) {
+                try { slots.insert(std::stoi(n.substr(2))); } catch (...) {}
+            }
+        }
+        if (slots.empty()) continue;
+        if (!theme_slots.empty()) assert(slots == theme_slots);  // themes share slots
+        theme_slots = slots;
+        themes++;
+    }
+    std::string wd = root + "/EGA/D0";
+    if (fs::is_directory(wd)) {
+        for (auto& e : fs::directory_iterator(wd)) {
+            std::string n = e.path().filename().string();
+            if (n.rfind("DP", 0) == 0 && n.size() == 5) wilderness++;
+        }
+    }
+    if (themes >= 2)
+        assert(theme_slots.size() == 51);   // the shared theme slot set
+    if (themes && wilderness)
+        assert((size_t)wilderness > theme_slots.size());  // D0 is larger
+    if (themes)
+        std::printf("dungeon_test: %d theme dirs share %zu slots, D0 has %d\n",
+                    themes, theme_slots.size(), wilderness);
+}
+
 static void test_walk() {
     Dungeon d;
     d.tiles.assign(kDungeonTiles, 6);
@@ -578,6 +621,7 @@ int main(int argc, char** argv) {
     test_connectivity_stats(dir);
     test_object_doors(dir);
     test_walk_real(dir);
+    test_view_themes(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }
