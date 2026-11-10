@@ -1020,13 +1020,20 @@ table and the character struct are:
 4. **Class-based multiplier** (`0x195D7..0x19634`).  The attacker's class field
    `+0x1a` selects a scaling: `+0x1a == 1` adds `damage/3`, `+0x1a == 2` adds
    `damage/4` (both signed, image `0x195D7`/`0x195FB`), then the total is
-   divided by `speed(+0x55)` (`mov es:0x55(%bx,%si),%al; idiv`, image `0x19627`).
+   divided by `+0x55` (`mov es:0x55(%bx,%si),%al; idiv`, image `0x19627`).
    `+0x1a` is a class/category byte seeded per class (the ROST has values 1..5;
    it is **not** the profession index, which is `+0x1b`).
+5. **Action-time divisor `+0x55`** (not the SNSC speed).  `+0x55` is a per-action
+   byte set to `1` by the normal action handlers (image `0x10046`, `0x156f0`) and
+   to `2` by one slow/hasted action (image `0x1c62d`); on the shipped data every
+   character carries `1`, so it is normally a no-op divisor.  The **SNSC-seeded
+   speed** is `+0x56` (`mov es:[bx+si+0x56],cl` from `rec[0x36]`, image
+   `0x230c1`; e.g. Siegurd `4`, humanoid slots `1`), exposed as
+   `CharSheet::speed56`.
 
 Fields this grounds for the character struct (all read here, previously unnamed):
 `+0x0f` action byte (`3` = attack), `+0x0e` target slot, `+0x1a` class/category
-scaling byte, `+0x45` Strength, `+0x55` speed, `+0x5e` Strength modifier.
+scaling byte, `+0x45` Strength, `+0x55` action-time divisor, `+0x56` SNSC speed, `+0x5e` Strength modifier.
 
 The play-loop **item-use** table is the 36-byte table `es:[bx*0x24 + 0x2712]`
 where `bx` is the item index (image `0x13A82`, `0x1CFD2`, `0x1D156`); its bit 2
