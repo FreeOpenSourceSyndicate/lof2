@@ -857,8 +857,10 @@ two strips differ).  Glyphs use the panel's 5x5 face, same as the names.
 
 **Grounding.**
 - The SNSC-derived init routine (`analysis/lof.asm` `1DA40`/`1DB0A`, raw image
-  `0x22F80..`) seeds the char field `+0x1e` from the class record's `+0x2e`
-  (`100 - rec[0x2d]` is `+0x1d`, and `+0x1e` gets the same value).
+  `0x22F80..`) seeds the char field `+0x1e` from the class record's `+0x2d`
+  (`+0x1e = 100 - rec[0x2d]`, the same seed `+0x1d` starts from before the
+  Dexterity rule at `1BA40` overrides `+0x1d`; `+0x1e` keeps the raw seed).  The
+  panel draws `+0x1e`, not `+0x1d` — the two differ on the shipped party.
 - The shipped party (GAME1/GAME2) carries `+0x1e` = 50, 90, 50, 20, 40, 65.
 - Rendered `decimal(+0x1e)` + `%` reproduces the dark glyphs in the DOSBox
   capture `ref/oracle/play.png` **pixel-exact for all six characters**
