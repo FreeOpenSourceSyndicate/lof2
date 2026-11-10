@@ -404,6 +404,9 @@ enum CharOffset : size_t {
     // +0x1e body stat, +0x56 speed.  +0x7a is the base of the seed slots: the
     // routine sets byte +0x7a + rec[0x2a] to 2.
     kCharClass18   = 0x18,  // byte: 1 for PCs, 2 for big monsters
+    kCharProf1b    = 0x1b,  // byte: profession index 0..11 (see profession());
+                            //   the init routine seeds it to 12 (0x0c), which the
+                            //   display routine treats as "no profession"
     kCharBase1c    = 0x1c,  // byte: base stat (45..75)
     kCharStat1e    = 0x1e,  // byte: total defence (armour class); seeded
                             //   100 - rec[0x2d] and replaced by the armour
@@ -531,6 +534,7 @@ struct CharSheet {
     int16_t  counter12 = 0;  // +0x12  word (paired with flags10)
     uint8_t  level17 = 0;    // +0x17  level / rank
     uint8_t  class18 = 0;    // +0x18  class flag (1 PC / 2 monster)
+    uint8_t  prof1b = 0;     // +0x1b  profession index 0..11 (0x0c = none)
     uint8_t  base1c = 0;     // +0x1c  base stat (45..75)
     uint8_t  stat1d = 0;     // +0x1d  Dexterity-derived stat (see 1BA40)
     uint8_t  stat1e = 0;     // +0x1e  total defence / armour class (see
@@ -564,6 +568,10 @@ struct CharSheet {
     // HP as a percentage, computed exactly as the sheet builder does
     // (100 * hp_cur / hp_max, integer division); 0 when hp_max is 0.
     int hp_percent() const;
+
+    // The profession name from +0x1b (see kCharProf1b).  Returns an empty
+    // string when the index is out of range (0x0c = "no profession").
+    std::string profession() const;
 
     // --- party-status display row -----------------------------------------
     // The party-status builder packs a 12-byte row per member into its display

@@ -253,6 +253,7 @@ The attribute block and level field are grounded independently in the character
 | 0x12 | word | paired with 0x10 (`> 0`); cleared with the slot |
 | 0x17 | byte | **level / rank**; level-up does `inc es:[bx+si+0x17]` (0x9144) then prints "X enters the %ld rank." (DS:0x4ea6); sheet prints it under "Rnk " |
 | 0x18 | byte | class flag: 1 PC / 2 monster (SNSC seed) |
+| 0x1b | byte | **profession index** 0..11 into `kProfessionNames` (the display routine at image `0x2FB4A` reads it, rejects `> 0x0b` and switches on it via the jump table at `CS:0x93B6`); the SNSC seed writes `0x0c` = "no profession" (only Siegurd, an unfinished slot, keeps it) |
 | 0x1c | byte | base stat 45..75 (SNSC seed) |
 | 0x1d | byte | set to `0x0a`, overridden to `5*dex46-0x41` when `dex46>0x0f` (1BA40) |
 | 0x1e | byte | **total defence / armour class**: seeded `100 - rec[0x2d]`, then the armour routine (0x210E8) overwrites it with `stat1d + Σ equipped-item AC`; the sheet reads it as the defence stat |
@@ -535,7 +536,10 @@ The sheet prints, in order: `Rnk ` (`+0x17`), `Hit point ` (`+0x20`/`+0x22`),
 `Weight... ` (`+0x64`/`+0x66`), then `Rations.. : ` and ` Gold:`.  The `Hit point`
 line is the current/maximum HP pair (`+0x22`/`+0x20`); the `Magic.... ` line is
 the current/maximum magic-point pair **`+0x69`/`+0x68`** (see the correction and
-the inventory-array section).
+the inventory-array section).  The `State...  ` label prints the **profession
+name** derived from `+0x1b` (see the `+0x1b` row above and `CharSheet::profession()`);
+the display routine at image `0x2FB4A` switches on `+0x1b` (rejecting `> 0x0b`)
+to pick the name, so `+0x1b` is a profession index, not a state flag.
 
 The `Rations`/`Gold` values themselves are **not** simple struct fields.  They
 are the result of iterating the character's inventory-slot list (a run of
