@@ -6,6 +6,10 @@ productive in the first ten minutes, and how to survive a workspace reset or a
 dead-end error. Deep detail lives in `AGENTS.md`; the work split lives in
 `docs/WORKSTREAMS.md`.
 
+> **Incoming maintainer? Read `docs/notes-maintainer-state.md` first** — it
+> records the last session's landing of the play-loop work and the current open
+> items.
+
 ## 0. Sixty-second orientation
 
 ```sh
