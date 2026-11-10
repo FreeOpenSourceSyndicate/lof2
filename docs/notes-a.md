@@ -597,6 +597,50 @@ the whole number (`EGA/D10/...`), which would fail for every map id >= 10.
 base view with partial tiles, and the exact rule needs either the (GFA-compiled)
 code or a systematic DOSBox oracle sweep.
 
+### Round 11 — the sprite library and why the rule needs the code
+
+Pulled the engine's own load trace from the analysis emulator on
+`work/maintainer-town` (the branch with the `REP CMPS/SCAS` fix), which reaches
+the play loop on **save slot 2** (`LOF_KEYAUTO="0x18,0x03"`):
+
+* Slot 2 loads `DNGS\DNG10` and opens **`ega\d0\dp001..dp069`** — the map id's
+  ones digit again (10 -> `D0`), independently confirming the Round-10 fix.
+* Slot 1 loads `DNGS\DNG05` and opens `ega\d5\dp001..dp069`.
+* So the engine **preloads the whole `DPnnn` library** (69 slots per map) *before*
+  it reads the map, then composes the viewport in memory.  It never re-opens a
+  sprite per move, which is why there is no per-view open to key the rule off.
+
+Library structure (all `D1..D7` share it; `D0` has fewer full views):
+
+* **Full views (120x119):** `DP001/014/036/058/059/060/067` for `D1..D7`;
+  `D0` has only `DP001/002/014/036`.
+* **Partial tiles:** distance-banded wall segments in size pairs
+  (8x29, 16x19/26/29/47/48/59, 24x19, 32x29/59/119, 64x59) — e.g. `DP015/037`
+  are the 64x59 pair, `DP018/019` the 32x59 pair.  `DP068/069` (32x119) are
+  fully transparent (all index 0): empty side-wall slots.
+
+What the two slot-1 DOSBox oracles show:
+
+* **spawn** viewport matches the single full view `DP001` at **95.2%** — the
+  entrance is pre-rendered;
+* the **moved** viewport's best single sprite (full view or partial) is only
+  **57.6%** (`DP067`), and no single overlay on any base reaches the spawn's
+  95% — so an arbitrary view is a **multi-tile composition**, not one blit.
+
+**Why this cannot be derived without guessing:** the composition is chosen at
+run time from (position, facing, local map structure) by GFA-compiled code that
+static disassembly cannot resolve (the path table is addressed via a computed
+base and carries no relocation entry; see Round 9).  The emulator cannot serve
+as an oracle for it — its EGA blit path leaves the viewport showing the menu
+scene (documented in `notes-maintainer-town.md`), so it renders the *same*
+window for menu, dungeon and town.  The only clean oracle is DOSBox, and each
+frame is one (position, facing) data point that requires reliably driving the
+game there first.  I therefore stop here rather than invent a heuristic.
+
+**What the drop-in does today:** draws the canonical entry view (`DP001`) for
+the save's map id via `render_dungeon_default_view()`, which is pixel-verified
+for the Temple spawn; the composition rule is the documented open item.
+
 
 
 
