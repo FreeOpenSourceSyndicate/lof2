@@ -566,6 +566,7 @@ CharSheet decode_char(const uint8_t* raw) {
     c.mag_max68 = raw[kCharMagMax68];
     c.mag_cur69 = raw[kCharMagCur69];
     c.load25 = raw[kCharLoad25];
+    c.inv_used = raw[kCharInvUsed6b];
     c.weight_max = rd16(raw + kCharWeight64);
     c.weight_cur = rd16(raw + kCharWeight66);
     for (size_t s = 0; s < kCharInvCount; ++s) {
@@ -586,16 +587,22 @@ uint32_t carried_item_weight(const CharSheet& c) {
 
 uint8_t defense_from_items(const CharSheet& c) {
     uint32_t total = c.stat1d;
-    for (const InvSlot& s : c.inv) {
-        if (s.item == 0 || s.equipped == 0) continue;
-        const ItemRecord* it = item_by_index(s.item);
+    // The engine's armour routine (0x210E8) iterates the slots only up to the
+    // used count +0x6b, so cap here too (a stray non-empty slot past the count
+    // would otherwise leak into the AC).
+    size_t limit = (size_t)c.inv_used <= kCharInvCount ? (size_t)c.inv_used
+                                                       : kCharInvCount;
+    for (size_t s = 0; s < limit; ++s) {
+        const InvSlot& slot = c.inv[s];
+        if (slot.item == 0 || slot.equipped == 0) continue;
+        const ItemRecord* it = item_by_index(slot.item);
         if (!it) continue;
         // The armour routine reads the LOW byte of item +0x16 only
         // (`mov al, es:[bx+0xfd2]`, image 0x2116b); the high byte is the
         // initial quantity/charges, not part of the AC.
         uint8_t ac = (uint8_t)((uint16_t)it->f3 & 0xff);
         if (ac == 0) continue;
-        uint32_t v = (uint32_t)s.condition + 10;
+        uint32_t v = (uint32_t)slot.condition + 10;
         v -= v % 20;
         total += (uint32_t)ac * v / 100;
     }
