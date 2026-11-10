@@ -92,4 +92,34 @@ int Font::draw_small_cell(Screen& scr, int x, int y, int band, int cell, uint8_t
     return x + 5;
 }
 
+// Full 8x8 face at a 6-px pitch.  The engine's text cells are 8 px wide but it
+// advances 6, so each cell's leftmost 6 columns are drawn (the glyphs are 5 px
+// wide with a 1 px gap, so column 6 is blank anyway).  Verified pixel-exact
+// against the DOSBox status box in ref/oracle/play.png.
+int Font::draw_text(Screen& scr, int x, int y, const std::string& text, uint8_t idx) const {
+    for (char ch : text) {
+        int band, cell;
+        if (ok && glyph_cell(ch, band, cell)) {
+            for (int gy = 0; gy < 8; gy++) {
+                uint8_t bits = glyph[band][cell][gy];
+                for (int gx = 0; gx < 6; gx++)
+                    if (bits & (0x80 >> gx)) scr.put(x + gx, y + gy, idx);
+            }
+        }
+        x += 6;
+    }
+    return x;
+}
+
+int Font::draw_text_cell(Screen& scr, int x, int y, int band, int cell, uint8_t idx) const {
+    if (ok && band >= 0 && band < 3 && cell >= 0 && cell < 40) {
+        for (int gy = 0; gy < 8; gy++) {
+            uint8_t bits = glyph[band][cell][gy];
+            for (int gx = 0; gx < 6; gx++)
+                if (bits & (0x80 >> gx)) scr.put(x + gx, y + gy, idx);
+        }
+    }
+    return x + 6;
+}
+
 }  // namespace lofport

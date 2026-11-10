@@ -571,6 +571,15 @@ constexpr uint8_t kSaveMagic[4] = {0x00, 'F', 'O', 'L'};
 constexpr size_t kSaveLocOnes = 0x9a2;
 constexpr size_t kSaveLocTens = 0x9a4;
 
+// The party's facing is a separate digit byte at file offset 0x9a6: 0=N, 1=E,
+// 2=S, 3=W (verified by diffing the two shipped saves -- GAME1 faces South
+// where GAME2 faces North -- and by the DOSBox dungeon oracle, whose status box
+// shows "Facing South").  The lower-left status box prints it with the
+// `facing_names()` table.  `kSaveFacingInvalid` marks a save with no facing
+// byte (a short file).
+constexpr size_t kSaveFacing = 0x9a6;
+constexpr uint8_t kSaveFacingInvalid = 0xff;
+
 struct SaveChar {
     std::array<uint8_t, 410> raw{};  // one 0x19a character struct
     uint8_t present = 0;             // +0x00  non-zero: slot holds a character
@@ -584,6 +593,7 @@ struct SaveGame {
     uint8_t header[4] = {0, 0, 0, 0};
     uint8_t loc_ones = 0;             // +0x9a2  ones digit of the dungeon id
     uint8_t loc_tens = 0;             // +0x9a4  tens digit of the dungeon id
+    uint8_t facing = kSaveFacingInvalid;  // +0x9a6  party facing (0=N..3=W)
     std::vector<SaveChar> chars;      // floor((size - 4) / 410) records
     std::vector<uint8_t> trailer;     // any bytes past the last whole record
 };

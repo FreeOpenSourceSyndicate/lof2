@@ -369,6 +369,18 @@ static int real_data() {
     assert(dungeon_view_dir(8).empty());     // no EGA/D8
     assert(dungeon_map_name(100).empty());   // out of range
 
+    // The party's facing is a separate digit byte at save offset 0x9a6 (0=N,
+    // 1=E, 2=S, 3=W), printed by the status box with facing_names().  GAME1
+    // faces South and GAME2 North; the DOSBox play capture (slot 2) shows
+    // "Facing North", matching.  The status-box title is the location's
+    // scenario (ones digit indexes scenario_names()): 5 -> The Temple,
+    // 10 -> Valley of Faerghail, both matching their oracles.
+    assert(sv.facing == 2 && sv2.facing == 0);
+    assert(facing_names()[sv2.facing] == "    Facing North");
+    assert(facing_names()[sv.facing] == "    Facing South");
+    assert(scenario_names()[save_location(sv) % 10] == "     The Temple");
+    assert(scenario_names()[save_location(sv2) % 10] == " Valley of Faerghail");
+
     // The checks below that describe the *wilderness* party state (Handy
     // wounded at 9/11 HP, Decker's pack carrying a Short sword, the experience
     // totals) come from GAME2; GAME1 is the Temple start and carries a

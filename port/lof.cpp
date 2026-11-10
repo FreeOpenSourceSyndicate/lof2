@@ -111,6 +111,38 @@ static bool compose_play_screen(const std::string& dir, const std::string& play,
             small.draw_small(s, x + 21, y + 12, status[0], 15);
         slot++;
     }
+
+    // Lower-left status box.  It is drawn with the *full* CHR1 face at a 6-px
+    // pitch, five label lines at y = 136/144/160/176/184:
+    //
+    //   line 1  the scenario title (the region the save's location belongs to)
+    //   line 2  the party facing (N/E/S/W)
+    //   line 4  the in-game time of day
+    //   line 6  "Spirits"  + the party's morale
+    //   line 7  "Rations"  + the party's rations
+    //
+    // Only the first two are recoverable from a save file: the title is the
+    // location's scenario (the ones digit indexes `scenario_names()`) and the
+    // facing is the save's +0x9a6 digit byte.  The time of day, morale and
+    // rations are *live* engine state (the clock, the party's mood and the
+    // per-character ration count the engine accumulates at run time) that a
+    // save alone does not carry, so the port draws their labels only, which is
+    // exactly what the engine itself shows before those values are set.
+    Font box;
+    if (box.load(dir + "/EGA/UP/CHR1", &err)) {
+        std::vector<std::string> scen = scenario_names();
+        std::vector<std::string> face = facing_names();
+        int loc = (int)save_location(sg);
+        int sindex = loc % 10;   // scenario the location belongs to
+        std::string title = (sindex >= 0 && sindex < (int)scen.size())
+                                ? scen[sindex] : "    Scenario !!      ";
+        box.draw_text(s, 6, 136, title, 15);
+        std::string heading = (sg.facing < face.size())
+                                  ? face[sg.facing] : "    Direction !!     ";
+        box.draw_text(s, 6, 144, heading, 15);
+        box.draw_text(s, 6, 176, "Spirits  ", 15);
+        box.draw_text(s, 6, 184, "Rations  ", 15);
+    }
     return true;
 }
 

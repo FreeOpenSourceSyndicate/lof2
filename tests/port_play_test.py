@@ -53,11 +53,26 @@ def main() -> int:
         return 1
 
     match = float((port == oracle).all(2).mean())
-    if match >= MIN_MATCH:
-        print("port_play_test: ok (match=%.1f%%, min=%.0f%%)" % (100 * match, 100 * MIN_MATCH))
-        return 0
-    print("port_play_test: FAIL (match=%.1f%% < %.0f%%)" % (100 * match, 100 * MIN_MATCH))
-    return 1
+    if match < MIN_MATCH:
+        print("port_play_test: FAIL (match=%.1f%% < %.0f%%)" % (100 * match, 100 * MIN_MATCH))
+        return 1
+
+    # The lower-left status box must be pixel-exact where the save determines
+    # its text: the scenario title (y=136) and the facing line (y=144) come from
+    # the save's location/facing bytes, and the "Spirits"/"Rations" labels
+    # (x=6..53) are constant.  The time-of-day, morale and rations *values* are
+    # live engine state a save does not carry, so those columns are excluded.
+    for y in (136, 144):
+        if not (port[y:y + 8, 0:140] == oracle[y:y + 8, 0:140]).all():
+            print("port_play_test: FAIL (status box line y=%d not exact)" % y)
+            return 1
+    for y in (176, 184):
+        if not (port[y:y + 8, 6:54] == oracle[y:y + 8, 6:54]).all():
+            print("port_play_test: FAIL (status box label y=%d not exact)" % y)
+            return 1
+    print("port_play_test: ok (match=%.1f%%, min=%.0f%%, status box exact)" %
+          (100 * match, 100 * MIN_MATCH))
+    return 0
 
 
 if __name__ == "__main__":

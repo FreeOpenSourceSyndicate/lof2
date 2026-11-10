@@ -111,6 +111,7 @@ SaveGame load_save(const std::string& path) {
     if (!g.ok) return g;
     if (d.size() > kSaveLocOnes) g.loc_ones = d[kSaveLocOnes];
     if (d.size() > kSaveLocTens) g.loc_tens = d[kSaveLocTens];
+    if (d.size() > kSaveFacing) g.facing = d[kSaveFacing];
     size_t n = (d.size() - kSaveHeaderSize) / 410;
     for (size_t i = 0; i < n; i++) {
         const uint8_t* r = d.data() + kSaveHeaderSize + i * 410;

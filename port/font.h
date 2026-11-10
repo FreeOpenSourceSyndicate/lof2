@@ -43,6 +43,15 @@ struct Font {
     // Blit one 5x5 glyph by (band, cell), advancing 5 px.  The play-screen
     // status row draws CHR2 cells directly rather than through a text string.
     int draw_small_cell(Screen& scr, int x, int y, int band, int cell, uint8_t idx) const;
+
+    // Draw `text` with the engine's *full* 8x8 face at a 6-px pitch: each cell's
+    // left 6 columns are drawn (glyphs are 5 px wide + 1 px gap).  This is the
+    // font the engine uses for the lower-left status box (scenario/facing/time/
+    // spirits/rations) and for the menu text.  Returns x past the last glyph.
+    int draw_text(Screen& scr, int x, int y, const std::string& text, uint8_t idx) const;
+
+    // Blit one 6x7 glyph (left 6 columns, 7 rows) by (band, cell), advancing 6 px.
+    int draw_text_cell(Screen& scr, int x, int y, int band, int cell, uint8_t idx) const;
 };
 
 }  // namespace lofport
