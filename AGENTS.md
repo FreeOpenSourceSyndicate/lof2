@@ -146,6 +146,17 @@ make test       # CPU self-test
 
 Output binary: `./lof-native`.
 
+The verification tests (`make golden-port`, `make check`) need Python with
+`numpy` and `Pillow` (the frame comparators), and the interactive front-end
+builds an SDL2 window when `libsdl2-dev` + `pkg-config` are present (otherwise
+`make headless` / the default fallback is head-less and `--ui` runs scripted
+input only).  On a fresh Debian/Ubuntu box:
+
+```sh
+apt-get install -y libsdl2-dev pkg-config   # optional: live window
+pip install numpy pillow                     # required by the frame tests
+```
+
 ## Run (analysis emulator — dev aid only)
 
 ```sh
