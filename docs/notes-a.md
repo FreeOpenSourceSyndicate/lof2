@@ -530,9 +530,10 @@ Implemented:
   `tests/dungeon_test.cpp::test_view_sprite`, which blits `EGA/D5/DP001` and
   asserts every pixel equals the decoded sprite (and that a missing file is
   reported, not drawn).
-* `dungeon_view_path(dir, d, i)` / `render_dungeon_default_view(dir, d)` —
-  `<dir>/EGA/D<d>/DP%03d` and the canonical entry view (DP001).  `test_default_views`
-  confirms all 7 dungeons ship a DP001 that blits across the window.
+* `dungeon_view_path(dir, id, i)` / `dungeon_view_dir(id)` /
+  `render_dungeon_default_view(dir, id)` — `<dir>/EGA/D<ones-digit>/DP%03d` and
+  the canonical entry view (DP001).  `test_default_views` confirms the canonical
+  DP001 blits for a spread of map ids (see Round 10).
 * `render_dungeon_viewport()` — a synthetic ray-cast **fallback** (60-degree FOV
   DDA over the 36x36 grid, grey wall band on black) for levels with no view
   sprite / as an automap aid.  `test_viewport` pins: wall-ahead → whole window
@@ -562,6 +563,39 @@ sprite is only 57.6%.  So the engine blits a base view then overlays wall pieces
 by the local map structure.  Fully reproducing arbitrary views needs either the
 (GFA-compiled) selection code or a systematic oracle sweep; both are out of scope
 for this pass.  The drop-in draws the verified `DP001` entry view.
+
+### Round 10 — the view directory is the map id's ones digit (verified)
+
+The maintainer's `docs/notes-maintainer-town.md` (branch `work/maintainer-town`)
+pins the model, and I reproduced it against the shipped data:
+
+* The engine composes the map name as `DNGS\DNG%01ld%01ld` (two digit bytes: the
+  ones digit at save offset 0x9a2, the tens digit at 0x9a4) and reads the view
+  tiles from **`EGA\D<ones-digit>`**.  Verified by patching the bytes and
+  watching the emulator's open trace: GAME2's 0x9a2 `0 -> 1` opens `DNGS\DNG11`
+  + `ega\d1`; its 0x9a4 `1 -> 0` opens `DNGS\DNG00` + `ega\d0`.
+* So **dungeon 05 (Temple) -> `EGA/D5`** and **dungeon 10 (wilderness) ->
+  `EGA/D0`**.  `D8`/`D9` are never used; all 29 maps map onto `D0..D7`.
+* View dirs `D1..D7` each ship the same 51-sprite set (full views
+  `DP001/014/036/058/059/060/067` at 120x119, plus the 16x29 / 32x59 / … partial
+  tiles); `D0` is the odd one out with 63 sprites and only four full views
+  (`DP001/002/014/036`) — the wilderness.
+* The engine opens `DP001` first on a play-loop load (it is the base the viewport
+  is composited over), then overlays map tiles near the horizon.  A single
+  sprite therefore never reproduces an arbitrary view (spawn = `DP001` 95.2%;
+  the moved frame's best single sprite is 57.6%).
+
+`dungeon_view_path()` / `dungeon_view_dir()` now take the **map id** and use its
+ones digit, so `dungeon_view_path(root, 10)` -> `EGA/D0/DP001` and
+`dungeon_view_path(root, 11, 36)` -> `EGA/D1/DP036` (pinned by `test_view_sprite`;
+`test_default_views` blits the canonical `DP001` for a spread of ids including
+`10`, `11`, `17`, `23`, `66`).  This corrects the earlier bug where the path used
+the whole number (`EGA/D10/...`), which would fail for every map id >= 10.
+
+**Still open:** which `DPnnn` index/offsets the engine picks for a given
+(position, facing, local tile structure) — it is a runtime composition of the
+base view with partial tiles, and the exact rule needs either the (GFA-compiled)
+code or a systematic DOSBox oracle sweep.
 
 
 
