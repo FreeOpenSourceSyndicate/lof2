@@ -193,10 +193,11 @@ const std::vector<ItemRecord>& items() {
             ItemRecord r;
             r.name = kItemNames[i];
             r.f0 = kItemFields[i][0];
-            r.f1 = kItemFields[i][1];
+            r.price = kItemFields[i][1];
             r.weight = kItemFields[i][2];
             r.f3 = kItemFields[i][3];
             r.f4 = kItemFields[i][4];
+            r.damage = static_cast<uint8_t>((kItemFields[i][4] >> 8) & 0xff);
             r.f5 = kItemFields[i][5];
             r.f6 = kItemFields[i][6];
             r.item_class = kItemClassEffect[i][0];
@@ -281,11 +282,11 @@ void dump_items(std::FILE* out) {
     for (size_t i = 0; i < v.size(); i++) {
         const ItemRecord& r = v[i];
         std::fprintf(out,
-                     "[%3zu] %-18s class=%u eff=%u (%-16s) f0..6=%d %d %d %d %d %d "
-                     "%d\n",
+                     "[%3zu] %-18s class=%u eff=%u (%-16s) price=%d wt=%d "
+                     "dmg=%u f0=%d f3=%d f4=%d f5=%d f6=%d\n",
                      i, r.name.c_str(), r.item_class, r.effect,
-                     item_effect_name(r.effect), r.f0, r.f1, r.weight, r.f3, r.f4,
-                     r.f5, r.f6);
+                     item_effect_name(r.effect), r.price, r.weight, r.damage,
+                     r.f0, r.f3, r.f4, r.f5, r.f6);
     }
 }
 

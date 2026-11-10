@@ -310,23 +310,32 @@ into `port/char_items.inc` (regenerate with `tools/spec.py --emit-items`, which
 reads the EXE once as a dev aid) and exposed as `items()` / `item_by_index()` /
 `dump_items()` in `port/char.{h,cpp}`.
 
-Field semantics (`f2` is grounded as the item weight; `f1`/`f3`/`f4` are only
-partially named — their exact combat/shop use lives in the play-loop code, so
-treat them as unverified):
+Field semantics (`price`, `weight`, `damage` and `f6` are grounded; `f0`/`f3`/
+`f4`/`f5` are only partially named — their exact combat/shop use lives in the
+play-loop code, so treat them as unverified):
 
+- **`f1` (record `+0x12`) = item price in gold.**  The equipment list prints it
+  with `%4d$` (image `0xc474`, format `%4d$ %3dlb` at DS:0x44ab) and the shop
+  buy/sell routines read the same field (image `0xb745` / `0xb122`, with
+  condition/Charisma scaling).  Values run 5..3800.
 - **`f2` (record `+0x14`) = item weight.**  Grounded three ways (see the
   "item weight" section below): the carried-weight accumulator, the load check,
   and the character-sheet `Weight:` line.  This supersedes the earlier note that
   called `+0x14` the *cost* (weapons) / *AC bonus* (armour) — the numbers were
   right, the label was wrong.  Values run 5..3500 (`Club 100`, `Short sword 50`,
-  `Broadsword 80`, `Leather armour 150`, `Full plate 650`).
-- melee weapons (class 1): `f0` = weapon class code 1..4 (not a hands count),
-  `f1` = damage (unverified); e.g. Short sword `(1,10,50,…)`, Broadsword
-  `(2,18,80,…)`, Two handed swrd `(2,25,456,…)`.
-- armour (class 2): `f1` = cost (unverified), `f3` = AC (unverified);
-  e.g. Leather `(4,15,150,35)`, Full plate `(1,2000,650,90)`.
-- projectiles (class 4): `f3` = ammo count, `f5` = the launcher item index
-  (e.g. Bolts `f5 = 24` = Crossbow); the launcher's `f5` points back.
+  `Broadsword 80`, `Leather armour 150`, `Full plate 650`); the equipment list
+  and the sheet display `weight / 10` as pounds.
+- melee weapons (class 1): `f0` = weapon class code 0..5 (not a hands count);
+  `f4`'s high byte is the **damage** (exposed as `ItemRecord::damage`, subtracted
+  from the target's HP at image `0x13ebd`); e.g. Short sword `(f0=1, price=10,
+  wt=50, f4=0x0600 => dmg 6)`, Broadsword `(2,18,80,dmg 8)`, Two handed swrd
+  `(2,25,456,dmg 11)`.
+- armour (class 2): `f3` = AC (scaled by condition, image `0x2116b`), `f4` =
+  armour sub-type; e.g. Leather `(f0=4, price=15, wt=150, f3=35)`.
+- projectiles (class 4): `f3` = ammo count; `f5` = the paired item's 1-based
+  index (e.g. Short arrows `f5 = 20` = Short bow at index 19); the launcher's
+  `f5` points back (Short bow `f5 = 21`).  `f5` also pairs Flask of oil <->
+  Lantern and the quest items (Emerald <-> Corona, Ring <-> Keystaff).
 - `f6` is a class-eligibility mask (14 bits; magic items set the high bits,
   e.g. 4095 = every class).  `item_usable_by_class()` reads it.
 
@@ -835,8 +844,8 @@ The open question above is now closed by three independent, mutually-consistent
 pieces of evidence, so the earlier "cost / AC bonus" label for `+0x14` is
 **wrong** and has been corrected:
 
-1. **The carried-weight accumulator** (image `0x1BB32`, called from the
-   inventory/weight routines).  It reads the character's item-count byte
+1. **The carried-weight accumulator** (image `0x21030`, storing the sum at
+   `0x210d4`).  It reads the character's item-count byte
    `+0x6b`, then for each of the `+0x82` inventory slots it does
    `ax = es:[item_index * 32 + 0xfd0]` (the item record's `+0x14`, since
    `0xfd0 = 0xfbc + 0x14`) and accumulates it into a 32-bit running total,
@@ -847,11 +856,17 @@ pieces of evidence, so the earlier "cost / AC bonus" label for `+0x14` is
 2. **The load check** at image `0x19B54` / `0x2965f`: an action is refused while
    `item[+0x14] + char[+0x66] > char[+0x64]` — i.e. the item's `+0x14` plus the
    already-carried total must not exceed the character's capacity `+0x64`.
-3. **The character sheet** (`Weight... %04d / %04d` at DS:0xafc0, and the
-   compact `Weight:%04d/%04d` at DS:0xafd9) prints exactly the pair
-   `(char[+0x66], char[+0x64])`.  The `/10` I previously attributed to the sheet
-   is **not** there: the sheet's two `Weight` prints show the raw words, and the
-   item table's `+0x14` values (5..3500) are the weights directly.
+3. **The character sheet** (`Weight... %04d / %04d` at DS:0x92c0) prints the
+   pair `(char[+0x66], char[+0x64])` **after dividing each by 10** (`div 0xa`
+   right before the format call at image 0x2c21d / 0x2c1f0), so the sheet shows
+   pounds.  The compact `Weight:%04d/%04d` at DS:0x92c8 is the same pair.  This
+   means the raw `+0x14` values (5..3500) are tenths of a pound, and the earlier
+   note in this file claiming the `/10` was *absent* was itself wrong.
+
+**Display, not identity.**  The `/10` does not affect the field *identity*: the
+accumulator sums the raw `+0x14` values and the sheet only divides for display.
+The equipment list (`%4d$ %3dlb` at DS:0x44ab, image 0xc474) confirms the same
+convention: it prints `price` with `%4d$` and `weight / 10` with `%3dlb`.
 
 **Oracle check.**  Recomputing `char[+0x66]` as
 `10*byte[+0x70] + word[+0x72] + Σ items()[v-1].weight` reproduces the stored

@@ -150,22 +150,33 @@ extern const char* const kClassName[kClassCount];
 
 struct ItemRecord {
     std::string name;
-    // Seven little-endian int16 fields.  `weight` is grounded; f0/f1/f3/f4 are
-    // only partially named (their exact combat semantics live in the play-loop
-    // code); f5/f6 are grounded.
-    int16_t f0 = 0;  // weapon/armour class code (1..4)
-    int16_t f1 = 0;  // weapon: damage; armour: cost
+    // Seven little-endian int16 fields at record offsets 0x10..0x1c.  `price`
+    // and `weight` are grounded; `f0`/`f3`/`f4` are partly named; `f5`/`f6`
+    // are grounded.  See docs/notes-b.md ("item table") for the byte-level map.
+    int16_t f0 = 0;     // +0x10  weapon/armour class code (weapons: 0..5)
+    // +0x12  Price in gold.  The equipment list prints it with `%4d$` (routine
+    // at image 0xc474), and the shop buy/sell routines read the same field
+    // (0xb745 / 0xb122).  Grounded.
+    int16_t price = 0;
     // +0x14  Item weight.  Grounded three ways: the character's carried total
     // (char +0x66) is accumulated as this value over the inventory slots
-    // (routine at image 0x1BB32, the sum ends at 0x1BBC5); the load check
-    // `weight + char[0x66] <= char[0x64]` at image 0x19B54 / 0x2965f; and the
-    // character sheet's "Weight" line, which prints char[0x66]/char[0x64]
-    // (image 0x10690, DS:0xafd9 "Weight:").  Values run 5..3500.
+    // (routine at image 0x21030, the sum ends at 0x210d4); the load check
+    // `weight + char[0x66] <= char[0x64]` (image 0x19B54 / 0x2965f); and the
+    // equipment list / character sheet, which DISPLAY it divided by 10 as
+    // pounds (`%3dlb` at image 0xc477; `div 0xa` before the sheet's `Weight`
+    // line at image 0x2c21d).  Raw values run 5..3500.
     int16_t weight = 0;
-    int16_t f3 = 0;  // armour: further AC; projectiles: ammo count
-    int16_t f4 = 0;  // weapon: cost / damage multiplier
-    int16_t f5 = 0;  // projectile -> launcher item index (weapons: 0)
-    int16_t f6 = 0;  // class-eligibility mask (bit n => class n may use)
+    int16_t f3 = 0;     // +0x16  armour AC (scaled by condition, image 0x2116b)
+    int16_t f4 = 0;     // +0x18  armour sub-type / projectile flag; weapons:
+                        //        class code in the low byte, damage in the high
+                        //        byte (exposed as `damage`)
+    // +0x19  Weapon damage (the high byte of `f4`): subtracted from a target's
+    // HP in combat (image 0x13ebd `sub es:[bx+0x22],cx`).  0 for non-weapons.
+    uint8_t damage = 0;
+    int16_t f5 = 0;     // +0x1a  1-based index of the paired item: ammo<->launcher
+                        //        (Sling 19<->Bullets 18), Flask of oil<->Lantern,
+                        //        and quest pairs (Emerald<->Corona, Ring<->Keystaff).
+    int16_t f6 = 0;     // +0x1c  class-eligibility mask (bit n => class n may use)
     // Item class: 0 misc/key, 1 melee, 2 armour, 3 shield, 4 projectile,
     // 5 staff, 6 scroll/book/map, 8 ring, 9 potion, 10 treasure, 11 bow/sling.
     uint8_t item_class = 0;
