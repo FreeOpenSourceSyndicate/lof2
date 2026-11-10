@@ -8,6 +8,10 @@
 
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
+#include <string>
+#include <sys/stat.h>
+#include <unistd.h>
 
 using namespace lof;
 
@@ -113,11 +117,37 @@ static void test_string_rep() {
     CHECK(!(m.cpu.flags & ZF));
 }
 
+// The engine opens the save as `GAMES\GAME%3d` (printf "%3d"), i.e.
+// "GAMES/GAME  2" with padding spaces, and the shipped files are "GAME2".
+// Machine::resolve must match 8.3 names ignoring those spaces (and case).
+static void test_resolve_83() {
+    char tmpl[] = "/tmp/lof_resolve_XXXXXX";
+    char* root = mkdtemp(tmpl);
+    CHECK(root != nullptr);
+    if (!root) return;
+    std::string dir = root;
+    mkdir((dir + "/GAMES").c_str(), 0755);
+    FILE* f = std::fopen((dir + "/GAMES/GAME2").c_str(), "wb");
+    CHECK(f != nullptr);
+    if (f) std::fclose(f);
+
+    Machine m;
+    m.game_dir = dir;
+    CHECK(m.resolve("GAMES\\GAME  2") == dir + "/GAMES/GAME2");
+    CHECK(m.resolve("games/game  2") == dir + "/GAMES/GAME2");
+    CHECK(m.resolve("C:\\GAMES\\GAME  2") == dir + "/GAMES/GAME2");
+
+    remove((dir + "/GAMES/GAME2").c_str());
+    rmdir((dir + "/GAMES").c_str());
+    rmdir(dir.c_str());
+}
+
 int main() {
     test_alu();
     test_keyboard();
     test_ega_write();
     test_string_rep();
+    test_resolve_83();
     if (g_fail == 0) { std::printf("all tests passed\n"); return 0; }
     std::printf("%d test(s) failed\n", g_fail);
     return 1;
