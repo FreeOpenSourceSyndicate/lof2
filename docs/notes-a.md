@@ -738,3 +738,35 @@ Take-away for the rule: the library is a small set of *distant wall/door tiles*
 in two mirrored columns plus a full-view background, consistent with a
 ray-cast-like compositor, but the exact index→(distance, side, feature)
 assignment is still not derivable without more oracle frames.
+
+### Round 14 — theme structure, save location byte, procedural residue
+
+**D1..D7 are seven themes over one identical slot set.**  `EGA/D1..D7` each hold
+the *same 51 sprite indices* (`DP001 DP014..DP060 DP067 DP068 DP069`), with
+different pixel content per theme (all 51 md5s differ between D1 and D5).  So the
+structural slot set is fixed and the digit only selects the texture theme —
+strong evidence that the engine's selection rule maps (position, facing,
+structure) to a *slot index* independent of the theme, which is exactly the
+contiguous `ega\d0\dp000..dp069` table it ships.  `D0` is different: 63 slots
+(the full `DP002..DP069`), i.e. the wilderness uses a distinct, larger set.
+
+**Save location byte = the map id's ones digit.**  `GAMES/GAME  1` (the Temple)
+has byte `0x9a2 = 5`, and the engine reads `DNGS\DNG05` + `ega\d5\...`; slots
+2/3/5 have `0x9a2 = 0`.  So `0x9a2` is the **ones digit** of the dungeon number
+(the tens digit lives elsewhere): slot 1 is map 05 (`0x9a2=5`), slot 2 is map 10
+(`0x9a2=0`, and the engine reads `DNGS\DNG10`), and the view dir is `D<0x9a2>`.
+This is the origin of the ones-digit rule (the maintainer found it by patching
+this byte).
+
+**The spawn residue is procedural, not a sprite.**  The Temple spawn is `DP001`
+blitted at (10,11) to 95.2 %; the remaining 4.8 % is a compact darker-grey (8)
+block at x≈88..100, y≈49..71.  I searched **every** `EGA/*/*` image for a
+conflict-free match to that block (masked, all placements) and found **none**.
+So the engine does not composite it from a pre-rendered sprite — it *draws* that
+part of the view procedurally (a distance/feature overlay computed from the map
+and party state).  That is why a pure "pick the right DPnnn" rule cannot explain
+a frame: the viewport = a DPnnn base **plus** procedural geometry.
+
+This reframes the DoD: reproducing a dungeon screen needs (a) the DPnnn base
+index rule **and** (b) the procedural overlay rule — neither derivable from the
+two available oracle frames alone.
