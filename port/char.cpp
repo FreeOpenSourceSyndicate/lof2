@@ -194,7 +194,7 @@ const std::vector<ItemRecord>& items() {
             r.name = kItemNames[i];
             r.f0 = kItemFields[i][0];
             r.f1 = kItemFields[i][1];
-            r.f2 = kItemFields[i][2];
+            r.weight = kItemFields[i][2];
             r.f3 = kItemFields[i][3];
             r.f4 = kItemFields[i][4];
             r.f5 = kItemFields[i][5];
@@ -284,7 +284,7 @@ void dump_items(std::FILE* out) {
                      "[%3zu] %-18s class=%u eff=%u (%-16s) f0..6=%d %d %d %d %d %d "
                      "%d\n",
                      i, r.name.c_str(), r.item_class, r.effect,
-                     item_effect_name(r.effect), r.f0, r.f1, r.f2, r.f3, r.f4,
+                     item_effect_name(r.effect), r.f0, r.f1, r.weight, r.f3, r.f4,
                      r.f5, r.f6);
     }
 }
@@ -556,11 +556,22 @@ CharSheet decode_char(const uint8_t* raw) {
     c.mag_max68 = raw[kCharMagMax68];
     c.mag_cur69 = raw[kCharMagCur69];
     c.load25 = raw[kCharLoad25];
+    c.weight_max = rd16(raw + kCharWeight64);
+    c.weight_cur = rd16(raw + kCharWeight66);
     for (size_t s = 0; s < kCharInvCount; ++s) {
         const uint8_t* p = raw + kCharInv82 + s * kCharInvStride;
         c.inv[s] = InvSlot{p[0], p[1], p[2], p[3]};
     }
     return c;
+}
+
+uint32_t carried_item_weight(const CharSheet& c) {
+    uint32_t sum = 0;
+    for (const InvSlot& s : c.inv) {
+        const ItemRecord* it = item_by_index(s.item);
+        if (it && it->weight > 0) sum += (uint32_t)it->weight;
+    }
+    return sum;
 }
 
 }  // namespace lofport

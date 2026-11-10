@@ -212,6 +212,20 @@ static void synthetic_spec() {
            ch.inv[0].aux2 == 0 && ch.inv[0].cond == 100);
     assert(ch.inv[3].item == 34 && ch.inv[3].cond == 92);
     assert(ch.inv[1].item == 0 && ch.inv[47].item == 0);
+    // Carried-weight pair +0x64/+0x66 (see kCharWeight64): the max is seeded
+    // from Strength, the current is the item-weight sum plus a base.  The
+    // helper sums item +0x14 over the slots (slot 0 = item #13 "Short sword"
+    // -> 50, slot 3 = item #34 "Small shield" -> 50).
+    put16(chr, kCharWeight64, 5300);
+    put16(chr, kCharWeight66, 100);
+    ch = decode_char(chr.data());
+    assert(ch.weight_max == 5300 && ch.weight_cur == 100);
+    assert(carried_item_weight(ch) == 100);
+    // An empty slot and an out-of-range index contribute nothing.
+    chr[kCharInv82 + 0] = 0;
+    chr[kCharInv82 + 4 * 3] = 200;  // > kItemCount
+    ch = decode_char(chr.data());
+    assert(carried_item_weight(ch) == 0);
 
     printf("char_test: synthetic SPEC ok\n");
 }
@@ -301,6 +315,23 @@ static int real_data() {
     for (size_t i = 0; i < roster.size(); i++)
         assert(roster[i].present == 1);  // all 11 slots hold a character
 
+    // Carried-weight pair (see kCharWeight64): the saved total (+0x66) is the
+    // sum of the inventory items' weights (item +0x14) plus the per-character
+    // base 10*byte[+0x70] + word[+0x72]; the max (+0x64) is the Strength-derived
+    // value (Connar Str 19 -> 5300).  Verified for Connar against ROST.
+    CharSheet connar = decode_char(roster[0].raw.data());
+    assert(connar.name == "Connar");
+    assert(connar.weight_max == 5300);
+    assert(connar.weight_cur == 289);
+    uint16_t connar_base = (uint16_t)(10 * roster[0].raw[0x70] +
+                                      (roster[0].raw[0x72] |
+                                       (roster[0].raw[0x73] << 8)));
+    assert(carried_item_weight(connar) + connar_base == connar.weight_cur);
+    // An empty-inventory character carries only the base (Siegurd: 23).
+    CharSheet siegurd = decode_char(roster[10].raw.data());
+    assert(siegurd.name == "Siegurd" && carried_item_weight(siegurd) == 0);
+    assert(siegurd.weight_cur == 23 && siegurd.weight_max == 4900);
+
     ShopData shop = load_shop(std::string(dir) + "/ROST/SHOP");
     assert(shop.ok);
     // One signed adjustment per item, parallel to the item table order.
@@ -337,7 +368,12 @@ static int real_data() {
     assert(kItemCount == 185);
     assert(it[0].name == "Club" && it[0].item_class == 1);
     assert(it[12].name == "Short sword" && it[12].f0 == 1 &&
-           it[12].f1 == 10 && it[12].f2 == 50);
+           it[12].f1 == 10 && it[12].weight == 50);
+    // Item weight (+0x14): the value the engine sums into a character's carried
+    // total.  Grounded in the weight routine (image 0x1BB32) and the load check
+    // at image 0x19B54 / 0x2965f; see ItemRecord::weight.
+    assert(it[0].name == "Club" && it[0].weight == 100);
+    assert(it[32].name == "Full plate" && it[32].weight == 650);
     assert(it[0x1a].name == "Leather armour" && it[0x1a].item_class == 2);
     assert(it[184].name == "The Staff");
     // The trailing byte is a use-effect index (0 for plain gear), not a slot.

@@ -103,10 +103,15 @@ def dump_save(path):
                 attr_a = (attr_a - 10) & 0xff
             attr_b = (r[0x5c] + r[0x1c]) & 0xff
             attr_c = (r[0x5f] + r[0x17]) & 0xff
+            # Carried-weight pair: +0x66 current / +0x64 max (item +0x14 sum
+            # plus the base 10*byte[+0x70] + word[+0x72]; see notes-b).
+            wmax = struct.unpack_from("<H", r, 0x64)[0]
+            wcur = struct.unpack_from("<H", r, 0x66)[0]
             print(f"  [{i:2d}] present={r[0]:#04x} name={name!r} "
                   f"rnk={r[0x17]} con={r[0x44]} str={r[0x45]} dex={r[0x46]} "
                   f"int={r[0x47]} wis={r[0x48]} hp={hp}/{hpmax} "
                   f"mp={r[0x69]}/{r[0x68]} load={r[0x25]} exp={exp} "
+                  f"wt={wcur}/{wmax} "
                   f"body={r[0x24]} mods={r[0x5b]}/{r[0x5c]}/{r[0x5e]}/{r[0x5f]} "
                   f"flag={r[0x6a]} f0f={r[0x0f]} "
                   f"row=[{hp_pct} {r[0x24]} {hp_mod} {attr_a} {attr_b} {attr_c}]")
@@ -157,7 +162,10 @@ def emit_items(exe_path, out_path):
                 "`tools/spec.py --emit-items`.\n")
         f.write("// 185 records of 32 bytes: 16-byte NUL-padded name, seven "
                 "little-endian\n// int16 fields, then a byte item class and a "
-                "byte use-effect index.\n\n")
+                "byte use-effect index.\n"
+                "// The seven fields are at record offsets 0x10..0x1c; index 2 "
+                "(record\n// offset 0x14) is the item weight (see "
+                "ItemRecord::weight in port/char.h).\n\n")
         f.write("static const char kItemNames[kItemCount][16] = {\n")
         for nm in names:
             f.write('    "%s",\n' % c_string(nm))
