@@ -141,6 +141,93 @@ void present_sdl(const Screen& scr, const std::string& title) {
     present_sdl_frames(one, title);
 }
 
+bool Window::open(const std::string& title, int w, int h) {
+    w_ = w; h_ = h;
+    fb_.assign((size_t)w * h, 0);
+#ifdef USE_SDL
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+    SDL_Window* win = SDL_CreateWindow(title.c_str(), SDL_WINDOWPOS_CENTERED,
+                                       SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_SHOWN);
+    if (!win) return false;
+    SDL_Renderer* ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
+    if (!ren) ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
+    SDL_Texture* tex = ren ? SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
+                                               SDL_TEXTUREACCESS_STREAMING, w, h) : nullptr;
+    win_ = win; ren_ = ren; tex_ = tex;
+#else
+    (void)title;
+#endif
+    return true;
+}
+
+void Window::close() {
+#ifdef USE_SDL
+    if (tex_) SDL_DestroyTexture((SDL_Texture*)tex_);
+    if (ren_) SDL_DestroyRenderer((SDL_Renderer*)ren_);
+    if (win_) SDL_DestroyWindow((SDL_Window*)win_);
+    SDL_Quit();
+#endif
+    win_ = ren_ = tex_ = nullptr;
+}
+
+void Window::present(const Screen& scr) {
+#ifdef USE_SDL
+    if (!ren_ || !tex_) return;
+    for (size_t i = 0; i < fb_.size() && i < scr.pixels.size(); i++) {
+        const uint8_t* c = scr.pal.rgb[scr.pixels[i] & 15];
+        fb_[i] = 0xFF000000u | ((uint32_t)c[2] << 16) | ((uint32_t)c[1] << 8) | c[0];
+    }
+    SDL_UpdateTexture((SDL_Texture*)tex_, nullptr, fb_.data(), w_ * 4);
+    SDL_RenderClear((SDL_Renderer*)ren_);
+    SDL_RenderCopy((SDL_Renderer*)ren_, (SDL_Texture*)tex_, nullptr, nullptr);
+    SDL_RenderPresent((SDL_Renderer*)ren_);
+#else
+    (void)scr;
+#endif
+}
+
+bool Window::poll_key(int* key, bool* quit) {
+    if (key) *key = -1;
+    if (quit) *quit = false;
+    if (scripted_) {
+        if (script_.empty()) return false;   // script exhausted: no more input
+        int k = script_.front();
+        script_.erase(script_.begin());
+        if (k == 27) { if (quit) *quit = true; return true; }  // scripted Escape
+        if (key) *key = k;
+        return true;
+    }
+#ifdef USE_SDL
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) {
+        if (e.type == SDL_QUIT) { if (quit) *quit = true; return true; }
+        if (e.type == SDL_KEYDOWN) {
+            if (e.key.keysym.sym == SDLK_ESCAPE) { if (quit) *quit = true; return true; }
+            int k = (int)e.key.keysym.sym;
+            if (k >= 'a' && k <= 'z') k -= 32;   // normalise to upper-case ASCII
+            if (key) *key = k;
+            return true;
+        }
+    }
+#endif
+    return false;
+}
+
+bool Window::wait_key(int* key, bool* quit) {
+    for (;;) {
+        if (poll_key(key, quit)) return true;
+        if (scripted_) return false;   // script exhausted: nothing more to feed
+#ifdef USE_SDL
+        SDL_Delay(16);
+#else
+        return false;   // headless: no live input source
+#endif
+    }
+}
+
 // Show a sequence of screens in one SDL window.  Each screen stays up until the
 // user presses a key (advance) or closes the window (stop).  Used to reproduce
 // the intro: title graphic -> credits still -> menu.

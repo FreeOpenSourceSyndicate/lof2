@@ -74,6 +74,35 @@ void present_sdl(const Screen& scr, const std::string& title);
 // (advances) or the window is closed (stops).  Used for the intro sequence.
 void present_sdl_frames(const std::vector<Screen>& frames, const std::string& title);
 
+// An interactive SDL window for the front-end's main loop: open it once,
+// present frames, and poll key presses (returned as ASCII, -1 for "no event").
+// Without SDL2 the window is a no-op and poll_key never reports a key, so the
+// caller must drive its loop from scripted input instead.
+class Window {
+public:
+    bool open(const std::string& title, int w, int h);
+    void close();
+    void present(const Screen& scr);
+    // Poll one event.  Returns true if a key-down occurred (sets *key to its
+    // ASCII value; *quit to true for Escape/close instead).
+    bool poll_key(int* key, bool* quit);
+    // Like poll_key but blocks (with a short frame delay) until an event
+    // arrives.  Returns false immediately when built without SDL2.
+    bool wait_key(int* key, bool* quit);
+    // Feed a fixed key sequence instead of live input (used by the headless
+    // --ui test).  In this mode the script is the only input source: once it is
+    // exhausted poll_key reports no key, so the caller's loop terminates.
+    void script(const std::vector<int>& keys) { script_ = keys; scripted_ = true; }
+private:
+    void* win_ = nullptr;   // SDL_Window*
+    void* ren_ = nullptr;   // SDL_Renderer*
+    void* tex_ = nullptr;   // SDL_Texture*
+    int w_ = 0, h_ = 0;
+    std::vector<uint32_t> fb_;
+    std::vector<int> script_;
+    bool scripted_ = false;
+};
+
 // Write the screen to a PNG file (used by --shot for headless verification).
 bool save_png(const std::string& path, const Screen& scr);
 

@@ -159,4 +159,8 @@ screen, and `make test` still passes.
 - [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — workstream B. **Unblocked:**
       the SPEC/ROST reads now happen in the oracle (`town` scenario), so B can
       ground the remaining stat/combat semantics against real in-game state.
-- [ ] Main game loop / UI state machine — maintainer.
+- [x] Front-end UI state machine (`--ui`) — maintainer.  Keyboard-driven intro
+      (title -> credits -> menu) with the menu hot-keys wired: `O` loads a save
+      and enters the play screen, `Q`/Esc quits.  Input via `Window` (SDL2);
+      `--ui-keys` scripts a key sequence for head-less regression testing
+      (`tests/port_ui_test.py`).  In-game movement/combat remain to do.

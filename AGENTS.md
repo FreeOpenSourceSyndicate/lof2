@@ -177,8 +177,9 @@ that read the game *data* files and never touch `LOF.EXE` / `VOR.EXE`.
 Both accept `--dir DIR`, `--headless`, `--shot FILE.png` (for verification).
 `lof` additionally accepts `--screen NAME` (render one named screen, e.g.
 `--screen CRED`, `--screen UP/MSCR`, `--screen EGA/UP/MENU`), `--play SUB/DPNNN`
-(compose the in-game play screen, see below) and `--shot-frame N` (which frame of
-the intro sequence `--shot` captures; default = last).
+(compose the in-game play screen, see below), `--ui` (run the interactive
+front-end, see below) and `--shot-frame N` (which frame of the intro sequence
+`--shot` captures; default = last).
 
 Progress:
 
@@ -200,8 +201,21 @@ Progress:
       location (see the save-location note below).  The full screen matches the
       DOSBox slot-2 capture `ref/oracle/play.png` at ~94.2%
       (residue = the engine's dynamic viewport overlays only). Guarded by
-      `tests/port_play_test.py` (`make golden-port`). The *interactive* play
-      loop (input, movement, re-rendering) is not yet implemented.
+      `tests/port_play_test.py` (`make golden-port`). In-game movement and
+      re-rendering are not yet implemented; the front-end now enters this screen
+      via `--ui` (see below).
+- [x] LOF interactive front-end (`--ui`): a keyboard-driven state machine over
+      the intro. Any key advances title -> credits -> menu; at the menu the
+      recovered hot-keys apply: `O` loads a save (default `GAMES/GAME2`) and
+      switches to the in-game play screen, `Q`/Esc quits. Input goes through
+      `Window` (SDL2 when built with it, otherwise the loop is scripted). The
+      `--ui-keys "32,32,79"` option feeds a fixed ASCII key sequence so the
+      transitions can be regression-tested head-lessly (no display); `--save`
+      selects the slot and `--shot` captures the final frame. Guarded by
+      `tests/port_ui_test.py` (`make golden-port`), which checks that the
+      scripted menu frame is byte-identical to the direct `--shot` menu and that
+      the scripted `O` transition reproduces the play screen (~94.2% vs the
+      DOSBox capture, the same residue as `--play`).
 - [x] VOR preloader: `EGA/IN/DRAG` (dragon title) then `EGA/IN/CRED` (credits).
       Both are pure image blits, so the port reproduces each *pixel-exactly*
       from the game data. Guarded by `tests/port_vor_test.py` (`make
