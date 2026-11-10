@@ -493,16 +493,28 @@ Use it to compare the menu with an in-game screen:
 tools/capture_dosbox_pair.sh ref/oracle   # -> ref/oracle/menu2.png + town2.png
 ```
 
-### The emulator does not render the real play screen
+### Emulator play-screen rendering (updated 2026-11-10)
 
-The analysis emulator renders the **same viewport** for the main menu, the
-dungeon (save slot 1) and the town/wilderness (save slot 2): the left region
-(`x < 139`) is byte-for-byte identical across all three, and the play EGA dump
-differs from the menu dump in only 3154 bytes, all in the right-hand text rows.
-The viewport is never redrawn.  DOSBox, by contrast, shows a genuine outdoor
-scene on the town screen.  So the emulator's `temple`/`play` golden hashes pin a
-**wrong** screen; do not use the emulator as the target for any in-game screen —
-diff against `ref/oracle/town2.png` instead.  See `docs/notes-maintainer-town.md`.
+The earlier claim that "the emulator does not render the real play screen" is
+**obsolete** (it predated the REP CMPS/SCAS `CX` fix).  After loading a save the
+emulator now reads the view tiles (`ega\d5\dp001..dp060` for slot 1,
+`ega\d0\dp001..` for slot 2) and its viewport region `(x139..305, y92..196)`
+matches the DOSBox oracle **pixel-exactly** for slot 1
+(`ref/oracle/dungeon_slot1.png`).  Both show the same dithered flat grey wall
+(colour 7) that the real game draws until the party turns or moves.
+
+What still differs is the **left roster panel** (`x < 139`): the oracle paints
+the party roster + status rows there, while the emulator's panel renders
+similar structure with different colours/layout (≈48% pixel match for slot 1).
+Use `ref/oracle/` as the target for the roster, not the emulator.
+
+The two shipped saves render **distinct** frames (distinct EGA-plane hashes in
+`tests/golden.txt`: `temple` slot 1 vs `play` slot 2); the difference is
+confined to the left panel — both show the same flat grey viewport.
+
+The emulator's slot→map/view mapping is correct and is the ground truth for the
+save-location field: slot 1 opens `DNGS\DNG05` + `ega\d5`, slot 2 opens
+`DNGS\DNG10` + `ega\d0`.
 
 ## Architecture
 
