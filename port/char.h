@@ -598,6 +598,14 @@ PartyRow party_row(const CharSheet& c, uint8_t index);
 // Project a whole save's live party (slots with `present == 1`, in order).
 std::vector<PartyRow> party_status(const SaveGame& sv);
 
+// The play-screen party panel draws, under each character's profession line, a
+// dark stat number: `+0x1e` in decimal followed by a trailing symbol glyph
+// (verified pixel-exact against the DOSBox play-screen capture for all six
+// shipped characters -> "50%", "90%", "50%", "20%", "40%", "65%").  The digits
+// are CHR2 band-0 cells 27+d and the trailing glyph is CHR2 band-1 cell 37, in
+// the panel's 5x5 face.
+std::string panel_stat_text(uint8_t stat1e);
+
 // --- ROST/SHOP ------------------------------------------------------------
 
 struct ShopData {
