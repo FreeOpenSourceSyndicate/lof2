@@ -509,6 +509,42 @@ static void test_object_doors(const std::string& dir) {
     if (checked) std::printf("dungeon_test: %d levels checked for door features\n", checked);
 }
 
+// End-to-end walk model over a real level: place the party, then walk and turn
+// with the real decoder output and assert the invariants the play loop relies
+// on (never inside a solid cell, a successful step always changes the cell, a
+// turn only changes facing, facing deltas agree with the N/E/S/W table).
+static void test_walk_real(const std::string& dir) {
+    Dungeon d;
+    std::string err;
+    if (!load_dungeon(dir + "/" + dungeon_file_name(0, 5), d, &err)) {
+        std::printf("dungeon_test: no DNG05, skipping real-walk check\n");
+        return;
+    }
+    DungeonPos p;
+    assert(dungeon_place(d, p, kDungeonW / 2, kDungeonH / 2));
+    assert(dungeon_passable(d, p.x, p.y));
+    int steps = 0, turns = 0;
+    for (int i = 0; i < 2000; i++) {
+        if (dungeon_can_step(d, p)) {
+            int ox = p.x, oy = p.y;
+            assert(dungeon_step(d, p));
+            assert(p.x != ox || p.y != oy);            // a step moves
+            assert(p.x == ox + dungeon_facing_dx(p.facing));
+            assert(p.y == oy + dungeon_facing_dy(p.facing));
+            assert(dungeon_passable(d, p.x, p.y));     // never in a wall
+            steps++;
+            if (steps > 300) break;
+        } else {
+            dungeon_turn(p, true);                     // rotate until open
+            assert(p.facing >= 0 && p.facing <= 3);
+            if (++turns % 4 == 0) break;               // boxed in: stop
+        }
+    }
+    assert(steps > 50);                                // the level is walkable
+    std::printf("dungeon_test: real walk %d steps, %d turns from (%d,%d)\n",
+                steps, turns, p.x, p.y);
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_render();
@@ -526,6 +562,7 @@ int main(int argc, char** argv) {
     test_file_name(dir);
     test_connectivity_stats(dir);
     test_object_doors(dir);
+    test_walk_real(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }
