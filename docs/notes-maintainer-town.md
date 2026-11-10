@@ -368,3 +368,26 @@ encoded stat rather than `itoa()`.  Neither `level46` nor `stat1d` maps to it,
 and no single save byte is constant across the six while the words are.  Left
 unrendered (drawing it wrong lowers the match); the status word is the
 documented next step if the engine's stat formatter is recovered.
+
+## RESOLVED (2026-11-09): slots 1/2 now render differently
+
+The residual caveat above ("slots 1 and 2 render byte-identically") is **fixed**.
+Root cause was *not* a viewport-rendering bug but the emulator's `REP CMPS/SCAS`
+handlers forcing `CX=0`; the run-time's `strlen` (`repne scasb; not cx; dec cx`)
+then returned `0xFFFE`, which broke the save-load formatting path (and crashed
+slot 1 outright).  With `CX` left as the remaining count:
+
+* slot 1 (`temple`) -> `a3f719edd43bc692dc230539fdf34705`
+* slot 2 (`play`)   -> `585da631a63e2199db7425c5b422ee52`
+
+They are now distinct, and each matches its own DOSBox oracle best:
+
+| emulator frame | closest oracle | mean abs diff |
+|----------------|----------------|---------------|
+| slot 1 | `dungeon_slot1_moved.png` | 24.6 |
+| slot 2 | `play.png` | 26.5 |
+
+The viewport region (x139..304, y92..196) is still a flat wall for both
+(oracle dungeon_slot1 is also flat at 170, but dungeon_slot1_moved shows 3
+colours after the party turns) — that is the separate, still-open "viewport is
+drawn from tiles, not a full-screen asset" task.

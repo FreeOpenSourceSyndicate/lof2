@@ -360,17 +360,18 @@ Two shipped saves reach the play loop and are both guarded by
 
 | slot | scenario | planes md5 (60/1500 frames) | screen |
 |------|----------|------------------------------|--------|
-| 1    | `temple` | `b43512c10b9b22396b6b0dcdecf7a148` | the **Temple dungeon**, dark first-person viewport |
-| 2    | `play`   | `b43512c10b9b22396b6b0dcdecf7a148` | the wilderness (see note below) |
+| 1    | `temple` | `a3f719edd43bc692dc230539fdf34705` | the **Temple dungeon**, dark first-person viewport |
+| 2    | `play`   | `585da631a63e2199db7425c5b422ee52` | the wilderness |
 
 A `GAME1` dropped at the repo root is a *working* save (not committed; it is
 proprietary game data).  `bootstrap.sh` installs it as slot 1 when present.
-Note: after the resolver fix both slots *enter the play loop*, but the emulator
-still paints the **same** viewport for slot 1 (Temple dungeon) and slot 2
-(wilderness) — `slot1.bin == slot2.bin` byte-for-byte — so `temple` and `play`
-now share a hash.  DOSBox renders them differently (`ref/oracle/town2.png` is
-the wilderness; a dungeon capture is dark), so the viewport *content* is still a
-rendering bug to fix.  Verify play-screen work against DOSBox, not the emulator.
+Slots 1 and 2 now render **differently** (distinct hashes above), each matching
+its own DOSBox oracle (`ref/oracle/dungeon_slot1*.png` for the dungeon,
+`ref/oracle/play.png` for the wilderness).  This was blocked for a long time by
+the `REP CMPS/SCAS` `CX` bug (see the FIXED BUG section): the corrupted
+`strlen` broke the save-load path, so the engine never redrew the viewport and
+both slots showed the menu scene.  With the CPU fix the viewport is redrawn per
+slot.  Verify play-screen work against DOSBox per-slot captures.
 
 The **town is menu-only** (no free movement): the main screen offers
 `(E)mporium (B)ank (I)nn (H)ouse of trades (T)emple (C)ontinue`.  Each building
