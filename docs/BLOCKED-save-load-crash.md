@@ -1,9 +1,14 @@
 # Bug report for the maintainer — save-load crashes to `0000:0000`
 
-Filed by Agent A (workstream A).  The emulator cannot load a save and enter the
-play loop: the `play` golden is still unreproducible on `main`.  This is the one
-blocker keeping workstream A's first-person dungeon render unverifiable, so here
-is a precise, reproducible diagnosis.
+Filed by Agent A (workstream A).  **Status: RESOLVED on the merged branch — see
+`docs/BLOCKED-agent-a.md` for the fix (`9cde8ea`, space-padded 8.3 name
+resolution) and the merged-branch verification (`temple`/`play` goldens green,
+dungeon reads `DNGS/DNG05` / `DNG10`).**  The report is kept for the record.
+
+The emulator cannot load a save and enter the play loop: the `play` golden is
+still unreproducible on `main`.  This is the one blocker keeping workstream A's
+first-person dungeon render unverifiable, so here is a precise, reproducible
+diagnosis.
 
 ## Symptom
 
