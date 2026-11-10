@@ -519,18 +519,20 @@ enum CharOffset : size_t {
     //          stat <= 15 it is 350 * stat, otherwise 100 * stat + 3400
     //          (routine at image 0x9820).  Every shipped save character matches
     //          this (Str 19 -> 5300, 17 -> 5100, 13 -> 4550, 11 -> 3850).
-    //   +0x66  currently carried weight.  Accumulated by the weight routine as
-    //          the sum of every inventory item's weight (item +0x14), plus a
-    //          per-character base (10 * byte[+0x70] + word[+0x72]).
+    //   +0x66  currently carried weight.  Accumulated by the weight routine
+    //          (image 0x20F7E) as `10 * rations(+0x70) + gold(+0x72 low word)`
+    //          plus the sum of every inventory item's weight (item +0x14).
     // The load check refuses an action while `item_weight + +0x66 > +0x64`, and
     // the sheet's "Weight" line prints the pair as `%04d/%04d` (DS:0xafd9).
     kCharWeight64  = 0x64,  // word: maximum carryable weight
     kCharWeight66  = 0x66,  // word: currently carried weight
-    // The per-character base weight added by the weight routine (0x21030) before
-    // the item sum: `10 * byte[+0x70] + word[+0x72]`.  Verified on every shipped
-    // record: base + Σ item weight (item +0x14) == the stored +0x66 exactly.
-    kCharWeightBase70 = 0x70,  // byte: base weight / 10
-    kCharWeightBase72 = 0x72,  // word: base weight remainder
+    // Gold and rations, shown by the character sheet (builder at image 0x2BC5E).
+    // The "Rations.. : %02d" line reads the byte +0x70; the "Gold: %05ld$" line
+    // reads the 32-bit +0x72 (low word +0x72, high word +0x74).  Both also
+    // contribute to the carried weight above: each ration weighs 10 and each
+    // gold piece weighs 1 (the routine adds `10*+0x70 + word[+0x72]`).
+    kCharGold72    = 0x72,  // dword: gold (low word +0x72, high word +0x74)
+    kCharRations70 = 0x70,  // byte: rations
     // Hit points.  The character-sheet builder at 28054/28067 reads the current
     // value from +0x22 and divides 100*current by the value at +0x20 to get the
     // HP percentage it shows, so +0x20 is the maximum and +0x22 the current HP
@@ -651,8 +653,8 @@ struct CharSheet {
     uint8_t  load25 = 0;     // +0x25  carrying capacity / load
     uint16_t weight_max = 0; // +0x64  maximum carryable weight (see kCharWeight64)
     uint16_t weight_cur = 0; // +0x66  currently carried weight (see kCharWeight66)
-    uint8_t  weight_base70 = 0;  // +0x70  base weight / 10 (see kCharWeightBase70)
-    uint16_t weight_base72 = 0;  // +0x72  base weight remainder
+    uint32_t gold = 0;       // +0x72  gold (low word +0x72, high word +0x74)
+    uint8_t  rations70 = 0;  // +0x70  rations (see kCharRations70)
     // The 48 four-byte inventory slots at +0x82 (see kCharInv82).
     std::array<InvSlot, kCharInvCount> inv{};
     // Number of used slots (+0x6b; see kCharInvUsed6b).  The engine's armour
@@ -698,13 +700,16 @@ CharSheet decode_char(const uint8_t* raw);
 
 // Sum of the character's inventory items' weights (item +0x14) over its 48
 // slots.  The engine's carried total (`CharSheet::weight_cur`, char +0x66) is
-// this sum plus a small per-character base (10 * raw[+0x70] + word[+0x72]);
-// since the game stores the total, this only recomputes the item portion.
-// Empty slots (item == 0) and out-of-range indices contribute nothing.
+// this sum plus a per-character base of `10 * rations + gold` (see
+// `weight_base`); since the game stores the total, this only recomputes the
+// item portion.  Empty slots (item == 0) and out-of-range indices contribute
+// nothing.
 uint32_t carried_item_weight(const CharSheet& c);
 
-// The per-character base weight the weight routine adds before the item sum
-// (10 * +0x70 + +0x72; see kCharWeightBase70).  `weight_base(c) +
+// The per-character base term the weight routine (image 0x20F7E) adds before
+// the item sum: `10 * rations(+0x70) + gold low word (+0x72)` -- i.e. each
+// ration counts 10 weight units and each gold piece 1 (the units are tenths of
+// a pound, so a ration is 1 lb and a coin 0.1 lb).  `weight_base(c) +
 // carried_item_weight(c)` reproduces the stored carried total `weight_cur`.
 uint32_t weight_base(const CharSheet& c);
 

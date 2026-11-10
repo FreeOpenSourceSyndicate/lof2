@@ -104,15 +104,18 @@ def dump_save(path):
                 attr_a = (attr_a - 10) & 0xff
             attr_b = (r[0x5c] + r[0x1c]) & 0xff
             attr_c = (r[0x5f] + r[0x17]) & 0xff
-            # Carried-weight pair: +0x66 current / +0x64 max (item +0x14 sum
-            # plus the base 10*byte[+0x70] + word[+0x72]; see notes-b).
+            # Carried-weight pair: +0x66 current / +0x64 max.  The current is
+            # the item +0x14 sum plus the base 10*rations(+0x70) + gold(+0x72);
+            # gold is the 32-bit +0x72 (see notes-b).
             wmax = struct.unpack_from("<H", r, 0x64)[0]
             wcur = struct.unpack_from("<H", r, 0x66)[0]
+            gold = struct.unpack_from("<I", r, 0x72)[0]
+            rations = r[0x70]
             print(f"  [{i:2d}] present={r[0]:#04x} name={name!r} "
                   f"rnk={r[0x17]} con={r[0x44]} str={r[0x45]} dex={r[0x46]} "
                   f"int={r[0x47]} wis={r[0x48]} hp={hp}/{hpmax} "
                   f"mp={r[0x69]}/{r[0x68]} load={r[0x25]} exp={exp} "
-                  f"wt={wcur}/{wmax} "
+                  f"wt={wcur}/{wmax} gold={gold} rations={rations} "
                   f"body={r[0x24]} mods={r[0x5b]}/{r[0x5c]}/{r[0x5e]}/{r[0x5f]} "
                   f"flag={r[0x6a]} f0f={r[0x0f]} "
                   f"row=[{hp_pct} {r[0x24]} {hp_mod} {attr_a} {attr_b} {attr_c}]")
