@@ -196,6 +196,7 @@ const std::vector<ItemRecord>& items() {
             r.price = kItemFields[i][1];
             r.weight = kItemFields[i][2];
             r.f3 = kItemFields[i][3];
+            r.charges = static_cast<uint8_t>((kItemFields[i][3] >> 8) & 0xff);
             r.f4 = kItemFields[i][4];
             r.damage = static_cast<uint8_t>((kItemFields[i][4] >> 8) & 0xff);
             r.f5 = kItemFields[i][5];
@@ -283,10 +284,10 @@ void dump_items(std::FILE* out) {
         const ItemRecord& r = v[i];
         std::fprintf(out,
                      "[%3zu] %-18s class=%u eff=%u (%-16s) price=%d wt=%d "
-                     "dmg=%u f0=%d f3=%d f4=%d f5=%d f6=%d\n",
+                     "dmg=%u chg=%u f0=%d f3=%d f4=%d f5=%d f6=%d\n",
                      i, r.name.c_str(), r.item_class, r.effect,
                      item_effect_name(r.effect), r.price, r.weight, r.damage,
-                     r.f0, r.f3, r.f4, r.f5, r.f6);
+                     r.charges, r.f0, r.f3, r.f4, r.f5, r.f6);
     }
 }
 
@@ -588,10 +589,15 @@ uint8_t defense_from_items(const CharSheet& c) {
     for (const InvSlot& s : c.inv) {
         if (s.item == 0 || s.aux1 == 0) continue;
         const ItemRecord* it = item_by_index(s.item);
-        if (!it || it->f3 <= 0) continue;
+        if (!it) continue;
+        // The armour routine reads the LOW byte of item +0x16 only
+        // (`mov al, es:[bx+0xfd2]`, image 0x2116b); the high byte is the
+        // initial quantity/charges, not part of the AC.
+        uint8_t ac = (uint8_t)((uint16_t)it->f3 & 0xff);
+        if (ac == 0) continue;
         uint32_t v = (uint32_t)s.cond + 10;
         v -= v % 20;
-        total += (uint32_t)it->f3 * v / 100;
+        total += (uint32_t)ac * v / 100;
     }
     if (total > 0x5f) total = 0x5f;
     return (uint8_t)total;

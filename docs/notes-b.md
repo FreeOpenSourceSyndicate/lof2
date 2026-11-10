@@ -331,12 +331,23 @@ play-loop code, so treat them as unverified):
   from the target's HP at image `0x13ebd`); e.g. Short sword `(f0=1, price=10,
   wt=50, f4=0x0600 => dmg 6)`, Broadsword `(2,18,80,dmg 8)`, Two handed swrd
   `(2,25,456,dmg 11)`.
+- **`+0x17` (the HIGH byte of `f3`) = initial quantity / charges.**  The
+  item-add routine copies it straight into the inventory slot's count byte
+  `+0x84` (`mov al, es:[bx+0xfd3]` at image `0xbf5d`, stored at `+0x84`), so a
+  fresh stack starts at this count: arrows/bolts `10`, rations `1`, tinderbox
+  `200`; for charged magic items it is the charge count (staves 9..25, e.g.
+  Striking staff 23, Polymorph wand 17).  It is 0 for ordinary non-stackable
+  gear.  **Consequence for armour:** the armour routine reads only the LOW byte
+  of `+0x16` (`mov al, es:[bx+0xfd2]` at image `0x2116b`), so `defense_from_items`
+  must mask `f3 & 0xff` — otherwise a charged staff would contribute a huge
+  bogus AC.  Exposed as `ItemRecord::charges`.
 - armour (class 2): `f3` = AC (scaled by condition, image `0x2116b`), `f4` =
   armour sub-type; e.g. Leather `(f0=4, price=15, wt=150, f3=35)`.
-- projectiles (class 4): `f3` = ammo count; `f5` = the paired item's 1-based
-  index (e.g. Short arrows `f5 = 20` = Short bow at index 19); the launcher's
-  `f5` points back (Short bow `f5 = 21`).  `f5` also pairs Flask of oil <->
-  Lantern and the quest items (Emerald <-> Corona, Ring <-> Keystaff).
+- projectiles (class 4): `+0x17` = ammo count (10, see the charges bullet above);
+  `f5` = the paired item's 1-based index (e.g. Short arrows `f5 = 20` = Short bow
+  at index 19); the launcher's `f5` points back (Short bow `f5 = 21`).  `f5` also
+  pairs Flask of oil <-> Lantern and the quest items (Emerald <-> Corona,
+  Ring <-> Keystaff).
 - `f6` is a class-eligibility mask (14 bits; magic items set the high bits,
   e.g. 4095 = every class).  `item_usable_by_class()` reads it.
 
