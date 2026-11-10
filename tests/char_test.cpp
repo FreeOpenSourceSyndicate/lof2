@@ -368,13 +368,24 @@ static int real_data() {
     assert(kItemCount == 185);
     assert(it[0].name == "Club" && it[0].item_class == 1);
     assert(it[12].name == "Short sword" && it[12].f0 == 1 &&
-           it[12].f1 == 10 && it[12].weight == 50);
+           it[12].price == 10 && it[12].weight == 50 && it[12].damage == 6);
+    // Item price (+0x12): the equipment list prints it as `%4d$` (image 0xc474)
+    // and the shop buy/sell routines read the same field; see ItemRecord::price.
+    assert(it[0].name == "Club" && it[0].price == 5 && it[0].damage == 5);
+    assert(it[13].name == "Broadsword" && it[13].price == 18 &&
+           it[13].damage == 8);
     // Item weight (+0x14): the value the engine sums into a character's carried
-    // total.  Grounded in the weight routine (image 0x1BB32) and the load check
-    // at image 0x19B54 / 0x2965f; see ItemRecord::weight.
+    // total, and the equipment list shows it divided by 10 as pounds.
+    // Grounded in the weight routine (image 0x21030) and the load check at
+    // image 0x19B54 / 0x2965f; see ItemRecord::weight.
     assert(it[0].name == "Club" && it[0].weight == 100);
     assert(it[32].name == "Full plate" && it[32].weight == 650);
-    assert(it[0x1a].name == "Leather armour" && it[0x1a].item_class == 2);
+    // Weapon damage is the high byte of f4 (+0x18); armour has 0 there.
+    assert(it[0x1a].name == "Leather armour" && it[0x1a].item_class == 2 &&
+           it[0x1a].damage == 0);
+    // Paired-item index f5 (+0x1a) is 1-based: Short bow (idx 19) <-> arrows (20).
+    assert(it[19].name == "Short bow" && it[19].f5 == 21);
+    assert(it[20].name == "Short arrows" && it[20].f5 == 20);
     assert(it[184].name == "The Staff");
     // The trailing byte is a use-effect index (0 for plain gear), not a slot.
     assert(it[0x21].name == "Small shield" && it[0x21].item_class == 3 &&

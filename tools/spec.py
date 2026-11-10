@@ -163,9 +163,10 @@ def emit_items(exe_path, out_path):
         f.write("// 185 records of 32 bytes: 16-byte NUL-padded name, seven "
                 "little-endian\n// int16 fields, then a byte item class and a "
                 "byte use-effect index.\n"
-                "// The seven fields are at record offsets 0x10..0x1c; index 2 "
-                "(record\n// offset 0x14) is the item weight (see "
-                "ItemRecord::weight in port/char.h).\n\n")
+                "// The seven fields are at record offsets 0x10..0x1c; index 1 "
+                "(record\n// offset 0x12) is the price in gold and index 2 "
+                "(record offset 0x14) is\n// the item weight (see "
+                "ItemRecord::price / ::weight in port/char.h).\n\n")
         f.write("static const char kItemNames[kItemCount][16] = {\n")
         for nm in names:
             f.write('    "%s",\n' % c_string(nm))
