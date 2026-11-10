@@ -60,6 +60,15 @@ plausible fields (verify against the emulator's reads with `LOF_I21=1` +
   `decode_char`, printed it in `tools/spec.py --save`, and asserted it on the
   synthetic struct and the live `GAMES/GAME1` characters (Decker 379, Siegurd
   699, Handy 231).  `make test` passes.
+- (2026-11-08, branch `work/agent-b-weight`) **Resolved the item-table field
+  `f2` (record `+0x14`): it is the item WEIGHT**, not cost/AC — proven by the
+  carried-weight accumulator (image `0x1BB32`), the load check
+  (`item+0x14 + char+0x66 <= char+0x64` at `0x19B54`/`0x2965f`) and the sheet's
+  `Weight:` line, and reproduced exactly on 10/11 ROST characters and every named
+  GAME1..3 character.  Renamed `ItemRecord::f2 -> weight`, added
+  `kCharWeight64/66` + `CharSheet::weight_max/weight_cur` + `carried_item_weight`,
+  corrected the item-field notes, and asserted it in `char_test`.  `make test`
+  passes.
 
 ## Format findings (from data + `analysis/lof.asm`)
 
@@ -301,13 +310,20 @@ into `port/char_items.inc` (regenerate with `tools/spec.py --emit-items`, which
 reads the EXE once as a dev aid) and exposed as `items()` / `item_by_index()` /
 `dump_items()` in `port/char.{h,cpp}`.
 
-Field semantics (weapons line up cleanly; `f1..f4` are only partially named —
-their exact combat use lives in the play-loop code, so treat them as unverified):
+Field semantics (`f2` is grounded as the item weight; `f1`/`f3`/`f4` are only
+partially named — their exact combat/shop use lives in the play-loop code, so
+treat them as unverified):
 
+- **`f2` (record `+0x14`) = item weight.**  Grounded three ways (see the
+  "item weight" section below): the carried-weight accumulator, the load check,
+  and the character-sheet `Weight:` line.  This supersedes the earlier note that
+  called `+0x14` the *cost* (weapons) / *AC bonus* (armour) — the numbers were
+  right, the label was wrong.  Values run 5..3500 (`Club 100`, `Short sword 50`,
+  `Broadsword 80`, `Leather armour 150`, `Full plate 650`).
 - melee weapons (class 1): `f0` = weapon class code 1..4 (not a hands count),
-  `f1` = damage, `f2` = cost; e.g. Short sword `(1,10,50,…)`, Broadsword
+  `f1` = damage (unverified); e.g. Short sword `(1,10,50,…)`, Broadsword
   `(2,18,80,…)`, Two handed swrd `(2,25,456,…)`.
-- armour (class 2): `f1` = cost, `f2` = AC bonus, `f3` = further AC;
+- armour (class 2): `f1` = cost (unverified), `f3` = AC (unverified);
   e.g. Leather `(4,15,150,35)`, Full plate `(1,2000,650,90)`.
 - projectiles (class 4): `f3` = ammo count, `f5` = the launcher item index
   (e.g. Bolts `f5 = 24` = Crossbow); the launcher's `f5` points back.
@@ -808,27 +824,58 @@ class   = the item class byte (record +0x1e = 30)
 name    = the 16-byte name (record +0)
 ```
 
-That pins the sheet's per-item reads onto the item record, but it does **not**
-settle what each field means globally: the sheet divides record `+0x14` by 10 for
-its `Weight... ` line, yet the resulting values (Club 10.0, Broadsword 8.0,
-Leather armour 15.0) do not read like plausible weights, and the earlier
-item-table note called `+0x14` the *cost* (weapons) / AC bonus (armour).  So
-treat "`+0x14` = the weight the sheet shows" as the grounded part and the field's
-overall semantics as still open.  The sheet's ` Gold:` line is **not** summed
-from items at all: it prints the party's own 32-bit gold counter (`[bp-0x1a6]` +
-`0x31` = the `'$'` char) with the `%05ld$` format.  `Rations.. : ` formats a
-`%02d` count.
+That pins the sheet's per-item reads onto the item record.  (The ` Gold:` line is
+**not** summed from items at all: it prints the party's own 32-bit gold counter
+(`[bp-0x1a6]` + `0x31` = the `'$'` char) with the `%05ld$` format.  `Rations.. : `
+formats a `%02d` count.)
 
-The only residual uncertainty is whether the runtime copy is byte-identical to
-the static one (the loader may patch it), so mapping the sheet's reads onto the
-item record is a well-supported structural hypothesis rather than a fully
-oracle-confirmed fact.  The
-inventory *layout* (48 x 4-byte slots, item index at `+0x82`) is decoded and
-exposed (`CharSheet::inv`); confirming the patched fields needs the loader that
-populates `[0xb094]` (a main-loop/runtime concern, maintainer domain) or an
-oracle trace of the sheet's reads.  This is the one open item left in workstream
-B; everything else in this file is grounded against the static image and the
-shipped saves.
+### Resolved (2026-11-08): `+0x14` is the item **weight**
+
+The open question above is now closed by three independent, mutually-consistent
+pieces of evidence, so the earlier "cost / AC bonus" label for `+0x14` is
+**wrong** and has been corrected:
+
+1. **The carried-weight accumulator** (image `0x1BB32`, called from the
+   inventory/weight routines).  It reads the character's item-count byte
+   `+0x6b`, then for each of the `+0x82` inventory slots it does
+   `ax = es:[item_index * 32 + 0xfd0]` (the item record's `+0x14`, since
+   `0xfd0 = 0xfbc + 0x14`) and accumulates it into a 32-bit running total,
+   finally storing the low word at char `+0x66`.  The accumulator also seeds the
+   total with a per-character base `10 * byte[+0x70] + word[+0x72]`.  Because the
+   inventory byte is a **1-based** index (see below), the record fetched for
+   slot value `v` is `items()[v-1]`; the routine's `* 32` matches that.
+2. **The load check** at image `0x19B54` / `0x2965f`: an action is refused while
+   `item[+0x14] + char[+0x66] > char[+0x64]` — i.e. the item's `+0x14` plus the
+   already-carried total must not exceed the character's capacity `+0x64`.
+3. **The character sheet** (`Weight... %04d / %04d` at DS:0xafc0, and the
+   compact `Weight:%04d/%04d` at DS:0xafd9) prints exactly the pair
+   `(char[+0x66], char[+0x64])`.  The `/10` I previously attributed to the sheet
+   is **not** there: the sheet's two `Weight` prints show the raw words, and the
+   item table's `+0x14` values (5..3500) are the weights directly.
+
+**Oracle check.**  Recomputing `char[+0x66]` as
+`10*byte[+0x70] + word[+0x72] + Σ items()[v-1].weight` reproduces the stored
+value **exactly for 10 of the 11 ROST characters and for every named character
+in the shipped `GAMES/GAME1..GAME3` saves** (e.g. Connar 289, Stiletto 343,
+Handy 573, Siegurd 23).  The lone mismatch (Gorth, off by 10) is a single stale
+byte in that one ROST slot — the same class of snapshot drift the earlier note
+flagged for the ROST records generally — and does not affect the field identity.
+The only saves that do not match are unnamed ROST slots and the GAME5 Decker
+record, whose inventory/`+0x70` bytes are themselves inconsistent in the file.
+
+**Capacity `+0x64`.**  The maximum carried weight is set by the routine at image
+`0x981d`: `+0x64 = 350 * Strength(+0x45)` while Strength ≤ 15, else
+`100 * Strength + 3400` (`mul 0x64; add 0xd48`).  Every shipped save matches
+(Str 19 → 5300, 17 → 5100, 13 → 4550, 11 → 3850); the init routine seeds
+`+0x64 = 0x1324` (4900) first and this routine overwrites it.
+
+**Exposed.**  `ItemRecord::f2` was renamed to `ItemRecord::weight`; char offsets
+`kCharWeight64`/`kCharWeight66` and `CharSheet::weight_max`/`weight_cur` were
+added, projected by `decode_char`, and `carried_item_weight(CharSheet)` sums the
+inventory item weights.  `char_test` asserts the item weights (Club 100, Short
+sword 50, Full plate 650), the two char fields, and that
+`carried_item_weight(connar) + base == connar.weight_cur` on the real ROST.
+`tools/spec.py --emit-items` now documents record `+0x14` as the weight.
 
 ### Resolved: the stored item index base is 1-based
 

@@ -150,11 +150,18 @@ extern const char* const kClassName[kClassCount];
 
 struct ItemRecord {
     std::string name;
-    // Seven little-endian int16 fields.  f1..f4 are only partially named (their
-    // exact combat semantics live in the play-loop code); f5/f6 are grounded.
+    // Seven little-endian int16 fields.  `weight` is grounded; f0/f1/f3/f4 are
+    // only partially named (their exact combat semantics live in the play-loop
+    // code); f5/f6 are grounded.
     int16_t f0 = 0;  // weapon/armour class code (1..4)
     int16_t f1 = 0;  // weapon: damage; armour: cost
-    int16_t f2 = 0;  // weapon: cost; armour: AC bonus
+    // +0x14  Item weight.  Grounded three ways: the character's carried total
+    // (char +0x66) is accumulated as this value over the inventory slots
+    // (routine at image 0x1BB32, the sum ends at 0x1BBC5); the load check
+    // `weight + char[0x66] <= char[0x64]` at image 0x19B54 / 0x2965f; and the
+    // character sheet's "Weight" line, which prints char[0x66]/char[0x64]
+    // (image 0x10690, DS:0xafd9 "Weight:").  Values run 5..3500.
+    int16_t weight = 0;
     int16_t f3 = 0;  // armour: further AC; projectiles: ammo count
     int16_t f4 = 0;  // weapon: cost / damage multiplier
     int16_t f5 = 0;  // projectile -> launcher item index (weapons: 0)
@@ -423,6 +430,20 @@ enum CharOffset : size_t {
     kCharInvStride = 4,
     // +0x25 is a load/carry capacity byte (10 for most, 15 for Cassandra).
     kCharLoad25    = 0x25,  // byte: carrying capacity / load
+    // The carried-weight pair, grounded in the weight routine (image 0x1BB32)
+    // and the load check (image 0x19B54 / 0x2965f):
+    //   +0x64  maximum carryable weight.  Seeded 0x1324 (4900) by the init
+    //          routine and recomputed from a per-class stat (+0x45): with
+    //          stat <= 15 it is 350 * stat, otherwise 100 * stat + 3400
+    //          (routine at image 0x9820).  Every shipped save character matches
+    //          this (Str 19 -> 5300, 17 -> 5100, 13 -> 4550, 11 -> 3850).
+    //   +0x66  currently carried weight.  Accumulated by the weight routine as
+    //          the sum of every inventory item's weight (item +0x14), plus a
+    //          per-character base (10 * byte[+0x70] + word[+0x72]).
+    // The load check refuses an action while `item_weight + +0x66 > +0x64`, and
+    // the sheet's "Weight" line prints the pair as `%04d/%04d` (DS:0xafd9).
+    kCharWeight64  = 0x64,  // word: maximum carryable weight
+    kCharWeight66  = 0x66,  // word: currently carried weight
     // Hit points.  The character-sheet builder at 28054/28067 reads the current
     // value from +0x22 and divides 100*current by the value at +0x20 to get the
     // HP percentage it shows, so +0x20 is the maximum and +0x22 the current HP
@@ -516,6 +537,8 @@ struct CharSheet {
     uint8_t  mag_max68 = 0;  // +0x68  maximum magic points
     uint8_t  mag_cur69 = 0;  // +0x69  current magic points
     uint8_t  load25 = 0;     // +0x25  carrying capacity / load
+    uint16_t weight_max = 0; // +0x64  maximum carryable weight (see kCharWeight64)
+    uint16_t weight_cur = 0; // +0x66  currently carried weight (see kCharWeight66)
     // The 48 four-byte inventory slots at +0x82 (see kCharInv82).
     std::array<InvSlot, kCharInvCount> inv{};
 
@@ -544,6 +567,13 @@ struct CharSheet {
 // Decode a 410-byte character struct into a CharSheet.  `raw` must point at a
 // 410-byte buffer.
 CharSheet decode_char(const uint8_t* raw);
+
+// Sum of the character's inventory items' weights (item +0x14) over its 48
+// slots.  The engine's carried total (`CharSheet::weight_cur`, char +0x66) is
+// this sum plus a small per-character base (10 * raw[+0x70] + word[+0x72]);
+// since the game stores the total, this only recomputes the item portion.
+// Empty slots (item == 0) and out-of-range indices contribute nothing.
+uint32_t carried_item_weight(const CharSheet& c);
 
 // char +0x1d as derived from the Dexterity at +0x46 by the routine at 1BA40: a
 // character below Dexterity 16 keeps 10; from 16 up it is 5*dex - 65 (dex 16 ->
