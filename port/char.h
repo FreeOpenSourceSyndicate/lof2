@@ -466,6 +466,12 @@ enum CharOffset : size_t {
     kCharInv82     = 0x82,  // byte: base of the 48 x 4-byte inventory array
     kCharInvCount  = 48,
     kCharInvStride = 4,
+    // +0x6b is the number of *used* inventory slots.  The add routine
+    // (`0xc11a`, `0x2ed8a`) does `inc byte es:[bx+si+0x6b]` after storing a new
+    // item and the remove routine (`0x2e36b`) does `dec`; the armour routine
+    // (0x210E8) loops the slots only up to this count.  It equals the number of
+    // non-empty slots in every shipped ROST/GAMES record.
+    kCharInvUsed6b = 0x6b,  // byte: used inventory-slot count (0..48)
     // +0x25 is a load/carry capacity byte (10 for most, 15 for Cassandra).
     kCharLoad25    = 0x25,  // byte: carrying capacity / load
     // The carried-weight pair, grounded in the weight routine (image 0x1BB32)
@@ -604,6 +610,9 @@ struct CharSheet {
     uint16_t weight_cur = 0; // +0x66  currently carried weight (see kCharWeight66)
     // The 48 four-byte inventory slots at +0x82 (see kCharInv82).
     std::array<InvSlot, kCharInvCount> inv{};
+    // Number of used slots (+0x6b; see kCharInvUsed6b).  The engine's armour
+    // routine iterates only these; `defense_from_items` does the same.
+    uint8_t inv_used = 0;
 
     // HP as a percentage, computed exactly as the sheet builder does
     // (100 * hp_cur / hp_max, integer division); 0 when hp_max is 0.

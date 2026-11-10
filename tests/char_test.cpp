@@ -632,6 +632,10 @@ static int real_data() {
         assert(c.hp_cur <= c.hp_max);
         assert(c.hp_percent() == (c.hp_max ? 100 * c.hp_cur / c.hp_max : 0));
         assert(c.stat1d == char_stat1d_from_dex(c.dex46));
+        // +0x6b equals the number of non-empty inventory slots.
+        unsigned used = 0;
+        for (const InvSlot& sl : c.inv) if (sl.item) ++used;
+        assert(c.inv_used == used);
     }
     // A damaged character still projects consistently (Handy: 9 of 11 HP).
     CharSheet dk = decode_char(sv.chars[2].raw.data());
@@ -649,6 +653,9 @@ static int real_data() {
     assert(dki.inv[2].item == 13 && dki.inv[2].condition == 100);
     assert(dki.inv[3].item == 120 && dki.inv[3].equipped == 0);
     assert(dki.inv[4].item == 0);                     // rest empty
+    // +0x6b is the used-slot count; the engine's armour routine loops only
+    // these, so it equals the number of non-empty slots (Decker 4, Handy 6).
+    assert(dki.inv_used == 4 && dk.inv_used == 6);
     // The slot byte is a 1-based index into the 185-item table (0 = empty), the
     // same base item_by_index() uses: 27 -> Leather armour, not Studded leather.
     assert(dki.inv[0].item && item_by_index(dki.inv[0].item) &&

@@ -259,6 +259,7 @@ The attribute block and level field are grounded independently in the character
 | 0x1e | byte | **total defence / armour class**: seeded `100 - rec[0x2d]`, then the armour routine (0x210E8) overwrites it with `stat1d + Σ equipped-item AC`; the sheet reads it as the defence stat |
 | 0x20 | word | maximum hit points |
 | 0x22 | word | current hit points |
+| 0x6b | byte | **used inventory-slot count** (0..48); add routine `inc es:[bx+si+0x6b]` (`0xc11a`/`0x2ed8a`), remove `dec` (`0x2e36b`); the armour routine (0x210E8) loops the `+0x82` slots only up to this. Equals the non-empty-slot count in every shipped record. Exposed as `CharSheet::inv_used` |
 | 0x6c | dword | **experience** (32-bit: low word `+0x6c`, high word `+0x6e`) |
 | 0x44 | byte | **Constitution** |
 | 0x45 | byte | **Strength** |
