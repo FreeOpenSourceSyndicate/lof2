@@ -324,7 +324,8 @@ std::vector<std::string> monster_names(const std::string& dir, int scenario);
 // `stats[off - 38]`.
 enum SnsOffset : size_t {
     kSnsIndex2a = 0x2a,  // byte; selects a char +0x7a+n slot (set to 2)
-    kSnsBody2d  = 0x2d,  // byte; char +0x1e = 100 - value, char +0x1d = same
+    kSnsBody2d  = 0x2d,  // byte; seeds char +0x1d AND +0x1e = 100 - value; the
+                         //   armour routine later replaces +0x1e with the total AC
     kSnsBody2e  = 0x2e,  // byte; char +0x1c (45..75, a base stat)
     kSnsSpeed36 = 0x36,  // byte; char +0x56 (1..4)
     kSnsField3a = 0x3a,  // byte; char +0x14 (word; a per-class value, Siegurd 18)
@@ -345,7 +346,8 @@ struct CharSeed {
     uint8_t  c1c = 0;   // +0x1c  rec[0x2e]  base stat (45..75)
     uint8_t  c1d = 0;   // +0x1d  100 - rec[0x2d]  (transient: the attribute pass
                         //         overwrites it with 0x0a / 5*dex-0x41)
-    uint8_t  c1e = 0;   // +0x1e  100 - rec[0x2d]  body stat
+    uint8_t  c1e = 0;   // +0x1e  seeded 100 - rec[0x2d], then overwritten by the
+                        //         armour routine with the total defence (AC)
     uint8_t  c56 = 0;   // +0x56  rec[0x36]  speed 1..4
     uint8_t  c1b = 0x0c;  // +0x1b  const 12 (later reduced by the char gen)
     uint16_t c14 = 0;   // +0x14  rec[0x3a]  (a per-class value; Siegurd 18)
@@ -400,7 +402,9 @@ enum CharOffset : size_t {
     // routine sets byte +0x7a + rec[0x2a] to 2.
     kCharClass18   = 0x18,  // byte: 1 for PCs, 2 for big monsters
     kCharBase1c    = 0x1c,  // byte: base stat (45..75)
-    kCharStat1e    = 0x1e,  // byte: body stat (100 - rec[0x2d])
+    kCharStat1e    = 0x1e,  // byte: total defence (armour class); seeded
+                            //   100 - rec[0x2d] and replaced by the armour
+                            //   routine 0x210E8 (see defense_from_items)
     kCharSpeed56   = 0x56,  // byte: speed (1..4)
     kCharSeed7a    = 0x7a,  // byte: base of the +0x7a+n seed slots
     // Additional fields the same init routine writes (raw image 0x22F80..):
@@ -526,7 +530,8 @@ struct CharSheet {
     uint8_t  class18 = 0;    // +0x18  class flag (1 PC / 2 monster)
     uint8_t  base1c = 0;     // +0x1c  base stat (45..75)
     uint8_t  stat1d = 0;     // +0x1d  Dexterity-derived stat (see 1BA40)
-    uint8_t  stat1e = 0;     // +0x1e  body stat (100 - rec[0x2d])
+    uint8_t  stat1e = 0;     // +0x1e  total defence / armour class (see
+                             //   defense_from_items); seeded 100 - rec[0x2d]
     int16_t  hp_max = 0;     // +0x20  maximum hit points
     int16_t  hp_cur = 0;     // +0x22  current hit points
     uint32_t exp = 0;        // +0x6c  32-bit experience (low +0x6c, high +0x6e)
@@ -585,6 +590,19 @@ CharSheet decode_char(const uint8_t* raw);
 // since the game stores the total, this only recomputes the item portion.
 // Empty slots (item == 0) and out-of-range indices contribute nothing.
 uint32_t carried_item_weight(const CharSheet& c);
+
+// The character's total defence (armour class), computed exactly as the engine's
+// armour routine does (image 0x210E8; the sum lives at 0x2114E..0x211DA).
+// Starting from the Dexterity-derived stat (+0x1d), it adds each EQUIPPED
+// inventory item's armour AC (item field f3 / record +0x16) scaled by the item's
+// condition (slot byte +0x85, the slot's 4th byte):
+//     v = cond + 10; v -= v % 20; ac += f3 * v / 100;
+// An item only counts when its aux byte (+0x83, the slot's 2nd byte) is non-zero
+// (worn / wielded); a merely carried item adds nothing.  The total is clamped to
+// 0x5f.  The engine stores the result in char +0x1e, but only recomputes it when
+// the slot flag word +0x10 == -1 (see `flags10`); otherwise the saved +0x1e is
+// authoritative.  Use this helper when +0x1e may be stale.
+uint8_t defense_from_items(const CharSheet& c);
 
 // char +0x1d as derived from the Dexterity at +0x46 by the routine at 1BA40: a
 // character below Dexterity 16 keeps 10; from 16 up it is 5*dex - 65 (dex 16 ->

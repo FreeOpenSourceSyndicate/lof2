@@ -332,6 +332,23 @@ static int real_data() {
     assert(siegurd.name == "Siegurd" && carried_item_weight(siegurd) == 0);
     assert(siegurd.weight_cur == 23 && siegurd.weight_max == 4900);
 
+    // Total defence (see defense_from_items): the engine's armour routine
+    // (image 0x210E8) recomputes +0x1e from the Dexterity stat plus every
+    // EQUIPPED item's AC (item f3 scaled by condition) whenever the slot flag
+    // word +0x10 == -1, so the helper must reproduce the stored +0x1e exactly
+    // for those members.  Siegurd (+0x10 == 0) is a stale snapshot the engine
+    // leaves alone, so it is skipped.
+    for (const auto& rr : roster) {
+        if (rr.raw[0x10] != 0xff || rr.raw[0x11] != 0xff) continue;
+        CharSheet cs = decode_char(rr.raw.data());
+        assert(defense_from_items(cs) == cs.stat1e);
+    }
+    // Grounded anchors: Gorth's worn armour gives 50, Merlin's 20, while the
+    // lightly-equipped Connar stays at his Dexterity stat 10.
+    assert(defense_from_items(decode_char(roster[4].raw.data())) == 50);
+    assert(defense_from_items(decode_char(roster[7].raw.data())) == 20);
+    assert(defense_from_items(connar) == 10);
+
     ShopData shop = load_shop(std::string(dir) + "/ROST/SHOP");
     assert(shop.ok);
     // One signed adjustment per item, parallel to the item table order.
