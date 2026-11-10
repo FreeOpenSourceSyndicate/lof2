@@ -697,3 +697,44 @@ regenerated here.
 (`DNGS\DNG10` + `EGA/D0`) per the open trace.  The party (map, x, y, facing)
 offset inside `GAMES/GAME  n` is not decoded; that is workstream B/maintainer
 territory, so I cannot even pin a specific (pos, facing) to fit the rule against.
+
+### Round 13 — DP sprite-library geometry (data-only, no oracle needed)
+
+`EGA/D5/DPnnn` sizes cluster into a clean grid (width x height, indices):
+
+| size | n | indices |
+|------|---|---------|
+| 120x119 | 7 | 1, 14, 36, 58, 59, 60, 67 |
+| 64x59   | 2 | 15, 37 |
+| 32x59   | 4 | 18, 19, 40, 41 |
+| 32x119  | 6 | 24, 25, 46, 47, 68, 69 |
+| 32x29   | 2 | 16, 38 |
+| 24x19   | 2 | 17, 39 |
+| 16x59   | 4 | 26, 27, 48, 49 |
+| 16x48   | 2 | 52, 53 |
+| 16x47   | 2 | 30, 31 |
+| 16x29   | 10 | 20, 21, 32, 33, 42, 43, 54, 55, 56, 57 |
+| 16x26   | 2 | 34, 35 |
+| 16x19   | 4 | 22, 23, 44, 45 |
+| 8x29    | 4 | 28, 29, 50, 51 |
+
+Key structure: **indices 14..35 and 36..57 are the same size-pattern duplicated
+at offset 22** (14→36, 15→37, …; `[28,29]`→`[50,51]`, `[30,31]`→`[52,53]`,
+`[34,35]`→`[56,57]`).  The only mismatch is the last pair: the first block ends
+`[34,35]=16x26` and the second `[56,57]=16x29`, i.e. the copy is near-exact but
+not pixel-identical (`DP(14+k)` vs `DP(36+k)` best-case identity 0.89 at k=10,
+never a clean flip).  This looks like a **left/right pair of the same distant
+wall/door tile set** (a near-doubled block) rather than one shared block, which
+fits the "two off-centre columns of distant tiles" reading of the viewport.
+
+Some views are left-right symmetric and some are not: `DP067` is 99.7 %
+symmetric under `fliplr` (a straight corridor / symmetric room seen head-on),
+`DP001` only 56.8 % (an off-centre feature, e.g. a door on one side).  The
+Temple spawn oracle is 51.0 % symmetric, i.e. asymmetric — so the spawn is not a
+straight-down-corridor view, which is why `DP001` (asymmetric) matched it and
+`DP067` (symmetric) did not.
+
+Take-away for the rule: the library is a small set of *distant wall/door tiles*
+in two mirrored columns plus a full-view background, consistent with a
+ray-cast-like compositor, but the exact index→(distance, side, feature)
+assignment is still not derivable without more oracle frames.
