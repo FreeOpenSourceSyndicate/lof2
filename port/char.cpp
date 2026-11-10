@@ -105,6 +105,8 @@ SaveGame load_save(const std::string& path) {
     std::memcpy(g.header, d.data(), kSaveHeaderSize);
     g.ok = std::memcmp(g.header, kSaveMagic, 4) == 0;
     if (!g.ok) return g;
+    if (d.size() > kSaveLocOnes) g.loc_ones = d[kSaveLocOnes];
+    if (d.size() > kSaveLocTens) g.loc_tens = d[kSaveLocTens];
     size_t n = (d.size() - kSaveHeaderSize) / 410;
     for (size_t i = 0; i < n; i++) {
         const uint8_t* r = d.data() + kSaveHeaderSize + i * 410;
@@ -120,6 +122,23 @@ SaveGame load_save(const std::string& path) {
     size_t end = kSaveHeaderSize + n * 410;
     g.trailer.assign(d.begin() + end, d.end());
     return g;
+}
+
+uint16_t save_location(const SaveGame& g) {
+    return (uint16_t)(g.loc_tens * 10 + g.loc_ones);
+}
+
+std::string dungeon_map_name(uint16_t location) {
+    if (location > 99) return {};
+    char buf[16];
+    std::snprintf(buf, sizeof buf, "DNG%01u%01u", location / 10, location % 10);
+    return buf;
+}
+
+std::string dungeon_view_dir(uint16_t location) {
+    unsigned ones = location % 10;
+    if (location > 99 || ones > 7) return {};
+    return std::string("D") + (char)('0' + ones);
 }
 
 ShopData load_shop(const std::string& path) {

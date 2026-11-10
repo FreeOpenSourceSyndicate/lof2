@@ -216,6 +216,25 @@ static int real_data() {
     assert(sv.chars[2].profession == 3 && profession_names()[3] == "Smith");
     assert(sv.chars[1].profession == 12 && sv.chars[1].profession >= kProfessionCount);
 
+    // The party's location is two digit bytes: ones at save offset 0x9a2 and
+    // tens at 0x9a4 (verified by patching each and watching the emulator open
+    // the matching map).  They name the dungeon map (DNGS/DNG<tt><oo>) and the
+    // view-tile directory (EGA/D<ones>).  GAME1 starts in the Temple:
+    // location 5 -> DNGS/DNG05, view tiles in EGA/D5.  GAME2 is the wilderness:
+    // location 10 -> DNGS/DNG10, view tiles in EGA/D0.
+    assert(sv.loc_ones == 5 && sv.loc_tens == 0);
+    assert(save_location(sv) == 5);
+    assert(dungeon_map_name(5) == "DNG05");
+    assert(dungeon_view_dir(5) == "D5");
+    SaveGame sv2 = load_save(std::string(dir) + "/GAMES/GAME2");
+    assert(sv2.ok && sv2.loc_ones == 0 && sv2.loc_tens == 1);
+    assert(save_location(sv2) == 10);
+    assert(dungeon_map_name(10) == "DNG10");
+    assert(dungeon_view_dir(10) == "D0");
+    assert(dungeon_view_dir(11) == "D1");    // DNG11 -> ega/d1
+    assert(dungeon_view_dir(8).empty());     // no EGA/D8
+    assert(dungeon_map_name(100).empty());   // out of range
+
     // Item table (transcribed from LOF.EXE; no data file carries it).
     const auto& it = items();
     assert(it.size() == kItemCount);

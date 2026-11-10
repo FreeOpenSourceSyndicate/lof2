@@ -117,14 +117,27 @@ int main(int argc, char** argv) {
         Screen s;
         s.resize(320, 200);
         s.clear(0);
+        // "auto" picks the view tile from the save's location (EGA/D<ones>/
+        // DP001), so a save slot can be rendered without naming the directory.
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) {
+            sg = load_save(save);
+            have_sg = sg.ok;
+        }
+        if (play == "auto") {
+            if (!have_sg) { fprintf(stderr, "lof: --play auto needs a valid --save\n"); return 1; }
+            std::string vd = dungeon_view_dir(save_location(sg));
+            if (vd.empty()) { fprintf(stderr, "lof: save has no view directory\n"); return 1; }
+            play = vd + "/DP001";
+        }
         if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) { fprintf(stderr, "lof: %s\n", err.c_str()); return 1; }
         if (!blit_ega(s, dir + "/EGA/" + play, 10, 11, &err)) { fprintf(stderr, "lof: %s\n", err.c_str()); return 1; }
         // Party panel: the six character names in a 3x2 grid, drawn with CHR2's
         // 5x5 small-caps face.  Positions recovered from the oracle.
-        if (!save.empty()) {
+        if (have_sg) {
             Font small;
             if (small.load(dir + "/EGA/UP/CHR2", &err)) {
-                SaveGame sg = load_save(save);
                 std::vector<std::string> profs = profession_names();
                 static const int kColX[3] = {148, 208, 268};
                 static const int kRowY[2] = {9, 37};

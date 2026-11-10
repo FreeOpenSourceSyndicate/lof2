@@ -285,10 +285,32 @@ Recovered layout (matched against a DOSBox capture of save slot 2,
 
 * background = `EGA/UP/MSCR` (the same static HUD as the menu), blitted at (0,0);
 * first-person viewport = `EGA/<Dn>/<DPnnn>` (120x119) blitted into the window
-  at **(10,11)**.  `D0..D7` are the eight compass facings of one location;
-  `DP001`/`DP014`/`DP036` (+ `DP058..DP060`, `DP067` on D1..D7) are the full
-  120x119 views, and the smaller `DPnnn` (16x29, 32x59, …) are the partial
-  views used near map edges.
+  at **(10,11)**.  `D0..D7` are **view directories selected by the save's
+  location**, not compass facings: the party's location is a two-digit dungeon
+  id (see below) and the engine reads `EGA/D<ones-digit>`.  So dungeon 05 (the
+  Temple) draws from `EGA/D5` and dungeon 10 (the wilderness) from `EGA/D0`;
+  `D8`/`D9` are never used.  `DP001`/`DP014`/`DP036` (+ `DP058..DP060`,
+  `DP067`) are the full 120x119 views, and the smaller `DPnnn` (16x29, 32x59, …)
+  are the partial views used near map edges.
+
+### The party location field (2026-11-10)
+
+The party's current location is stored in the save as **two separate digit
+bytes**: the ones digit at file offset **0x9a2** and the tens digit at
+**0x9a4**.  The engine composes the map name as `DNGS\DNG%01ld%01ld` (the
+format string sits at LOF.EXE file offset 0x4bb35), i.e. 5 -> `DNGS\DNG05`,
+10 -> `DNGS\DNG10`.  The view tiles come from `EGA\D<ones-digit>`.
+
+Verified by patching the bytes and watching the emulator's open trace
+(`LOF_I21=1`): setting GAME2's ones byte (0x9a2) 0 -> 1 makes it open
+`DNGS\DNG11` + `ega\d1`; setting its tens byte (0x9a4) 1 -> 0 makes it open
+`DNGS\DNG00` + `ega\d0`.  Patching to a value whose map is absent (e.g. 0x9a2
+= 7 -> DNG17, no such file) makes the load fail and the engine stays in the
+town, which is why those probes show no `DNGS` open at all.
+
+`port/char.cpp` exposes `save_location()` / `dungeon_map_name()` /
+`dungeon_view_dir()`; `lof --play auto --save <slot>` renders the play screen
+for a save's own location (GAME1 -> `D5/DP001`, GAME2 -> `D0/DP001`).
 
 `MSCR + DP001 at (10,11)` matches the DOSBox capture at **91.7%**.  The residue:
 
@@ -302,11 +324,13 @@ Recovered layout (matched against a DOSBox capture of save slot 2,
 
 `tests/port_play_test.py` pins this (>=90% match); `make golden-port` runs it.
 
-### Why the emulator does not reproduce this
-`lof-native` never issues an `open` for any `ega\d0\dpnnn` file: its play loop
-draws a blank 120x119 window over `MSCR`.  Root cause not isolated (the asset
-table is referenced by the EXE string block at image offset ~0x3b6d1, but the
-indexing/loader path the emulator takes diverges).  The drop-in side-steps it.
+### Emulator parity (updated 2026-11-10)
+`lof-native` **does** open the view tiles: a slot-1 (Temple) load issues
+`open ega\d5\dp001`, then `dp014..dp060`, and slot 2 (wilderness) issues
+`ega\d0\dp001..`.  (The earlier note that it "never issues an open for any
+`ega\d0\dpnnn`" was a symptom of the REP CMPS/SCAS bug — the load aborted before
+reaching the view code.  Fixed; see the "identical viewport" entry above.)  The
+view directory follows the save's location: slot 1 -> `D5`, slot 2 -> `D0`.
 
 ### Correction: the party-panel font IS in CHR2 (2026-11-09)
 

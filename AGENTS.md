@@ -194,7 +194,9 @@ Progress:
       `EGA/D0/DP001` blitted into the 120x119 window at (10,11), then the six
       party-panel names and their professions from the save (`--save GAMES/GAMEn`)
       drawn in the compact small-caps face (names white, professions black).
-      Matches the DOSBox slot-2 capture `ref/oracle/play.png` at ~93.3%
+      `--play auto --save GAMES/GAMEn` picks the view directory from the save's
+      location (see the save-location note below).  Matches the DOSBox slot-2
+      capture `ref/oracle/play.png` at ~93.3%
       (residue = the engine's dynamic viewport overlays and the panel's
       stat-number row). Guarded by `tests/port_play_test.py`
       (`make golden-port`). The *interactive* play loop (input, movement,
@@ -381,6 +383,24 @@ second `C` on it heads out.
 
 The **wilderness and dungeons are reached by loading a save that starts there**
 (slots 1 and 2 above); walking out of town is not required.
+
+### Save location -> map and view directory (2026-11-10)
+
+The party's location is stored as **two digit bytes** in the save: the ones digit
+at offset **0x9a2** and the tens digit at **0x9a4**.  The engine builds the map
+name `DNGS\DNG%01ld%01ld` (format string at LOF.EXE file offset 0x4bb35), so 5
+-> `DNGS/DNG05`, 10 -> `DNGS/DNG10`.  The first-person view tiles come from
+`EGA/D<ones-digit>` (5 -> `D5`, 10 -> `D0`); `D8`/`D9` are never used.
+
+Verified by patching the bytes and reading the emulator's open trace
+(`LOF_I21=1`): GAME2's ones byte 0 -> 1 opens `DNGS\DNG11` + `ega\d1`; its tens
+byte 1 -> 0 opens `DNGS\DNG00` + `ega\d0`.  A value with no map file (e.g. 7 ->
+`DNG17`) makes the load fail and the engine stays in town (no `DNGS` open).
+
+`port/char.{h,cpp}` expose `SaveGame::loc_ones`/`loc_tens`, `save_location()`,
+`dungeon_map_name()` and `dungeon_view_dir()`; `lof --play auto --save <slot>`
+renders the play screen for a save's own location.  Guarded by
+`tests/char_test.cpp`.
 
 **The play screen reuses the menu chrome.**  `EGA/UP/MSCR` is still blitted
 first (its bottom strip at y>=196 matches the oracle byte-for-byte); the engine

@@ -305,6 +305,15 @@ enum CharOffset : size_t {
 constexpr size_t kSaveHeaderSize = 4;
 constexpr uint8_t kSaveMagic[4] = {0x00, 'F', 'O', 'L'};
 
+// The party's current location is stored as two separate digit bytes: the
+// ones digit at file offset 0x9a2 and the tens digit at 0x9a4 (verified by
+// patching them and watching the emulator).  The engine builds the map name as
+// `DNGS\DNG%01ld%01ld` (LOF.EXE 0x4bb35) from these two digits: 5 -> DNG05,
+// 10 -> DNG10.  The first-person view tiles live in `EGA\D<ones-digit>`
+// (5 -> D5, 10 -> D0); only 0..7 are used as view directories.
+constexpr size_t kSaveLocOnes = 0x9a2;
+constexpr size_t kSaveLocTens = 0x9a4;
+
 struct SaveChar {
     std::array<uint8_t, 410> raw{};  // one 0x19a character struct
     uint8_t present = 0;             // +0x00  non-zero: slot holds a character
@@ -315,9 +324,19 @@ struct SaveChar {
 struct SaveGame {
     bool ok = false;
     uint8_t header[4] = {0, 0, 0, 0};
+    uint8_t loc_ones = 0;             // +0x9a2  ones digit of the dungeon id
+    uint8_t loc_tens = 0;             // +0x9a4  tens digit of the dungeon id
     std::vector<SaveChar> chars;      // floor((size - 4) / 410) records
     std::vector<uint8_t> trailer;     // any bytes past the last whole record
 };
+
+// Combined location id (tens*10 + ones) for a save.
+uint16_t save_location(const SaveGame& g);
+
+// Map name (`DNGS/DNG05`) and view-tile directory (`D5`) for a location id.  The
+// view directory is empty if the ones digit exceeds 7 (no D8/D9).
+std::string dungeon_map_name(uint16_t location);
+std::string dungeon_view_dir(uint16_t location);
 
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
