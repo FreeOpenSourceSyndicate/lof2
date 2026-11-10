@@ -166,7 +166,17 @@ struct ItemRecord {
     // pounds (`%3dlb` at image 0xc477; `div 0xa` before the sheet's `Weight`
     // line at image 0x2c21d).  Raw values run 5..3500.
     int16_t weight = 0;
-    int16_t f3 = 0;     // +0x16  armour AC (scaled by condition, image 0x2116b)
+    int16_t f3 = 0;     // +0x16  armour AC in the LOW byte (the armour routine
+                        //        reads `es:[bx+0xfd2]`, image 0x2116b); the HIGH
+                        //        byte is the quantity/charges (`charges`)
+    // +0x17  Initial quantity / charges: the HIGH byte of `f3`.  A fresh stack
+    //        starts with this count (arrows 10, rations 1, tinderbox 200) and
+    //        the item-add routine copies it into the inventory slot's count
+    //        byte (`+0x84`, image 0xbf5d `mov al, es:[bx+0xfd3]`); for charged
+    //        magic items it is the charge count (staves 9..25).  0 for ordinary
+    //        non-stackable gear (weapons/armour/shields).  See
+    //        ItemRecord::charges.
+    uint8_t charges = 0;
     int16_t f4 = 0;     // +0x18  armour sub-type / projectile flag; weapons:
                         //        class code in the low byte, damage in the high
                         //        byte (exposed as `damage`)

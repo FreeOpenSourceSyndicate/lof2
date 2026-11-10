@@ -410,6 +410,14 @@ static int real_data() {
     // image 0x19B54 / 0x2965f; see ItemRecord::weight.
     assert(it[0].name == "Club" && it[0].weight == 100);
     assert(it[32].name == "Full plate" && it[32].weight == 650);
+    // Item quantity/charges (+0x17, the high byte of f3): the item-add routine
+    // copies it into the inventory slot's count byte (+0x84, image 0xbf5d),
+    // and the armour routine reads only the LOW byte of f3 (image 0x2116b).
+    assert(it[0].name == "Club" && it[0].charges == 0);
+    assert(it[20].name == "Short arrows" && it[20].charges == 10);
+    assert(it[35].name == "Tinderbox" && it[35].charges == 200);
+    assert(it[63].name == "Striking staff" && it[63].charges == 23 &&
+           (it[63].f3 & 0xff) == 0);
     // Weapon damage is the high byte of f4 (+0x18); armour has 0 there.
     assert(it[0x1a].name == "Leather armour" && it[0x1a].item_class == 2 &&
            it[0x1a].damage == 0);
