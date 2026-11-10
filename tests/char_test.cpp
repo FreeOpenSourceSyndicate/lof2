@@ -681,12 +681,28 @@ static int real_data() {
     // +0x25 is the load/carry byte (10 for the shipped party; 15 for Cassandra).
     assert(dki.load25 == 10 && dk.load25 == 10);
     assert(decode_char(sv.chars[4].raw.data()).load25 == 15);
-    // Magic points (+0x68 max / +0x69 cur).  Merlin (class 7, level 1, Int 19,
-    // Wis 12) stores 3/3 -- the per-(class,level) table lookup plus the Int
-    // bonus; Handy stores 1/1.  They are equal at rest.
+    // Magic points (+0x68 max / +0x69 cur).  Merlin (profession 7, level 1,
+    // Int 19, Wis 12) stores 3/3 -- the per-(profession,level) table lookup
+    // plus the Int bonus; Handy (profession 3) stores 1/1.  Equal at rest.
     CharSheet mrl = decode_char(sv.chars[3].raw.data());
     assert(mrl.name == "Merlin" && mrl.mag_max68 == 3 && mrl.mag_cur69 == 3);
     assert(dk.mag_max68 == 1 && dk.mag_cur69 == 1);
+    // The MP table is a 12 x 16 byte block in LOF.EXE (port/char_magic.inc),
+    // indexed by profession (+0x1b) and level (+0x17).  Spot values and the
+    // out-of-range guards (profession 12 = "none", level >= 16 -> 0).
+    assert(kMagicProfCount == 12 && kMagicLevels == 16);
+    assert(magic_table_value(7, 1) == 1 && magic_table_value(3, 1) == 1);
+    assert(magic_table_value(10, 1) == 1 && magic_table_value(9, 1) == 0);
+    assert(magic_table_value(7, 15) == 20);
+    assert(magic_table_value(12, 1) == 0 && magic_table_value(7, 16) == 0);
+    // magic_max() recomputes the fill routine's value from the stats and
+    // matches the stored maximum for every live character in the save.
+    for (const auto& sc : sv.chars) {
+        if (sc.present != 1) continue;
+        CharSheet c = decode_char(sc.raw.data());
+        assert(c.magic_max() == c.mag_max68);
+    }
+    assert(mrl.magic_max() == 3 && dk.magic_max() == 1);
     // Every in-use character: no slot points past the 185-item table.
     for (const auto& sc : sv.chars) {
         if (sc.present != 1) continue;
