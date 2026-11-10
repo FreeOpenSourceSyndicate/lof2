@@ -1040,3 +1040,38 @@ where `bx` is the item index (image `0x13A82`, `0x1CFD2`, `0x1D156`); its bit 2
 (`test al,4`) is the "usable" flag the use path checks.  It is a **runtime**
 table, not present in the data files, so its full contents are only reachable
 from the main loop (maintainer domain).
+
+## Blockers (Workstream B) — 2026-11-08
+
+Sorted by who is needed to unblock. Everything B can ground from the static
+image (`LOF.EXE` disassembly + the data files) is already done; the items below
+need runtime state or another lane.
+
+### Needs the maintainer (play loop / oracle)
+- **HIGH — reach combat/shop/item-use in the oracle.** The oracle currently
+  stops at `town` (`--keys 0x18,0x1c`). A scripted path into a combat encounter
+  (and the shop / item-use screens) would let B ground the last runtime tables
+  against real reads (`LOF_I21`/`LOF_READ`), exactly as SPEC/ROST were grounded.
+- **MEDIUM — expose the runtime item-use table.** The 36-byte item-use table
+  `es:[item*0x24 + 0x2712]` (bit 2 = "usable", read at `0x13A82`, `0x1CFD2`,
+  `0x1D156`) lives in a runtime segment that is not in any data file, so its
+  contents can only be captured from a running engine (a debug dump like
+  `LOF_EDUMP` but for that segment).
+- **MEDIUM — wire B's grounded model into `lof.cpp`.** `defense_from_items()`,
+  the slot semantics (`equipped`/`charges`/`condition`) and the combat-damage
+  model (above) are ready to use; consuming them is `lof.cpp` (SERIAL) work.
+- **LOW — remaining char-struct fields.** `+0x0e` (target slot), `+0x0f`
+  (action byte), `+0x1a` (class/category scaling) are read by the combat routine
+  but their *display* names need the live status/combat UI.
+
+### Needs workstream A (dungeons)
+- **MEDIUM — dungeon/event screens reachable.** B's SPEC dispatch types
+  (7/9/0x0c/0x0e/0x11/0x19/25) drive the dungeon event system that A owns; their
+  handler ground truth (e.g. the type-7 door countdown, the type-0x19 guardian
+  riddle) can only be confirmed once A can drive those screens in the oracle.
+
+### Needs B (me) — nothing currently unblocked
+The remaining SNSC/NSC 40-byte stat-block names (`rec[0x28]`, `0x29`, `0x2b`,
+`0x30`..`0x33`, `0x44`..`0x4e`) are consumed by the monster **runtime record**
+builder (`0x2CF0E`) and the combat routine (`0x1904B`), i.e. play-loop state, so
+naming them statically would be guesswork. Left as a documented follow-up.
