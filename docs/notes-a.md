@@ -545,5 +545,24 @@ moved view (best single-sprite match there is only 0.64), so the engine
 composites several pieces; pinning the index needs the selection code or more
 oracle frames.
 
+### Round 9 — more oracle frames (DOSBox is available)
+
+`dosbox 0.74-3` + `xvfb` + `xdotool` install cleanly (`apt-get install dosbox
+xvfb xdotool imagemagick`), so we can generate our own oracle frames instead of
+relying on PR #50's two stills.  Recipe: `tools/capture_dosbox.sh`'s approach,
+but take **DOSBox's own screenshots** (`Ctrl+F5` -> exact 320x200 PNG in the
+configured `captures/` dir) rather than an X11 window grab (which is scaled and
+unreliable).  The dungeon-entry key sequence is `space` (title) ×2, then at the
+inn `o` (Open file), `1` (slot 1) — matches PR #50's captures.
+
+**The viewport is composited from several sprites, confirmed:** neither oracle
+frame is a single `DPnnn` — spawn matches `DP001` 95.2% (a right-side wall block
+differs, no single overlay sprite explains it) and the moved frame's best single
+sprite is only 57.6%.  So the engine blits a base view then overlays wall pieces
+by the local map structure.  Fully reproducing arbitrary views needs either the
+(GFA-compiled) selection code or a systematic oracle sweep; both are out of scope
+for this pass.  The drop-in draws the verified `DP001` entry view.
+
+
 
 
