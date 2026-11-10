@@ -493,3 +493,45 @@ sampled centres carry three distinct colours, wall = 4 and door = 14.  This pins
 the walkable-map rendering the DoD asks for (the first-person *viewport* still
 needs the oracle).  Filed `docs/BLOCKED-agent-a.md`.
 
+### Round 8 — save-load fix confirmed + first-person viewport
+
+The maintainer's fix landed as PR #50 (`work/maintainer-town`, still open when
+this was written): **REP CMPS/SCAS must leave the remaining count in `CX`**, not
+force it to 0.  The MS-C run-time `strlen` (`repne scasb; not cx; dec cx`) then
+returns the real length, so the `sprintf("%2d%%")` width no longer overruns a
+4-byte stack local and the slot-1 `RETF` no longer jumps to `0000:0000`.  Built
+the PR head and ran both goldens — `temple` (`a3f719ed…`) and `play`
+(`585da631…`) match exactly, no crash.  **Save loading works.**
+
+That PR also ships the missing oracle: `ref/oracle/dungeon_slot1.png` and
+`dungeon_slot1_moved.png` are real DOSBox captures of the slot-1 Temple dungeon
+(loaded with `O`,`1`).  Findings:
+
+* Slot 1 is **dungeon 5**: the engine reads `DNGS/DNG05` (1464 bytes) and the
+  whole `ega\d5\dpnnn` sprite set (`DP001`, `DP014`..`DP069`).
+* The play-screen 3D window occupies **x139..319, y91..195** of the 320x200
+  frame (166x105); the static frame comes from `EGA/UP/MSCR`.
+* At spawn the window is **99% flat light grey (index 7)** — the party faces a
+  wall — with only a 9% dark-grey (8) floor strip at the bottom.  After a move
+  (`dungeon_slot1_moved.png`) black (0) and white (15) structure appears: a
+  ceiling edge, side-wall pillars and perspective floor lines.
+* **No single `DPnnn` sprite matches the window** (best template IoU ~0.5 for
+  the small 8x29/16x29 pieces, and the full-view sprites are 120x119 *left-hand*
+  views that don't line up).  The engine fills the window with the wall colour
+  and paints structure over it, so the drop-in derives that structure from the
+  map rather than blitting a sprite.
+
+Implemented `render_dungeon_viewport()` (`port/dungeon.h/.cpp`): a DDA ray-cast
+of the 36x36 tile grid along the party facing, 60-degree FOV, drawing a grey (7)
+wall band whose height is the projected wall height on a black (0) ceiling/floor.
+A solid wall one cell ahead clamps to the full window → a flat grey sheet, which
+is exactly the oracle's spawn view; open corridors expose the floor and the
+perspective side walls.  `tests/dungeon_test.cpp::test_viewport` pins: (a) wall
+ahead → the whole window is index 7; (b) facing open space → mostly index 0 with
+some wall; (c) a nearer wall covers more of the window than a farther one.
+`tools/dngs.py viewport <file> [x y facing]` prints the same view offline (the
+Python and C++ renders agree cell-for-cell).
+
+Window constants `kViewportX/Y/W/H` = 10/11/120/119 for blitting over `MSCR`.
+
+

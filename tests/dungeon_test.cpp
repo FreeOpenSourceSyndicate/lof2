@@ -258,6 +258,64 @@ static void test_render_layers() {
     assert(!dungeon_is_solid_tile(6) && !dungeon_is_solid_tile(0));
 }
 
+// First-person viewport.  A solid wall directly ahead fills the window with
+// the flat wall colour (the oracle's Temple spawn view); an open corridor
+// exposes the dark floor and the side walls, so the column histogram changes.
+static void test_viewport() {
+    Dungeon d;
+    d.tiles.assign(kDungeonTiles, 6);       // floor everywhere
+    d.objects.assign(kDungeonTiles, 0);
+    Screen scr; scr.resize(320, 200);
+
+    auto count = [&](uint8_t c) {
+        int n = 0;
+        for (int y = 0; y < kViewportH; y++)
+            for (int x = 0; x < kViewportW; x++)
+                if (scr.pixels[(size_t)(kViewportY + y) * scr.width +
+                               kViewportX + x] == c) n++;
+        return n;
+    };
+
+    // Wall one cell north of the party, facing it: the whole window is wall.
+    d.tiles[9 * kDungeonW + 10] = 3;        // wall at (10,9)
+    DungeonPos p{10, 10, 0};                // at (10,10), facing N
+    scr.clear(15);
+    render_dungeon_viewport(scr, d, p);
+    assert(count(7) == kViewportW * kViewportH);   // all wall (index 7)
+    assert(count(0) == 0);
+
+    // Turn around: the cell south is open, so the window is mostly floor with
+    // a distant wall band — it must NOT be a flat sheet any more.
+    p.facing = 2;                            // S
+    scr.clear(15);
+    render_dungeon_viewport(scr, d, p);
+    int wall = count(7), open = count(0);
+    assert(open > kViewportW * kViewportH / 2);    // mostly open
+    assert(wall > 0);                              // still some wall visible
+    assert(wall < kViewportW * kViewportH);
+
+    // A wall one cell away fills more of the window than one four cells away.
+    Dungeon d2;
+    d2.tiles.assign(kDungeonTiles, 6);
+    d2.objects.assign(kDungeonTiles, 0);
+    d2.tiles[9 * kDungeonW + 10] = 3;
+    Screen near; near.resize(320, 200);
+    render_dungeon_viewport(near, d2, DungeonPos{10, 10, 0});
+    d2.tiles[9 * kDungeonW + 10] = 6;
+    d2.tiles[6 * kDungeonW + 10] = 3;        // wall at (10,6), 4 cells ahead
+    Screen far; far.resize(320, 200);
+    render_dungeon_viewport(far, d2, DungeonPos{10, 10, 0});
+    auto wallcount = [](const Screen& s) {
+        int n = 0;
+        for (int y = 0; y < kViewportH; y++)
+            for (int x = 0; x < kViewportW; x++)
+                if (s.pixels[(size_t)(kViewportY + y) * s.width + kViewportX + x] == 7)
+                    n++;
+        return n;
+    };
+    assert(wallcount(near) > wallcount(far));
+}
+
 static void test_walk() {
     Dungeon d;
     d.tiles.assign(kDungeonTiles, 6);
@@ -399,6 +457,7 @@ int main(int argc, char** argv) {
     test_reachable();
     test_render_facing();
     test_render_layers();
+    test_viewport();
     test_walk();
     test_level_connected((argc > 1) ? argv[1] : "game/DNGS");
     std::string dir = (argc > 1) ? argv[1] : "game/DNGS";
