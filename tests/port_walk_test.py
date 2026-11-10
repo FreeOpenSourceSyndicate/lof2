@@ -90,6 +90,25 @@ def main() -> int:
         else:
             print("port_walk_test: FAIL viewport (walk screen identical to --play)")
             rc = 1
+
+        # The interactive front-end (--ui) must drive the same walk model: after
+        # opening the save ('O') the arrow keys move the party, so a scripted
+        # 'O', down, up, up must land on the same frame as the direct --walk.
+        ui_shot = "/tmp/port_walk_ui.png"
+        subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--ui", "--save", SAVE,
+                        "--ui-keys", "32,32,79,0x40000051,0x40000052,0x40000052",
+                        "--shot", ui_shot],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        direct_shot = "/tmp/port_walk_direct.png"
+        walk("0x50,0x48,0x48", direct_shot)
+        u = np.asarray(Image.open(ui_shot).convert("RGB"))
+        d = np.asarray(Image.open(direct_shot).convert("RGB"))
+        if u.shape == d.shape and (u == d).all():
+            print("port_walk_test: ui walk ok (--ui arrows == direct --walk)")
+        else:
+            print("port_walk_test: FAIL ui walk (--ui arrows differ from --walk)")
+            rc = 1
     except ImportError:
         pass
 

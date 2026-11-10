@@ -186,56 +186,6 @@ static void dump_dungeon(const std::string& dir) {
     }
 }
 
-// The interactive front-end loop.  `intro` is the title/credits/menu sequence;
-// any key advances it.  At the menu the recovered hot-keys apply: 'O' loads
-// `save_path` and switches to the in-game play screen, 'Q'/Esc quits.  Frames
-// are presented through an SDL window; without SDL2 there is no input source,
-// so the loop exits immediately (headless builds still exercise the composition
-// code through the scripted entry points --screen/--play/--shot).
-static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
-                   const std::string& save_path, const std::vector<int>& keys,
-                   const std::string& shot) {
-    Window win;
-    win.open("Legend of Faerghail", 320, 200);
-    win.script(keys);
-    std::string err;
-    enum { INTRO, PLAY } state = INTRO;
-    size_t frame = 0;
-    Screen play_screen;
-    bool have_play = false;
-    for (;;) {
-        if (state == INTRO) win.present(intro[frame]);
-        else if (have_play) win.present(play_screen);
-        int key = -1; bool quit = false;
-        if (!win.wait_key(&key, &quit)) break;   // no SDL: nothing to drive it
-        if (quit) break;
-        if (state == INTRO) {
-            bool on_menu = (frame + 1 == intro.size());
-            if (on_menu && key == 'O') {
-                SaveGame sg = load_save(save_path);
-                std::string vd = sg.ok ? dungeon_view_dir(save_location(sg)) : std::string();
-                if (!vd.empty() &&
-                    compose_play_screen(dir, vd + "/DP001", sg, true, play_screen, err)) {
-                    have_play = true;
-                    state = PLAY;
-                }
-            } else if (on_menu && key == 'Q') {
-                break;
-            } else if (frame + 1 < intro.size()) {
-                frame++;
-            }
-        } else if (state == PLAY) {
-            if (key == 'Q') break;
-        }
-    }
-    win.close();
-    if (!shot.empty()) {
-        const Screen& s = have_play ? play_screen : intro[frame];
-        if (!save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return false; }
-    }
-    return true;
-}
-
 // Draw the dungeon level inside the viewport rectangle (walk mode): the 36x36
 // tiles at `cell` px each, coloured by code (walls grey, floor dark grey, void
 // black), with the party marked and its facing shown as an arrow.  Uses agent
@@ -265,6 +215,81 @@ static void draw_viewport_map(Screen& s, const Dungeon& d, const DungeonPos& p) 
     }
 }
 
+// Translate an input key to a walk action and apply it.  Accepts either the
+// BIOS scancode the walk model documents (0x48 up, 0x50 down, 0x4b left,
+// 0x4d right) or the SDL2 arrow keysym (0x40000052 up, 0x40000051 down,
+// 0x40000050 left, 0x4000004f right) that Window::poll_key reports.  Returns
+// true if the key was a movement key.
+static bool walk_apply_key(Dungeon& d, DungeonPos& p, int key) {
+    switch (key) {
+        case 0x48: case 0x40000052: dungeon_step(d, p); return true;   // up
+        case 0x50: case 0x40000051:                                    // down
+            dungeon_turn(p, true); dungeon_turn(p, true); return true;
+        case 0x4b: case 0x40000050: dungeon_turn(p, false); return true;  // left
+        case 0x4d: case 0x4000004f: dungeon_turn(p, true); return true;   // right
+        default: return false;
+    }
+}
+
+// The interactive front-end loop.  `intro` is the title/credits/menu sequence;
+// any key advances it.  At the menu the recovered hot-keys apply: 'O' loads
+// `save_path` and switches to the in-game play screen, 'Q'/Esc quits.  Frames
+// are presented through an SDL window; without SDL2 there is no input source,
+// so the loop exits immediately (headless builds still exercise the composition
+// code through the scripted entry points --screen/--play/--shot).
+static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
+                   const std::string& save_path, const std::vector<int>& keys,
+                   const std::string& shot) {
+    Window win;
+    win.open("Legend of Faerghail", 320, 200);
+    win.script(keys);
+    std::string err;
+    enum { INTRO, PLAY } state = INTRO;
+    size_t frame = 0;
+    Screen play_screen;
+    bool have_play = false;
+    Dungeon dng;
+    DungeonPos pos;
+    bool have_dng = false;
+    for (;;) {
+        if (state == INTRO) win.present(intro[frame]);
+        else if (have_play) win.present(play_screen);
+        int key = -1; bool quit = false;
+        if (!win.wait_key(&key, &quit)) break;   // no SDL: nothing to drive it
+        if (quit) break;
+        if (state == INTRO) {
+            bool on_menu = (frame + 1 == intro.size());
+            if (on_menu && key == 'O') {
+                SaveGame sg = load_save(save_path);
+                std::string vd = sg.ok ? dungeon_view_dir(save_location(sg)) : std::string();
+                if (!vd.empty() &&
+                    compose_play_screen(dir, vd + "/DP001", sg, true, play_screen, err)) {
+                    have_play = true;
+                    state = PLAY;
+                    // Load the save's dungeon so the play state is walkable.
+                    have_dng = load_dungeon(dir + "/DNGS/" + dungeon_map_name(save_location(sg)),
+                                            dng, &err) && dungeon_place(dng, pos, 0, 0);
+                }
+            } else if (on_menu && key == 'Q') {
+                break;
+            } else if (frame + 1 < intro.size()) {
+                frame++;
+            }
+        } else if (state == PLAY) {
+            if (key == 'Q') break;
+            // Arrow keys walk the party; recompose the viewport map after a move.
+            if (have_dng && walk_apply_key(dng, pos, key))
+                draw_viewport_map(play_screen, dng, pos);
+        }
+    }
+    win.close();
+    if (!shot.empty()) {
+        const Screen& s = have_play ? play_screen : intro[frame];
+        if (!save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return false; }
+    }
+    return true;
+}
+
 // --walk: load the save's dungeon, place the party and replay a scancode
 // sequence through the walk model, then render the play screen with the
 // level map in the viewport.  Scancodes: up 0x48 step, down 0x50 turn 180,
@@ -283,16 +308,10 @@ static bool walk_loop(const std::string& dir, const std::string& save,
         return false;
     }
     dungeon_place(d, pos, 0, 0);
-    for (int k : keys) {
-        switch (k) {
-            case 0x48: dungeon_step(d, pos); break;
-            case 0x50: dungeon_turn(pos, true); dungeon_turn(pos, true); break;
-            case 0x4b: dungeon_turn(pos, false); break;
-            case 0x4d: dungeon_turn(pos, true); break;
-            default: break;
-        }
-    }
-    if (!compose_play_screen(dir, "D0/DP001", sg, true, out, err)) return false;
+    for (int k : keys) walk_apply_key(d, pos, k);
+    std::string vd = dungeon_view_dir(save_location(sg));
+    if (!compose_play_screen(dir, vd.empty() ? "D0/DP001" : vd + "/DP001", sg, true, out, err))
+        return false;
     draw_viewport_map(out, d, pos);
     return true;
 }
@@ -381,11 +400,12 @@ int main(int argc, char** argv) {
         for (int i = 1; i < argc; i++) {
             if (std::string(argv[i]) == "--save" && i + 1 < argc) ui_save = argv[++i];
             else if (std::string(argv[i]) == "--ui-keys" && i + 1 < argc) {
-                // comma-separated ASCII codes, e.g. "32,32,79" (space,space,'O')
+                // comma-separated key codes, decimal or 0x-hex, e.g.
+                // "32,32,79" (space,space,'O') or "79,0x40000052" ('O', up-arrow)
                 std::string s = argv[++i], cur;
                 for (size_t j = 0; j <= s.size(); j++) {
                     if (j == s.size() || s[j] == ',') {
-                        if (!cur.empty()) ui_keys.push_back(atoi(cur.c_str()));
+                        if (!cur.empty()) ui_keys.push_back((int)strtol(cur.c_str(), nullptr, 0));
                         cur.clear();
                     } else cur.push_back(s[j]);
                 }
