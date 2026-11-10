@@ -8,6 +8,7 @@
 #include "screens.h"
 #include "font.h"
 #include "char.h"
+#include "dungeon.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -59,9 +60,31 @@ static void dump_spec_files(const std::string& dir) {
     }
 }
 
+// --dump-dungeon: decode DNGS/DNGxx and print the 36x36 floor plan so the
+// recovered map format is visible from the shipped front-end.
+static void dump_dungeon(const std::string& dir) {
+    static const char* kNames[] = {"DNG05", "DNG00", "DNG10", "DNG13"};
+    static const char kGlyph[] = ".123456789AB";
+    for (const char* name : kNames) {
+        std::string p = dir + "/DNGS/" + name;
+        DungeonMap m = load_dungeon(p);
+        if (!m.ok) { printf("%s: <missing or malformed>\n", name); continue; }
+        printf("%s: level=%u style=%u music=%u spawn=%u\n", name, m.level(),
+               m.style(), m.music(), m.spawn());
+        for (int y = 0; y < kDungeonDim; y++) {
+            std::string row;
+            for (int x = 0; x < kDungeonDim; x++) {
+                uint8_t v = m.walls[y][x];
+                row.push_back(v < 12 ? kGlyph[v] : '?');
+            }
+            printf("  %s\n", row.c_str());
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     std::string dir = game_dir(argv[0]);
-    bool headless = false, have_shot = false, dump = false, dump_spec = false;
+    bool headless = false, have_shot = false, dump = false, dump_spec = false, dump_dng = false;
     std::string shot;
     long shot_frame = -1;
 
@@ -71,12 +94,14 @@ int main(int argc, char** argv) {
         else if (a == "--headless") headless = true;
         else if (a == "--dump-data") dump = true;
         else if (a == "--dump-spec") dump_spec = true;
+        else if (a == "--dump-dungeon") dump_dng = true;
         else if (a == "--shot" && i + 1 < argc) { shot = argv[++i]; have_shot = true; }
         else if (a == "--shot-frame" && i + 1 < argc) shot_frame = atol(argv[++i]);
     }
 
     if (dump) { dump_data(dir); return 0; }
     if (dump_spec) { dump_spec_files(dir); return 0; }
+    if (dump_dng) { dump_dungeon(dir); return 0; }
 
     Screen scr;
     scr.resize(320, 200);

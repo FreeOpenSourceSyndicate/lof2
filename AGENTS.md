@@ -567,10 +567,46 @@ save-location field: slot 1 opens `DNGS\DNG05` + `ega\d5`, slot 2 opens
   `make golden-noexe` (`tests/port_noexe_test.py`), which renders the menu from a
   game tree that contains no `.EXE` and checks it against the oracle.
 
-## Dungeon files (`DNGS/`) — partial
+## Dungeon files (`DNGS/`) — decoded
 
-`DNGS/DNG00`..`DNGxx` are RLE-compressed (escape `0xff`, same run idea as the EGA
-images but a different header).  Interior values are small codes (`00 03 06 0c`)
-consistent with per-cell tile/feature codes.  See `docs/WORKSTREAMS.md` for the
-decode task; ground-truth against the emulator's reads of `DNGS/` (`LOF_I21=1`)
-and the EGA planes (`LOF_EDUMP=`).
+`DNGS/DNG00`..`DNGxx` hold the scenario maps (a dungeon / outdoor level).  Each
+file is RLE-compressed and **every shipped map decodes to the same size**, which
+pins the format exactly:
+
+```
+byte 0      RLE escape byte (0xff in all shipped maps)
+byte 1..    RLE stream: a literal byte is copied as-is; the escape byte
+            introduces a (count, value) pair emitting `value` `count` times
+```
+
+Decoded payload = 4-byte header + three 36x36 byte layers
+(`4 + 3*1296 = 3892` bytes):
+
+| offset | field |
+|---|---|
+| header[0] | dungeon level / plane id (0 except DNG13 = 4) |
+| header[1] | style / tileset selector (0..3) |
+| header[2] | music / ambient id (0..4) |
+| header[3] | spawn / start cell index (0..255) |
+| layer 0 (36x36) | **wall / feature plane** — the floor plan the first-person renderer reads (0 = open) |
+| layer 1 (36x36) | object plane (doors, items, stairs, decorations) |
+| layer 2 (36x36) | entity / event plane |
+
+Layer 0 is the coherent floor plan.  `DNG05` (the Temple, save slot 1) is the
+clearest: a solid `0x06` border with a symmetrical room grid; `0x06` = wall,
+`0x00` = open, `0x03`/`0x08` = door frames, `0x07` (`O`) = a marker.  The files
+whose name ends in `0` (`DNG00`, `DNG10`) are the outdoor/wilderness levels; they
+use a sparser layout with many `?` (values >9) codes.
+
+The header-field **labels above are inferred** (the byte positions and the fixed
+3892-byte size are certain; the meaning of each header byte is not yet proven by
+disassembly).
+
+**Verified:** all 29 shipped maps decode to exactly 3892 bytes and share the
+header structure; `DNG13` alone has `level=4` (the deep dungeon).  The native
+reader is `port/dungeon.{h,cpp}` (`load_dungeon`); `tests/dungeon_test.cpp`
+checks the RLE + layer slicing on a synthetic map and the real `DNG05`/`DNG10`/
+`DNG13` headers and wall counts.  `./lof --dump-dungeon` prints the floor plans.
+
+Still open: the exact tile-id vocabulary (which wall graphic each code selects)
+and the semantics of layers 1/2.
