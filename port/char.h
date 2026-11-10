@@ -257,6 +257,19 @@ std::vector<size_t> spells_with_effect(uint8_t code);
 // Print the decoded table (for eyeballing).
 void dump_spells(FILE* out);
 
+// Magic-point table (also transcribed from LOF.EXE, see port/char_magic.inc).
+// The engine keeps a 12 x 16 byte table (profession x level); the MP fill
+// routine at image 0xEC00 indexes it by the character's profession (+0x1b) and
+// level (+0x17), then adds +1 when Wisdom > 15 and +2 more when Intelligence >
+// 15.  Regenerate with `tools/spec.py --emit-mp`.
+constexpr size_t kMagicProfCount = 12;
+constexpr size_t kMagicLevels = 16;
+
+// Per-(profession, level) magic-point base, before the Wisdom/Intelligence
+// bonuses (returns 0 for an out-of-range profession or level >= 16, matching
+// the engine's guards).
+uint8_t magic_table_value(uint8_t profession, uint8_t level);
+
 // Character-generation model: the name tables LOF.EXE uses when creating a
 // character (transcribed into port/char_names.inc; regenerate with
 // `tools/spec.py --emit-names`).  These are the choices the "add a new
@@ -440,10 +453,12 @@ enum CharOffset : size_t {
     // the current down to the maximum (`if +0x68 != 0 && +0x69 < +0x68:
     // +0x69 = +0x68`) and the rest routine at 0x6440 restores it
     // (`+0x69 = +0x68`).  Both are filled together by the routine at image
-    // 0xEC00..0xEC2B, which looks up a per-(class,level) table in the loaded
-    // data segment `[0xaf70]:0xa38` (16 bytes per class, indexed
-    // `16 * class_field(+0x1b) + level(+0x17)`, only while level < 16) and then
-    // adds +1 when Wisdom(+0x48) > 15 and +2 more when Intelligence(+0x47) > 15.
+    // 0xEBF0..0xEC87, which looks up a per-(profession,level) table at
+    // `table_seg:[0xa38]` (12 professions x 16 levels, indexed
+    // `16 * +0x1b + +0x17`, only while level < 16) and then adds +1 when
+    // Wisdom(+0x48) > 15 and +2 more when Intelligence(+0x47) > 15.  The table
+    // ships in the EXE (file offset 0x42748) and is transcribed into
+    // port/char_magic.inc (see magic_table_value / CharSheet::magic_max).
     // The sheet's "Magic.... " line prints (current, maximum) = (+0x69, +0x68).
     // NOTE: the pair is TRANSIENT in a save (a snapshot can hold a partly
     // depleted current value), so it is projected verbatim, not recomputed.
@@ -628,6 +643,13 @@ struct CharSheet {
     // The profession name from +0x1b (see kCharProf1b).  Returns an empty
     // string when the index is out of range (0x0c = "no profession").
     std::string profession() const;
+
+    // The magic-point maximum the engine's fill routine (image 0xEC00) would
+    // compute for this character: the per-(profession, level) table value plus
+    // +1 when Wisdom > 15 and +2 more when Intelligence > 15, and 0 when the
+    // table value is 0 (or the profession/level is out of range).  `mag_max68`
+    // projects the saved value; this recomputes it from the stats.
+    uint8_t magic_max() const;
 
     // --- party-status display row -----------------------------------------
     // The party-status builder packs a 12-byte row per member into its display

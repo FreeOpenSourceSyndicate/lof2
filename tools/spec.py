@@ -17,6 +17,7 @@ Usage:
     python3 tools/spec.py --dir game --shop       # dump SHOP
     python3 tools/spec.py --dir game --save GAME1 # dump a saved game
     python3 tools/spec.py --dir game --emit-items # regenerate port/char_items.inc
+    python3 tools/spec.py --dir game --emit-mp    # regenerate port/char_magic.inc
 """
 import argparse
 import os
@@ -224,6 +225,39 @@ def emit_spells(exe_path, out_path):
     print(f"wrote {out_path} ({SPELL_COUNT} spells)")
 
 
+# The magic-point table also lives only inside LOF.EXE: 12 professions x 16
+# levels of one byte each (image offset 0x42748).  The MP fill routine indexes
+# it by the character's profession (+0x1b) and level (+0x17), then adds +1 for
+# Wisdom > 15 and +2 more for Intelligence > 15.  Transcribed for the drop-in.
+MP_EXE_OFF = 0x42748
+MP_PROFS = 12
+MP_LEVELS = 16
+
+
+def emit_mp(exe_path, out_path):
+    d = open(exe_path, "rb").read()
+    rows = [[d[MP_EXE_OFF + p * MP_LEVELS + l] for l in range(MP_LEVELS)]
+            for p in range(MP_PROFS)]
+    with open(out_path, "w") as f:
+        f.write("// Legend of Faerghail magic-point table — transcribed from the "
+                "DOS release.\n")
+        f.write("// It lives only inside LOF.EXE (image offset 0x42748); no data "
+                "file carries it,\n")
+        f.write("// and the drop-in must run without the original EXE, so it "
+                "keeps this copy.\n")
+        f.write("// Regenerate with `tools/spec.py --emit-mp`.\n")
+        f.write("// 12 professions x 16 levels; the MP fill routine indexes it by "
+                "profession\n// (+0x1b) and level (+0x17).  A non-zero base gets "
+                "+1 for Wisdom > 15 and\n// +2 more for Intelligence > 15 (see "
+                "CharSheet::magic_max).\n\n")
+        f.write("static const uint8_t kMagicTable[kMagicProfCount][kMagicLevels] "
+                "= {\n")
+        for row in rows:
+            f.write("    {%s},\n" % ",".join(str(v) for v in row))
+        f.write("};\n")
+    print(f"wrote {out_path} ({MP_PROFS} professions x {MP_LEVELS} levels)")
+
+
 # Character-generation name tables (also only inside LOF.EXE).  The
 # sex/race/profession/alignment tables are fixed 12-byte records (11 chars +
 # NUL), zero-padded between groups; skills and languages are packed
@@ -396,6 +430,8 @@ def main():
                     help="regenerate port/char_items.inc from LOF.EXE")
     ap.add_argument("--emit-spells", action="store_true",
                     help="regenerate port/char_spells.inc from LOF.EXE")
+    ap.add_argument("--emit-mp", action="store_true",
+                    help="regenerate port/char_magic.inc from LOF.EXE")
     ap.add_argument("--spells", action="store_true",
                     help="dump the LOF.EXE spell table")
     ap.add_argument("--emit-names", action="store_true",
@@ -413,6 +449,8 @@ def main():
         emit_items(os.path.join(args.dir, "LOF.EXE"), "port/char_items.inc")
     elif args.emit_spells:
         emit_spells(os.path.join(args.dir, "LOF.EXE"), "port/char_spells.inc")
+    elif args.emit_mp:
+        emit_mp(os.path.join(args.dir, "LOF.EXE"), "port/char_magic.inc")
     elif args.spells:
         dump_spells(os.path.join(args.dir, "LOF.EXE"))
     elif args.emit_names:

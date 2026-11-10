@@ -9,6 +9,7 @@ namespace lofport {
 
 #include "char_items.inc"
 #include "char_spells.inc"
+#include "char_magic.inc"
 #include "char_names.inc"
 
 namespace {
@@ -311,6 +312,11 @@ const SpellRecord* spell_by_index(int index) {
     return &spells()[index - 1];
 }
 
+uint8_t magic_table_value(uint8_t profession, uint8_t level) {
+    if (profession >= kMagicProfCount || level >= kMagicLevels) return 0;
+    return kMagicTable[profession][level];
+}
+
 const char* spell_effect_name(uint8_t code) {
     switch (code) {
         case 0x00: return "damage";
@@ -477,6 +483,14 @@ std::string CharSheet::profession() const {
     auto names = profession_names();
     if (prof1b < names.size()) return names[prof1b];
     return {};
+}
+
+uint8_t CharSheet::magic_max() const {
+    uint8_t base = magic_table_value(prof1b, level17);
+    if (base == 0) return 0;
+    if (wis48 > 15) base++;
+    if (int47 > 15) base += 2;
+    return base;
 }
 
 // --- party-status display row (builder at image offset 0x2D436) ------------
