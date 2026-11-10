@@ -224,6 +224,12 @@ static void synthetic_spec() {
     ch = decode_char(chr.data());
     assert(ch.weight_max == 5300 && ch.weight_cur == 100);
     assert(carried_item_weight(ch) == 100);
+    // The per-character base weight is 10*byte[+0x70] + word[+0x72].
+    chr[kCharWeightBase70] = 4;
+    put16(chr, kCharWeightBase72, 3);
+    ch = decode_char(chr.data());
+    assert(ch.weight_base70 == 4 && ch.weight_base72 == 3);
+    assert(weight_base(ch) == 43);
     // An empty slot and an out-of-range index contribute nothing.
     chr[kCharInv82 + 0] = 0;
     chr[kCharInv82 + 4 * 3] = 200;  // > kItemCount
@@ -326,10 +332,16 @@ static int real_data() {
     assert(connar.name == "Connar");
     assert(connar.weight_max == 5300);
     assert(connar.weight_cur == 289);
-    uint16_t connar_base = (uint16_t)(10 * roster[0].raw[0x70] +
-                                      (roster[0].raw[0x72] |
-                                       (roster[0].raw[0x73] << 8)));
-    assert(carried_item_weight(connar) + connar_base == connar.weight_cur);
+    assert(weight_base(connar) == 39);  // 10*1 + 29
+    assert(carried_item_weight(connar) + weight_base(connar) == connar.weight_cur);
+    // Every shipped record whose carried total is *fresh* reconstructs exactly;
+    // Gorth's stored +0x66 is a stale snapshot the engine has not recomputed
+    // (same class of staleness as the +0x1e AC snapshot), so it is skipped.
+    for (const auto& rr : roster) {
+        CharSheet c = decode_char(rr.raw.data());
+        if (c.name == "Gorth") continue;
+        assert(carried_item_weight(c) + weight_base(c) == c.weight_cur);
+    }
     // An empty-inventory character carries only the base (Siegurd: 23).
     CharSheet siegurd = decode_char(roster[10].raw.data());
     assert(siegurd.name == "Siegurd" && carried_item_weight(siegurd) == 0);

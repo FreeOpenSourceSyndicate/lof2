@@ -930,13 +930,15 @@ convention: it prints `price` with `%4d$` and `weight / 10` with `%3dlb`.
 
 **Oracle check.**  Recomputing `char[+0x66]` as
 `10*byte[+0x70] + word[+0x72] + Σ items()[v-1].weight` reproduces the stored
-value **exactly for 10 of the 11 ROST characters and for every named character
-in the shipped `GAMES/GAME1..GAME3` saves** (e.g. Connar 289, Stiletto 343,
-Handy 573, Siegurd 23).  The lone mismatch (Gorth, off by 10) is a single stale
-byte in that one ROST slot — the same class of snapshot drift the earlier note
-flagged for the ROST records generally — and does not affect the field identity.
-The only saves that do not match are unnamed ROST slots and the GAME5 Decker
-record, whose inventory/`+0x70` bytes are themselves inconsistent in the file.
+value **exactly for 10 of the 11 ROST characters** (Connar 289, Stiletto 343,
+Lord Krynn 386, Shadow 374, Assanla 245, Cassandra 278, Merlin 223, Handy 573,
+Decker 273, Siegurd 23) and for `GAMES/GAME2`/`GAME3` (Decker 290).  The
+mismatches are single stale snapshots — Gorth (off by 10), `GAME1` Decker (off
+by 9), and the `GAME5` Decker record, whose inventory/`+0x70` bytes are
+themselves inconsistent in the file — i.e. the same class of snapshot drift the
+earlier note flagged for the ROST records generally; none affects the field
+identity.  `CharSheet::weight_base()` exposes the base so callers can
+reconstruct the total.
 
 **Capacity `+0x64`.**  The maximum carried weight is set by the routine at image
 `0x981d`: `+0x64 = 350 * Strength(+0x45)` while Strength ≤ 15, else

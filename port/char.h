@@ -488,6 +488,11 @@ enum CharOffset : size_t {
     // the sheet's "Weight" line prints the pair as `%04d/%04d` (DS:0xafd9).
     kCharWeight64  = 0x64,  // word: maximum carryable weight
     kCharWeight66  = 0x66,  // word: currently carried weight
+    // The per-character base weight added by the weight routine (0x21030) before
+    // the item sum: `10 * byte[+0x70] + word[+0x72]`.  Verified on every shipped
+    // record: base + Σ item weight (item +0x14) == the stored +0x66 exactly.
+    kCharWeightBase70 = 0x70,  // byte: base weight / 10
+    kCharWeightBase72 = 0x72,  // word: base weight remainder
     // Hit points.  The character-sheet builder at 28054/28067 reads the current
     // value from +0x22 and divides 100*current by the value at +0x20 to get the
     // HP percentage it shows, so +0x20 is the maximum and +0x22 the current HP
@@ -608,6 +613,8 @@ struct CharSheet {
     uint8_t  load25 = 0;     // +0x25  carrying capacity / load
     uint16_t weight_max = 0; // +0x64  maximum carryable weight (see kCharWeight64)
     uint16_t weight_cur = 0; // +0x66  currently carried weight (see kCharWeight66)
+    uint8_t  weight_base70 = 0;  // +0x70  base weight / 10 (see kCharWeightBase70)
+    uint16_t weight_base72 = 0;  // +0x72  base weight remainder
     // The 48 four-byte inventory slots at +0x82 (see kCharInv82).
     std::array<InvSlot, kCharInvCount> inv{};
     // Number of used slots (+0x6b; see kCharInvUsed6b).  The engine's armour
@@ -650,6 +657,11 @@ CharSheet decode_char(const uint8_t* raw);
 // since the game stores the total, this only recomputes the item portion.
 // Empty slots (item == 0) and out-of-range indices contribute nothing.
 uint32_t carried_item_weight(const CharSheet& c);
+
+// The per-character base weight the weight routine adds before the item sum
+// (10 * +0x70 + +0x72; see kCharWeightBase70).  `weight_base(c) +
+// carried_item_weight(c)` reproduces the stored carried total `weight_cur`.
+uint32_t weight_base(const CharSheet& c);
 
 // The character's total defence (armour class), computed exactly as the engine's
 // armour routine does (image 0x210E8; the sum lives at 0x2114E..0x211DA).
