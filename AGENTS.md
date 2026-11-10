@@ -592,6 +592,11 @@ save-location field: slot 1 opens `DNGS\DNG05` + `ega\d5`, slot 2 opens
   `*.SAV`); they must never open or execute `LOF.EXE`/`VOR.EXE`.  Verified by
   `make golden-noexe` (`tests/port_noexe_test.py`), which renders the menu from a
   game tree that contains no `.EXE` and checks it against the oracle.
+- DOS 8.3 name resolution must ignore padding spaces: the engine builds the save
+  name with printf `%3d` ("GAME  2"), so `Machine::resolve` drops spaces when
+  matching components (`"GAME  2"` -> `GAME2`).  Covered by the `temple`/`play`
+  scenarios in `tests/golden_test.sh` (both enter the play loop only if the load
+  succeeds).
 
 ## Dungeon files (`DNGS/`) — decoded
 
