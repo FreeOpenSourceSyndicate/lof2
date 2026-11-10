@@ -603,6 +603,14 @@ static int real_data() {
     assert(party[2].hp_pct == 81 && party[2].body24 == 1 &&
            party[2].hp_mod == 51 && party[2].hp_cur == 9);
 
+    // The panel's dark stat number is decimal(+0x1e) + '%' (pixel-exact vs the
+    // DOSBox play-screen capture for all six shipped characters).
+    static const char* kPanelStat[6] = {"50%", "90%", "50%",
+                                        "20%", "40%", "65%"};
+    for (size_t i = 0; i < 6; i++)
+        assert(panel_stat_text(decode_char(sv.chars[i].raw.data()).stat1e) ==
+               kPanelStat[i]);
+
     printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells/names ok\n");
     return 0;
 }

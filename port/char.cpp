@@ -517,6 +517,10 @@ std::vector<PartyRow> party_status(const SaveGame& sv) {
     return rows;
 }
 
+std::string panel_stat_text(uint8_t stat1e) {
+    return std::to_string((unsigned)stat1e) + "%";
+}
+
 uint8_t char_stat1d_from_dex(uint8_t dex) {
     if (dex < 16) return 10;
     return (uint8_t)(5 * dex - 65);   // 1BA40: 5*dex - 0x41

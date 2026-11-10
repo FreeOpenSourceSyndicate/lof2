@@ -842,3 +842,31 @@ pack).  `char_test` now asserts `item_by_index(dki.inv[0].item)->name ==
 so the 1-based contract is pinned.  `ROST/SHOP` (185 signed bytes) is separately
 0-based over the item table (its `byte 0` is Club's slot, `-10`), so the two
 tables use different bases.
+
+## Play-screen party panel: the "dark stat number" — 2026-11-08
+
+The maintainer's town/play-loop notes left exactly one panel residue undecoded:
+the *dark* number drawn under each character's profession line, to the left of
+the white status word ("GOOD").  It is a **workstream-B character-field**
+question and is now resolved without guesswork.
+
+**Format.** The number is `decimal(+0x1e)` followed by one trailing symbol
+glyph.  The symbol is CHR2 **band-1 cell 37** (a `%`), and the digits are CHR2
+**band-0 cells `27+d`** (note CHR2's digit base is 27, whereas CHR1's is 26 — the
+two strips differ).  Glyphs use the panel's 5x5 face, same as the names.
+
+**Grounding.**
+- The SNSC-derived init routine (`analysis/lof.asm` `1DA40`/`1DB0A`, raw image
+  `0x22F80..`) seeds the char field `+0x1e` from the class record's `+0x2e`
+  (`100 - rec[0x2d]` is `+0x1d`, and `+0x1e` gets the same value).
+- The shipped party (GAME1/GAME2) carries `+0x1e` = 50, 90, 50, 20, 40, 65.
+- Rendered `decimal(+0x1e)` + `%` reproduces the dark glyphs in the DOSBox
+  capture `ref/oracle/play.png` **pixel-exact for all six characters**
+  (`50% 90% 50% 20% 40% 65%`), checked cell-by-cell against the decoded CHR2
+  strip.  This is the only reading consistent with both the field values and the
+  capture; no other byte in the struct matches the observed glyph pattern.
+
+**Exposed.** `panel_stat_text(uint8_t stat1e)` returns the display string
+(`"<n>%"`); `char_test` asserts the six shipped values.  `stat1e` itself is
+already decoded into `CharSheet::stat1e` / `SaveChar::stat1e`, so this closes the
+panel-number question end to end.
