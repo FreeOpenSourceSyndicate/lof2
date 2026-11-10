@@ -166,25 +166,23 @@ static bool compose_menu_screen(const std::string& dir, Screen& menu, std::strin
     return true;
 }
 
-// --dump-dungeon: decode DNGS/DNGxx and print the 36x36 floor plan so the
-// recovered map format is visible from the shipped front-end.
+// --dump-dungeon: decode a few DNGS/DNGxx levels and print the 36x36 floor
+// plan (and object layer) so the recovered map format is visible from the
+// shipped front-end.
 static void dump_dungeon(const std::string& dir) {
-    static const char* kNames[] = {"DNG05", "DNG00", "DNG10", "DNG13"};
-    static const char kGlyph[] = ".123456789AB";
-    for (const char* name : kNames) {
+    static const struct { int d, l; } kLevels[] = {{0,5},{0,0},{1,0},{1,3}};
+    for (const auto& lv : kLevels) {
+        std::string name = dungeon_file_name(lv.d, lv.l);
         std::string p = dir + "/DNGS/" + name;
-        DungeonMap m = load_dungeon(p);
-        if (!m.ok) { printf("%s: <missing or malformed>\n", name); continue; }
-        printf("%s: level=%u style=%u music=%u spawn=%u\n", name, m.level(),
-               m.style(), m.music(), m.spawn());
-        for (int y = 0; y < kDungeonDim; y++) {
-            std::string row;
-            for (int x = 0; x < kDungeonDim; x++) {
-                uint8_t v = m.walls[y][x];
-                row.push_back(v < 12 ? kGlyph[v] : '?');
-            }
-            printf("  %s\n", row.c_str());
+        Dungeon m;
+        std::string err;
+        if (!load_dungeon(p, m, &err)) {
+            printf("%s: <missing or malformed: %s>\n", name.c_str(), err.c_str());
+            continue;
         }
+        printf("%s: h0=%u h1=%u field=%u\n", name.c_str(), m.h0, m.h1, m.field);
+        for (const std::string& row : dungeon_ascii(m, false))
+            printf("  %s\n", row.c_str());
     }
 }
 

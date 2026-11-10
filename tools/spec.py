@@ -91,7 +91,31 @@ def dump_save(path):
         r = d[4 + i * 410:4 + (i + 1) * 410]
         name = cstr(r, 1, 14)
         if r[0] or name:
-            print(f"  [{i:2d}] present={r[0]:#04x} name={name!r}")
+            hp = struct.unpack_from("<h", r, 0x22)[0]
+            hpmax = struct.unpack_from("<h", r, 0x20)[0]
+            # 32-bit experience: low word +0x6c, high word +0x6e.
+            exp = struct.unpack_from("<I", r, 0x6c)[0]
+            # Party-status display row (builder at image offset 0x2D436).
+            hp_pct = (100 * hp // hpmax) if hpmax else 0
+            hp_mod = (hp >> 3) + (50 if r[0x6a] else 0)
+            attr_a = (100 - (r[0x5b] + r[0x1e])) & 0xff
+            if r[0x0f] == 0:
+                attr_a = (attr_a - 10) & 0xff
+            attr_b = (r[0x5c] + r[0x1c]) & 0xff
+            attr_c = (r[0x5f] + r[0x17]) & 0xff
+            print(f"  [{i:2d}] present={r[0]:#04x} name={name!r} "
+                  f"rnk={r[0x17]} con={r[0x44]} str={r[0x45]} dex={r[0x46]} "
+                  f"int={r[0x47]} wis={r[0x48]} hp={hp}/{hpmax} "
+                  f"mp={r[0x69]}/{r[0x68]} load={r[0x25]} exp={exp} "
+                  f"body={r[0x24]} mods={r[0x5b]}/{r[0x5c]}/{r[0x5e]}/{r[0x5f]} "
+                  f"flag={r[0x6a]} f0f={r[0x0f]} "
+                  f"row=[{hp_pct} {r[0x24]} {hp_mod} {attr_a} {attr_b} {attr_c}]")
+            # Inventory: 48 four-byte slots at +0x82 (item/aux1/aux2/cond).
+            for s in range(48):
+                o = 0x82 + s * 4
+                if r[o]:
+                    print(f"        inv[{s:2d}] item={r[o]:3d} "
+                          f"aux={r[o + 1]}/{r[o + 2]} cond={r[o + 3]}")
 
 
 # The item table lives only inside LOF.EXE (image offset 0x42cec, data segment
@@ -211,6 +235,8 @@ ACTION_OFF, ACTION_N = 0x42204, 5           # 12-byte records
 MORALE_OFF, MORALE_N, MORALE_REC = 0x423F8, 5, 13
 COMBAT_ABBR_OFF, COMBAT_ABBR_N, COMBAT_ABBR_REC = 0x421F0, 4, 5
 SCENARIO_OFF, SCENARIO_N, SCENARIO_REC = 0x42240, 8, 22  # maps scenario idx
+FACING_OFF, FACING_N, FACING_REC = 0x422F0, 4, 22   # compass heading line
+TIMEOFDAY_OFF, TIMEOFDAY_N, TIMEOFDAY_REC = 0x42348, 8, 22  # clock line
 NAME_REC = 12
 
 
@@ -252,6 +278,10 @@ def emit_names(exe_path, out_path):
          _fixed_names(d, COMBAT_ABBR_OFF, COMBAT_ABBR_N, COMBAT_ABBR_REC)),
         ("kScenarioNames",
          _fixed_names(d, SCENARIO_OFF, SCENARIO_N, SCENARIO_REC)),
+        ("kFacingNames",
+         _fixed_names(d, FACING_OFF, FACING_N, FACING_REC)),
+        ("kTimeOfDayNames",
+         _fixed_names(d, TIMEOFDAY_OFF, TIMEOFDAY_N, TIMEOFDAY_REC)),
     ]
     with open(out_path, "w") as f:
         f.write("// Legend of Faerghail character-generation name tables — "
@@ -299,6 +329,49 @@ def dump_spells(exe_path):
         print(f"  [{i:3d}] {nm:22s} {r[SPELL_NAME:].hex(' ')}")
 
 
+def dump_sns(path):
+    """Dump an SNSC/NSC file (78-byte records) and the stats-block -> character
+    seed mapping decoded from analysis/lof.asm 1DA8E..1DCBB."""
+    d = open(path, "rb").read()
+    if not d:
+        print(f"{path}: empty")
+        return
+    # SNSC is 14 bare 78-byte records (no count byte: 1092 = 14*78); NSCnn is a
+    # count byte followed by that many records (1951 = 1 + 25*78).
+    if len(d) % 78 == 0:
+        base, count = 0, len(d) // 78
+    else:
+        base, count = 1, d[0]
+    print(f"{path}: count={count} stride=78")
+    # record-relative offset -> (char offset, transform)
+    fields = [
+        (0x4c, "+0x18", "copy", "class flag (1 PC / 2 monster)"),
+        (0x2e, "+0x1c", "copy", "base stat"),
+        (0x2d, "+0x1e", "100-n", "body stat"),
+        (0x2d, "+0x1d", "100-n", "seed (overridden by Dex at 1BA40)"),
+        (0x36, "+0x56", "copy", "speed"),
+        (0x2a, "+0x7a+n", "set 2", "seed-slot index"),
+    ]
+    for i in range(count):
+        r = d[base + i * 78:base + i * 78 + 78]
+        if len(r) < 78:
+            break
+        sing = r[0:19].split(b"\x00")[0].decode("latin1")
+        plur = r[19:38].split(b"\x00")[0].decode("latin1")
+        print(f"  [{i:2d}] {sing!r}/{plur!r} stats={r[38:78].hex(' ')}")
+        parts = []
+        for off, ch, tf, _ in fields:
+            v = r[off]
+            out = (100 - v) & 0xFF if tf == "100-n" else v
+            parts.append(f"rec[{off:#x}]={v}->{ch}={out}")
+        # Four (value, level) skill pairs -> char +0x142+2n / +0x143+2n.
+        for n in range(4):
+            parts.append(f"rec[{0x3b + 2 * n:#x}]={r[0x3b + 2 * n]}"
+                         f"/{r[0x3c + 2 * n]}->+{0x142 + 2 * n:#x}"
+                         f"/+{0x143 + 2 * n:#x}")
+        print(f"        seed: " + "  ".join(parts))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default="game")
@@ -318,6 +391,9 @@ def main():
                     help="regenerate port/char_names.inc from LOF.EXE")
     ap.add_argument("--names", action="store_true",
                     help="dump the LOF.EXE char-gen name tables")
+    ap.add_argument("--sns", default=None,
+                    help="dump an SNSC/NSC file and its character-seed mapping "
+                         "(e.g. SNSC or NSC00)")
     ap.add_argument("--nonempty", action="store_true",
                     help="only show SPEC records that carry text")
     args = ap.parse_args()
@@ -332,6 +408,8 @@ def main():
         emit_names(os.path.join(args.dir, "LOF.EXE"), "port/char_names.inc")
     elif args.names:
         dump_names(os.path.join(args.dir, "LOF.EXE"))
+    elif args.sns:
+        dump_sns(os.path.join(args.dir, "SYST", args.sns))
     elif args.spec is not None:
         dump_spec(os.path.join(args.dir, "SYST", f"SPEC{args.spec}"),
                   args.spec, args.nonempty)

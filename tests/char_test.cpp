@@ -32,7 +32,8 @@ static void synthetic_spec() {
     img[0] = 1;
     uint8_t* r = &img[1];
 
-    // text_a / text_b
+    // keyword / text_a / text_b
+    putstr(img, 1 + 0x00, "Swordfish", 0x0e);
     putstr(img, 1 + 0x0e, "Hello world", 0x4a - 0x0e);
     putstr(img, 1 + 0x50, "A big pile of bones.", 0xc6 - 0x50);
 
@@ -53,6 +54,7 @@ static void synthetic_spec() {
     assert(t.records.size() == 1);
 
     const SpecRecord& rec = t.records[0];
+    assert(rec.keyword == "Swordfish");
     assert(rec.text_a == "Hello world");
     assert(rec.text_b == "A big pile of bones.");
     assert(rec.flag_4b == 1);
@@ -99,6 +101,118 @@ static void synthetic_spec() {
     assert(std::string(spec_type_name(0x19)) == "elemental");
     assert(std::string(spec_type_name(9999)) == "unknown");
 
+    // SNSC -> character seed mapping (analysis/lof.asm 1DA8E..1DCBB): a synthetic
+    // class record with distinct bytes at the mapped offsets must decode to the
+    // documented character-struct fields, including the 100-n fold on 0x1d/0x1e.
+    SnsRecord sns;
+    sns.singular = "Tester";
+    sns.plural = "Testers";
+    sns.stats[kSnsIndex2a - 38] = 1;
+    sns.stats[kSnsBody2d - 38] = 10;
+    sns.stats[kSnsBody2e - 38] = 65;
+    sns.stats[kSnsSpeed36 - 38] = 4;
+    sns.stats[kSnsField3a - 38] = 18;
+    sns.stats[kSnsClass4c - 38] = 2;
+    // Four (value, level) skill pairs, distinct so the stride-2 mapping is checked.
+    for (int n = 0; n < 4; ++n) {
+        sns.stats[kSnsSkill3b + 2 * n - 38] = (uint8_t)(10 + n);
+        sns.stats[kSnsSkill3c + 2 * n - 38] = (uint8_t)(1 + n);
+    }
+    CharSeed s = sns_char_seed(sns);
+    assert(s.c18 == 2);
+    assert(s.c1c == 65);
+    assert(s.c1d == 90 && s.c1e == 90);   // 100 - 10
+    assert(s.c56 == 4);
+    assert(s.c14 == 18);                  // rec[0x3a] -> char +0x14 word
+    assert(s.c1b == 0x0c && s.c64 == 0x1324 && s.c4e == 100);  // constants
+    assert(s.c7a_index == 1);
+    for (int n = 0; n < 4; ++n) {
+        assert(s.c142[n] == (uint8_t)(10 + n));
+        assert(s.c143[n] == (uint8_t)(1 + n));
+    }
+
+    // decode_char(): the 410-byte struct projection.  Build one with distinct
+    // values at every mapped offset and confirm each lands in the right field.
+    // The offsets are grounded in analysis/lof.asm: the sheet builder (0x2676E)
+    // prints +0x45/+0x44/+0x46/+0x47/+0x48 as Str/Con/Dex/Int/Wis, the level-up
+    // routine (0x9144) increments +0x17 ("enters the %ld rank"), the init
+    // routine (1BA40) writes +0x1d from the Dexterity at +0x46, and the SNSC
+    // seed writes +0x18/+0x1c/+0x1e/+0x56.
+    std::vector<uint8_t> chr(410, 0);
+    chr[kCharPresent] = 1;
+    putstr(chr, kCharName, "Tester", 14);
+    put16(chr, kCharFlags10, (uint16_t)(int16_t)-1);
+    put16(chr, kCharCounter12, 7);
+    chr[kCharLevel17] = 3;
+    chr[kCharClass18] = 1;
+    chr[kCharBase1c] = 65;
+    chr[kCharStat1d] = 15;
+    chr[kCharStat1e] = 90;
+    put16(chr, kCharHpMax20, 40);
+    put16(chr, kCharHpCur22, 10);
+    // 32-bit experience: low word +0x6c, high word +0x6e.
+    put16(chr, kCharExp6c, 0x1234);
+    put16(chr, kCharExp6c + 2, 0x0001);
+    chr[kCharCon44] = 14;
+    chr[kCharStr45] = 19;
+    chr[kCharDex46] = 16;
+    chr[kCharInt47] = 12;
+    chr[kCharWis48] = 15;
+    chr[kCharSpeed56] = 2;
+    CharSheet ch = decode_char(chr.data());
+    assert(ch.present == 1 && ch.name == "Tester");
+    assert(ch.flags10 == -1 && ch.counter12 == 7);
+    assert(ch.level17 == 3);
+    assert(ch.class18 == 1 && ch.base1c == 65 && ch.stat1d == 15 &&
+           ch.stat1e == 90);
+    assert(ch.hp_max == 40 && ch.hp_cur == 10 && ch.hp_percent() == 25);
+    assert(ch.exp == 0x00011234u);   // low +0x6c, high +0x6e
+    assert(ch.con44 == 14 && ch.str45 == 19 && ch.dex46 == 16 &&
+           ch.int47 == 12 && ch.wis48 == 15);
+    assert(ch.speed56 == 2);
+    // Party-status fields (builder at image offset 0x2D436): body state +0x24,
+    // the attribute modifiers +0x5b/+0x5c/+0x5e/+0x5f, the hp-mod gate +0x6a
+    // and the status flag +0x0f.
+    chr[kCharBody24] = 2;
+    chr[kCharFlg5b] = 3;
+    chr[kCharFlg5c] = 4;
+    chr[kCharFlg5e] = 5;
+    chr[kCharFlg5f] = 6;
+    chr[kCharFlag6a] = 1;
+    chr[kCharFlg0f] = 0;
+    ch = decode_char(chr.data());
+    assert(ch.body24 == 2);
+    assert(ch.mod5b == 3 && ch.mod5c == 4 && ch.mod5e == 5 && ch.mod5f == 6);
+    assert(ch.flag6a == 1 && ch.flag0f == 0);
+    // Display row: hp_pct = 100*10/40 = 25; hp_mod = (10>>3) + 50 = 51;
+    // attr_a = 100 - (3 + 90) = 7, then -10 (flag0f == 0) = 253 (byte wrap);
+    // attr_b = 4 + 65 = 69; attr_c = 6 + 3 = 9.
+    assert(ch.hp_pct() == 25 && ch.hp_mod() == 51);
+    assert(ch.attr_a() == (uint8_t)(7 - 10) && ch.attr_b() == 69 &&
+           ch.attr_c() == 9);
+    // With flag0f non-zero the -10 is skipped: attr_a == 7.
+    chr[kCharFlg0f] = 1;
+    ch = decode_char(chr.data());
+    assert(ch.attr_a() == 7);
+    // +0x1d is derived from Dexterity: 5*16 - 65 == 15, matching stat1d above.
+    assert(ch.stat1d == char_stat1d_from_dex(ch.dex46));
+    // Magic points: +0x68 is the MAXIMUM, +0x69 the CURRENT; see kCharMagMax68.
+    chr[kCharMagMax68] = 7;
+    chr[kCharMagCur69] = 9;
+    ch = decode_char(chr.data());
+    assert(ch.mag_max68 == 7 && ch.mag_cur69 == 9);
+    // Inventory array: 48 four-byte slots at +0x82 (item/aux1/aux2/cond).
+    chr[kCharInv82 + 0] = 13; chr[kCharInv82 + 1] = 1;
+    chr[kCharInv82 + 2] = 0;  chr[kCharInv82 + 3] = 100;
+    chr[kCharInv82 + 4 * 3] = 34; chr[kCharInv82 + 4 * 3 + 3] = 92;
+    chr[kCharLoad25] = 10;
+    ch = decode_char(chr.data());
+    assert(ch.load25 == 10);
+    assert(ch.inv[0].item == 13 && ch.inv[0].aux1 == 1 &&
+           ch.inv[0].aux2 == 0 && ch.inv[0].cond == 100);
+    assert(ch.inv[3].item == 34 && ch.inv[3].cond == 92);
+    assert(ch.inv[1].item == 0 && ch.inv[47].item == 0);
+
     printf("char_test: synthetic SPEC ok\n");
 }
 
@@ -127,6 +241,14 @@ static int real_data() {
     // 2 (Ihl Kazar) and the engine reads SNSC stats[0x0a] for that class.
     assert(t.records[8].class_eb == 2 && t.records[8].has_class());
     assert(t.records[0].class_eb == 0xff && !t.records[0].has_class());
+    // +0x00 is a keyword/password (region 0x00..0x0e); the four elemental
+    // guardians answer "Fire"/"Daughter"/"Echo"/"Eyes", the recruit slots "Y".
+    assert(t.records[1].keyword == "Y" && t.records[8].keyword == "Y");
+    assert(t.records[15].keyword == "Fire");
+    assert(t.records[16].keyword == "Daughter");
+    assert(t.records[17].keyword == "Echo");
+    assert(t.records[18].keyword == "Eyes");
+    assert(t.records[0].keyword.empty());
 
     // SPEC0[15..18] are the four elemental guardians (type 25); the engine's
     // 0x19 handler reads index_c9 (+0xc9) to pick which one.  The observed
@@ -205,7 +327,9 @@ static int real_data() {
     assert((int16_t)(sv.chars[0].raw[kCharFlags10] |
                      (sv.chars[0].raw[kCharFlags10 + 1] << 8)) == -1);
     assert(sv.chars[0].raw[kCharStat1d] == 0x0a);
-    assert(sv.chars[0].raw[kCharLevel46] == 0x0e);
+    // Decker: level/rank 1, Dexterity 14 (the stat +0x1d derives from).
+    assert(sv.chars[0].raw[kCharLevel17] == 0x01);
+    assert(sv.chars[0].raw[kCharDex46] == 0x0e);
 
     // The play-screen panel's profession line comes from byte 0x1b, indexing
     // profession_names() (LOF.EXE table at 0x41e98).  GAME1's Decker is a
@@ -244,6 +368,14 @@ static int real_data() {
     assert(dungeon_view_dir(11) == "D1");    // DNG11 -> ega/d1
     assert(dungeon_view_dir(8).empty());     // no EGA/D8
     assert(dungeon_map_name(100).empty());   // out of range
+
+    // The checks below that describe the *wilderness* party state (Handy
+    // wounded at 9/11 HP, Decker's pack carrying a Short sword, the experience
+    // totals) come from GAME2; GAME1 is the Temple start and carries a
+    // different party state.  Decode the wilderness characters once.
+    CharSheet wdecker = decode_char(sv2.chars[0].raw.data());
+    CharSheet wsieg   = decode_char(sv2.chars[1].raw.data());
+    CharSheet whandy  = decode_char(sv2.chars[2].raw.data());
 
     // Item table (transcribed from LOF.EXE; no data file carries it).
     const auto& it = items();
@@ -349,6 +481,12 @@ static int real_data() {
     assert(ca.size() == kCombatAbbrevCount && ca[0] == "KIL" && ca[3] == "RET");
     assert(sc.size() == kScenarioCount && sc[0] == " Valley of Faerghail" &&
            sc[7] == "    The Mountain");
+    auto fa = facing_names();
+    auto td = time_of_day_names();
+    assert(fa.size() == kFacingCount && fa[0] == "    Facing North" &&
+           fa[3] == "    Facing West");
+    assert(td.size() == kTimeOfDayCount && td[0] == "      Midnight" &&
+           td[7] == "       Evening");
 
     // Monster rosters (SYST/NSC0n, same 78-byte layout as SNSC).  NSC00 holds
     // 25 scenario-0 monsters; the first is the Ape.
@@ -357,8 +495,184 @@ static int real_data() {
     assert(monster_names(dir, kMonsterScenarioCount).empty());
     assert(monster_names(dir, -1).empty());
 
+    // SNSC statistics block -> character-struct seed (analysis/lof.asm
+    // 1DA8E..1DCBB).  Verified byte-for-byte against the shipped save: SNSC
+    // class 0 is "Siegurd" and GAME1's Siegurd was built from it.
+    auto snsc = load_snsc(std::string(dir) + "/SYST/SNSC");
+    assert(snsc.size() == kClassCount);
+    assert(snsc[0].singular == "Siegurd" && snsc[0].plural == "Siegurd");
+    CharSeed seed = sns_char_seed(snsc[0]);
+    // The record's own bytes the mapping reads (record offsets 0x2a..0x4c).
+    const uint8_t* st = snsc[0].stats;
+    assert(seed.c18 == st[kSnsClass4c - 38]);   // char +0x18
+    assert(seed.c1c == st[kSnsBody2e - 38]);    // char +0x1c
+    assert(seed.c1d == (uint8_t)(100 - st[kSnsBody2d - 38]));  // char +0x1d
+    assert(seed.c1e == seed.c1d);               // char +0x1e mirrors +0x1d
+    assert(seed.c56 == st[kSnsSpeed36 - 38]);   // char +0x56
+    assert(seed.c14 == st[kSnsField3a - 38]);   // char +0x14
+    assert(seed.c7a_index == st[kSnsIndex2a - 38]);
+    // Seeded constants the routine writes verbatim.
+    assert(seed.c00 == 1 && seed.c1b == 0x0c && seed.c64 == 0x1324 &&
+           seed.c4e == 100);
+    // And they equal the live character's fields (Siegurd == SNSC class 0).
+    // Note: char +0x1d is written from the same 100-n value here, but the
+    // Dexterity rule at 1BA40 then overrides it (Siegurd's Dexterity is 0, so
+    // it keeps 0x0a; Decker's Dexterity is 0x0e, still below 16 -> 0x0a).
+    const uint8_t* ch = sv.chars[1].raw.data();  // GAME1 slot 1 = Siegurd
+    assert(ch[kCharClass18] == seed.c18);
+    assert(ch[kCharBase1c] == seed.c1c);
+    assert(ch[kCharStat1e] == seed.c1e);
+    assert(ch[kCharSpeed56] == seed.c56);
+    assert(ch[kCharStat1d] == 0x0a);   // overridden by the 1BA40 Dexterity rule
+    assert(ch[kCharSeed7a + seed.c7a_index] == 2);
+    assert(seed.c18 == 1 && seed.c1c == 65 && seed.c1d == 90 && seed.c56 == 4);
+    // Monsters carry class 2 (e.g. the Dragon) and a distinct body value.
+    CharSeed dseed = sns_char_seed(snsc[4]);
+    assert(dseed.c18 == 2 && dseed.c1c == 45 && dseed.c56 == 4);
+
+    // Skill pairs: the classes that carry skill data (2 = Ihl Kazar, 3 = Mask
+    // Bearer) seed char +0x142/+0x143 with stride 2 straight from rec[0x3b..].
+    CharSeed kseed = sns_char_seed(snsc[2]);
+    const uint8_t* kst = snsc[2].stats;
+    for (int n = 0; n < 4; ++n) {
+        assert(kseed.c142[n] == kst[kSnsSkill3b + 2 * n - 38]);
+        assert(kseed.c143[n] == kst[kSnsSkill3c + 2 * n - 38]);
+    }
+    assert(kseed.c142[0] == 28 && kseed.c143[0] == 2);   // Ihl Kazar
+
+    // decode_char() projects the fields the engine reads directly.  The HP pair
+    // (+0x20 max / +0x22 current) is proven by the sheet builder at 28054/28067
+    // (100 * cur / max as a percentage); every live character satisfies
+    // cur <= max.  Siegurd's max HP (96) is exactly the value 1BA40 writes.
+    CharSheet cs = decode_char(sv.chars[1].raw.data());
+    assert(cs.present == 1);
+    assert(cs.name == "Siegurd");
+    assert(cs.class18 == 1 && cs.base1c == 65 && cs.stat1e == 90);
+    assert(cs.hp_max == 96 && cs.hp_cur == 96);
+    assert(cs.hp_percent() == 100);
+    assert(cs.mag_max68 == 0 && cs.mag_cur69 == 0);  // template: no magic
+    assert(cs.inv[0].item == 0);                      // template: empty pack
+    assert(cs.level17 == 0 && cs.speed56 == 4);   // Siegurd: rank 0
+    // +0x1d is the Dexterity-derived stat (1BA40): <16 -> 10, else 5*dex-65.
+    assert(cs.stat1d == char_stat1d_from_dex(cs.dex46));
+    assert(char_stat1d_from_dex(0) == 10 && char_stat1d_from_dex(15) == 10);
+    assert(char_stat1d_from_dex(16) == 15 && char_stat1d_from_dex(19) == 30);
+    // The five primary attributes sit at +0x44..+0x48 (Con, Str, Dex, Int, Wis),
+    // verified against the sheet builder (0x2676E) and the training routine
+    // (0x95B0): Siegurd is the un-rolled template (all zero); Decker is a real
+    // character (Con 14, Str 19, Dex 14, Int 12, Wis 15).
+    assert(cs.con44 == 0 && cs.str45 == 0 && cs.dex46 == 0 &&
+           cs.int47 == 0 && cs.wis48 == 0);
+    CharSheet dkr = decode_char(sv.chars[0].raw.data());
+    assert(dkr.con44 == 14 && dkr.str45 == 19 && dkr.dex46 == 14 &&
+           dkr.int47 == 12 && dkr.wis48 == 15);
+    // The 32-bit experience accumulator (+0x6c low / +0x6e high).  The
+    // wilderness save holds non-zero, distinct values per character (Decker
+    // 379, Siegurd 699, Handy 231); they are small so the high word stays 0,
+    // and the accumulator must not borrow from a neighbour.  Siegurd is the
+    // un-rolled template, but its experience is still set.
+    assert(wdecker.exp == 379);
+    assert(wsieg.exp == 699);
+    assert(whandy.exp == 231);
+    // Every in-use character: current HP never exceeds the maximum, the HP
+    // percentage matches the integer-division formula, and +0x1d is consistent
+    // with the Dexterity rule.  The save carries spare/garbage slots too (the
+    // engine sets +0x00 == 1 for a used slot), so only check those.
+    for (const auto& sc : sv.chars) {
+        if (sc.present != 1) continue;
+        CharSheet c = decode_char(sc.raw.data());
+        assert(!c.name.empty());
+        assert(c.hp_cur <= c.hp_max);
+        assert(c.hp_percent() == (c.hp_max ? 100 * c.hp_cur / c.hp_max : 0));
+        assert(c.stat1d == char_stat1d_from_dex(c.dex46));
+    }
+    // A damaged character still projects consistently (wilderness Handy: 9 of
+    // 11 HP; the Temple-start GAME1 Handy is undamaged at 11/11).
+    CharSheet dk = decode_char(sv2.chars[2].raw.data());
+    assert(dk.name == "Handy" && dk.hp_cur == 9 && dk.hp_max == 11);
+    assert(dk.hp_percent() == 81);   // 100*9/11, integer division
+
+    // Inventory array (+0x82, 48 x 4-byte slots).  The wilderness Decker
+    // carries Leather armour (27), Small shield (34), Short sword (13) and The
+    // Amulet (120); Handy carries Leather armour (27) then Warhammer (8) etc.
+    // The first slot's condition byte is 100 except for worn armour (96/92).
+    CharSheet dki = decode_char(sv2.chars[0].raw.data());
+    assert(dki.inv[0].item == 27 && dki.inv[0].aux1 == 1 && dki.inv[0].cond == 100);
+    assert(dki.inv[1].item == 34 && dki.inv[1].cond == 92);
+    assert(dki.inv[2].item == 13 && dki.inv[2].cond == 100);
+    assert(dki.inv[3].item == 120 && dki.inv[3].aux1 == 0);
+    assert(dki.inv[4].item == 0);                     // rest empty
+    // The slot byte is a 1-based index into the 185-item table (0 = empty), the
+    // same base item_by_index() uses: 27 -> Leather armour, not Studded leather.
+    assert(dki.inv[0].item && item_by_index(dki.inv[0].item) &&
+           item_by_index(dki.inv[0].item)->name == "Leather armour");
+    assert(item_by_index(0) == nullptr);              // 0 is the empty marker
+    assert(dk.inv[0].item == 27 && dk.inv[0].cond == 96);
+    assert(dk.inv[1].item == 8 && dk.inv[2].item == 43);
+    // +0x25 is the load/carry byte (10 for the shipped party; 15 for Cassandra).
+    assert(dki.load25 == 10 && dk.load25 == 10);
+    assert(decode_char(sv.chars[4].raw.data()).load25 == 15);
+    // Magic points (+0x68 max / +0x69 cur).  Merlin (class 7, level 1, Int 19,
+    // Wis 12) stores 3/3 -- the per-(class,level) table lookup plus the Int
+    // bonus; Handy stores 1/1.  They are equal at rest.
+    CharSheet mrl = decode_char(sv.chars[3].raw.data());
+    assert(mrl.name == "Merlin" && mrl.mag_max68 == 3 && mrl.mag_cur69 == 3);
+    assert(dk.mag_max68 == 1 && dk.mag_cur69 == 1);
+    // Every in-use character: no slot points past the 185-item table.
+    for (const auto& sc : sv.chars) {
+        if (sc.present != 1) continue;
+        CharSheet c = decode_char(sc.raw.data());
+        for (const auto& sl : c.inv) assert(sl.item <= 185);
+    }
+
+    // Party-status fields on the real save: the fresh characters carry zeroed
+    // attribute modifiers (+0x5b/+0x5c/+0x5e/+0x5f); the body state (+0x24) and
+    // flag (+0x6a) hold the values the character generator wrote (Handy body 1
+    // flag 1, Merlin body 2 flag 2).  `dk`/`merlin` are the wilderness
+    // characters decoded above.
+    assert(dk.body24 == 1 && dk.mod5b == 0 && dk.mod5c == 0 &&
+           dk.mod5e == 0 && dk.mod5f == 0 && dk.flag6a == 1);
+    CharSheet merlin = decode_char(sv2.chars[3].raw.data());
+    assert(merlin.name == "Merlin" && merlin.body24 == 2 && merlin.flag6a == 2);
+
+    // Party-status display row for Handy (hp 9/11, +0x1c=100, +0x1e=50,
+    // +0x17=1, all modifiers 0, +0x6a=1, +0x0f=1): hp_pct 81, hp_mod 51,
+    // attr_a 50, attr_b 100, attr_c 1.
+    assert(dk.flag0f == 1);
+    assert(dk.hp_pct() == 81 && dk.hp_mod() == 51);
+    assert(dk.attr_a() == 50 && dk.attr_b() == 100 && dk.attr_c() == 1);
+
+    // The whole-party projection: only the six live slots, in order, each row
+    // carrying the same bytes the builder would pack.
+    std::vector<PartyRow> party = party_status(sv2);
+    assert(party.size() == 6);
+    for (size_t i = 0; i < party.size(); i++) assert(party[i].index == i);
+    assert(party[0].hp_pct == 100 && party[0].body24 == 0);
+    assert(party[2].hp_pct == 81 && party[2].body24 == 1 &&
+           party[2].hp_mod == 51 && party[2].hp_cur == 9);
+
+    // The panel's dark stat number is decimal(+0x1e) + '%' (pixel-exact vs the
+    // DOSBox play-screen capture for all six shipped characters).
+    static const char* kPanelStat[6] = {"50%", "90%", "50%",
+                                        "20%", "40%", "65%"};
+    for (size_t i = 0; i < 6; i++)
+        assert(panel_stat_text(decode_char(sv.chars[i].raw.data()).stat1e) ==
+               kPanelStat[i]);
+
     printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells/names ok\n");
     return 0;
+}
+
+static void print_char(FILE* out, const CharSheet& c, size_t i) {
+    fprintf(out, "[%2zu] %-12s present=%d class=%d base=%d stat1d=%d "
+                 "stat1e=%d hp=%d/%d (%d%%) rnk=%d con=%d str=%d dex=%d "
+                 "int=%d wis=%d spd=%d exp=%u body=%d mods=%d/%d/%d/%d "
+                 "mood=%d flag0f=%d row=[%d %d %d %d %d]\n",
+            i, c.name.empty() ? "<none>" : c.name.c_str(), c.present, c.class18,
+            c.base1c, c.stat1d, c.stat1e, c.hp_cur, c.hp_max, c.hp_percent(),
+            c.level17, c.con44, c.str45, c.dex46, c.int47, c.wis48, c.speed56,
+            c.exp, c.body24, c.mod5b, c.mod5c, c.mod5e, c.mod5f, c.flag6a,
+            c.flag0f, c.hp_pct(), c.body24, c.hp_mod(), c.attr_a(), c.attr_b());
 }
 
 int main(int argc, char** argv) {
@@ -381,6 +695,23 @@ int main(int argc, char** argv) {
 
     if (argc > 1 && std::string(argv[1]) == "--dump-items") {
         dump_items(stdout);
+        return 0;
+    }
+
+    // --dump-char [FILE] prints decoded character sheets from a save (default
+    // game/GAMES/GAME1) or a ROST file.
+    if (argc > 1 && std::string(argv[1]) == "--dump-char") {
+        const char* path = argc > 2 ? argv[2] : "game/GAMES/GAME1";
+        std::string p(path);
+        if (p.find("ROST") != std::string::npos) {
+            auto ro = load_rost(p);
+            for (size_t i = 0; i < ro.size(); i++)
+                print_char(stdout, decode_char(ro[i].raw.data()), i);
+        } else {
+            SaveGame sv = load_save(p);
+            for (size_t i = 0; i < sv.chars.size(); i++)
+                print_char(stdout, decode_char(sv.chars[i].raw.data()), i);
+        }
         return 0;
     }
 

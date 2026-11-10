@@ -22,6 +22,8 @@
 #include <string>
 #include <vector>
 
+#include "data.h"   // SnsRecord (SYST/SNSC, SYST/NSCnn) — read-only reuse
+
 namespace lofport {
 
 // --- SYST/SPECn -----------------------------------------------------------
@@ -71,6 +73,14 @@ const char* spec_type_name(uint16_t type);
 // One 238-byte SYST/SPECn record decoded into typed fields.
 struct SpecRecord {
     std::array<uint8_t, kSpecRecordSize> raw{};
+
+    // 0x00  NUL-terminated keyword/password (region 0x00..0x0e).  Present in 45
+    // of 665 records; the player must type it (or answer the prompt) for the
+    // record to fire.  Values are the expected answer: "Y"/"N" for the many
+    // yes/no prompts (recruit, door, button, trap), and words for the keyed
+    // riddles ("Fire", "Daughter", "Echo", "Eyes" on the four elemental
+    // guardians; "Khazad Maran", "Spingo", "Iceflower", "Circle", "Stairs", …).
+    std::string keyword;
 
     std::string text_a;   // NUL-terminated, offset 0x0e (region 0x0e..0x4a)
     std::string text_b;   // NUL-terminated, offset 0x50 (region 0x50..0xc6)
@@ -263,6 +273,14 @@ std::vector<std::string> combat_abbrev_names();
 // scenario plays in and parallel `SYST/SPECn` / `SYST/NSC0n`.
 std::vector<std::string> scenario_names();
 
+// Status-line tables (LOF.EXE, image 0x422f0/0x42348; 22-byte centred cells).
+// `facing_names()` is the compass heading (N/E/S/W) and `time_of_day_names()`
+// the clock band (Midnight, Dawn, … Evening) the map screen shows.
+constexpr size_t kFacingCount = 4;
+constexpr size_t kTimeOfDayCount = 8;
+std::vector<std::string> facing_names();
+std::vector<std::string> time_of_day_names();
+
 // --- Monster / NPC rosters -------------------------------------------------
 //
 // SYST/NSCnn is a count byte then that many 78-byte records in the same layout
@@ -274,6 +292,57 @@ constexpr int kMonsterScenarioCount = 8;
 // Singular names of scenario `scenario`'s monsters, in table order (empty when
 // the file is missing).  `dir` is the game data directory.
 std::vector<std::string> monster_names(const std::string& dir, int scenario);
+
+// --- SNSC / NSC statistics block (character seed) -------------------------
+//
+// An SNSC/NSC record is 78 bytes: a singular and a plural NUL-padded name (19
+// each), then a 40-byte statistics block at record byte 38 (0x26).  When the
+// engine creates a character of a class it copies a handful of those bytes into
+// the runtime 410-byte (0x19a) character struct.  The copy sites are grounded in
+// `analysis/lof.asm` 1DA8E..1DCBB and verified against the shipped
+// `GAMES/GAMEn` / `ROST/ROST` saves (Siegurd == SNSC class 0, byte-for-byte).
+//
+// Record-relative offsets the init routine reads; the value in the record is
+// `stats[off - 38]`.
+enum SnsOffset : size_t {
+    kSnsIndex2a = 0x2a,  // byte; selects a char +0x7a+n slot (set to 2)
+    kSnsBody2d  = 0x2d,  // byte; char +0x1e = 100 - value, char +0x1d = same
+    kSnsBody2e  = 0x2e,  // byte; char +0x1c (45..75, a base stat)
+    kSnsSpeed36 = 0x36,  // byte; char +0x56 (1..4)
+    kSnsField3a = 0x3a,  // byte; char +0x14 (word; a per-class value, Siegurd 18)
+    // Four (value, level) skill pairs: char +0x142+2n = rec[0x3b+2n] and
+    // char +0x143+2n = rec[0x3c+2n], n = 0..3 (the loop at 1DC00/1DC40).
+    kSnsSkill3b = 0x3b,  // byte; first of four skill values, stride 2
+    kSnsSkill3c = 0x3c,  // byte; first of four skill levels, stride 2
+    kSnsClass4c = 0x4c,  // byte; char +0x18 (1 for PCs, 2 for big monsters)
+};
+
+// The character-struct fields the SNSC/NSC init routine seeds from a class
+// record.  Ground truth is the raw image at file offset 0x22F80..0x231A0 (the
+// listing labels it 1DA8E..1DCBB; again, trust the bytes).  Offsets name the
+// target byte in the 410-byte character struct.
+struct CharSeed {
+    uint8_t  c00 = 1;   // +0x00  present marker (1)
+    uint8_t  c18 = 0;   // +0x18  rec[0x4c]  class flag (1 PC / 2 monster)
+    uint8_t  c1c = 0;   // +0x1c  rec[0x2e]  base stat (45..75)
+    uint8_t  c1d = 0;   // +0x1d  100 - rec[0x2d]  (transient: the attribute pass
+                        //         overwrites it with 0x0a / 5*dex-0x41)
+    uint8_t  c1e = 0;   // +0x1e  100 - rec[0x2d]  body stat
+    uint8_t  c56 = 0;   // +0x56  rec[0x36]  speed 1..4
+    uint8_t  c1b = 0x0c;  // +0x1b  const 12 (later reduced by the char gen)
+    uint16_t c14 = 0;   // +0x14  rec[0x3a]  (a per-class value; Siegurd 18)
+    uint16_t c64 = 0x1324;  // +0x64  const 4900 (later adjusted per character)
+    uint32_t c4e = 100;     // +0x4e  dword const 100 (weight base)
+    uint8_t  c7a_index = 0;  // rec[0x2a]; char[0x7a + index] is then set to 2
+    // The four seeded skill pairs: c142[n] -> char +0x142 + 2n (rec[0x3b+2n]),
+    // c143[n] -> char +0x143 + 2n (rec[0x3c+2n]).  Confirmed byte-for-byte on
+    // Siegurd (class 0, all zero) and on the class-2/3 records that carry data.
+    uint8_t c142[4] = {0, 0, 0, 0};
+    uint8_t c143[4] = {0, 0, 0, 0};
+};
+
+// Apply the SNSC/NSC init mapping to a class record (see `SnsOffset`).
+CharSeed sns_char_seed(const SnsRecord& rec);
 
 // Offsets into the 410-byte (0x19a) in-memory character struct.  ROST records
 // hold this struct at +0x01 (after the count byte) as records of 414 bytes; a
@@ -289,12 +358,200 @@ enum CharOffset : size_t {
     // slot the pass leaves alone; live characters carry -1 here.
     kCharFlags10   = 0x10,  // word
     kCharCounter12 = 0x12,  // word: paired with flags10 in the erase condition
-    // The init routine at 1BA40 sets stat1d = 0x0a, and when level46 > 0x0f
-    // overrides it with 5*level46 - 0x41 + 1; both are byte quantities.
-    kCharStat1d    = 0x1d,  // byte
+    // +0x17 is the character level / rank.  The level-up routine (0x9144) does
+    // `inc byte ptr es:[bx+si+0x17]` and then prints "X enters the %ld rank."
+    // (string at DS:0x4ea6), and the character sheet prints +0x17 under "Rnk ".
+    kCharLevel17   = 0x17,  // byte: level / rank
+    // The init routine at 1BA40 sets stat1d = 0x0a, and when +0x46 (Dexterity)
+    // exceeds 0x0f overrides it with 5*dex - 0x41; both are byte quantities.
+    kCharStat1d    = 0x1d,  // byte: Dexterity-derived stat (see 1BA40)
+    // The five primary attributes, in sheet display order Con, Str, Dex, Int,
+    // Wis.  The character-sheet builder (0x2676E) copies the 410-byte struct to
+    // its stack frame and prints "Str "(+0x45), "Con "(+0x44), "Dex "(+0x46),
+    // "Int "(+0x47), "Wis "(+0x48); the training routine (0x95B0) increments
+    // +0x45 with "Strength improves!", +0x46 with "Dexterity improves!", +0x48
+    // with "Wisdom improves!", and the Con->HP bonus reads +0x44.
+    kCharCon44     = 0x44,  // byte: Constitution
+    kCharStr45     = 0x45,  // byte: Strength
+    kCharDex46     = 0x46,  // byte: Dexterity
+    kCharInt47     = 0x47,  // byte: Intelligence
+    kCharWis48     = 0x48,  // byte: Wisdom
+    // Fields seeded from an SNSC/NSC class record by the init routine at
+    // 1DA8E..1DCBB (see `sns_char_seed`): +0x18 class flag, +0x1c base stat,
+    // +0x1e body stat, +0x56 speed.  +0x7a is the base of the seed slots: the
+    // routine sets byte +0x7a + rec[0x2a] to 2.
+    kCharClass18   = 0x18,  // byte: 1 for PCs, 2 for big monsters
+    kCharBase1c    = 0x1c,  // byte: base stat (45..75)
+    kCharStat1e    = 0x1e,  // byte: body stat (100 - rec[0x2d])
+    kCharSpeed56   = 0x56,  // byte: speed (1..4)
+    kCharSeed7a    = 0x7a,  // byte: base of the +0x7a+n seed slots
+    // Additional fields the same init routine writes (raw image 0x22F80..):
+    kCharSeed14    = 0x14,  // word: from rec[0x3a] (per-class; Siegurd 18)
+    kCharSeed1b    = 0x1b,  // byte: seeded 0x0c, later reduced by the char gen
+    kCharSeed4e    = 0x4e,  // dword: seeded 100 (weight-style base value)
+    kCharSeed64    = 0x64,  // word: seeded 0x1324 (4900), later adjusted
+    // The character's current / maximum magic points.  `+0x68` is the MAXIMUM
+    // and `+0x69` the CURRENT value: the spell routine at image 0x137AD clamps
+    // the current down to the maximum (`if +0x68 != 0 && +0x69 < +0x68:
+    // +0x69 = +0x68`) and the rest routine at 0x6440 restores it
+    // (`+0x69 = +0x68`).  Both are filled together by the routine at image
+    // 0xEC00..0xEC2B, which looks up a per-(class,level) table in the loaded
+    // data segment `[0xaf70]:0xa38` (16 bytes per class, indexed
+    // `16 * class_field(+0x1b) + level(+0x17)`, only while level < 16) and then
+    // adds +1 when Wisdom(+0x48) > 15 and +2 more when Intelligence(+0x47) > 15.
+    // The sheet's "Magic.... " line prints (current, maximum) = (+0x69, +0x68).
+    // NOTE: the pair is TRANSIENT in a save (a snapshot can hold a partly
+    // depleted current value), so it is projected verbatim, not recomputed.
+    kCharMagMax68  = 0x68,  // byte: maximum magic points
+    kCharMagCur69  = 0x69,  // byte: current magic points
+    // The four seeded (value, level) skill pairs: +0x142+2n / +0x143+2n, n=0..3,
+    // copied from rec[0x3b+2n] / rec[0x3c+2n] by the init routine's tail loop.
+    kCharSkill142  = 0x142, // byte: first of four seeded skill values (stride 2)
+    // ---- inventory array ----------------------------------------------------
+    // The character carries 48 inventory slots of 4 bytes, based at +0x82
+    // (ends at +0x82 + 48*4 = +0x142, exactly where the skill pairs begin).
+    // Proven by the item-add routine (raw image 0xBF00): it scans for a free
+    // slot with `cmp byte es:[bx+si+0x82],0` over si = slot*4, and fills
+    //   +0x82 slot 0 : item index (0 = empty), a 1-BASED index into the 185-item
+    //                  table -- i.e. item_by_index(slot) -- not a 0-based offset
+    //   +0x83 slot 1 : auxiliary state byte (several routines store 0 here)
+    //   +0x84 slot 2 : per-item byte copied from a runtime table (small)
+    //   +0x85 slot 3 : condition/quality byte (100 = full; consumed down by 2)
+    // The sheet's "Weight"/"Rations"/"Gold" lines iterate this array.
+    kCharInv82     = 0x82,  // byte: base of the 48 x 4-byte inventory array
+    kCharInvCount  = 48,
+    kCharInvStride = 4,
+    // +0x25 is a load/carry capacity byte (10 for most, 15 for Cassandra).
+    kCharLoad25    = 0x25,  // byte: carrying capacity / load
+    // Hit points.  The character-sheet builder at 28054/28067 reads the current
+    // value from +0x22 and divides 100*current by the value at +0x20 to get the
+    // HP percentage it shows, so +0x20 is the maximum and +0x22 the current HP
+    // (both words).  Every live save character satisfies current <= maximum.
+    kCharHpMax20   = 0x20,  // word: maximum hit points
+    kCharHpCur22   = 0x22,  // word: current hit points
+    // 32-bit experience accumulator: +0x6c is the low word, +0x6e the high word.
+    // Identified by the pervasive 32-bit accumulator pattern on the pair -- the
+    // reward sites add with `add word [bx+si+0x6c], imm16` / `adc word
+    // [bx+si+0x6e], imm16` (e.g. +0x86a0:0x0001 at 0x412, +0x61a8 at 0xf28), and
+    // the reward printer pushes [bx+si+0x6e] then [bx+si+0x6c] as one dword --
+    // together with the character-sheet label block, which carries the label
+    // "Experience " followed by the 32-bit format `%011ld` (DS:0xaf83), and the
+    // party table's "Exp." column.  The 32-bit value is the only field in the
+    // struct that pair describes.
+    kCharExp6c     = 0x6c,  // dword (low word at 0x6c, high word at 0x6e)
+    // ---- party-status view (grounded in the party-status builder) ----
+    // The builder walks the party, reads the fields below from each 410-byte
+    // struct, and packs a 12-byte status row per member into the display block
+    // at es:[si+0x179..0x184] (segment [0xb0b0]); the party renderer at 0x134A2
+    // draws it.  NOTE: the annotated listing `analysis/lof.asm` labels the
+    // builder at 27F4E but is *desynced* through its middle (an extra/mis-decoded
+    // instruction shifts the later addresses), so its "+0x6a" line is wrong.
+    // The ground truth is the raw image: the builder lives at image offset
+    // 0x2D436 (the listing's 27F4E is 0x2D4xx there) and the +50 gate really is
+    // `cmp byte es:[bx+0x6a],0`.  These reads pin the offsets; the exact game
+    // meaning of each is only partly determined, so the names stay descriptive.
+    kCharBody24    = 0x24,  // byte: body/health state; the builder copies it to
+                            //   the display byte +0x17b, and the death routine
+                            //   (0x1919C/0x191CC) tests it for == 2 / == 3
+    kCharFlg5b     = 0x5b,  // byte: attribute modifier; builder shows
+                            //   100 - (mod5b + stat1e)
+    kCharFlg5c     = 0x5c,  // byte: attribute modifier; builder shows
+                            //   mod5c + base1c
+    kCharFlg5f     = 0x5f,  // byte: attribute modifier; builder shows
+                            //   mod5f + level17
+    kCharFlg5e     = 0x5e,  // byte: attribute modifier; the encounter code
+                            //   compares signed(mod5e) + Strength against 0x11
+                            //   (image 0x13E10 / 0x1BD50) and has an
+                            //   `inc byte es:[bx+0x5e]` bump (image 0x1BD63)
+    // The init routine zeroes all five (1B8C0..1B92E); a fresh save therefore
+    // carries 0.  They are bounded signed modifiers added to a base value.
+    kCharFlag6a    = 0x6a,  // byte: flag; when non-zero the builder adds 50 to
+                            //   the display byte +0x17c (the "hp_mod" row)
+    kCharFlg0f     = 0x0f,  // byte: status-line flag; when zero the builder
+                            //   subtracts 10 from the attribute byte +0x17d
+    // The play-screen party panel reads the profession byte +0x1b (index into
+    // profession_names()) and the numeric stat byte +0x1e (printed "%d%%").
     kCharProf1b    = 0x1b,  // byte: index into profession_names()
-    kCharLevel46   = 0x46,  // byte
 };
+
+// One 4-byte inventory slot (see kCharInv82).  `item` is the 1-based item-table
+// index (0 = empty); the remaining three bytes are auxiliary state the engine
+// keeps alongside it (class/condition/flag).
+struct InvSlot {
+    uint8_t item = 0;   // +0x00  item index (0 = empty slot)
+    uint8_t aux1 = 0;   // +0x01  auxiliary state byte
+    uint8_t aux2 = 0;   // +0x02  auxiliary state byte
+    uint8_t cond = 0;   // +0x03  condition/quality byte (100 = full)
+};
+
+// A decoded view of the fields the engine's character code reads directly from
+// the 410-byte (0x19a) struct, with the verified semantics.  `raw` is one such
+// struct (e.g. `SaveChar::raw` or a ROST record at +0x01).  This is a read-only
+// projection; the struct is not modified.
+struct CharSheet {
+    uint8_t  present = 0;    // +0x00  non-zero: slot in use
+    std::string name;        // +0x01  14 bytes, NUL-terminated
+    int16_t  flags10 = 0;    // +0x10  word (erase-condition guard; -1 = leave)
+    int16_t  counter12 = 0;  // +0x12  word (paired with flags10)
+    uint8_t  level17 = 0;    // +0x17  level / rank
+    uint8_t  class18 = 0;    // +0x18  class flag (1 PC / 2 monster)
+    uint8_t  base1c = 0;     // +0x1c  base stat (45..75)
+    uint8_t  stat1d = 0;     // +0x1d  Dexterity-derived stat (see 1BA40)
+    uint8_t  stat1e = 0;     // +0x1e  body stat (100 - rec[0x2d])
+    int16_t  hp_max = 0;     // +0x20  maximum hit points
+    int16_t  hp_cur = 0;     // +0x22  current hit points
+    uint32_t exp = 0;        // +0x6c  32-bit experience (low +0x6c, high +0x6e)
+    uint8_t  con44 = 0;      // +0x44  Constitution
+    uint8_t  str45 = 0;      // +0x45  Strength
+    uint8_t  dex46 = 0;      // +0x46  Dexterity
+    uint8_t  int47 = 0;      // +0x47  Intelligence
+    uint8_t  wis48 = 0;      // +0x48  Wisdom
+    uint8_t  speed56 = 0;    // +0x56  speed (1..4)
+    uint8_t  body24 = 0;     // +0x24  body/health state (2 dying, 3 dead)
+    uint8_t  mod5b = 0;      // +0x5b  attribute modifier (100 - (mod5b+stat1e))
+    uint8_t  mod5c = 0;      // +0x5c  attribute modifier (mod5c + base1c)
+    uint8_t  mod5e = 0;      // +0x5e  attribute modifier (mod5e + Strength)
+    uint8_t  mod5f = 0;      // +0x5f  attribute modifier (mod5f + level17)
+    uint8_t  flag6a = 0;     // +0x6a  flag (adds 50 to display byte +0x17c)
+    uint8_t  flag0f = 0;     // +0x0f  status flag (==0 subtracts 10 from +0x17d)
+    // The character's current / maximum magic points; the sheet's "Magic.... "
+    // line shows this pair (equal at rest).  See kCharMagMax68.
+    uint8_t  mag_max68 = 0;  // +0x68  maximum magic points
+    uint8_t  mag_cur69 = 0;  // +0x69  current magic points
+    uint8_t  load25 = 0;     // +0x25  carrying capacity / load
+    // The 48 four-byte inventory slots at +0x82 (see kCharInv82).
+    std::array<InvSlot, kCharInvCount> inv{};
+
+    // HP as a percentage, computed exactly as the sheet builder does
+    // (100 * hp_cur / hp_max, integer division); 0 when hp_max is 0.
+    int hp_percent() const;
+
+    // --- party-status display row -----------------------------------------
+    // The party-status builder packs a 12-byte row per member into its display
+    // block; these reproduce each byte from the struct.  See the kCharFlg*
+    // notes for the raw-image grounding (builder at image offset 0x2D436).
+    //   +0x17a  hp_pct       100 * hp_cur / hp_max
+    //   +0x17b  body24       (verbatim)
+    //   +0x17c  hp_mod       (hp_cur >> 3) + (flag6a ? 50 : 0)
+    //   +0x17d  attr_a       100 - (mod5b + stat1e), minus 10 if flag0f == 0
+    //   +0x17e  attr_b       mod5c + base1c
+    //   +0x17f  attr_c       mod5f + level17
+    //   +0x180  hp_cur       (word copy)
+    uint8_t hp_pct() const;
+    uint8_t hp_mod() const;
+    uint8_t attr_a() const;
+    uint8_t attr_b() const;
+    uint8_t attr_c() const;
+};
+
+// Decode a 410-byte character struct into a CharSheet.  `raw` must point at a
+// 410-byte buffer.
+CharSheet decode_char(const uint8_t* raw);
+
+// char +0x1d as derived from the Dexterity at +0x46 by the routine at 1BA40: a
+// character below Dexterity 16 keeps 10; from 16 up it is 5*dex - 65 (dex 16 ->
+// 15, 19 -> 30).  Verified against every live save character.
+uint8_t char_stat1d_from_dex(uint8_t dex);
 
 // --- GAMES/GAMEn (saved game / "gamestanding") ----------------------------
 
@@ -342,6 +599,36 @@ std::string dungeon_view_dir(uint16_t location);
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
 SaveGame load_save(const std::string& path);
+
+// --- Party-status projection ----------------------------------------------
+// One member's row in the party-status display block the town/play loop builds
+// (segment [0xb0b0], at es:[si+0x179..0x184]).  Reproduced byte-for-byte from
+// the builder at image offset 0x2D436; see `CharSheet::hp_pct()` etc.
+struct PartyRow {
+    uint8_t  index    = 0;  // +0x179  party index (the builder also writes it
+                            //   at +0x177; +0x176 is the constant in-use marker 2)
+    uint8_t  hp_pct   = 0;  // +0x17a  100 * hp_cur / hp_max
+    uint8_t  body24   = 0;  // +0x17b  body/health state (verbatim)
+    uint8_t  hp_mod   = 0;  // +0x17c  (hp_cur >> 3) + (flag6a ? 50 : 0)
+    uint8_t  attr_a   = 0;  // +0x17d  100 - (mod5b + stat1e), -10 if flag0f == 0
+    uint8_t  attr_b   = 0;  // +0x17e  mod5c + base1c
+    uint8_t  attr_c   = 0;  // +0x17f  mod5f + level17
+    uint16_t hp_cur   = 0;  // +0x180  current HP (word copy)
+};
+
+// Project a decoded character into its party-status row.
+PartyRow party_row(const CharSheet& c, uint8_t index);
+
+// Project a whole save's live party (slots with `present == 1`, in order).
+std::vector<PartyRow> party_status(const SaveGame& sv);
+
+// The play-screen party panel draws, under each character's profession line, a
+// dark stat number: `+0x1e` in decimal followed by a trailing symbol glyph
+// (verified pixel-exact against the DOSBox play-screen capture for all six
+// shipped characters -> "50%", "90%", "50%", "20%", "40%", "65%").  The digits
+// are CHR2 band-0 cells 27+d and the trailing glyph is CHR2 band-1 cell 37, in
+// the panel's 5x5 face.
+std::string panel_stat_text(uint8_t stat1e);
 
 // --- ROST/SHOP ------------------------------------------------------------
 

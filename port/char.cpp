@@ -29,6 +29,9 @@ std::vector<uint8_t> read_file(const std::string& path) {
 }
 
 uint16_t rd16(const uint8_t* p) { return (uint16_t)(p[0] | (p[1] << 8)); }
+uint32_t rd32(const uint8_t* p) {
+    return (uint32_t)(p[0] | (p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24));
+}
 
 // Read a NUL-terminated string from `p`, at most `limit` bytes.
 std::string cstr(const uint8_t* p, size_t limit) {
@@ -52,6 +55,7 @@ bool parse_spec(const std::vector<uint8_t>& data, SpecTable& out) {
         SpecRecord rec;
         std::memcpy(rec.raw.data(), r, kSpecRecordSize);
 
+        rec.keyword = cstr(r + 0x00, 0x0e);
         rec.text_a = cstr(r + 0x0e, 0x4a - 0x0e);
         rec.text_b = cstr(r + 0x50, 0xc6 - 0x50);
 
@@ -196,6 +200,7 @@ void dump_spec(std::FILE* out, const SpecTable& t, const char* label) {
                      "arg4e=%d cnt=%u\n",
                      i, (unsigned)r.type, spec_type_name(r.type), r.index_c9,
                      r.class_eb, r.arg_4c, r.arg_4e, r.counter);
+        if (!r.keyword.empty()) std::fprintf(out, "        kw: %s\n", r.keyword.c_str());
         if (!r.text_a.empty()) std::fprintf(out, "        a: %s\n", r.text_a.c_str());
         if (!r.text_b.empty()) std::fprintf(out, "        b: %s\n", r.text_b.c_str());
     }
@@ -447,6 +452,12 @@ std::vector<std::string> combat_abbrev_names() {
 std::vector<std::string> scenario_names() {
     return to_vec(kScenarioNames, kScenarioCount);
 }
+std::vector<std::string> facing_names() {
+    return to_vec(kFacingNames, kFacingCount);
+}
+std::vector<std::string> time_of_day_names() {
+    return to_vec(kTimeOfDayNames, kTimeOfDayCount);
+}
 
 std::vector<std::string> monster_names(const std::string& dir, int scenario) {
     std::vector<std::string> out;
@@ -455,6 +466,122 @@ std::vector<std::string> monster_names(const std::string& dir, int scenario) {
     std::snprintf(path, sizeof(path), "%s/SYST/NSC0%d", dir.c_str(), scenario);
     for (const SnsRecord& r : load_nsc(path)) out.push_back(r.singular);
     return out;
+}
+
+CharSeed sns_char_seed(const SnsRecord& rec) {
+    CharSeed s;
+    // Grounded in the raw image at file offset 0x22F80..0x231A0 (the listing's
+    // 1DA8E region).  Each field is `stats[off - 38]`.
+    s.c14 = rec.stats[kSnsField3a - 38];   // +0x14 word
+    s.c18 = rec.stats[kSnsClass4c - 38];
+    s.c1c = rec.stats[kSnsBody2e - 38];
+    s.c1d = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);
+    s.c1e = (uint8_t)(100 - rec.stats[kSnsBody2d - 38]);
+    s.c56 = rec.stats[kSnsSpeed36 - 38];
+    s.c7a_index = rec.stats[kSnsIndex2a - 38];
+    for (int n = 0; n < 4; ++n) {
+        s.c142[n] = rec.stats[kSnsSkill3b + 2 * n - 38];
+        s.c143[n] = rec.stats[kSnsSkill3c + 2 * n - 38];
+    }
+    return s;
+}
+
+int CharSheet::hp_percent() const {
+    if (hp_max == 0) return 0;
+    return 100 * hp_cur / hp_max;   // integer division, as the sheet builder does
+}
+
+// --- party-status display row (builder at image offset 0x2D436) ------------
+uint8_t CharSheet::hp_pct() const {
+    if (hp_max == 0) return 0;
+    return (uint8_t)(100 * hp_cur / hp_max);
+}
+
+uint8_t CharSheet::hp_mod() const {
+    return (uint8_t)((hp_cur >> 3) + (flag6a ? 50 : 0));
+}
+
+uint8_t CharSheet::attr_a() const {
+    uint8_t v = (uint8_t)(100 - (mod5b + stat1e));   // neg al after sub 0x64
+    if (flag0f == 0) v = (uint8_t)(v - 10);
+    return v;
+}
+
+uint8_t CharSheet::attr_b() const {
+    return (uint8_t)(mod5c + base1c);
+}
+
+uint8_t CharSheet::attr_c() const {
+    return (uint8_t)(mod5f + level17);
+}
+
+PartyRow party_row(const CharSheet& c, uint8_t index) {
+    PartyRow r;
+    r.index  = index;
+    r.hp_pct = c.hp_pct();
+    r.body24 = c.body24;
+    r.hp_mod = c.hp_mod();
+    r.attr_a = c.attr_a();
+    r.attr_b = c.attr_b();
+    r.attr_c = c.attr_c();
+    r.hp_cur = (uint16_t)c.hp_cur;
+    return r;
+}
+
+std::vector<PartyRow> party_status(const SaveGame& sv) {
+    std::vector<PartyRow> rows;
+    uint8_t idx = 0;
+    for (const auto& sc : sv.chars) {
+        if (sc.present != 1) continue;   // only slots the engine marks in use
+        rows.push_back(party_row(decode_char(sc.raw.data()), idx++));
+    }
+    return rows;
+}
+
+std::string panel_stat_text(uint8_t stat1e) {
+    return std::to_string((unsigned)stat1e) + "%";
+}
+
+uint8_t char_stat1d_from_dex(uint8_t dex) {
+    if (dex < 16) return 10;
+    return (uint8_t)(5 * dex - 65);   // 1BA40: 5*dex - 0x41
+}
+
+CharSheet decode_char(const uint8_t* raw) {
+    CharSheet c;
+    c.present = raw[kCharPresent];
+    c.name = cstr(raw + kCharName, 14);
+    c.flags10 = (int16_t)rd16(raw + kCharFlags10);
+    c.counter12 = (int16_t)rd16(raw + kCharCounter12);
+    c.level17 = raw[kCharLevel17];
+    c.class18 = raw[kCharClass18];
+    c.base1c = raw[kCharBase1c];
+    c.stat1d = raw[kCharStat1d];
+    c.stat1e = raw[kCharStat1e];
+    c.hp_max = (int16_t)rd16(raw + kCharHpMax20);
+    c.hp_cur = (int16_t)rd16(raw + kCharHpCur22);
+    c.exp = rd32(raw + kCharExp6c);
+    c.con44 = raw[kCharCon44];
+    c.str45 = raw[kCharStr45];
+    c.dex46 = raw[kCharDex46];
+    c.int47 = raw[kCharInt47];
+    c.wis48 = raw[kCharWis48];
+    c.speed56 = raw[kCharSpeed56];
+    c.body24 = raw[kCharBody24];
+    c.mod5b = raw[kCharFlg5b];
+    c.mod5c = raw[kCharFlg5c];
+    c.mod5e = raw[kCharFlg5e];
+    c.mod5f = raw[kCharFlg5f];
+    c.flag6a = raw[kCharFlag6a];
+    c.flag0f = raw[kCharFlg0f];
+    c.mag_max68 = raw[kCharMagMax68];
+    c.mag_cur69 = raw[kCharMagCur69];
+    c.load25 = raw[kCharLoad25];
+    for (size_t s = 0; s < kCharInvCount; ++s) {
+        const uint8_t* p = raw + kCharInv82 + s * kCharInvStride;
+        c.inv[s] = InvSlot{p[0], p[1], p[2], p[3]};
+    }
+    return c;
 }
 
 }  // namespace lofport
