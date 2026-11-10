@@ -15,6 +15,7 @@
 #include <cstring>
 #include <cstdio>
 #include <string>
+#include <sstream>
 
 #include <vector>
 
@@ -160,10 +161,73 @@ int main(int argc, char** argv) {
     };
 
     long key_frame = getenv("LOF_KEYFRAME") ? atol(getenv("LOF_KEYFRAME")) : 5;
-    auto feed_keys = [&]() {
-        if (!opt.keys.empty() && frame_no >= key_frame && ((frame_no - key_frame) % 20) == 0) {
-            for (uint8_t k : opt.keys) m.key_queue.push_back(k);
+    // LOF_KEYONCE=1 injects the --keys sequence exactly once (at key_frame)
+    // instead of re-queueing it every 20 frames.  The repeating default makes
+    // scripted menus work, but it re-presses every hot-key on a 20-frame cycle,
+    // which loops multi-step dialogs (e.g. town -> Continue) back to the start.
+    bool key_once = getenv("LOF_KEYONCE") && atoi(getenv("LOF_KEYONCE")) != 0;
+    // LOF_KEYSTEP=N delivers one --keys entry every N frames (starting at
+    // LOF_KEYFRAME) instead of dumping the whole list at once.  Multi-screen
+    // flows (menu -> open file -> town -> Continue) need each key to arrive
+    // after the previous screen has actually drawn and started polling.
+    long key_step = getenv("LOF_KEYSTEP") ? atol(getenv("LOF_KEYSTEP")) : 0;
+    // LOF_KEYAT="frame:sc,frame:sc,..." queues each scancode at an exact frame.
+    // Multi-screen flows have wildly different dwell times (loading a save runs
+    // tens of millions of instructions), so fixed-step delivery overshoots;
+    // this lets a script pin each key to the screen that is actually waiting.
+    struct KeyAt { long frame; uint8_t sc; };
+    std::vector<KeyAt> key_at;
+    if (const char* ka = getenv("LOF_KEYAT")) {
+        std::string s(ka), item;
+        std::stringstream ss(s);
+        while (std::getline(ss, item, ',')) {
+            auto c = item.find(':');
+            if (c == std::string::npos) continue;
+            long fr = strtol(item.substr(0, c).c_str(), nullptr, 0);
+            long sc = strtol(item.substr(c + 1).c_str(), nullptr, 0);
+            key_at.push_back({fr, (uint8_t)sc});
         }
+    }
+    size_t key_idx = 0;
+    bool key_sent = false;
+    // LOF_KEYAUTO="sc,sc,...": deliver one scancode at a time, but only once the
+    // game has drained the previous one from key_queue.  Screen dwell times vary
+    // wildly (loading the town or a map runs tens of millions of instructions),
+    // so frame-scheduled delivery drops keys; gating on an empty queue adapts.
+    std::vector<uint8_t> key_auto;
+    if (const char* ka = getenv("LOF_KEYAUTO")) {
+        std::string s(ka), item; std::stringstream ss(s);
+        while (std::getline(ss, item, ',')) if (!item.empty())
+            key_auto.push_back((uint8_t)strtol(item.c_str(), nullptr, 0));
+    }
+    size_t auto_idx = 0;
+    long key_gap = getenv("LOF_KEYGAP") ? atol(getenv("LOF_KEYGAP")) : 30;
+    long next_auto_frame = key_gap;
+    auto feed_keys = [&]() {
+        if (!key_auto.empty()) {
+            if (auto_idx < key_auto.size() && m.key_queue.empty() && frame_no >= next_auto_frame) {
+                m.key_queue.push_back(key_auto[auto_idx++]);
+                if (getenv("LOF_KEYLOG")) fprintf(stderr, "[keylog] pushed sc=%02X frame=%ld\n", m.key_queue.back(), frame_no);
+                next_auto_frame = frame_no + key_gap;
+            }
+        } else if (!key_at.empty()) {
+            while (key_idx < key_at.size() && frame_no >= key_at[key_idx].frame) {
+                m.key_queue.push_back(key_at[key_idx].sc);
+                key_idx++;
+            }
+        } else if (!opt.keys.empty() && frame_no >= key_frame) {
+            if (key_step > 0) {
+                size_t want = (size_t)((frame_no - key_frame) / key_step) + 1;
+                while (key_idx < opt.keys.size() && key_idx < want) {
+                    m.key_queue.push_back(opt.keys[key_idx++]);
+                }
+            } else if (key_once ? !key_sent : ((frame_no - key_frame) % 20) == 0) {
+                for (uint8_t k : opt.keys) m.key_queue.push_back(k);
+                key_sent = true;
+            }
+        }
+        if (getenv("LOF_MOVEX")) m.mouse_x = atoi(getenv("LOF_MOVEX"));
+        if (getenv("LOF_MOVEY")) m.mouse_y = atoi(getenv("LOF_MOVEY"));
         if (getenv("LOF_CLICK")) {
             // Click at (mouse_x, mouse_y) starting at frame LOF_CLICKFRAME, held
             // for a few frames so the game's polling loop sees the button down.
@@ -241,8 +305,17 @@ int main(int argc, char** argv) {
         m.running = true;
         m.reset_cpu_state();
         m.load_exe(img, path);
+        if (getenv("LOF_DISASM")) {
+            // LOF_DISASM=seg:off:len — hex-dump the loaded image at that address.
+            unsigned seg=0, off=0, len=32; sscanf(getenv("LOF_DISASM"), "%x:%x:%u", &seg, &off, &len);
+            uint32_t base = ((uint32_t)seg << 4) + off;
+            fprintf(stderr, "[disasm] %04X:%04X =", seg, off);
+            for (unsigned i = 0; i < len; i++) fprintf(stderr, " %02X", m.rb(base + i));
+            fprintf(stderr, "\n");
+        }
         // Run in chunks, presenting a frame after each chunk.
         std::vector<std::string> ring;
+        uint16_t min_sp = 0xFFFF;
         ring.reserve(64);
         while (m.running) {
             for (int i = 0; i < 300000 && m.running; i++) {
@@ -265,6 +338,16 @@ int main(int argc, char** argv) {
                         left--;
                     }
                 }
+                if (getenv("LOF_SPLOW")) {
+                    static bool done = false;
+                    long lim = strtol(getenv("LOF_SPLOW"), nullptr, 16);
+                    if (!done && m.cpu.ss == 0x4C92 && m.cpu.sp > 0x8000 && m.cpu.sp < (uint16_t)lim) {
+                        fprintf(stderr, "[splow] instr=%u cs:ip=%04X:%04X sp=%04X bp=%04X ax=%04X bx=%04X cx=%04X dx=%04X si=%04X di=%04X\n",
+                            m.instr_count, m.cpu.cs, m.cpu.ip, m.cpu.sp, m.cpu.bp,
+                            m.cpu.ax, m.cpu.bx, m.cpu.cx, m.cpu.dx, m.cpu.si, m.cpu.di);
+                        done = true;
+                    }
+                }
                 if (getenv("LOF_RING")) {
                     char buf[160];
                     snprintf(buf, sizeof buf, "%08u %04X:%04X %02X | ax=%04X bx=%04X cx=%04X dx=%04X si=%04X di=%04X bp=%04X sp=%04X ds=%04X es=%04X ss=%04X fl=%04X",
@@ -273,7 +356,14 @@ int main(int argc, char** argv) {
                     if (ring.size() < 256) ring.push_back(buf);
                     else { ring[m.instr_count % 256] = buf; }
                 }
+                if (getenv("LOF_LOOPDBG")) {
+                    unsigned lc = 0, li = 0;
+                    sscanf(getenv("LOF_LOOPDBG"), "%x:%x", &lc, &li);
+                    if (m.cpu.cs == lc && m.cpu.ip == li)
+                        fprintf(stderr, "[loop] instr=%u sp=%04X bp=%04X\n", m.instr_count, m.cpu.sp, m.cpu.bp);
+                }
                 cpu_step(m.cpu);
+                if (m.cpu.ss == 0x4C92 && m.cpu.sp < min_sp) min_sp = m.cpu.sp;
                 if (getenv("LOF_CSCHG")) {
                     static uint16_t prev_cs = 0xFFFF;
                     static uint16_t prev_ss = 0xFFFF;
@@ -299,6 +389,30 @@ int main(int argc, char** argv) {
                             uint32_t a = sbase + (uint16_t)(m.cpu.sp + k);
                             fprintf(stderr, "  ss:[sp%+d]=%04X\n", k, (uint16_t)(m.rb(a) | (m.rb(a + 1) << 8)));
                         }
+                        uint32_t bptr = (uint32_t)m.rw(((uint32_t)m.cpu.ds << 4) + 0xb1fa)
+                                      | ((uint32_t)m.rw(((uint32_t)m.cpu.ds << 4) + 0xb1fc) << 16);
+                        fprintf(stderr, "  [b1fa]=%04X:%04X  [b226]=%04X:%04X  ds=%04X ss=%04X mins=%04X\n",
+                                (unsigned)(bptr >> 16), (unsigned)(bptr & 0xFFFF),
+                                (unsigned)m.rw(((uint32_t)m.cpu.ds << 4) + 0xb228),
+                                (unsigned)m.rw(((uint32_t)m.cpu.ds << 4) + 0xb226),
+                                m.cpu.ds, m.cpu.ss, (unsigned)min_sp);
+                        if (getenv("LOF_STACKDUMP")) {
+                            for (int k = 0; k < 0x80; k += 2) {
+                                uint32_t a = sbase + (uint16_t)(m.cpu.sp + k);
+                                fprintf(stderr, "  S+%02X %04X\n", k, (unsigned)m.rw(a));
+                            }
+                        }
+                        if (getenv("LOF_RAMDUMP")) {
+                            uint32_t lo = 0, hi = 0;
+                            sscanf(getenv("LOF_RAMDUMP"), "%x:%x", &lo, &hi);
+                            for (uint32_t a = lo; a < hi; a += 16) {
+                                fprintf(stderr, "  %05X ", a);
+                                for (int k = 0; k < 16; k++) fprintf(stderr, "%02X ", m.rb(a + k));
+                                fprintf(stderr, " |");
+                                for (int k = 0; k < 16; k++) { uint8_t c = m.rb(a + k); fprintf(stderr, "%c", (c >= 32 && c < 127) ? c : '.'); }
+                                fprintf(stderr, "|\n");
+                            }
+                        }
                     }
                     m.running = false;
                 }
@@ -311,7 +425,7 @@ int main(int argc, char** argv) {
             }
             if (getenv("LOF_FTRACE")) {
                 size_t nz=0; for (int pp=0;pp<4;pp++) for (uint8_t b : m.ega.plane[pp]) if(b) nz++;
-                fprintf(stderr,"[ft] frame=%ld mode=%d nz=%zu egaw=%llu cs:ip=%04X:%04X\n", frame_no, m.ega.mode, nz, (unsigned long long)m.ega.writes, m.cpu.cs, m.cpu.ip);
+                fprintf(stderr,"[ft] frame=%ld mode=%d nz=%zu egaw=%llu cs:ip=%04X:%04X ss:sp=%04X:%04X bp=%04X\n", frame_no, m.ega.mode, nz, (unsigned long long)m.ega.writes, m.cpu.cs, m.cpu.ip, m.cpu.ss, m.cpu.sp, m.cpu.bp);
             }
             m.ticks++;
             m.ww(0x46C, (uint16_t)(m.ticks & 0xFFFF));

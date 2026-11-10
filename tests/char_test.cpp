@@ -422,6 +422,64 @@ static int real_data() {
     assert(sv.chars[0].raw[kCharLevel17] == 0x01);
     assert(sv.chars[0].raw[kCharDex46] == 0x0e);
 
+    // The play-screen panel's profession line comes from byte 0x1b, indexing
+    // profession_names() (LOF.EXE table at 0x41e98).  GAME1's Decker is a
+    // Paladin (9) and Handy a Smith (3); Siegurd carries 12, one past the
+    // 12-entry table, so the panel prints two '?' glyphs there.
+    assert(sv.chars[0].raw[kCharProf1b] == sv.chars[0].profession);
+    assert(sv.chars[0].profession == 9 && profession_names()[9] == "Paladin");
+    assert(sv.chars[2].profession == 3 && profession_names()[3] == "Smith");
+    assert(sv.chars[1].profession == 12 && sv.chars[1].profession >= kProfessionCount);
+
+    // The panel's dark-gray stat number is record byte 0x1e printed with "%d"
+    // (disassembly 2EEC2: mov al, byte [bx+di+0x1e]); the oracle shows
+    // 50/90/50/20/40/65 for Decker..Assanla.
+    assert(sv.chars[0].panel_stat == 50 && sv.chars[0].raw[0x1e] == 50);
+    assert(sv.chars[1].panel_stat == 90);
+    assert(sv.chars[2].panel_stat == 50);
+    assert(sv.chars[3].panel_stat == 20);
+    assert(sv.chars[4].panel_stat == 40);
+    assert(sv.chars[5].panel_stat == 65);
+
+    // The party's location is two digit bytes: ones at save offset 0x9a2 and
+    // tens at 0x9a4 (verified by patching each and watching the emulator open
+    // the matching map).  They name the dungeon map (DNGS/DNG<tt><oo>) and the
+    // view-tile directory (EGA/D<ones>).  GAME1 starts in the Temple:
+    // location 5 -> DNGS/DNG05, view tiles in EGA/D5.  GAME2 is the wilderness:
+    // location 10 -> DNGS/DNG10, view tiles in EGA/D0.
+    assert(sv.loc_ones == 5 && sv.loc_tens == 0);
+    assert(save_location(sv) == 5);
+    assert(dungeon_map_name(5) == "DNG05");
+    assert(dungeon_view_dir(5) == "D5");
+    SaveGame sv2 = load_save(std::string(dir) + "/GAMES/GAME2");
+    assert(sv2.ok && sv2.loc_ones == 0 && sv2.loc_tens == 1);
+    assert(save_location(sv2) == 10);
+    assert(dungeon_map_name(10) == "DNG10");
+    assert(dungeon_view_dir(10) == "D0");
+    assert(dungeon_view_dir(11) == "D1");    // DNG11 -> ega/d1
+    assert(dungeon_view_dir(8).empty());     // no EGA/D8
+    assert(dungeon_map_name(100).empty());   // out of range
+
+    // The party's facing is a separate digit byte at save offset 0x9a6 (0=N,
+    // 1=E, 2=S, 3=W), printed by the status box with facing_names().  GAME1
+    // faces South and GAME2 North; the DOSBox play capture (slot 2) shows
+    // "Facing North", matching.  The status-box title is the location's
+    // scenario (ones digit indexes scenario_names()): 5 -> The Temple,
+    // 10 -> Valley of Faerghail, both matching their oracles.
+    assert(sv.facing == 2 && sv2.facing == 0);
+    assert(facing_names()[sv2.facing] == "    Facing North");
+    assert(facing_names()[sv.facing] == "    Facing South");
+    assert(scenario_names()[save_location(sv) % 10] == "     The Temple");
+    assert(scenario_names()[save_location(sv2) % 10] == " Valley of Faerghail");
+
+    // The checks below that describe the *wilderness* party state (Handy
+    // wounded at 9/11 HP, Decker's pack carrying a Short sword, the experience
+    // totals) come from GAME2; GAME1 is the Temple start and carries a
+    // different party state.  Decode the wilderness characters once.
+    CharSheet wdecker = decode_char(sv2.chars[0].raw.data());
+    CharSheet wsieg   = decode_char(sv2.chars[1].raw.data());
+    CharSheet whandy  = decode_char(sv2.chars[2].raw.data());
+
     // Item table (transcribed from LOF.EXE; no data file carries it).
     const auto& it = items();
     assert(it.size() == kItemCount);
@@ -487,6 +545,18 @@ static int real_data() {
     assert(heals.size() == 1 && it[heals[0]].name == "Healing potion");
     assert(items_with_effect(10)[0] == 0x2e);
     assert(items_with_effect(200).empty());
+
+    // Item-use table (transcribed from LOF.EXE image 0x42712; the play loop
+    // indexes it as `es:[item*0x24 + 0x2712]`).  41 records, 36 bytes each;
+    // record 0 is the null "no item" row and items are 1-based after it.
+    assert(kItemUseCount == 41 && kItemUseRec == 36);
+    assert(item_use_flags(0) == 0);       // null row
+    assert(item_use_flags(1) == 1);       // Club
+    assert(item_use_flags(11) == 220);    // Battle flail (0xdc)
+    assert(item_use_flags(41) == 0 && item_use_flags(-1) == 0);  // out of range
+    // "usable" = low two bits clear and bit 2 set; only Battle flail qualifies.
+    assert(item_is_usable(11));
+    assert(!item_is_usable(0) && !item_is_usable(1) && !item_is_usable(41));
 
     // Spell table (141 x 36 bytes, also transcribed from LOF.EXE).
     const auto& sp = spells();
@@ -640,14 +710,14 @@ static int real_data() {
     CharSheet dkr = decode_char(sv.chars[0].raw.data());
     assert(dkr.con44 == 14 && dkr.str45 == 19 && dkr.dex46 == 14 &&
            dkr.int47 == 12 && dkr.wis48 == 15);
-    // The 32-bit experience accumulator (+0x6c low / +0x6e high).  GAME1 holds
-    // non-zero, distinct values per character (Decker 379, Siegurd 699, Handy
-    // 231); they are small so the high word stays 0, and the accumulator must
-    // not borrow from a neighbour.  Siegurd is the un-rolled template, but its
-    // experience is still set.
-    assert(dkr.exp == 379);
-    assert(cs.exp == 699);
-    assert(decode_char(sv.chars[2].raw.data()).exp == 231);
+    // The 32-bit experience accumulator (+0x6c low / +0x6e high).  The
+    // wilderness save holds non-zero, distinct values per character (Decker
+    // 379, Siegurd 699, Handy 231); they are small so the high word stays 0,
+    // and the accumulator must not borrow from a neighbour.  Siegurd is the
+    // un-rolled template, but its experience is still set.
+    assert(wdecker.exp == 379);
+    assert(wsieg.exp == 699);
+    assert(whandy.exp == 231);
     // Every in-use character: current HP never exceeds the maximum, the HP
     // percentage matches the integer-division formula, and +0x1d is consistent
     // with the Dexterity rule.  The save carries spare/garbage slots too (the
@@ -664,16 +734,18 @@ static int real_data() {
         for (const InvSlot& sl : c.inv) if (sl.item) ++used;
         assert(c.inv_used == used);
     }
-    // A damaged character still projects consistently (Handy: 9 of 11 HP).
-    CharSheet dk = decode_char(sv.chars[2].raw.data());
+    // A damaged character still projects consistently (wilderness Handy: 9 of
+    // 11 HP; the Temple-start GAME1 Handy is undamaged at 11/11).
+    CharSheet dk = decode_char(sv2.chars[2].raw.data());
     assert(dk.name == "Handy" && dk.hp_cur == 9 && dk.hp_max == 11);
     assert(dk.hp_percent() == 81);   // 100*9/11, integer division
 
-    // Inventory array (+0x82, 48 x 4-byte slots).  GAME1's Decker carries
-    // Leather armour (27), Small shield (34), Short sword (13) and The Amulet
-    // (120); Handy carries Leather armour (27) then Warhammer (8) etc.  The
-    // first slot's condition byte is 100 except for worn armour (96/92).
-    CharSheet dki = decode_char(sv.chars[0].raw.data());
+    // Inventory array (+0x82, 48 x 4-byte slots).  The wilderness Decker
+    // (GAME2) carries Leather armour (27), Small shield (34), Short sword (13)
+    // and The Amulet (120); Handy carries Leather armour (27) then Warhammer
+    // (8) etc.  The first slot's condition byte is 100 except for worn armour
+    // (96/92).
+    CharSheet dki = decode_char(sv2.chars[0].raw.data());
     assert(dki.inv[0].item == 27 && dki.inv[0].equipped == 1 &&
            dki.inv[0].condition == 100);
     assert(dki.inv[1].item == 34 && dki.inv[1].condition == 92);
@@ -722,13 +794,14 @@ static int real_data() {
         for (const auto& sl : c.inv) assert(sl.item <= 185);
     }
 
-    // Party-status fields on the real save: GAME1's fresh characters carry
-    // zeroed attribute modifiers (+0x5b/+0x5c/+0x5e/+0x5f); the body state
-    // (+0x24) and flag (+0x6a) hold the values the character generator wrote
-    // (Handy body 1 flag 1, Merlin body 2 flag 2).
+    // Party-status fields on the real save: the fresh characters carry zeroed
+    // attribute modifiers (+0x5b/+0x5c/+0x5e/+0x5f); the body state (+0x24) and
+    // flag (+0x6a) hold the values the character generator wrote (Handy body 1
+    // flag 1, Merlin body 2 flag 2).  `dk`/`merlin` are the wilderness
+    // characters decoded above.
     assert(dk.body24 == 1 && dk.mod5b == 0 && dk.mod5c == 0 &&
            dk.mod5e == 0 && dk.mod5f == 0 && dk.flag6a == 1);
-    CharSheet merlin = decode_char(sv.chars[3].raw.data());
+    CharSheet merlin = decode_char(sv2.chars[3].raw.data());
     assert(merlin.name == "Merlin" && merlin.body24 == 2 && merlin.flag6a == 2);
 
     // Party-status display row for Handy (hp 9/11, +0x1c=100, +0x1e=50,
@@ -740,7 +813,7 @@ static int real_data() {
 
     // The whole-party projection: only the six live slots, in order, each row
     // carrying the same bytes the builder would pack.
-    std::vector<PartyRow> party = party_status(sv);
+    std::vector<PartyRow> party = party_status(sv2);
     assert(party.size() == 6);
     for (size_t i = 0; i < party.size(); i++) assert(party[i].index == i);
     assert(party[0].hp_pct == 100 && party[0].body24 == 0);

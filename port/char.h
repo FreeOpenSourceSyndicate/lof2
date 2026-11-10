@@ -223,6 +223,29 @@ std::vector<size_t> items_with_effect(uint8_t effect);
 // Out-of-range item or profession returns false.
 bool item_usable_by_class(int index, int prof);
 
+// --- Item-use table (runtime) ---------------------------------------------
+//
+// The play loop keeps a 41-record, 36-byte table at `es:[0x2712]` and indexes
+// it as `es:[item_index * 0x24 + 0x2712]` (item_index is 1-based into the item
+// table; record 0 is a null "no item" row).  The use/attack handlers read byte
+// 0 as a bitfield (image 0x13a82, 0x1cfd2, 0x1d156); the remaining 35 bytes
+// are handler parameters.  The table ships inside LOF.EXE (image 0x42712) so
+// it is transcribed into port/char_itemuse.inc.
+constexpr size_t kItemUseCount = 41;
+constexpr size_t kItemUseRec = 36;
+
+// Byte 0 of record `item_index` (1-based; 0 = the null row).  Returns 0 for
+// out-of-range indices.
+uint8_t item_use_flags(int item_index);
+
+// True if the engine treats `item_index` as *usable*: byte 0 has neither bit 0
+// nor bit 1 set, and has bit 2 set.  This is the exact predicate the use
+// handlers compute before they dispatch the item's effect.
+bool item_is_usable(int item_index);
+
+// Print the decoded use table (for eyeballing).
+void dump_item_use(FILE* out);
+
 // Print the decoded table (for eyeballing).
 void dump_items(FILE* out);
 
@@ -717,18 +740,49 @@ uint8_t char_stat1d_from_dex(uint8_t dex);
 constexpr size_t kSaveHeaderSize = 4;
 constexpr uint8_t kSaveMagic[4] = {0x00, 'F', 'O', 'L'};
 
+// The party's current location is stored as two separate digit bytes: the
+// ones digit at file offset 0x9a2 and the tens digit at 0x9a4 (verified by
+// patching them and watching the emulator).  The engine builds the map name as
+// `DNGS\DNG%01ld%01ld` (LOF.EXE 0x4bb35) from these two digits: 5 -> DNG05,
+// 10 -> DNG10.  The first-person view tiles live in `EGA\D<ones-digit>`
+// (5 -> D5, 10 -> D0); only 0..7 are used as view directories.
+constexpr size_t kSaveLocOnes = 0x9a2;
+constexpr size_t kSaveLocTens = 0x9a4;
+
+// The party's facing is a separate digit byte at file offset 0x9a6: 0=N, 1=E,
+// 2=S, 3=W (verified by diffing the two shipped saves -- GAME1 faces South
+// where GAME2 faces North -- and by the DOSBox dungeon oracle, whose status box
+// shows "Facing South").  The lower-left status box prints it with the
+// `facing_names()` table.  `kSaveFacingInvalid` marks a save with no facing
+// byte (a short file).
+constexpr size_t kSaveFacing = 0x9a6;
+constexpr uint8_t kSaveFacingInvalid = 0xff;
+
 struct SaveChar {
     std::array<uint8_t, 410> raw{};  // one 0x19a character struct
     uint8_t present = 0;             // +0x00  non-zero: slot holds a character
     std::string name;                // +0x01  NUL-terminated name (<= 14 bytes)
+    uint8_t profession = 0xff;       // +0x1b  index into profession_names()
+    uint8_t panel_stat = 0;          // +0x1e  the numeric stat the play panel shows
 };
 
 struct SaveGame {
     bool ok = false;
     uint8_t header[4] = {0, 0, 0, 0};
+    uint8_t loc_ones = 0;             // +0x9a2  ones digit of the dungeon id
+    uint8_t loc_tens = 0;             // +0x9a4  tens digit of the dungeon id
+    uint8_t facing = kSaveFacingInvalid;  // +0x9a6  party facing (0=N..3=W)
     std::vector<SaveChar> chars;      // floor((size - 4) / 410) records
     std::vector<uint8_t> trailer;     // any bytes past the last whole record
 };
+
+// Combined location id (tens*10 + ones) for a save.
+uint16_t save_location(const SaveGame& g);
+
+// Map name (`DNGS/DNG05`) and view-tile directory (`D5`) for a location id.  The
+// view directory is empty if the ones digit exceeds 7 (no D8/D9).
+std::string dungeon_map_name(uint16_t location);
+std::string dungeon_view_dir(uint16_t location);
 
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
