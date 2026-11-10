@@ -770,3 +770,20 @@ a frame: the viewport = a DPnnn base **plus** procedural geometry.
 This reframes the DoD: reproducing a dungeon screen needs (a) the DPnnn base
 index rule **and** (b) the procedural overlay rule — neither derivable from the
 two available oracle frames alone.
+
+### Round 15 — the full play screen is MSCR + the view sprite (verified)
+
+Composed the whole screen and diffed it against the oracle
+(`ref/oracle/dungeon_slot1.png`):
+
+- frame region (outside the window) vs `EGA/UP/MSCR`: **0.921**
+- viewport (10..129, 11..129) vs `EGA/D5/DP001`: **0.952**
+- full 320x200 composite (`MSCR` then `DP001` at (10,11)): **0.928**
+
+So the engine's model is exactly "blit the static frame `EGA/UP/MSCR`, then the
+view sprite at (10,11)" — the same `MSCR` artwork the main menu uses.  The
+remaining ~7 % is split between the viewport's procedural overlay (4.8 %) and the
+frame region, so the *structure* of a dungeon screen is now reproduced
+end-to-end; only the per-(position,facing) sprite-index and overlay rules are
+open.  Implemented as `render_dungeon_screen()` in `port/dungeon.cpp` and
+covered by `test_dungeon_screen` in `tests/dungeon_test.cpp`.

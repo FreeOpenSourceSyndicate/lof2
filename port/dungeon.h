@@ -189,6 +189,15 @@ std::string dungeon_view_dir(int dungeon);
 bool render_dungeon_default_view(Screen& scr, const std::string& dir,
                                  int dungeon);
 
+// Compose the whole dungeon play screen: the static frame `EGA/UP/MSCR` plus
+// the view sprite `EGA/D<d>/DP<index>` blitted at (kViewportX,kViewportY).
+// Verified against the DOSBox oracle (ref/oracle/dungeon_slot1.png): the frame
+// region matches at 92.1% and the composite at 92.8% (the residual is a
+// procedurally drawn overlay, see docs/notes-a.md).  Returns false if the frame
+// or sprite cannot be loaded.
+bool render_dungeon_screen(Screen& scr, const std::string& dir, int dungeon,
+                           int index = 1);
+
 // Synthetic *fallback* for a level with no pre-rendered view sprite (and useful
 // as an automap-style aid): ray-cast the 36x36 tile grid along the party facing
 // with a 60-degree FOV and draw a grey (7) wall band whose height is the
