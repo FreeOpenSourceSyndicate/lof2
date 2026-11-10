@@ -255,7 +255,7 @@ The attribute block and level field are grounded independently in the character
 | 0x18 | byte | class flag: 1 PC / 2 monster (SNSC seed) |
 | 0x1c | byte | base stat 45..75 (SNSC seed) |
 | 0x1d | byte | set to `0x0a`, overridden to `5*dex46-0x41` when `dex46>0x0f` (1BA40) |
-| 0x1e | byte | body stat `100 - rec[0x2d]` (SNSC seed) |
+| 0x1e | byte | **total defence / armour class**: seeded `100 - rec[0x2d]`, then the armour routine (0x210E8) overwrites it with `stat1d + Σ equipped-item AC`; the sheet reads it as the defence stat |
 | 0x20 | word | maximum hit points |
 | 0x22 | word | current hit points |
 | 0x6c | dword | **experience** (32-bit: low word `+0x6c`, high word `+0x6e`) |
@@ -494,7 +494,7 @@ against the shipped `GAMES/GAMEn` + `ROST/ROST` saves (Siegurd == SNSC class 0):
 |-----------:|----------:|---------:|-----------|---------|
 | `0x4c` | 38 | `+0x18` | copy | class flag: 1 for PCs, 2 for big monsters |
 | `0x2e` | 8  | `+0x1c` | copy | base stat (45..75) |
-| `0x2d` | 7  | `+0x1e` | `100 - n` | body/health stat |
+| `0x2d` | 7  | `+0x1e` | `100 - n` | seeded defence, then overwritten by the armour routine (0x210E8) with the total AC |
 | `0x2d` | 7  | `+0x1d` | `100 - n` | same seed, then overridden by the Dexterity rule (1BA40) |
 | `0x36` | 16 | `+0x56` | copy | speed (1..4) |
 | `0x3a` | 20 | `+0x14` | copy | per-class word value (Siegurd 18) |
@@ -642,6 +642,26 @@ buffer, and the copies pin the semantics:
   character whose Dexterity (`+0x46`) is below 16 keeps the value 10 the init
   routine wrote; from Dexterity 16 up it becomes `5*dex - 0x41` (dex 16 -> 15,
   19 -> 30).  Verified against all six party members and the full roster.
+
+- `char +0x1e` is the **total defence (armour class)**, computed by the armour
+  routine at image `0x210E8` (the accumulation is `0x2114E..0x211DA`; it stores
+  the result to `+0x1e`).  It starts from the Dexterity stat `+0x1d` and adds,
+  for every **equipped** inventory slot, the item's armour AC (item field `f3`,
+  record `+0x16`) scaled by the item's condition (slot byte `+0x85`, the 4th
+  byte):
+
+      v = cond + 10;  v -= v % 20;  ac += f3 * v / 100;
+
+  A slot counts only when its aux byte (`+0x83`, the 2nd byte) is non-zero
+  (worn / wielded) — a merely carried item adds nothing.  The running total is
+  clamped to `0x5f`.  Crucially the routine first checks the slot flag word
+  `+0x10`: it recomputes `+0x1e` only when `+0x10 == -1`, so for a live PC the
+  saved `+0x1e` is exactly this formula (verified on 10/11 roster members; the
+  one exception, Siegurd, carries `+0x10 == 0` and is a stale snapshot).  The
+  sheet's defence line reads `+0x1e` (`%2d%%`, string DS:0xa566) and the builder
+  computes `attr_a = 100 - (mod5b + stat1e)` from it.  This is exposed as
+  `defense_from_items()`; the earlier "body stat `100 - rec[0x2d]`" label was
+  only the seed value before the armour pass.
 
 `decode_char()` projects these plus the already-known fields (present, name,
 flags10/counter12, level17, class18, base1c, stat1e, con44/str45/dex46/int47/

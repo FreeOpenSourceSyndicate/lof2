@@ -575,4 +575,18 @@ uint32_t carried_item_weight(const CharSheet& c) {
     return sum;
 }
 
+uint8_t defense_from_items(const CharSheet& c) {
+    uint32_t total = c.stat1d;
+    for (const InvSlot& s : c.inv) {
+        if (s.item == 0 || s.aux1 == 0) continue;
+        const ItemRecord* it = item_by_index(s.item);
+        if (!it || it->f3 <= 0) continue;
+        uint32_t v = (uint32_t)s.cond + 10;
+        v -= v % 20;
+        total += (uint32_t)it->f3 * v / 100;
+    }
+    if (total > 0x5f) total = 0x5f;
+    return (uint8_t)total;
+}
+
 }  // namespace lofport
