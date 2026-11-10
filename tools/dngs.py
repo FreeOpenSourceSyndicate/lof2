@@ -27,6 +27,7 @@ Usage:
     python3 tools/dngs.py doors game/DNGS/DNG00    # door/feature placement
     python3 tools/dngs.py tiles game/EGA          # layered dungeon tilesets
     python3 tools/dngs.py atlas game/EGA D0 out.png  # sheet of a tileset
+    python3 tools/dngs.py oracle ref/oracle/dungeon_slot1.png game/EGA 5 1
     python3 tools/dngs.py all
 """
 import collections
@@ -277,6 +278,134 @@ def cmd_png(path, out, cell=8):
     print('wrote %s (%dx%d)' % (out, w, h))
 
 
+def _read_png(path):
+    """Minimal PNG reader for DOSBox screenshots (8-bit RGB/RGBA, non-interlaced).
+
+    Returns (w, h, rgb) where rgb[y][x] is an (r,g,b) tuple.  Avoids a PIL
+    dependency so the oracle check runs in a bare checkout.
+    """
+    import zlib
+    d = open(path, 'rb').read()
+    assert d[:8] == b'\x89PNG\r\n\x1a\n', 'not a PNG: %s' % path
+    i = 8
+    w = h = bitd = ctype = None
+    idat = bytearray()
+    plte = b''
+    while i < len(d):
+        ln = struct.unpack('>I', d[i:i + 4])[0]
+        tag = d[i + 4:i + 8]
+        body = d[i + 8:i + 8 + ln]
+        i += 12 + ln
+        if tag == b'IHDR':
+            w, h, bitd, ctype = struct.unpack('>IIBB', body[:10])
+        elif tag == b'PLTE':
+            plte = body
+        elif tag == b'IDAT':
+            idat += body
+        elif tag == b'IEND':
+            break
+    assert bitd == 8 and ctype in (2, 3, 6), 'unsupported PNG (%d/%d)' % (bitd, ctype)
+    nch = {2: 3, 3: 1, 6: 4}[ctype]
+    stride = w * nch
+    raw = zlib.decompress(bytes(idat))
+    out = []
+    prev = bytearray(stride)
+    pos = 0
+    for _ in range(h):
+        f = raw[pos]; pos += 1
+        line = bytearray(raw[pos:pos + stride]); pos += stride
+        for x in range(stride):
+            a = line[x - nch] if x >= nch else 0
+            b = prev[x]
+            c = prev[x - nch] if x >= nch else 0
+            if f == 1:
+                line[x] = (line[x] + a) & 0xFF
+            elif f == 2:
+                line[x] = (line[x] + b) & 0xFF
+            elif f == 3:
+                line[x] = (line[x] + ((a + b) >> 1)) & 0xFF
+            elif f == 4:
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
+                line[x] = (line[x] + pr) & 0xFF
+        if ctype == 3:
+            out.append([tuple(plte[line[x] * 3:line[x] * 3 + 3]) for x in range(w)])
+        else:
+            out.append([tuple(line[x * nch:x * nch + 3]) for x in range(w)])
+        prev = line
+    return w, h, out
+
+
+def cmd_oracle(oracle_png, ega_dir, dungeon, index=1):
+    """Check the dungeon play-screen composite against a DOSBox oracle frame.
+
+    The engine draws the static frame EGA/UP/MSCR, then blits the view sprite
+    EGA/D<dungeon>/DP<index> at (10,11).  This reports the match fraction of the
+    frame region, the window, and the whole 320x200 screen, plus the per-sprite
+    match so a wrong view index is obvious.  Ground truth:
+    ref/oracle/dungeon_slot1.png (dungeon 5, index 1).
+    """
+    import ega
+    w, h, rgb = _read_png(oracle_png)
+    pal = ega.EGA_PALETTE
+
+    def to_idx(rgbimg):
+        rev = {}
+        for k, c in enumerate(pal):
+            rev.setdefault(c, k)
+        return [[rev.get(rgbimg[y][x], -1) for x in range(len(rgbimg[0]))]
+                for y in range(len(rgbimg))]
+
+    orc = to_idx(rgb)
+    if (w, h) != (320, 200):
+        sys.exit('oracle is %dx%d, expected 320x200' % (w, h))
+
+    def load(rel):
+        p = os.path.join(ega_dir, rel)
+        iw, ih, _ = ega.decode(p)
+        return [list(r) for r in ega.indices(p)]
+
+    frame = load('UP/MSCR')
+    view = load('D%d/DP%03d' % (dungeon, index))
+
+    vx, vy = 10, 11
+    vh, vw = len(view), len(view[0])
+
+    frame_ok = frame_tot = win_ok = win_tot = tot_ok = 0
+    for y in range(h):
+        for x in range(w):
+            o = orc[y][x]
+            inwin = vx <= x < vx + vw and vy <= y < vy + vh
+            if inwin:
+                ref = view[y - vy][x - vx]
+                win_tot += 1
+                win_ok += (o == ref)
+            else:
+                ref = frame[y][x]
+                frame_tot += 1
+                frame_ok += (o == ref)
+            tot_ok += (o == ref)
+
+    print('oracle %s vs MSCR + D%d/DP%03d @(%d,%d)' %
+          (os.path.basename(oracle_png), dungeon, index, vx, vy))
+    print('  frame region : %d/%d = %.3f' % (frame_ok, frame_tot, frame_ok / frame_tot))
+    print('  view  window : %d/%d = %.3f' % (win_ok, win_tot, win_ok / win_tot))
+    print('  whole screen : %d/%d = %.3f' % (tot_ok, w * h, tot_ok / (w * h)))
+    # Rank every full-size sprite in the tileset so a wrong index stands out.
+    full = []
+    for f in sorted(glob.glob(os.path.join(ega_dir, 'D%d' % dungeon, 'DP*'))):
+        t = load(os.path.join('D%d' % dungeon, os.path.basename(f)))
+        if (len(t), len(t[0])) != (vh, vw):
+            continue
+        ok = sum(t[y][x] == orc[vy + y][vx + x]
+                 for y in range(vh) for x in range(vw))
+        full.append((ok / (vh * vw), os.path.basename(f)))
+    full.sort(reverse=True)
+    print('  best full-size sprites: %s' %
+          ', '.join('%s %.3f' % (n, s) for s, n in full[:5]))
+
+
 def cmd_tiles(dn_dir):
     """Inventory the layered dungeon tilesets EGA/Dn/DPnnn (see notes-a.md).
 
@@ -369,6 +498,11 @@ def main(argv):
                   argv[2] if len(argv) > 2 else 'D0',
                   argv[3] if len(argv) > 3 else 'atlas.png',
                   int(argv[4]) if len(argv) > 4 else 8)
+    elif cmd == 'oracle':
+        # dngs.py oracle <oracle.png> <ega_dir> <dungeon> [index]
+        cmd_oracle(argv[1], argv[2] if len(argv) > 2 else 'game/EGA',
+                   int(argv[3]) if len(argv) > 3 else 5,
+                   int(argv[4]) if len(argv) > 4 else 1)
     elif cmd == 'all':
         for p in sorted(glob.glob('game/DNGS/DNG*')):
             cmd_info(p)
