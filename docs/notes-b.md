@@ -654,6 +654,10 @@ scenarios 0..9 have a single-digit file name.)
       the death routine `1919C`/`191CC`.  Exposed as `kCharBody24`/`kCharFlg5b`…
       /`kCharFlag6a` and `CharSheet::body24/mod5b/mod5c/mod5e/mod5f/flag6a`;
       asserted on a synthetic struct and on `GAMES/GAME1`.
+- [x] Character sheet's `Weight`/`Rations`/`Gold` lines: gold is the 32-bit
+      `+0x72`/`+0x74` (`kCharGold72`), rations the byte `+0x70` (`kCharRations70`);
+      the carried-weight base is `10*rations + gold` (weight routine 0x20F7E).
+      `CharSheet::gold`/`::rations70` + `weight_base()`; asserted on Connar.
 - [ ] Remaining B: the full named stat-field semantics of the SNSC 40-byte block
       and the remaining 410-byte character-struct fields — the exact *names* the
       engine prints for the `+0x5b`-family modifiers still need the live status
@@ -919,10 +923,10 @@ class   = the item class byte (record +0x1e = 30)
 name    = the 16-byte name (record +0)
 ```
 
-That pins the sheet's per-item reads onto the item record.  (The ` Gold:` line is
-**not** summed from items at all: it prints the party's own 32-bit gold counter
-(`[bp-0x1a6]` + `0x31` = the `'$'` char) with the `%05ld$` format.  `Rations.. : `
-formats a `%02d` count.)
+That pins the sheet's per-item reads onto the item record.  (The ` Gold:` line
+prints the character's own 32-bit gold counter `[bp-0x12c]` = char `+0x72`;
+see the 2026-11-08 resolution below, which supersedes the earlier guess that it
+was a party counter.  `Rations.. : ` formats the char `+0x70` byte with `%02d`.)
 
 ### Resolved (2026-11-08): `+0x14` is the item **weight**
 
@@ -936,7 +940,8 @@ pieces of evidence, so the earlier "cost / AC bonus" label for `+0x14` is
    `ax = es:[item_index * 32 + 0xfd0]` (the item record's `+0x14`, since
    `0xfd0 = 0xfbc + 0x14`) and accumulates it into a 32-bit running total,
    finally storing the low word at char `+0x66`.  The accumulator also seeds the
-   total with a per-character base `10 * byte[+0x70] + word[+0x72]`.  Because the
+   total with a per-character base `10 * byte[+0x70] + word[+0x72]` (rations and
+   gold; see the 2026-11-08 resolution below).  Because the
    inventory byte is a **1-based** index (see below), the record fetched for
    slot value `v` is `items()[v-1]`; the routine's `* 32` matches that.
 2. **The load check** at image `0x19B54` / `0x2965f`: an action is refused while
@@ -979,6 +984,64 @@ inventory item weights.  `char_test` asserts the item weights (Club 100, Short
 sword 50, Full plate 650), the two char fields, and that
 `carried_item_weight(connar) + base == connar.weight_cur` on the real ROST.
 `tools/spec.py --emit-items` now documents record `+0x14` as the weight.
+
+### Resolved (2026-11-08): the sheet's `Weight`/`Rations`/`Gold` lines read char `+0x64/+0x66/+0x70/+0x72`
+
+The `Weight`/`Rations`/`Gold` lines are no longer a boundary.  The sheet
+builder (image `0x2BC5E`, which copies the 410-byte record into a `bp`-relative
+scratch buffer at `bp-0x19e`) reads the fields straight out of the character
+record:
+
+```
+Weight... :   bp-0x13a  (char +0x64, max)  /  bp-0x138 (char +0x66, current)
+Rations.. :   bp-0x12e  (char +0x70, byte, printed with %02d)
+ Gold:        bp-0x12c  (char +0x72, 32-bit, printed with %05ld$)
+```
+
+`0x19e - 0x64 = 0x13a`, `0x19e - 0x66 = 0x138`, `0x19e - 0x70 = 0x12e`,
+`0x19e - 0x72 = 0x12c` — the scratch copy sits at `bp-0x19e`, so char offset `N`
+is at `bp-(0x19e-N)`.  The `Gold:` line pushes the **32-bit** pair `[bp-0x12a]`
+(high word = char `+0x74`) then `[bp-0x12c]` (low word = char `+0x72`) into the
+`%05ld$` format.  The `Hit point`/`Magic` lines read char `+0x20/+0x22` (HP max /
+cur) and `+0x68/+0x69` (MP max / cur) from the same scratch buffer, which
+cross-checks the frame base.
+
+**This corrects two earlier claims.**  The note above that "the ` Gold:` line is
+**not** summed from items … it prints the party's own 32-bit gold counter
+(`[bp-0x1a6]`+0x31)" was wrong: `bp-0x12c` is the character's own gold, not a
+party counter.  And the `+0x70` byte is the character's **rations** (its
+`Rations.. : %02d` line), not a "base weight / 10".
+
+**The weight base is `10*rations + gold`.**  The carried-weight routine (image
+`0x20F7E`, storing at `0x210D4`) reads `word es:[bx+0x72]` into its running
+total, then `byte es:[bx+0x70]`, multiplies that byte by 10
+(`shl;shl;add;shl` = `*10`) and adds it, then sums every inventory item's weight
+(`item +0x14`).  So:
+
+```
+char[+0x66] = 10*char[+0x70] + word[+0x72] + Σ items()[v-1].weight
+```
+
+i.e. each ration weighs 10 weight units and each gold piece 1 (the units are
+tenths of a pound: a ration 1 lb, a coin 0.1 lb).  `CharSheet::weight_base()`
+returns this base, `carried_item_weight()` the item sum.
+
+**Gold is 32-bit.**  The shop routine (`0x25760`) checks affordability with a
+32-bit compare of `es:[bx+0x74]:es:[bx+0x72]` against `0x14` (20) and refuses
+with "Not enough gold." (DS:0x834d) when below; the buy path (`0x257b4`) does
+`subw $0x14, es:[bx+0x72]; sbbw $0, es:[bx+0x74]`.  So `+0x72`/`+0x74` is a
+little-endian 32-bit gold counter (`kCharGold72`).
+
+**Oracle check.**  `10*+0x70 + word[+0x72] + Σ item weight` reproduces the
+stored `+0x66` exactly for the same 10 of 11 ROST characters plus
+`GAMES/GAME2`/`GAME3`; only the three known stale snapshots (Gorth, `GAME1`
+Decker, `GAME5` Decker) differ.
+
+**Exposed.**  `kCharGold72` (dword) and `kCharRations70` (byte) replace the
+earlier `kCharWeightBase70`/`kCharWeightBase72`; `CharSheet::gold` /
+`::rations70` are projected by `decode_char`, `weight_base()` returns
+`10*rations + gold`, and `char_test` asserts Connar `rations 1 / gold 29`,
+the synthetic `10*rations + gold` identity, and the real-ROST reconstruction.
 
 ### Resolved: the stored item index base is 1-based
 

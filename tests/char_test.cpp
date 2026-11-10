@@ -216,20 +216,30 @@ static void synthetic_spec() {
            !ch.inv[3].is_equipped());
     assert(ch.inv[1].item == 0 && ch.inv[47].item == 0);
     // Carried-weight pair +0x64/+0x66 (see kCharWeight64): the max is seeded
-    // from Strength, the current is the item-weight sum plus a base.  The
-    // helper sums item +0x14 over the slots (slot 0 = item #13 "Short sword"
-    // -> 50, slot 3 = item #34 "Small shield" -> 50).
+    // from Strength, the current is the gold base plus the item-weight sum.
+    // The helper sums item +0x14 over the slots (slot 0 = item #13 "Short
+    // sword" -> 50, slot 3 = item #34 "Small shield" -> 50).
     put16(chr, kCharWeight64, 5300);
     put16(chr, kCharWeight66, 100);
     ch = decode_char(chr.data());
     assert(ch.weight_max == 5300 && ch.weight_cur == 100);
     assert(carried_item_weight(ch) == 100);
-    // The per-character base weight is 10*byte[+0x70] + word[+0x72].
-    chr[kCharWeightBase70] = 4;
-    put16(chr, kCharWeightBase72, 3);
+    // The carried total's base term is 10*rations(+0x70) + gold low word(+0x72).
+    put16(chr, kCharGold72, 43);
+    put16(chr, kCharGold72 + 2, 0);
+    chr[kCharRations70] = 0;
     ch = decode_char(chr.data());
-    assert(ch.weight_base70 == 4 && ch.weight_base72 == 3);
+    assert(ch.gold == 43 && ch.rations70 == 0);
     assert(weight_base(ch) == 43);
+    // Each ration weighs 10 units.
+    chr[kCharRations70] = 2;
+    ch = decode_char(chr.data());
+    assert(weight_base(ch) == 20 + 43);
+    // Gold is 32-bit: the high word (+0x74) extends the low word (+0x72).
+    put16(chr, kCharGold72, 0x1234);
+    put16(chr, kCharGold72 + 2, 0x9abc);
+    ch = decode_char(chr.data());
+    assert(ch.gold == 0x9abc1234u);
     // An empty slot and an out-of-range index contribute nothing.
     chr[kCharInv82 + 0] = 0;
     chr[kCharInv82 + 4 * 3] = 200;  // > kItemCount
@@ -326,12 +336,14 @@ static int real_data() {
 
     // Carried-weight pair (see kCharWeight64): the saved total (+0x66) is the
     // sum of the inventory items' weights (item +0x14) plus the per-character
-    // base 10*byte[+0x70] + word[+0x72]; the max (+0x64) is the Strength-derived
-    // value (Connar Str 19 -> 5300).  Verified for Connar against ROST.
+    // base 10*rations(+0x70) + gold(+0x72); the max (+0x64) is the
+    // Strength-derived value (Connar Str 19 -> 5300).  Verified for Connar
+    // against ROST.
     CharSheet connar = decode_char(roster[0].raw.data());
     assert(connar.name == "Connar");
     assert(connar.weight_max == 5300);
     assert(connar.weight_cur == 289);
+    assert(connar.rations70 == 1 && connar.gold == 29);
     assert(weight_base(connar) == 39);  // 10*1 + 29
     assert(carried_item_weight(connar) + weight_base(connar) == connar.weight_cur);
     // Every shipped record whose carried total is *fresh* reconstructs exactly;

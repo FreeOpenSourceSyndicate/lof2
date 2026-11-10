@@ -583,8 +583,8 @@ CharSheet decode_char(const uint8_t* raw) {
     c.inv_used = raw[kCharInvUsed6b];
     c.weight_max = rd16(raw + kCharWeight64);
     c.weight_cur = rd16(raw + kCharWeight66);
-    c.weight_base70 = raw[kCharWeightBase70];
-    c.weight_base72 = rd16(raw + kCharWeightBase72);
+    c.gold = rd32(raw + kCharGold72);
+    c.rations70 = raw[kCharRations70];
     for (size_t s = 0; s < kCharInvCount; ++s) {
         const uint8_t* p = raw + kCharInv82 + s * kCharInvStride;
         c.inv[s] = InvSlot{p[0], p[1], p[2], p[3]};
@@ -602,7 +602,7 @@ uint32_t carried_item_weight(const CharSheet& c) {
 }
 
 uint32_t weight_base(const CharSheet& c) {
-    return 10u * c.weight_base70 + c.weight_base72;
+    return 10u * c.rations70 + c.gold;
 }
 
 uint8_t defense_from_items(const CharSheet& c) {
