@@ -18,21 +18,20 @@ void rgb_from_attr(uint8_t attr, uint8_t* rgb) {
     rgb[2] = (uint8_t)(((attr >> 0) & 1) * 170 + ((attr >> 3) & 1) * 85);  // B
 }
 
-// Standard EGA 16-colour palette (RGB triples), 0..15 — the default palette the
-// BIOS programs at mode set (index 6 = brown, 8 = dark gray).
-const uint8_t kEgaPalette[16][3] = {
-    {0x00, 0x00, 0x00}, {0x00, 0x00, 0xAA}, {0x00, 0xAA, 0x00}, {0x00, 0xAA, 0xAA},
-    {0xAA, 0x00, 0x00}, {0xAA, 0x00, 0xAA}, {0xAA, 0x55, 0x00}, {0xAA, 0xAA, 0xAA},
-    {0x55, 0x55, 0x55}, {0x55, 0x55, 0xFF}, {0x55, 0xFF, 0x55}, {0x55, 0xFF, 0xFF},
-    {0xFF, 0x55, 0x55}, {0xFF, 0x55, 0xFF}, {0xFF, 0xFF, 0x55}, {0xFF, 0xFF, 0xFF},
+// The palette the game programs at start-up via INT 10h AH=10h AL=02h is the
+// **standard EGA/BGI 16-colour set**.  The attribute selectors are NOT
+// `i < 8 ? i : i + 8`: the stock values are 00 01 02 03 04 05 14 07 38 39 3A 3B
+// 3C 3D 3E 3F, so index 6 is brown (170,85,0) and index 8 dark gray (85,85,85).
+// Verified against a DOSBox capture of the menu: its 13 on-screen colours are
+// exactly this set (a naive `i+8` remap renders green/yellow instead).
+static const uint8_t kEgaAttr[16] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x14, 0x07,
+    0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
 };
+static uint8_t game_attr(int i) { return kEgaAttr[i & 15]; }
 
 Palette::Palette() {
-    for (int i = 0; i < 16; i++) {
-        rgb[i][0] = kEgaPalette[i][0];
-        rgb[i][1] = kEgaPalette[i][1];
-        rgb[i][2] = kEgaPalette[i][2];
-    }
+    for (int i = 0; i < 16; i++) rgb_from_attr(game_attr(i), rgb[i]);
 }
 
 // Image header (11 bytes): escape byte, 0x1234 magic, width (word),
@@ -140,6 +139,93 @@ void blit_image(Screen& scr, const EgaImage& img, int dx, int dy) {
 void present_sdl(const Screen& scr, const std::string& title) {
     std::vector<Screen> one{scr};
     present_sdl_frames(one, title);
+}
+
+bool Window::open(const std::string& title, int w, int h) {
+    w_ = w; h_ = h;
+    fb_.assign((size_t)w * h, 0);
+#ifdef USE_SDL
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+    SDL_Window* win = SDL_CreateWindow(title.c_str(), SDL_WINDOWPOS_CENTERED,
+                                       SDL_WINDOWPOS_CENTERED, w, h, SDL_WINDOW_SHOWN);
+    if (!win) return false;
+    SDL_Renderer* ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
+    if (!ren) ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
+    SDL_Texture* tex = ren ? SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
+                                               SDL_TEXTUREACCESS_STREAMING, w, h) : nullptr;
+    win_ = win; ren_ = ren; tex_ = tex;
+#else
+    (void)title;
+#endif
+    return true;
+}
+
+void Window::close() {
+#ifdef USE_SDL
+    if (tex_) SDL_DestroyTexture((SDL_Texture*)tex_);
+    if (ren_) SDL_DestroyRenderer((SDL_Renderer*)ren_);
+    if (win_) SDL_DestroyWindow((SDL_Window*)win_);
+    SDL_Quit();
+#endif
+    win_ = ren_ = tex_ = nullptr;
+}
+
+void Window::present(const Screen& scr) {
+#ifdef USE_SDL
+    if (!ren_ || !tex_) return;
+    for (size_t i = 0; i < fb_.size() && i < scr.pixels.size(); i++) {
+        const uint8_t* c = scr.pal.rgb[scr.pixels[i] & 15];
+        fb_[i] = 0xFF000000u | ((uint32_t)c[2] << 16) | ((uint32_t)c[1] << 8) | c[0];
+    }
+    SDL_UpdateTexture((SDL_Texture*)tex_, nullptr, fb_.data(), w_ * 4);
+    SDL_RenderClear((SDL_Renderer*)ren_);
+    SDL_RenderCopy((SDL_Renderer*)ren_, (SDL_Texture*)tex_, nullptr, nullptr);
+    SDL_RenderPresent((SDL_Renderer*)ren_);
+#else
+    (void)scr;
+#endif
+}
+
+bool Window::poll_key(int* key, bool* quit) {
+    if (key) *key = -1;
+    if (quit) *quit = false;
+    if (scripted_) {
+        if (script_.empty()) return false;   // script exhausted: no more input
+        int k = script_.front();
+        script_.erase(script_.begin());
+        if (k == 27) { if (quit) *quit = true; return true; }  // scripted Escape
+        if (key) *key = k;
+        return true;
+    }
+#ifdef USE_SDL
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) {
+        if (e.type == SDL_QUIT) { if (quit) *quit = true; return true; }
+        if (e.type == SDL_KEYDOWN) {
+            if (e.key.keysym.sym == SDLK_ESCAPE) { if (quit) *quit = true; return true; }
+            int k = (int)e.key.keysym.sym;
+            if (k >= 'a' && k <= 'z') k -= 32;   // normalise to upper-case ASCII
+            if (key) *key = k;
+            return true;
+        }
+    }
+#endif
+    return false;
+}
+
+bool Window::wait_key(int* key, bool* quit) {
+    for (;;) {
+        if (poll_key(key, quit)) return true;
+        if (scripted_) return false;   // script exhausted: nothing more to feed
+#ifdef USE_SDL
+        SDL_Delay(16);
+#else
+        return false;   // headless: no live input source
+#endif
+    }
 }
 
 // Show a sequence of screens in one SDL window.  Each screen stays up until the

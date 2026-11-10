@@ -108,11 +108,23 @@ plausible fields (verify against the emulator's reads with `LOF_I21=1` +
 
 ### `ROST/SHOP` — 190 bytes
 
-- Byte 0 = 0 header, then **185 signed bytes, one per item in item-table order**
-  (the engine reads 186 then 4; the first 33 line up exactly with the item
-  classes: Club `-10`, War scythe `-2`, … Full plate `-8`, Small shield `-1`).
-  Values are in `-1..-10` (Club alone is `-10`), so it is a per-item shop
-  adjustment / availability table; the rest are `0`.
+- Byte 0 = 0 header, then **185 stock bytes, one per item in item-table order**
+  (the engine reads 186 then 4).  This is the emporium's **stock table**, not a
+  price adjustment: `0` = the shop does not carry the item, `1..254` = finite
+  units on hand, `0xFF` = the "always in stock" sentinel.
+- Grounded from the buy/sell routines: the buy path reads the slot
+  (`mov al, es:0x4616(bx)`, image `0xc130`) and decrements it
+  (`dec es:0x4616(bx)`, image `0xc146`); the sell/restock path increments it
+  (`inc es:0x4616(bx)`, image `0xb64f`), and refuses only once the count would
+  reach `0xFF` (`cmp byte es:0x4616(bx),0xff; jb ok`, image `0xb644`).  So a
+  larger value means *more* units, not a bigger discount.
+- The shipped shop carries **items 1..44 only** (index 45 onward is all 0), e.g.
+  Club 246, Hand axe 252, Full plate 248, and 24 items at `0xFF` (Short sword,
+  Plate mail, Short arrows, ...).  Loader: `lcall 0x18d:0x2bb2` with path
+  `ROST\SHOP` reads 186 bytes to `DS:0x4616`, then 4 bytes to a local.
+- If `ROST\SHOP` cannot be opened the loader zero-fills the 186 bytes and then
+  sets `0xFF` for every index `< 0x2d` (= 45) except 0 (image
+  `0xa72f..0xa77b`) — a fresh game stocks the first 44 items, matching the file.
 - Last word `0x1606` at offset 186 (the separately-read 4-byte trailer).
 
 ### Progress
@@ -569,11 +581,11 @@ left unmodelled rather than guessed.
 > `kCharInv68`) called `+0x68`/`+0x69` "inventory slot indices the hit-point and
 > magic lines resolve item names from".  That was wrong.  The pair is the
 > character's **maximum / current magic points** (`+0x68` = max, `+0x69` = cur;
-> the sheet's "Magic.... " line).  The routine at image `0xEC00..0xEC2B` fills
-> both from a per-(class,level) table (`es:[0xaf70:16*+0x1b + +0x17]`, level <
-> 16) plus Wisdom/Intelligence bonuses; the spell routine at `0x137AD` clamps the
-> current down to the maximum and the rest routine at `0x6440` restores it.  See
-> the "inventory array" section below.
+> the sheet's "Magic.... " line).  The routine at image `0xEBF0..0xEC87` fills
+> both from a per-(profession,level) table (`table_seg:[0xa38 + 16*+0x1b +
+> +0x17]`, level < 16) plus Wisdom/Intelligence bonuses; the spell routine at
+> `0x137AD` clamps the current down to the maximum and the rest routine at
+> `0x6440` restores it.  See the "inventory array" section below.
 
 Note `+0x64`/`+0x66` (a 32-bit value the sheet labels `Experience`/`Weight`)
 versus `+0x6c`/`+0x6e` (the reward-accumulator dword exposed as `CharSheet::exp`):
@@ -598,6 +610,9 @@ scenarios 0..9 have a single-digit file name.)
 - [x] Save-game (`GAMES/GAMEn`) parser + format (header `\0FOL`, 410 stride).
 - [x] Item table (185 x 32 bytes) transcribed from LOF.EXE -> `port/char_items.inc`.
 - [x] Spell table (141 x 36 bytes) transcribed from LOF.EXE -> `port/char_spells.inc`.
+- [x] Magic-point table (12 professions x 16 levels) transcribed from LOF.EXE ->
+      `port/char_magic.inc`; `magic_table_value()` + `CharSheet::magic_max()`
+      reproduce the stored `+0x68` for every live character.
 - [x] 14 SNSC classes exposed as `kClassName[]`; `item_usable_by_class()`.
 - [x] Character-generation name tables (sex/race/profession/alignment/skills/
       languages/status) -> `port/char_names.inc` + accessors.
@@ -826,33 +841,44 @@ direction is proven by the spend/rest routines: the spell routine at image
 (`26 8a 47 68 26 88 47 69` = `+0x69 = +0x68`).  The sheet prints
 `(+0x69, +0x68)` = (current, maximum).
 
-The pair is filled by the routine at image `0xEC00..0xEC2B`, which looks up a
-per-(class,level) table in the loaded data segment `[0xaf70]:0xa38` (16 bytes
-per class, indexed `16 * class_field(+0x1b) + level(+0x17)`, only while
-`level < 16`) and then adds bonuses:
+The pair is filled by the routine at image `0xEBF0..0xEC87` (file offset
+`0xEBF0`; the listing labels it `0xEC00`).  It computes the character's record
+pointer, then:
 
 ```
 if (level(+0x17) < 16)
-    mp = es:[0xaf70 : 16*+0x1b + +0x17]      ; per-(class,level) table
+    prof = +0x1b;  base = table_seg:[0xa38 + 16*prof + level]
 else
-    mp = 0
-if (mp != 0 && Wisdom(+0x48) > 15) mp += 1
-if (Intelligence(+0x47) > 15) mp += 2
-+0x68 = mp ; +0x69 = mp
+    base = 0
+if (base != 0 && Wisdom(+0x48) > 15) base += 1
+if (base != 0 && Intelligence(+0x47) > 15) base += 2
++0x68 = base ; +0x69 = base
 ```
 
-The table itself (DS `0xa38`, 14 classes x 16 levels) is a static block in the
-EXE: the casters' rows climb with level (classes 4/8/9/11 the high-magic
-classes), the fighter rows are flat.  A worked check: Merlin has `+0x1b = 7`,
-level 1, Int 19, Wis 12 -> table[7][1] = 1, +2 for Int -> 3, which is exactly the
-`3/3` the save stores.  Other stored pairs (e.g. Handy `1/1`) are one point above
-the static table, which is consistent with the table being **class-indexed by a
-different byte than the saved `+0x1b`** (the char-gen may remap `+0x1b` after the
-MP fill), so the table's row-to-class mapping is still open; only Merlin's row is
-pinned.  Because the pair is TRANSIENT (spell/rest mutate `+0x69`), `CharSheet`
-projects it verbatim rather than recomputing it.  Exposed as
-`kCharMagMax68`/`kCharMagCur69` + `CharSheet::mag_max68`/`mag_cur69`; asserted on
-the synthetic struct and on `GAME1`.
+The table is a **12 professions x 16 levels** byte block, `table_seg:[0xa38]`
+where `table_seg` is the segment word the loader stores at `DS:0xaf70` (the
+routine does `mov es,[0xaf70]` then `mov al, es:0xa38[bx]`).  The block itself
+ships in the EXE at file offset **`0x42748`** (= DS `0x2748`); transcription is
+into `port/char_magic.inc` (regenerate with `tools/spec.py --emit-mp`).
+
+> **Correction (2026-11-08).**  An earlier revision said the table was indexed
+> by the SNSC *class* and was "14 classes x 16 levels", which left Handy/Cassandra
+> one point off.  The index byte is `+0x1b` — the **profession**, not the class —
+> and the block is 12 x 16.  With that fix the formula reproduces the stored
+> `+0x68` for **every** live character in `GAMES/GAME*` (24/24) and `ROST/ROST`,
+> including Siegurd (`+0x1b = 12` is out of range -> base 0, so his saved 0 is
+> correct).  Merlin (prof 7, level 1, Int 19, Wis 12): `table[7][1] = 1`, +2 Int
+> -> 3.  Handy (prof 3): `table[3][1] = 1` -> 1.  Cassandra (prof 10): `1` +1
+> Wis -> 2.  The caster rows (professions 3,5,6,7,8,10) climb with level; the
+> fighter rows (0,1,2,11) are flat 0.
+
+Because the pair is TRANSIENT (spell/rest mutate `+0x69`), `CharSheet` projects
+the saved value verbatim as `mag_max68`/`mag_cur69`; `CharSheet::magic_max()`
+*recomputes* the fill value from `prof1b`/`level17`/`int47`/`wis48` and matches it
+for every live character.  Exposed as `kCharMagMax68`/`kCharMagCur69`,
+`kMagicProfCount`/`kMagicLevels`, `magic_table_value()` and
+`CharSheet::magic_max()`; asserted on the synthetic struct, on `GAME1` and
+against the whole save.
 
 `+0x25` is a small **load/carry** byte (`10` for most of the shipped party, `15`
 for Cassandra) — exposed as `kCharLoad25`/`CharSheet::load25`.
@@ -963,8 +989,8 @@ The Amulet (120); Handy Leather armour (27) + Warhammer (8).  A 0-based reading
 gives nonsense (27 -> Studded leather, 120 -> Broadsword+, two Broadswords in one
 pack).  `char_test` now asserts `item_by_index(dki.inv[0].item)->name ==
 "Leather armour"` and that `item_by_index(0) == nullptr` (0 is the empty marker),
-so the 1-based contract is pinned.  `ROST/SHOP` (185 signed bytes) is separately
-0-based over the item table (its `byte 0` is Club's slot, `-10`), so the two
+so the 1-based contract is pinned.  `ROST/SHOP` (185 stock bytes) is separately
+0-based over the item table (its `byte 0` is Club's stock, 246), so the two
 tables use different bases.
 
 ## Play-screen party panel: the "dark stat number" — 2026-11-08

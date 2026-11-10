@@ -8,7 +8,9 @@
 namespace lofport {
 
 #include "char_items.inc"
+#include "char_itemuse.inc"
 #include "char_spells.inc"
+#include "char_magic.inc"
 #include "char_names.inc"
 
 namespace {
@@ -109,12 +111,17 @@ SaveGame load_save(const std::string& path) {
     std::memcpy(g.header, d.data(), kSaveHeaderSize);
     g.ok = std::memcmp(g.header, kSaveMagic, 4) == 0;
     if (!g.ok) return g;
+    if (d.size() > kSaveLocOnes) g.loc_ones = d[kSaveLocOnes];
+    if (d.size() > kSaveLocTens) g.loc_tens = d[kSaveLocTens];
+    if (d.size() > kSaveFacing) g.facing = d[kSaveFacing];
     size_t n = (d.size() - kSaveHeaderSize) / 410;
     for (size_t i = 0; i < n; i++) {
         const uint8_t* r = d.data() + kSaveHeaderSize + i * 410;
         SaveChar c;
         std::memcpy(c.raw.data(), r, 410);
         c.present = r[0];
+        c.profession = r[0x1b];
+        c.panel_stat = r[0x1e];
         std::string nm;
         for (int k = 1; k < 15 && r[k]; k++) nm.push_back((char)r[k]);
         c.name = std::move(nm);
@@ -125,15 +132,32 @@ SaveGame load_save(const std::string& path) {
     return g;
 }
 
+uint16_t save_location(const SaveGame& g) {
+    return (uint16_t)(g.loc_tens * 10 + g.loc_ones);
+}
+
+std::string dungeon_map_name(uint16_t location) {
+    if (location > 99) return {};
+    char buf[16];
+    std::snprintf(buf, sizeof buf, "DNG%01u%01u", location / 10, location % 10);
+    return buf;
+}
+
+std::string dungeon_view_dir(uint16_t location) {
+    unsigned ones = location % 10;
+    if (location > 99 || ones > 7) return {};
+    return std::string("D") + (char)('0' + ones);
+}
+
 ShopData load_shop(const std::string& path) {
     ShopData s;
     std::vector<uint8_t> d = read_file(path);
     if (d.empty()) return s;
-    // Byte 0 is a header (zero in this release); the next 185 bytes are one
-    // signed adjustment per item, parallel to the item table order (the engine
-    // reads 186 then 4).  The file ends with a 16-bit trailer word.
+    // Byte 0 is a header (zero in this release); the next 185 bytes are the
+    // per-item stock counts, parallel to the item table order (the engine reads
+    // 186 bytes then a 4-byte trailer).  See ShopData for the value semantics.
     if (d.size() < 1 + kItemCount) return s;
-    for (size_t i = 0; i < kItemCount; i++) s.adjustments[i] = (int8_t)d[1 + i];
+    for (size_t i = 0; i < kItemCount; i++) s.stock[i] = d[1 + i];
     if (d.size() >= 4) s.trailer = rd16(d.data() + d.size() - 4);
     s.ok = true;
     return s;
@@ -227,6 +251,25 @@ bool item_usable_by_class(int index, int prof) {
     return (it->f6 & (1 << prof)) != 0;
 }
 
+uint8_t item_use_flags(int item_index) {
+    if (item_index < 0 || (size_t)item_index >= kItemUseCount) return 0;
+    return kItemUse[item_index][0];
+}
+
+bool item_is_usable(int item_index) {
+    uint8_t f = item_use_flags(item_index);
+    return (f & 3) == 0 && (f & 4) != 0;
+}
+
+void dump_item_use(FILE* out) {
+    for (size_t i = 0; i < kItemUseCount; i++) {
+        const ItemRecord* it = (i == 0) ? nullptr : item_by_index((int)i);
+        std::fprintf(out, "  %3zu %-18s flags=0x%02x%s\n", i,
+                     it ? it->name.c_str() : "(none)", kItemUse[i][0],
+                     item_is_usable((int)i) ? "  [usable]" : "");
+    }
+}
+
 const char* item_effect_name(uint8_t effect) {
     switch (effect) {
         case 0: return "none";
@@ -309,6 +352,11 @@ const std::vector<SpellRecord>& spells() {
 const SpellRecord* spell_by_index(int index) {
     if (index < 1 || (size_t)index > kSpellCount) return nullptr;
     return &spells()[index - 1];
+}
+
+uint8_t magic_table_value(uint8_t profession, uint8_t level) {
+    if (profession >= kMagicProfCount || level >= kMagicLevels) return 0;
+    return kMagicTable[profession][level];
 }
 
 const char* spell_effect_name(uint8_t code) {
@@ -477,6 +525,14 @@ std::string CharSheet::profession() const {
     auto names = profession_names();
     if (prof1b < names.size()) return names[prof1b];
     return {};
+}
+
+uint8_t CharSheet::magic_max() const {
+    uint8_t base = magic_table_value(prof1b, level17);
+    if (base == 0) return 0;
+    if (wis48 > 15) base++;
+    if (int47 > 15) base += 2;
+    return base;
 }
 
 // --- party-status display row (builder at image offset 0x2D436) ------------

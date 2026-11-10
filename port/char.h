@@ -12,7 +12,7 @@
 //                        `imul [bp-0x44]` in LOF's event dispatcher.
 //   ROST/ROST            one count byte, then N records of 414 bytes: the saved
 //                        party roster (name + stats + equipment).
-//   ROST/SHOP            a header byte, one signed adjustment per item, a word.
+//   ROST/SHOP            header byte + 185 per-item stock bytes + 4-byte trailer.
 #ifndef LOF_PORT_CHAR_H
 #define LOF_PORT_CHAR_H
 
@@ -223,6 +223,29 @@ std::vector<size_t> items_with_effect(uint8_t effect);
 // Out-of-range item or profession returns false.
 bool item_usable_by_class(int index, int prof);
 
+// --- Item-use table (runtime) ---------------------------------------------
+//
+// The play loop keeps a 41-record, 36-byte table at `es:[0x2712]` and indexes
+// it as `es:[item_index * 0x24 + 0x2712]` (item_index is 1-based into the item
+// table; record 0 is a null "no item" row).  The use/attack handlers read byte
+// 0 as a bitfield (image 0x13a82, 0x1cfd2, 0x1d156); the remaining 35 bytes
+// are handler parameters.  The table ships inside LOF.EXE (image 0x42712) so
+// it is transcribed into port/char_itemuse.inc.
+constexpr size_t kItemUseCount = 41;
+constexpr size_t kItemUseRec = 36;
+
+// Byte 0 of record `item_index` (1-based; 0 = the null row).  Returns 0 for
+// out-of-range indices.
+uint8_t item_use_flags(int item_index);
+
+// True if the engine treats `item_index` as *usable*: byte 0 has neither bit 0
+// nor bit 1 set, and has bit 2 set.  This is the exact predicate the use
+// handlers compute before they dispatch the item's effect.
+bool item_is_usable(int item_index);
+
+// Print the decoded use table (for eyeballing).
+void dump_item_use(FILE* out);
+
 // Print the decoded table (for eyeballing).
 void dump_items(FILE* out);
 
@@ -256,6 +279,19 @@ std::vector<size_t> spells_with_effect(uint8_t code);
 
 // Print the decoded table (for eyeballing).
 void dump_spells(FILE* out);
+
+// Magic-point table (also transcribed from LOF.EXE, see port/char_magic.inc).
+// The engine keeps a 12 x 16 byte table (profession x level); the MP fill
+// routine at image 0xEC00 indexes it by the character's profession (+0x1b) and
+// level (+0x17), then adds +1 when Wisdom > 15 and +2 more when Intelligence >
+// 15.  Regenerate with `tools/spec.py --emit-mp`.
+constexpr size_t kMagicProfCount = 12;
+constexpr size_t kMagicLevels = 16;
+
+// Per-(profession, level) magic-point base, before the Wisdom/Intelligence
+// bonuses (returns 0 for an out-of-range profession or level >= 16, matching
+// the engine's guards).
+uint8_t magic_table_value(uint8_t profession, uint8_t level);
 
 // Character-generation model: the name tables LOF.EXE uses when creating a
 // character (transcribed into port/char_names.inc; regenerate with
@@ -440,10 +476,12 @@ enum CharOffset : size_t {
     // the current down to the maximum (`if +0x68 != 0 && +0x69 < +0x68:
     // +0x69 = +0x68`) and the rest routine at 0x6440 restores it
     // (`+0x69 = +0x68`).  Both are filled together by the routine at image
-    // 0xEC00..0xEC2B, which looks up a per-(class,level) table in the loaded
-    // data segment `[0xaf70]:0xa38` (16 bytes per class, indexed
-    // `16 * class_field(+0x1b) + level(+0x17)`, only while level < 16) and then
-    // adds +1 when Wisdom(+0x48) > 15 and +2 more when Intelligence(+0x47) > 15.
+    // 0xEBF0..0xEC87, which looks up a per-(profession,level) table at
+    // `table_seg:[0xa38]` (12 professions x 16 levels, indexed
+    // `16 * +0x1b + +0x17`, only while level < 16) and then adds +1 when
+    // Wisdom(+0x48) > 15 and +2 more when Intelligence(+0x47) > 15.  The table
+    // ships in the EXE (file offset 0x42748) and is transcribed into
+    // port/char_magic.inc (see magic_table_value / CharSheet::magic_max).
     // The sheet's "Magic.... " line prints (current, maximum) = (+0x69, +0x68).
     // NOTE: the pair is TRANSIENT in a save (a snapshot can hold a partly
     // depleted current value), so it is projected verbatim, not recomputed.
@@ -629,6 +667,13 @@ struct CharSheet {
     // string when the index is out of range (0x0c = "no profession").
     std::string profession() const;
 
+    // The magic-point maximum the engine's fill routine (image 0xEC00) would
+    // compute for this character: the per-(profession, level) table value plus
+    // +1 when Wisdom > 15 and +2 more when Intelligence > 15, and 0 when the
+    // table value is 0 (or the profession/level is out of range).  `mag_max68`
+    // projects the saved value; this recomputes it from the stats.
+    uint8_t magic_max() const;
+
     // --- party-status display row -----------------------------------------
     // The party-status builder packs a 12-byte row per member into its display
     // block; these reproduce each byte from the struct.  See the kCharFlg*
@@ -690,18 +735,49 @@ uint8_t char_stat1d_from_dex(uint8_t dex);
 constexpr size_t kSaveHeaderSize = 4;
 constexpr uint8_t kSaveMagic[4] = {0x00, 'F', 'O', 'L'};
 
+// The party's current location is stored as two separate digit bytes: the
+// ones digit at file offset 0x9a2 and the tens digit at 0x9a4 (verified by
+// patching them and watching the emulator).  The engine builds the map name as
+// `DNGS\DNG%01ld%01ld` (LOF.EXE 0x4bb35) from these two digits: 5 -> DNG05,
+// 10 -> DNG10.  The first-person view tiles live in `EGA\D<ones-digit>`
+// (5 -> D5, 10 -> D0); only 0..7 are used as view directories.
+constexpr size_t kSaveLocOnes = 0x9a2;
+constexpr size_t kSaveLocTens = 0x9a4;
+
+// The party's facing is a separate digit byte at file offset 0x9a6: 0=N, 1=E,
+// 2=S, 3=W (verified by diffing the two shipped saves -- GAME1 faces South
+// where GAME2 faces North -- and by the DOSBox dungeon oracle, whose status box
+// shows "Facing South").  The lower-left status box prints it with the
+// `facing_names()` table.  `kSaveFacingInvalid` marks a save with no facing
+// byte (a short file).
+constexpr size_t kSaveFacing = 0x9a6;
+constexpr uint8_t kSaveFacingInvalid = 0xff;
+
 struct SaveChar {
     std::array<uint8_t, 410> raw{};  // one 0x19a character struct
     uint8_t present = 0;             // +0x00  non-zero: slot holds a character
     std::string name;                // +0x01  NUL-terminated name (<= 14 bytes)
+    uint8_t profession = 0xff;       // +0x1b  index into profession_names()
+    uint8_t panel_stat = 0;          // +0x1e  the numeric stat the play panel shows
 };
 
 struct SaveGame {
     bool ok = false;
     uint8_t header[4] = {0, 0, 0, 0};
+    uint8_t loc_ones = 0;             // +0x9a2  ones digit of the dungeon id
+    uint8_t loc_tens = 0;             // +0x9a4  tens digit of the dungeon id
+    uint8_t facing = kSaveFacingInvalid;  // +0x9a6  party facing (0=N..3=W)
     std::vector<SaveChar> chars;      // floor((size - 4) / 410) records
     std::vector<uint8_t> trailer;     // any bytes past the last whole record
 };
+
+// Combined location id (tens*10 + ones) for a save.
+uint16_t save_location(const SaveGame& g);
+
+// Map name (`DNGS/DNG05`) and view-tile directory (`D5`) for a location id.  The
+// view directory is empty if the ones digit exceeds 7 (no D8/D9).
+std::string dungeon_map_name(uint16_t location);
+std::string dungeon_view_dir(uint16_t location);
 
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
@@ -740,12 +816,30 @@ std::string panel_stat_text(uint8_t stat1e);
 // --- ROST/SHOP ------------------------------------------------------------
 
 struct ShopData {
-    // ROST/SHOP is 190 bytes: a header byte (observed 0), then one signed byte
-    // per item (185 of them, parallel to the item table order), then a 4-byte
-    // trailer word.  Observed values are 0..-10, a per-item shop adjustment.
-    int8_t adjustments[kItemCount] = {0};
+    // ROST/SHOP is 190 bytes: a header byte (0), then 185 stock bytes, one per
+    // item in the item-table order, then a 4-byte trailer (word 0x1606 + a
+    // zeroed word).  This is the emporium's STOCK table: 0 = the shop does not
+    // carry the item, 1..254 = finite units in stock, 0xFF = an "always in
+    // stock" sentinel (the buy routine refuses only at 0xFF, image 0xb644).
+    // The buy routine reads the slot and does `dec es:0x4616(bx)` (image
+    // 0xc130..0xc146); the sell/restock routine does `inc` (image 0xb64f).  The
+    // engine copies the 190 bytes to DS:0x4616 at load; if the file cannot be
+    // opened it falls back to a default stock of 0xFF for items 1..44 (image
+    // 0xa72f..0xa77b), i.e. a fresh game stocks the first 44 items.
+    uint8_t stock[kItemCount] = {0};
     uint16_t trailer = 0;
     bool ok = false;
+
+    // Whether the shop carries the item (1-based index, as item_by_index).
+    bool carries(int item_index) const {
+        return item_index >= 1 && (size_t)item_index <= kItemCount &&
+               stock[item_index - 1] != 0;
+    }
+    // Whether the shop has an unlimited supply (the 0xFF sentinel).
+    bool unlimited(int item_index) const {
+        return item_index >= 1 && (size_t)item_index <= kItemCount &&
+               stock[item_index - 1] == 0xff;
+    }
 };
 
 ShopData load_shop(const std::string& path);
