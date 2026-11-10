@@ -527,6 +527,7 @@ static int real_data() {
     assert(seed.c1d == (uint8_t)(100 - st[kSnsBody2d - 38]));  // char +0x1d
     assert(seed.c1e == seed.c1d);               // char +0x1e mirrors +0x1d
     assert(seed.c56 == st[kSnsSpeed36 - 38]);   // char +0x56
+    assert(seed.hp_seed == st[kSnsHp2c - 38]);  // seeds char +0x20/+0x22
     assert(seed.c14 == st[kSnsField3a - 38]);   // char +0x14
     assert(seed.c7a_index == st[kSnsIndex2a - 38]);
     // Seeded constants the routine writes verbatim.

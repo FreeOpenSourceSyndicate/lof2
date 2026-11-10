@@ -333,6 +333,7 @@ enum SnsOffset : size_t {
     // char +0x143+2n = rec[0x3c+2n], n = 0..3 (the loop at 1DC00/1DC40).
     kSnsSkill3b = 0x3b,  // byte; first of four skill values, stride 2
     kSnsSkill3c = 0x3c,  // byte; first of four skill levels, stride 2
+    kSnsHp2c    = 0x2c,  // byte; char +0x20/+0x22 = rand(1..value/2) + value/2
     kSnsClass4c = 0x4c,  // byte; char +0x18 (1 for PCs, 2 for big monsters)
 };
 
@@ -349,6 +350,8 @@ struct CharSeed {
     uint8_t  c1e = 0;   // +0x1e  seeded 100 - rec[0x2d], then overwritten by the
                         //         armour routine with the total defence (AC)
     uint8_t  c56 = 0;   // +0x56  rec[0x36]  speed 1..4
+    uint8_t  hp_seed = 0;  // rec[0x2c]: char +0x20 (max) and +0x22 (current) are
+                           //   seeded rand(1..rec[0x2c]/2) + rec[0x2c]/2
     uint8_t  c1b = 0x0c;  // +0x1b  const 12 (later reduced by the char gen)
     uint16_t c14 = 0;   // +0x14  rec[0x3a]  (a per-class value; Siegurd 18)
     uint16_t c64 = 0x1324;  // +0x64  const 4900 (later adjusted per character)
