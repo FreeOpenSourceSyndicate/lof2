@@ -587,7 +587,7 @@ uint32_t carried_item_weight(const CharSheet& c) {
 uint8_t defense_from_items(const CharSheet& c) {
     uint32_t total = c.stat1d;
     for (const InvSlot& s : c.inv) {
-        if (s.item == 0 || s.aux1 == 0) continue;
+        if (s.item == 0 || s.equipped == 0) continue;
         const ItemRecord* it = item_by_index(s.item);
         if (!it) continue;
         // The armour routine reads the LOW byte of item +0x16 only
@@ -595,7 +595,7 @@ uint8_t defense_from_items(const CharSheet& c) {
         // initial quantity/charges, not part of the AC.
         uint8_t ac = (uint8_t)((uint16_t)it->f3 & 0xff);
         if (ac == 0) continue;
-        uint32_t v = (uint32_t)s.cond + 10;
+        uint32_t v = (uint32_t)s.condition + 10;
         v -= v % 20;
         total += (uint32_t)ac * v / 100;
     }

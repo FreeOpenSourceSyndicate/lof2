@@ -201,16 +201,19 @@ static void synthetic_spec() {
     chr[kCharMagCur69] = 9;
     ch = decode_char(chr.data());
     assert(ch.mag_max68 == 7 && ch.mag_cur69 == 9);
-    // Inventory array: 48 four-byte slots at +0x82 (item/aux1/aux2/cond).
+    // Inventory array: 48 four-byte slots at +0x82
+    // (item/equipped/charges/condition).
     chr[kCharInv82 + 0] = 13; chr[kCharInv82 + 1] = 1;
     chr[kCharInv82 + 2] = 0;  chr[kCharInv82 + 3] = 100;
     chr[kCharInv82 + 4 * 3] = 34; chr[kCharInv82 + 4 * 3 + 3] = 92;
     chr[kCharLoad25] = 10;
     ch = decode_char(chr.data());
     assert(ch.load25 == 10);
-    assert(ch.inv[0].item == 13 && ch.inv[0].aux1 == 1 &&
-           ch.inv[0].aux2 == 0 && ch.inv[0].cond == 100);
-    assert(ch.inv[3].item == 34 && ch.inv[3].cond == 92);
+    assert(ch.inv[0].item == 13 && ch.inv[0].equipped == 1 &&
+           ch.inv[0].charges == 0 && ch.inv[0].condition == 100);
+    assert(ch.inv[0].is_equipped());
+    assert(ch.inv[3].item == 34 && ch.inv[3].condition == 92 &&
+           !ch.inv[3].is_equipped());
     assert(ch.inv[1].item == 0 && ch.inv[47].item == 0);
     // Carried-weight pair +0x64/+0x66 (see kCharWeight64): the max is seeded
     // from Strength, the current is the item-weight sum plus a base.  The
@@ -636,17 +639,18 @@ static int real_data() {
     // (120); Handy carries Leather armour (27) then Warhammer (8) etc.  The
     // first slot's condition byte is 100 except for worn armour (96/92).
     CharSheet dki = decode_char(sv.chars[0].raw.data());
-    assert(dki.inv[0].item == 27 && dki.inv[0].aux1 == 1 && dki.inv[0].cond == 100);
-    assert(dki.inv[1].item == 34 && dki.inv[1].cond == 92);
-    assert(dki.inv[2].item == 13 && dki.inv[2].cond == 100);
-    assert(dki.inv[3].item == 120 && dki.inv[3].aux1 == 0);
+    assert(dki.inv[0].item == 27 && dki.inv[0].equipped == 1 &&
+           dki.inv[0].condition == 100);
+    assert(dki.inv[1].item == 34 && dki.inv[1].condition == 92);
+    assert(dki.inv[2].item == 13 && dki.inv[2].condition == 100);
+    assert(dki.inv[3].item == 120 && dki.inv[3].equipped == 0);
     assert(dki.inv[4].item == 0);                     // rest empty
     // The slot byte is a 1-based index into the 185-item table (0 = empty), the
     // same base item_by_index() uses: 27 -> Leather armour, not Studded leather.
     assert(dki.inv[0].item && item_by_index(dki.inv[0].item) &&
            item_by_index(dki.inv[0].item)->name == "Leather armour");
     assert(item_by_index(0) == nullptr);              // 0 is the empty marker
-    assert(dk.inv[0].item == 27 && dk.inv[0].cond == 96);
+    assert(dk.inv[0].item == 27 && dk.inv[0].condition == 96);
     assert(dk.inv[1].item == 8 && dk.inv[2].item == 43);
     // +0x25 is the load/carry byte (10 for the shipped party; 15 for Cassandra).
     assert(dki.load25 == 10 && dk.load25 == 10);

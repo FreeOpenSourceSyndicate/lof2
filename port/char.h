@@ -524,13 +524,36 @@ enum CharOffset : size_t {
 };
 
 // One 4-byte inventory slot (see kCharInv82).  `item` is the 1-based item-table
-// index (0 = empty); the remaining three bytes are auxiliary state the engine
-// keeps alongside it (class/condition/flag).
+// index (0 = empty); the remaining three bytes are the per-slot state the engine
+// keeps alongside it.  All three are grounded in the raw image:
+//
+//   byte 0  `item`      item-table index, 1-based (0 = empty).  The item-add
+//                       routine scans for the first slot with this byte == 0
+//                       (`cmp byte es:[bx+si+0x82],0`, image 0xbf0c).
+//   byte 1  `equipped`  worn / wielded flag: 1 = equipped, 0 = carried only.
+//                       Set to 1 by the equip routine (image 0x2f45e) and
+//                       cleared to 0 by the unequip / "take off all" routine
+//                       (image 0x2f136, 0x2f170, ...).  `defense_from_items`
+//                       (image 0x21139 `cmp byte es:[bx+0x83],0`) counts only
+//                       slots with this set.
+//   byte 2  `charges`   remaining count / charges.  Seeded from item +0x17
+//                       when the item is added (image 0xbf5d) and decremented
+//                       by the "use" path (image 0x13c53 `dec byte es:[bx]`).
+//                       The slot is consumed when it reaches 0 (image 0x13c4d
+//                       `cmp byte es:[bx],0`).
+//   byte 3  `condition` durability / quality, 0..100 (100 = pristine).  Seeded
+//                       to 100 on add (image 0xbf9d); worn armour is slightly
+//                       damaged in the shipped saves (96/98).  Combat damage
+//                       subtracts 2 (image 0x1abda) and the armour formula
+//                       scales AC by `(condition+10) - (condition+10)%20`
+//                       (image 0x21141..0x2117c).
 struct InvSlot {
-    uint8_t item = 0;   // +0x00  item index (0 = empty slot)
-    uint8_t aux1 = 0;   // +0x01  auxiliary state byte
-    uint8_t aux2 = 0;   // +0x02  auxiliary state byte
-    uint8_t cond = 0;   // +0x03  condition/quality byte (100 = full)
+    uint8_t item = 0;       // +0x00  item index (0 = empty slot)
+    uint8_t equipped = 0;   // +0x01  worn/wielded flag (1 = equipped)
+    uint8_t charges = 0;    // +0x02  remaining count / charges
+    uint8_t condition = 0;  // +0x03  durability/quality, 0..100 (100 = full)
+
+    bool is_equipped() const { return equipped != 0; }
 };
 
 // A decoded view of the fields the engine's character code reads directly from

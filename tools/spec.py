@@ -115,12 +115,14 @@ def dump_save(path):
                   f"body={r[0x24]} mods={r[0x5b]}/{r[0x5c]}/{r[0x5e]}/{r[0x5f]} "
                   f"flag={r[0x6a]} f0f={r[0x0f]} "
                   f"row=[{hp_pct} {r[0x24]} {hp_mod} {attr_a} {attr_b} {attr_c}]")
-            # Inventory: 48 four-byte slots at +0x82 (item/aux1/aux2/cond).
+            # Inventory: 48 four-byte slots at +0x82
+            # (item/equipped/charges/condition).
             for s in range(48):
                 o = 0x82 + s * 4
                 if r[o]:
                     print(f"        inv[{s:2d}] item={r[o]:3d} "
-                          f"aux={r[o + 1]}/{r[o + 2]} cond={r[o + 3]}")
+                          f"equipped={r[o + 1]} charges={r[o + 2]} "
+                          f"cond={r[o + 3]}")
 
 
 # The item table lives only inside LOF.EXE (image offset 0x42cec, data segment
