@@ -221,10 +221,10 @@ const char* const kClassName[kClassCount] = {
     "Werewolf",
 };
 
-bool item_usable_by_class(int index, int cls) {
+bool item_usable_by_class(int index, int prof) {
     const ItemRecord* it = item_by_index(index);
-    if (!it || cls < 0 || (size_t)cls >= kClassCount) return false;
-    return (it->f6 & (1 << cls)) != 0;
+    if (!it || prof < 0 || (size_t)prof >= kProfessionCount) return false;
+    return (it->f6 & (1 << prof)) != 0;
 }
 
 const char* item_effect_name(uint8_t effect) {
