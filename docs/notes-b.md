@@ -108,11 +108,23 @@ plausible fields (verify against the emulator's reads with `LOF_I21=1` +
 
 ### `ROST/SHOP` — 190 bytes
 
-- Byte 0 = 0 header, then **185 signed bytes, one per item in item-table order**
-  (the engine reads 186 then 4; the first 33 line up exactly with the item
-  classes: Club `-10`, War scythe `-2`, … Full plate `-8`, Small shield `-1`).
-  Values are in `-1..-10` (Club alone is `-10`), so it is a per-item shop
-  adjustment / availability table; the rest are `0`.
+- Byte 0 = 0 header, then **185 stock bytes, one per item in item-table order**
+  (the engine reads 186 then 4).  This is the emporium's **stock table**, not a
+  price adjustment: `0` = the shop does not carry the item, `1..254` = finite
+  units on hand, `0xFF` = the "always in stock" sentinel.
+- Grounded from the buy/sell routines: the buy path reads the slot
+  (`mov al, es:0x4616(bx)`, image `0xc130`) and decrements it
+  (`dec es:0x4616(bx)`, image `0xc146`); the sell/restock path increments it
+  (`inc es:0x4616(bx)`, image `0xb64f`), and refuses only once the count would
+  reach `0xFF` (`cmp byte es:0x4616(bx),0xff; jb ok`, image `0xb644`).  So a
+  larger value means *more* units, not a bigger discount.
+- The shipped shop carries **items 1..44 only** (index 45 onward is all 0), e.g.
+  Club 246, Hand axe 252, Full plate 248, and 24 items at `0xFF` (Short sword,
+  Plate mail, Short arrows, ...).  Loader: `lcall 0x18d:0x2bb2` with path
+  `ROST\SHOP` reads 186 bytes to `DS:0x4616`, then 4 bytes to a local.
+- If `ROST\SHOP` cannot be opened the loader zero-fills the 186 bytes and then
+  sets `0xFF` for every index `< 0x2d` (= 45) except 0 (image
+  `0xa72f..0xa77b`) — a fresh game stocks the first 44 items, matching the file.
 - Last word `0x1606` at offset 186 (the separately-read 4-byte trailer).
 
 ### Progress
@@ -963,8 +975,8 @@ The Amulet (120); Handy Leather armour (27) + Warhammer (8).  A 0-based reading
 gives nonsense (27 -> Studded leather, 120 -> Broadsword+, two Broadswords in one
 pack).  `char_test` now asserts `item_by_index(dki.inv[0].item)->name ==
 "Leather armour"` and that `item_by_index(0) == nullptr` (0 is the empty marker),
-so the 1-based contract is pinned.  `ROST/SHOP` (185 signed bytes) is separately
-0-based over the item table (its `byte 0` is Club's slot, `-10`), so the two
+so the 1-based contract is pinned.  `ROST/SHOP` (185 stock bytes) is separately
+0-based over the item table (its `byte 0` is Club's stock, 246), so the two
 tables use different bases.
 
 ## Play-screen party panel: the "dark stat number" — 2026-11-08

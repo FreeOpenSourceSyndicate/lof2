@@ -12,7 +12,7 @@
 //                        `imul [bp-0x44]` in LOF's event dispatcher.
 //   ROST/ROST            one count byte, then N records of 414 bytes: the saved
 //                        party roster (name + stats + equipment).
-//   ROST/SHOP            a header byte, one signed adjustment per item, a word.
+//   ROST/SHOP            header byte + 185 per-item stock bytes + 4-byte trailer.
 #ifndef LOF_PORT_CHAR_H
 #define LOF_PORT_CHAR_H
 
@@ -740,12 +740,30 @@ std::string panel_stat_text(uint8_t stat1e);
 // --- ROST/SHOP ------------------------------------------------------------
 
 struct ShopData {
-    // ROST/SHOP is 190 bytes: a header byte (observed 0), then one signed byte
-    // per item (185 of them, parallel to the item table order), then a 4-byte
-    // trailer word.  Observed values are 0..-10, a per-item shop adjustment.
-    int8_t adjustments[kItemCount] = {0};
+    // ROST/SHOP is 190 bytes: a header byte (0), then 185 stock bytes, one per
+    // item in the item-table order, then a 4-byte trailer (word 0x1606 + a
+    // zeroed word).  This is the emporium's STOCK table: 0 = the shop does not
+    // carry the item, 1..254 = finite units in stock, 0xFF = an "always in
+    // stock" sentinel (the buy routine refuses only at 0xFF, image 0xb644).
+    // The buy routine reads the slot and does `dec es:0x4616(bx)` (image
+    // 0xc130..0xc146); the sell/restock routine does `inc` (image 0xb64f).  The
+    // engine copies the 190 bytes to DS:0x4616 at load; if the file cannot be
+    // opened it falls back to a default stock of 0xFF for items 1..44 (image
+    // 0xa72f..0xa77b), i.e. a fresh game stocks the first 44 items.
+    uint8_t stock[kItemCount] = {0};
     uint16_t trailer = 0;
     bool ok = false;
+
+    // Whether the shop carries the item (1-based index, as item_by_index).
+    bool carries(int item_index) const {
+        return item_index >= 1 && (size_t)item_index <= kItemCount &&
+               stock[item_index - 1] != 0;
+    }
+    // Whether the shop has an unlimited supply (the 0xFF sentinel).
+    bool unlimited(int item_index) const {
+        return item_index >= 1 && (size_t)item_index <= kItemCount &&
+               stock[item_index - 1] == 0xff;
+    }
 };
 
 ShopData load_shop(const std::string& path);

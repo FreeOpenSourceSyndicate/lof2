@@ -379,11 +379,14 @@ static int real_data() {
 
     ShopData shop = load_shop(std::string(dir) + "/ROST/SHOP");
     assert(shop.ok);
-    // One signed adjustment per item, parallel to the item table order.
-    assert(shop.adjustments[0] == -10);   // Club
-    assert(shop.adjustments[1] == -2);    // War scythe
-    assert(shop.adjustments[12] == -1);   // Short sword
-    assert(shop.adjustments[32] == -8);   // Full plate
+    // Per-item stock, parallel to the item table order.  The shipped shop
+    // carries items 1..44 only: 0 = not carried, 0xFF = unlimited (e.g. Short
+    // sword, Plate mail, Short arrows), 1..254 = finite stock (Club 246, Hand
+    // axe 252, Full plate 248).  Items 45+ are all 0.
+    assert(shop.stock[0] == 246 && shop.stock[1] == 254 && shop.stock[12] == 0xff);
+    assert(shop.stock[32] == 248 && shop.stock[44] == 0);
+    assert(shop.carries(1) && shop.carries(44) && !shop.carries(45));
+    assert(shop.unlimited(13) && !shop.unlimited(1));  // Short sword vs Club
     assert(shop.trailer == 0x1606);
 
     // Saved games ("gamestandings"): header 0x00 'F' 'O' 'L' + 410-byte
