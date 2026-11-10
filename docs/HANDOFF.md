@@ -146,10 +146,29 @@ screen, and `make test` still passes.
       screen. Scripted as the `town` scenario in `tests/golden_test.sh`.
 - [x] Drop-in exposes workstream B's reader: `./lof --dir game --dump-spec`
       (decoded `SYST/SPEC0..7`).
+- [x] Drop-in: play-screen static composition (`--play`) — HUD background +
+      viewport tile + the **full** party panel (name, profession, `+0x1e` stat
+      number, `GOOD` status).  The panel is pixel-exact; the screen matches the
+      DOSBox capture at ~94.2% (residue = the engine's dynamic viewport sprite).
+      Guarded by `tests/port_play_test.py`.
 - [ ] Drop-in: reproduce the in-game (town) screen — compare against the `town`
-      golden frame.
+      golden frame.  Investigated: the viewport is composited at runtime (no
+      single asset matches), so this needs its own session (see
+      `docs/notes-maintainer-town.md`).
 - [ ] Dungeon subsystem (`DNGS/`) — workstream A.
 - [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — workstream B. **Unblocked:**
       the SPEC/ROST reads now happen in the oracle (`town` scenario), so B can
       ground the remaining stat/combat semantics against real in-game state.
-- [ ] Main game loop / UI state machine — maintainer.
+- [x] Front-end UI state machine (`--ui`) — maintainer.  Keyboard-driven intro
+      (title -> credits -> menu) with the menu hot-keys wired: `O` loads a save
+      and enters the play screen, `Q`/Esc quits.  Input via `Window` (SDL2);
+      `--ui-keys` scripts a key sequence for head-less regression testing
+      (`tests/port_ui_test.py`).  In-game movement/combat remain to do.
+- [x] Native walk loop (`--walk`) — maintainer.  Loads the save's dungeon
+      (`DNGS/DNG<d><l>` from the save's location byte), places the party and
+      replays a scancode sequence through agent A's walk model
+      (0x48 step, 0x50 turn 180, 0x4b/0x4d turn), then renders the play screen
+      with the level map in the viewport.  `--walk-keys` scripts the input;
+      guarded by `tests/port_walk_test.py`.  The first-person viewport is still
+      the static `DP001` tile (the engine's per-cell sprite composition is
+      workstream A's remaining task).

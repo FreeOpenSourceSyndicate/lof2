@@ -30,6 +30,19 @@ test: tests/cpu_test.cpp src/cpu.cpp src/ega.cpp src/machine.cpp src/emu.h tests
 	./font_test
 	@$(MAKE) --no-print-directory local-test
 
+golden-port:
+	$(MAKE) -s port
+	python3 tests/port_menu_test.py
+	python3 tests/port_play_test.py
+	python3 tests/port_ui_test.py
+	python3 tests/port_walk_test.py
+	python3 tests/port_vor_test.py
+
+# The drop-in must run with the original EXEs absent (hard constraint #1).
+golden-noexe:
+	$(MAKE) -s port
+	python3 tests/port_noexe_test.py
+
 # --- Per-agent tests -------------------------------------------------------
 # Agents add their own test commands to tests/local.mk (which they own) instead
 # of editing this Makefile.  LOCAL_TEST_CMDS is a list of shell commands.
@@ -56,8 +69,8 @@ endif
 
 port: lof vor
 
-lof: port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp port/char.cpp port/gfx.h port/data.h port/screens.h port/font.h port/char.h
-	$(CXX) $(PORT_CFLAGS) -o $@ port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp port/char.cpp $(PORT_LIBS)
+lof: port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp port/char.cpp port/dungeon.cpp port/gfx.h port/data.h port/screens.h port/font.h port/char.h port/dungeon.h
+	$(CXX) $(PORT_CFLAGS) -o $@ port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp port/char.cpp port/dungeon.cpp $(PORT_LIBS)
 
 vor: port/vor.cpp port/gfx.cpp port/screens.cpp port/font.cpp port/gfx.h port/screens.h port/font.h
 	$(CXX) $(PORT_CFLAGS) -o $@ port/vor.cpp port/gfx.cpp port/screens.cpp port/font.cpp $(PORT_LIBS)
@@ -76,7 +89,7 @@ dropin: lof vor
 clean:
 	rm -f lof-native cpu_test lof vor port/*.o
 
-.PHONY: all headless test asm dropin port clean check local-test golden
+.PHONY: all headless test asm dropin port clean check local-test golden golden-port golden-noexe
 
 # Oracle regression: emulator must render the same frames (needs game data).
 golden:

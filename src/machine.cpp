@@ -15,6 +15,14 @@ namespace lof {
 
 static const uint16_t kPspSeg = 0x1000;
 
+static void klog(const char* who, uint8_t sc) {
+    if (getenv("LOF_KEYLOG")) fprintf(stderr, "[keylog] %s consumed sc=%02X ('%c')\n", who, sc, sc<128 && sc>=32 ? sc : '?');
+}
+
+static void klog2(const char* who, uint8_t sc, uint32_t ic) {
+    if (getenv("LOF_KEYLOG")) fprintf(stderr, "[keylog] %s consumed sc=%02X ('%c') instr=%u\n", who, sc, sc<128 && sc>=32 ? sc : '?', ic);
+}
+
 // ---------------------------------------------------------------- helpers ---
 [[maybe_unused]] static std::string upper(std::string s) {
     for (char& c : s) c = (char)toupper((unsigned char)c);
@@ -260,22 +268,31 @@ std::string Machine::resolve(const std::string& dos_path) {
     if (p.empty()) return game_dir;
     // DOS filenames are case-insensitive; the game stores paths in lower case
     // while the extracted archive uses upper case.  Walk the host tree,
-    // matching each component case-insensitively.
+    // matching each component case-insensitively.  The engine builds the save
+    // name with printf "%3d" ("GAME  2"); DOS and DOSBox ignore the padding
+    // spaces, so drop spaces when comparing -- "GAME  2" must match "GAME2".
+    auto normalize = [](std::string s) {
+        std::string out;
+        for (char ch : s) {
+            if (ch == ' ') continue;
+            out += (char)tolower((unsigned char)ch);
+        }
+        while (!out.empty() && out.back() == '.') out.pop_back();
+        return out;
+    };
     std::string full = game_dir;
     size_t i = 0;
     while (i <= p.size()) {
         size_t j = p.find('/', i);
         std::string comp = p.substr(i, j == std::string::npos ? std::string::npos : j - i);
         if (comp.empty()) { if (j == std::string::npos) break; i = j + 1; continue; }
-        std::string lc = comp; for (char& ch : lc) ch = (char)tolower((unsigned char)ch);
+        std::string lc = normalize(comp);
         std::string found;
         DIR* d = opendir(full.c_str());
         if (d) {
             struct dirent* e;
             while ((e = readdir(d))) {
-                std::string n = e->d_name;
-                std::string nl = n; for (char& ch : nl) ch = (char)tolower((unsigned char)ch);
-                if (nl == lc) { found = n; break; }
+                if (normalize(e->d_name) == lc) { found = e->d_name; break; }
             }
             closedir(d);
         }
@@ -302,6 +319,7 @@ void Machine::dos_int(uint8_t n) {
             running = false; break; }
         case 0x01: {   // read char with echo
             if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+                klog("21/01", k);
                 c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k)); }
             else c.ax = (uint16_t)((c.ax & 0xFF00) | 0);
             break; }
@@ -309,12 +327,14 @@ void Machine::dos_int(uint8_t n) {
         case 0x06: {
             if ((c.dx & 0xFF) == 0xFF) {  // direct input, non-blocking
                 if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+                    klog("21/06", k);
                     c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k)); c.flags &= ~ZF; }
                 else { c.ax = (uint16_t)(c.ax & 0xFF00); c.flags |= ZF; }
             } else { fputc((char)(c.dx & 0xFF), stdout); fflush(stdout); }
             break; }
         case 0x07: case 0x08: {
             if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+                klog2("21/07", k, instr_count);
                 c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k)); }
             else c.ax = (uint16_t)((c.ax & 0xFF00));
             break; }
@@ -338,11 +358,29 @@ void Machine::dos_int(uint8_t n) {
         case 0x0B: { c.ax = (uint16_t)((c.ax & 0xFF00) | (key_queue.empty() ? 0x00 : 0xFF));
             static int nb=0; if (getenv("LOF_KDBG") && !key_queue.empty() && nb<20){ fprintf(stderr,"[0B] key pending, returns FF\n"); nb++; }
             break; }
-        case 0x0C: { if (!key_queue.empty()) key_queue.clear(); c.ax = (uint16_t)((c.ax & 0xFF00) | al); break; }
+        case 0x0C: {
+            // DOS 0Ch: flush the type-ahead buffer, then invoke the console
+            // input function named in AL (01/06/07/08/0A).  Games poll AH=0Bh
+            // first and then call 0Ch to read the key that is waiting, so the
+            // read must actually return it.
+            uint8_t fn = al;
+            if (fn == 0x01 || fn == 0x06 || fn == 0x07 || fn == 0x08) {
+                if (!key_queue.empty()) {
+                    uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+                    klog("21/0C", k);
+                    c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k));
+                } else {
+                    c.ax = (uint16_t)((c.ax & 0xFF00) | 0);
+                }
+            } else {
+                if (!key_queue.empty()) key_queue.clear();
+            }
+            break; }
         case 0x19: c.ax = (uint16_t)((c.ax & 0xFF00) | 2); break;  // current drive C:
         case 0x1A: break;  // set DTA (not tracked: single DTA in PSP:0x80 area used)
         case 0x25: {  // set interrupt vector
             uint32_t p = (uint32_t)(c.ax & 0xFF) * 4;
+            if (getenv("LOF_VEC")) fprintf(stderr, "[setvec] INT %02X -> %04X:%04X\n", c.ax & 0xFF, c.ds, c.dx);
             ww(p, c.dx); ww(p + 2, c.ds); break; }
         case 0x2A: {  // get date
             time_t t = time(nullptr); struct tm* tm = localtime(&t);
@@ -350,9 +388,23 @@ void Machine::dos_int(uint8_t n) {
             c.dx = (uint16_t)(((tm->tm_mon + 1) << 8) | tm->tm_mday);
             c.ax = (uint16_t)((c.ax & 0xFF00) | tm->tm_wday); break; }
         case 0x2C: {  // get time
-            time_t t = time(nullptr); struct tm* tm = localtime(&t);
-            c.cx = (uint16_t)((tm->tm_hour << 8) | tm->tm_min);
-            c.dx = (uint16_t)((tm->tm_sec << 8) | 0); break; }
+            // LOF gates the town exit on the wall clock ("the town gates are
+            // closed and locked 'till early morning"), so a headless run at the
+            // wrong hour cannot leave town.  LOF_HOUR/LOF_MIN override the hour
+            // and minute the game sees; LOF_SEC the seconds.
+            int hh = 0, mm = 0, ss = 0;
+            if (const char* e = getenv("LOF_HOUR")) hh = atoi(e) & 0xFF;
+            if (const char* e = getenv("LOF_MIN"))  mm = atoi(e) & 0xFF;
+            if (const char* e = getenv("LOF_SEC"))  ss = atoi(e) & 0xFF;
+            if (getenv("LOF_HOUR") || getenv("LOF_MIN") || getenv("LOF_SEC")) {
+                c.cx = (uint16_t)((hh << 8) | mm);
+                c.dx = (uint16_t)((ss << 8) | 0);
+            } else {
+                time_t t = time(nullptr); struct tm* tm = localtime(&t);
+                c.cx = (uint16_t)((tm->tm_hour << 8) | tm->tm_min);
+                c.dx = (uint16_t)((tm->tm_sec << 8) | 0);
+            }
+            break; }
         case 0x2F: c.es = kPspSeg; c.bx = 0x80; break;   // get DTA
         case 0x30: c.ax = 0x0005; c.bx = 0; break;        // DOS 5.0
         case 0x35: {  // get interrupt vector
@@ -429,6 +481,7 @@ void Machine::dos_int(uint8_t n) {
             // program starts with a full, fresh heap; this mirrors DOS handing
             // out the largest free block below the video segment.
             uint16_t want = c.bx;
+            if (getenv("LOF_ALLOC")) fprintf(stderr, "[48] instr=%u want=%u free=%04X\n", instr_count, want, alloc_free);
             if ((uint32_t)alloc_free + want < 0xA000) {
                 c.ax = alloc_free; alloc_free += want + 1; set_cf(c, false);
             } else {
@@ -584,12 +637,14 @@ static void kbd_int(Machine& m, uint8_t) {
     switch (ah) {
         case 0x00: case 0x10: {
             if (!m.key_queue.empty()) { uint8_t k = m.key_queue.front(); m.key_queue.erase(m.key_queue.begin());
+                klog("int16/00", k);
                 if (ah == 0x10) c.ax = (uint16_t)(((c.ax & 0xFF00)) | scancode_ascii(k));
                 else c.ax = (uint16_t)((k << 8) | scancode_ascii(k)); }
             else c.ax = (uint16_t)(c.ax & 0xFF00);
             break; }
         case 0x01: case 0x11: {
-            if (!m.key_queue.empty()) { c.ax = (uint16_t)((m.key_queue.front() << 8) | scancode_ascii(m.key_queue.front())); c.flags &= ~ZF; }
+            if (!m.key_queue.empty()) { c.ax = (uint16_t)((m.key_queue.front() << 8) | scancode_ascii(m.key_queue.front())); c.flags &= ~ZF;
+                klog("int16/01peek", m.key_queue.front()); }
             else { c.ax = (uint16_t)(c.ax & 0xFF00); c.flags |= ZF; }
             break; }
         case 0x02: c.ax = (uint16_t)((c.ax & 0xFF00) | m.kbd_shift); break;
@@ -601,6 +656,7 @@ static void kbd_int(Machine& m, uint8_t) {
 // --------------------------------------------------------------- INT 33h ---
 static void mouse_int(Machine& m, uint8_t) {
     CPU& c = m.cpu;
+    if (getenv("LOF_MDBG") && c.ax != 3) fprintf(stderr,"[mousefn] ax=%04X bx=%04X cx=%04X dx=%04X\n", c.ax,c.bx,c.cx,c.dx);
     switch (c.ax) {
         case 0x0000: c.ax = 0xFFFF; c.bx = 2; break;                 // reset
         case 0x0001: m.mouse_visible = true; break;                  // show

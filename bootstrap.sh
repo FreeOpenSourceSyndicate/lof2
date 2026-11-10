@@ -65,6 +65,19 @@ else
     fi
 fi
 
+# The engine opens saves as GAMES\GAME%3d (printf "%3d"), e.g. "GAME  2" with
+# two padding spaces.  The emulator's path resolver strips those spaces (DOS
+# ignores them), so the shipped GAME1..GAME5 are found directly and no renamed
+# copies are needed.
+#
+# A GAME1 dropped at the repo root is a *working* save (slot 1 = the Temple
+# dungeon, slot 2 = the wilderness); it is NOT committed because saves are
+# proprietary game data.  Install it as slot 1 when present.
+if [ -f GAME1 ]; then
+    cp -f GAME1 game/GAMES/GAME1
+    say "[bootstrap] installed root GAME1 as save slot 1"
+fi
+
 # --- 2. build ---------------------------------------------------------------
 if [ "$CHECK" = 1 ]; then
     [ "$missing" = 0 ] && say "[bootstrap] everything present" || true

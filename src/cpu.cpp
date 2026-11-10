@@ -436,13 +436,17 @@ void cpu_step(CPU& c) {
         case 0xA6: case 0xA7: {
             bool w = op == 0xA7;
             uint32_t n = c.rep ? c.cx : 1;
-            if (c.rep) c.cx = 0;
             for (uint32_t i = 0; i < n; i++) {
                 uint32_t s = ((uint32_t)d.seg_of(3) << 4) + c.si;
                 uint32_t t = ((uint32_t)c.es << 4) + c.di;
                 alu(c, 7, w ? m.rw(s) : m.rb(s), w ? m.rw(t) : m.rb(t), !w);
                 if (w) { c.si += (c.flags & DF) ? -2 : 2; c.di += (c.flags & DF) ? -2 : 2; }
                 else { c.si += (c.flags & DF) ? -1 : 1; c.di += (c.flags & DF) ? -1 : 1; }
+                // REP CMPS leaves the *remaining* count in CX (it is not
+                // necessarily zero: an early ZF exit stops the loop).  Code
+                // that scans for a terminator relies on this, e.g. the MS-C
+                // run-time strlen: "repne scasb; not cx; dec cx".
+                if (c.rep) c.cx--;
                 if (c.rep && i + 1 < n) {
                     bool cont = (c.rep == 0xF2) ? !(c.flags & ZF) : (c.flags & ZF);
                     if (!cont) break;
@@ -477,11 +481,13 @@ void cpu_step(CPU& c) {
         case 0xAE: case 0xAF: {
             bool w = op == 0xAF;
             uint32_t n = c.rep ? c.cx : 1;
-            if (c.rep) c.cx = 0;
             for (uint32_t i = 0; i < n; i++) {
                 uint32_t t = ((uint32_t)c.es << 4) + c.di;
                 alu(c, 7, w ? c.ax : (c.ax & 0xFF), w ? m.rw(t) : m.rb(t), !w);
                 c.di += (c.flags & DF) ? (w ? -2 : -1) : (w ? 2 : 1);
+                // See the CMPS note above: REP SCAS must leave the remaining
+                // count in CX for the run-time's strlen-style scans.
+                if (c.rep) c.cx--;
                 if (c.rep && i + 1 < n) {
                     bool cont = (c.rep == 0xF2) ? !(c.flags & ZF) : (c.flags & ZF);
                     if (!cont) break;
