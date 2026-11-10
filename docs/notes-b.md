@@ -779,18 +779,37 @@ listing desyncs here, so use the raw bytes):
 - On a hit it stores the 1-based item index at `+0x82` and a per-item byte at
   `+0x84`, and writes `100` to `+0x85`.
 
-So a slot is `{ +0x82 item index (0 = empty), +0x83 aux, +0x84 per-item byte,
-+0x85 condition }`.  On the shipped data the three trailing bytes are `{0,1}` /
-`{1,0}` / `{0,0}` and the condition is `100` for everything except worn armour
-(`96`/`98`/`92`) — a durability/quality byte, not a count (it is decremented by
-`2`, e.g. `sub byte es:[bx+si+0x85],2` at `0x1ABDA`, and clamped to `0`/`100`).
+So a slot is `{ +0x82 item index (0 = empty), +0x83 equipped, +0x84 charges,
++0x85 condition }`.  All four bytes are now grounded in the raw image (the
+earlier "aux1/aux2" names were guesses):
+
+- **`+0x83` = equipped flag** (1 = worn/wielded, 0 = carried only).  Set to 1 by
+  the equip routine (`mov byte es:[bx+si+0x83],1` at image `0x2f45e`); cleared to
+  0 by the unequip / "take off all" routine (image `0x2f136`, `0x2f170`,
+  `0x2f1a8`, `0x2f1e2`, `0x2f21a`, `0x2f278`, `0x2f2b0`, ...).  The armour
+  routine counts a slot only when this is non-zero (`cmp byte es:[bx+0x83],0`,
+  image `0x21139`).  On the shipped data it is `0`/`1` only.
+- **`+0x84` = remaining count / charges.**  Seeded from item `+0x17` when the
+  item is added (`mov es:[bx+si+0x84],cl` after `mov al, es:[bx+0xfd3]`, image
+  `0xbf5d`).  The "use" path decrements it (`dec byte es:[bx]` at image
+  `0x13c53`, where `bx` points at `+0x84`) and refills `+0x85` from it:
+  `+0x85 = 100 * slot[+0x84] / item[+0x17]`, i.e. the condition byte doubles as
+  the **charge percentage**; when the count hits 0 the slot's condition is reset
+  to `100`.  The attack path (image `0x1950d`) uses the same decrement.  This is
+  why `+0x84` is `0` on the shipped party (nothing is partially used).
+- **`+0x85` = condition / durability, 0..100** (100 = pristine).  Seeded to 100
+  on add (`movb $0x64, es:[bx+si+0x85]`, image `0xbf9d`).  Combat damage subtracts
+  `2` (`sub byte es:[bx+si+0x85],2`, image `0x1abda`); the armour formula scales
+  AC by `(cond+10) - (cond+10)%20` (image `0x21141..0x2117c`); the shop sell
+  routine divides the price by it (`div 0x19` after the `+0x85` read, image
+  `0xb152`).  Worn armour in the shipped saves is slightly damaged (`96`/`98`).
 
 Decker's `GAME1` pack decodes cleanly as Leather armour (27), Small shield (34),
 Short sword (13), The Amulet (120); Handy's as Leather armour (27), Warhammer
 (8), Anvil (43), Sledge-hammer (44), The Amulet (120) x2.  Exposed as
-`InvSlot` + `CharSheet::inv[48]` (`kCharInv82`, `kCharInvCount`,
-`kCharInvStride`); `char_test` asserts the synthetic layout and Decker's/Handy's
-real slots.
+`InvSlot{item, equipped, charges, condition}` + `CharSheet::inv[48]`
+(`kCharInv82`, `kCharInvCount`, `kCharInvStride`); `char_test` asserts the
+synthetic layout and Decker's/Handy's real slots.
 
 ### Magic points `+0x68` (max) / `+0x69` (cur)
 
