@@ -787,3 +787,72 @@ frame region, so the *structure* of a dungeon screen is now reproduced
 end-to-end; only the per-(position,facing) sprite-index and overlay rules are
 open.  Implemented as `render_dungeon_screen()` in `port/dungeon.cpp` and
 covered by `test_dungeon_screen` in `tests/dungeon_test.cpp`.
+
+## Round 15 — event link + recovered oracle (2026-11-08)
+
+Two independent results this round; both are **in-lane** (no `src/` edits).
+
+### The save-load crash is a *merge* problem, not a code problem
+
+`main`'s `src/cpu.cpp` still forces `CX=0` in REP CMPS/SCAS
+(`case 0xA6/0xA7/0xAE/0xAF: if (c.rep) c.cx = 0;`).  The fix that lets the
+emulator reach the play loop — *REP CMPS/SCAS must leave the remaining count in
+CX* — exists only on `remotes/pr/50` (commit `69d6b54`), and that branch was
+**never merged into `main`**.  Consequence: the emulator built from `main`
+crashes to `0000:0000` immediately after loading a save (the MS-C run-time
+`strlen` returns `0xFFFE`, the `%2d%%` width overruns a 4-byte stack local and
+the slot-1 `RETF` jumps to 0:0).  Rebuilding `remotes/pr/50` reaches the play
+loop and reads `DNGS/DNG05` + the whole `EGA/D5/DPnnn` set + `SYST/NSC05`.
+So the "emulator viewport is wrong" wall (documented on pr/50) may itself be a
+downstream symptom; regardless, **the emulator built from `main` cannot reach
+the dungeon at all.**
+
+### Recovered oracle frames (were "missing", actually on `remotes/pr/50`)
+
+`ref/oracle/dungeon_slot1.png` (Temple spawn) and `dungeon_slot1_moved.png`
+(one step on) live on `remotes/pr/50`, not on `main`.  Re-analysed with raw EGA
+planes:
+
+- Spawn viewport `[11:130,10:130]` == `EGA/D5/DP001` at **0.952**; blit offset
+  is exactly (10,11) (an offset sweep −4..4 confirms (0,0) is the optimum).
+- The 4.8% residue is **not a single overlay rectangle**: it is spread over the
+  whole window (`x 0..119, y 0..77`) and its top row (y=0) contains colours the
+  sprite lacks (oracle colour 3 at x2..4).  So `DP001` is the base but the
+  engine draws something extra on top / around it.
+- The moved frame matches **no** full-size sprite well (best `DP067` at 0.576),
+  i.e. the moved view is a *composite* of the 7 full views + the 25 smaller
+  side-wall pieces (`(119,32)`, `(59,32)`, `(29,16)`, …), not one blit.
+
+### The cell → event (SPEC) link — located in the decompilation
+
+The scenario event dispatcher is a single big function at image `1F31E`
+(`push bp; mov bp,sp; mov ax,0x76; lcall 0x2f0e,0x26a` = 0x76-byte frame).  The
+SPEC record for an event is addressed
+
+```
+1F713: mov ax, 0xee            ; record stride 238
+1F716: imul word ptr [bp-0x44] ; record index  <-- the cell's event index
+1F719: add ax, word ptr [0x7d04]   ; base segment:offset of the loaded SPECn
+1F721: add ax, 0x50            ; text_b field
+```
+
+and the behaviour type is read as `cmp word ptr es:[bx+si+0xe2], TYPE`.  Across
+the whole binary the dispatcher keys off exactly **{1, 7, 9, 0x0c, 0x0e, 0x11,
+0x19}** — matching `port/char.h`'s `SPEC_TYPE_RECRUIT(1)`, `DOOR(7)`, `SIGN(9)`,
+`BUTTON(12)`, `CHALLENGE(14)`, `PUZZLE(17)`, `ELEMENTAL(25)`.  This is an
+*independent* confirmation of B's dispatch handler set (7 type constants), which
+is the part of B's workstream that does **not** need a live screen.
+
+The dungeon's per-cell **object code** (high byte of the 2-byte object layer) is
+the natural source of that `[bp-0x44]` index: for DNG10/DNG00 (scenario 0) the
+codes `1..33` select SPEC0 records whose type histogram matches the whole file
+(incl. `14 -> type 24`), while DNG05/DNG11 (scenarios 5/1) select only `TEXT`
+records.  A full byte-identical mapping is **not** yet proven (codes reach 132
+vs 66 records), so it stays a hypothesis — see the blocker list.
+
+### Still open (in-lane)
+
+- The exact `[bp-0x44]` derivation (which byte of the object record, and the
+  `+0`/`+1` base) — needs either a live event screen or more disassembly of the
+  GFA body around `1F31E`.
+- The viewport compositing rule (base sprite + side pieces + overlay).
