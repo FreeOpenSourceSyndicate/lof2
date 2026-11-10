@@ -915,3 +915,23 @@ is `EGA/UP/MSCR` (92.1% of the non-window pixels) with `EGA/D5/DP001` blitted at
 (10,11) (95.2% of the window); the whole composite matches at 92.8%.  The
 residue is the procedural horizon/floor band (the engine's tile overlay), which
 is the remaining decode task — not a missing sprite.
+
+### `tools/dngs.py oracle` — reproducible DoD check
+
+Added `oracle <png> <ega_dir> <dungeon> [index]`, which composites
+`EGA/UP/MSCR` + `EGA/D<d>/DP<index>` at (10,11) and scores it against a DOSBox
+frame, ranking every full-size sprite in the tileset.  It needs no PIL (a small
+in-file PNG reader handles DOSBox's palette PNGs).  Results:
+
+```
+oracle ref/oracle/dungeon_slot1.png  game/EGA 5 1
+  frame region : 0.921   view window : 0.952   whole screen : 0.928
+  best full-size sprites: DP001 0.952, DP059 0.397, DP067 0.349, ...
+oracle ref/oracle/dungeon_slot1_moved.png game/EGA 5 1
+  frame region : 0.894   view window : 0.202   whole screen : 0.739
+  best full-size sprites: DP067 0.576, DP001 0.202, ...
+```
+
+The spawn window is `DP001` (0.952); the *moved* window matches no single sprite
+(best 0.576), confirming the view is a **composite** of the full views + the
+smaller side pieces.  The frame region is `MSCR` (0.89-0.92) in both.
