@@ -641,6 +641,15 @@ game there first.  I therefore stop here rather than invent a heuristic.
 the save's map id via `render_dungeon_default_view()`, which is pixel-verified
 for the Temple spawn; the composition rule is the documented open item.
 
+Static confirmation in `LOF.EXE`: it ships a **contiguous 70-entry table**
+`ega\d0\dp000`, `ega\d0\dp001`, … `ega\d0\dp069` (file offsets ~0x3b6d1+, right
+after `ega\twn\twn00..05` and before `ega\anim\an00..`).  Every entry is `d0`;
+the digit is substituted at run time from the map id's ones digit.  `DP000` is
+absent on disk in every view dir (`D5` has 51 files `DP001..DP069`, `D0` 63),
+and the load trace opens `dp001..dp069` in order — so slot 0 is unused and the
+library is the 69 sprites `DP001..DP069`.  The selection rule is therefore a
+*table index* chosen in memory (never a filename opened per view).
+
 
 
 

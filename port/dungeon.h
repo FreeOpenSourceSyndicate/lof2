@@ -173,8 +173,10 @@ bool render_dungeon_view(Screen& scr, const std::string& sprite_path,
 // 05 (the Temple) -> `EGA/D5` and dungeon 10 (the wilderness) -> `EGA/D0`.
 // Verified by the maintainer by patching the save's location bytes and watching
 // the emulator's open trace (GAME2 0x9a2 0->1 opens `DNGS\DNG11` + `ega\d1`).
-// Index 1 is the canonical full view: the engine opens it first on entry and it
-// is the base the viewport is composited over.
+// `index` is the 0-based entry into the engine's sprite table (LOF.EXE ships a
+// contiguous `ega\d0\dp000`..`ega\d0\dp069` list; the ones digit is substituted
+// at run time).  Index 1 (`DP001`) is the canonical entry view, pixel-verified
+// against the Temple spawn oracle.
 std::string dungeon_view_path(const std::string& dir, int dungeon, int index = 1);
 
 // The view directory name for a map id: `D<ones-digit>` (see dungeon_view_path).
