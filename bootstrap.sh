@@ -78,7 +78,30 @@ if [ -f GAME1 ]; then
     say "[bootstrap] installed root GAME1 as save slot 1"
 fi
 
-# --- 2. build ---------------------------------------------------------------
+# --- 2. tooling -------------------------------------------------------------
+# The verification tests (`make golden-port`, `check.sh`) need Python numpy +
+# Pillow; the interactive front-end builds an SDL2 window when libsdl2-dev is
+# present.  Install what is missing, best effort (never fatal: the drop-in
+# itself builds and runs without either).
+have_py_deps() { python3 -c "import numpy, PIL" >/dev/null 2>&1; }
+if ! have_py_deps; then
+    if [ "$CHECK" = 1 ]; then
+        say "[bootstrap] MISSING Python deps (numpy, Pillow) — needed by make golden-port"
+    else
+        say "[bootstrap] installing Python deps (numpy, Pillow) ..."
+        pip install --quiet numpy pillow >/dev/null 2>&1 \
+            || python3 -m pip install --quiet numpy pillow >/dev/null 2>&1 \
+            || say "[bootstrap] WARNING: could not install numpy/Pillow (frame tests will fail)"
+    fi
+fi
+if ! command -v pkg-config >/dev/null 2>&1 || ! pkg-config --exists sdl2 2>/dev/null; then
+    if [ "$CHECK" != 1 ]; then
+        say "[bootstrap] note: SDL2 dev files absent — building the head-less front-end"
+        say "[bootstrap]       (install libsdl2-dev + pkg-config for a live window)"
+    fi
+fi
+
+# --- 3. build ---------------------------------------------------------------
 if [ "$CHECK" = 1 ]; then
     [ "$missing" = 0 ] && say "[bootstrap] everything present" || true
     exit 0
