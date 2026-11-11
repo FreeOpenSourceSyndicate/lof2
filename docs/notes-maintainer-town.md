@@ -520,3 +520,45 @@ several `EGA/D<d>/DPnnn` sprites per cell (not one blit — an exhaustive match 
 the emulator's Temple frame against every `D5` sprite tops out at ~0.65), so the
 walk loop currently draws a top-down level map in the window instead.  Pinning
 the per-cell sprite composition is workstream A's remaining task.
+
+## Palette: the emulator's play-loop palette is wrong (2026-11-11)
+
+**Finding.** At the menu, the play screen and the temple the emulator's final
+attribute palette is the **ramp** `00 01 02 03 04 05 06 07 10 11 12 13 14 15 16
+17` (measured with `LOF_DEBUG=1 LOF_VDBG=1 LOF_PAL2=1`, stable at frames
+60/150/300, with and without `LOF_NO_TIMER`). Re-rendering the emulator's own
+plane dump with the **standard EGA palette** (`00 01 02 03 04 05 06 07 38 39 3A
+3B 3C 3D 3E 3F`) matches the DOSBox oracle far better on every screen:
+
+| screen | ramp (emulator) | standard |
+|--------|-----------------|----------|
+| menu   | 59.2% | **80.3%** |
+| play   | 57.7% | **77.9%** |
+| temple | 58.3% | **75.1%** |
+
+The **drop-in already uses the standard set** and matches `ref/oracle/menu.png`
+at **99.8%** (`tests/port_menu_test.py`). So the standard palette is correct and
+only the emulator is wrong — this is not a dungeon-specific issue and not a
+plane/write-mode issue.
+
+**Cause.** The game programs the palette via `INT 10h AH=10h AL=02h` from tables
+in the loaded data segment: `4130:4834..4878` (five fade tables) called from
+`cs:ip=119D:0D04`, and `4130:47DF..4823` (ending in the literal ramp table
+`00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17`, stored in the EXE at
+`0x7012`) called from `cs:ip=119D:0C78`. The emulator stores the table bytes
+verbatim as attribute selectors, so the ramp table yields `attr_pal[n]=0x10+n`
+(dark-green…white) rather than the standard `0x38..0x3F` high half. The standard
+set is **not** present anywhere in `LOF.EXE`/`VOR.EXE`, so the engine either
+translates these tables or writes the attribute controller (`0x3C0`) directly;
+that translation is the thing to recover.
+
+**Ground truth from the repo owner (in-game, DOSBox).** The Temple is
+**greyscale right after loading** — consistent with the standard palette's grey
+indices 0/7/8/15, i.e. the standard set *is* what the engine intends. Colour
+appears only when moving: near walls show **small green specs**. So the correct
+palette is standard (not a fixed grey), and the moved-view colour is real.
+
+**Next step.** Recover the palette translation (or the direct `0x3C0` writes) in
+the decompilation; verify against a fresh DOSBox capture of the menu and the
+temple (`tools/capture_dosbox.sh` — needs `dosbox`, not installed here). Do not
+"fix" the drop-in: it is already correct.

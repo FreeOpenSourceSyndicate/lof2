@@ -5,6 +5,19 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-11 (second session) — TL;DR
+
+Environment verified HEALTHY (`./check.sh`). No open PRs at start. This session:
+
+- Diagnosed BLK-002: the **emulator's whole play-loop palette is the wrong
+  ramp** (see item 2 below and `docs/BLOCKERS.md`). The drop-in is already
+  correct; do not change it. PR #90 (docs only).
+- Corrected the palette item in this handover (it carried the superseded
+  "dungeon viewport RGB" framing).
+- Slot-2 load remains genuinely slow (a full `--dir game` play run exceeds
+  several minutes); `--frames 100` is ~18 s. Use `LOF_NO_TIMER=1` and small
+  frame counts for triage.
+
 ## TL;DR — what changed this session
 
 The previous maintainer's work was **unlanded**: 48 commits on
@@ -90,13 +103,24 @@ Pick a workstream from `docs/WORKSTREAMS.md`. The highest-value open items:
    oracle` scores a composite against `ref/oracle/dungeon_slot1*.png`. The
    spawn view is `DP001` (0.952); the *moved* view matches no single sprite
    (best 0.576), confirming a composite. See `docs/notes-a.md`.
-2. **Dungeon viewport palette (workstream A).** The emulator draws the temple in
-   **colour** while the oracle is in **greys**; shape matches 99.6% but the RGB
-   does not. The maintainer traced this to the EGA attribute/palette path (how
-   plane bits map to attribute indices at render time), **not** a missing sprite.
-   Re-record the oracle with the exact capture sequence before treating 100% RGB
-   as the bar — the frame is a live animation (58% raw match at frame 1500, 66%
-   at 2500).
+2. **Emulator play-loop palette (workstream A / BLK-002).** *Corrected
+   2026-11-11.* The emulator's final attribute palette at the menu, play and
+   temple screens is the **ramp** `00..07 10..17`, not the standard EGA set, so
+   brown renders yellow, blue renders cyan and dark-grey renders dark-green —
+   the whole play loop, not just the dungeon. Re-rendering the emulator's own
+   plane dump with the standard palette matches the oracle far better
+   (menu 80% vs 59%, play 78% vs 58%, temple 75% vs 58%), and the drop-in
+   (already standard) matches `ref/oracle/menu.png` at 99.8%. So the standard
+   palette is correct and only the emulator is wrong. The game programs the
+   palette via `INT 10h AH=10h AL=02h` from `4130:4834`/`4130:47DF` (the ramp
+   table is the literal bytes at EXE `0x7012`); the standard set is nowhere in
+   the EXEs and the emulator traces zero direct `0x3C0` writes, so the engine
+   must transform the table — that transform is the thing to recover. Ground
+   truth (repo owner, in-game): the Temple is **greyscale right after loading**
+   (standard palette grey indices 0/7/8/15), and colour appears only when moving
+   (small green specs on near walls). Full evidence: `docs/BLOCKERS.md` BLK-002
+   and `docs/notes-maintainer-town.md`. **Do not change the drop-in** — it is
+   correct.
 3. **Font glyph transform (open, documented in `AGENTS.md`).** The engine's
    menu/town/panel glyphs are a *bold, double-struck* form with no exact match in
    `CHR1`/`CHR2`; the drop-in approximates with the `CHR1` cells. Next step:
