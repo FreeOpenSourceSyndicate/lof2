@@ -454,8 +454,8 @@ int main(int argc, char** argv) {
         size_t nz = 0;
         for (int p = 0; p < 4; p++)
             for (uint8_t b : m.ega.plane[p]) if (b) nz++;
-        fprintf(stderr, "[lof] instr=%u frames=%ld running=%d cs:ip=%04X:%04X mode=%d nzplane=%zu int21=%u int10=%u int16=%u\n",
-                m.instr_count, frame_no, (int)m.running, m.cpu.cs, m.cpu.ip, m.ega.mode, nz,
+        fprintf(stderr, "[lof] instr=%u frames=%ld running=%d cs:ip=%04X:%04X ds=%04X ss=%04X mode=%d nzplane=%zu int21=%u int10=%u int16=%u\n",
+                m.instr_count, frame_no, (int)m.running, m.cpu.cs, m.cpu.ip, m.cpu.ds, m.cpu.ss, m.ega.mode, nz,
                 m.count_21, m.count_10, m.count_16);
         if (getenv("LOF_VDBG")) {
             size_t nonblack = 0;
@@ -482,6 +482,21 @@ int main(int argc, char** argv) {
       if (const char* dp = getenv("LOF_DUMP")) {
           FILE* f = fopen(dp, "wb");
           if (f) { fwrite(m.mem(), 1, 1u << 20, f); fclose(f); fprintf(stderr, "[lof] dumped 1MB to %s\n", dp); }
+      }
+      if (const char* sp = getenv("LOF_SEGDUMP")) {
+          // LOF_SEGDUMP=file,seg:off:len  -> dump linear memory at seg:off for
+          // len bytes.  Used to read data the engine holds in a segment at run
+          // time (e.g. to confirm a table read via es:[idx*0x24+0x2712]).
+          char path[512]; unsigned seg = 0, off = 0, len = 0;
+          if (sscanf(sp, "%511[^,],%x:%x:%x", path, &seg, &off, &len) == 4) {
+              FILE* f = fopen(path, "wb");
+              if (f) {
+                  uint32_t base = ((uint32_t)seg << 4) + off;
+                  for (uint32_t a = 0; a < len; a++) fputc(m.rb(base + a), f);
+                  fclose(f);
+                  fprintf(stderr, "[lof] dumped %u bytes from %04X:%04X to %s\n", len, seg, off, path);
+              }
+          } else fprintf(stderr, "[lof] LOF_SEGDUMP needs file,seg:off:len\n");
       }
 
 #ifdef USE_SDL
