@@ -5,6 +5,28 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-12 (third session) — TL;DR
+
+Environment verified HEALTHY (`./bootstrap.sh` + `make test`). Picked up the
+in-progress **BLK-005** and closed it.
+
+- **BLK-005 resolved — the "runtime item-use table" is the static spell table.**
+  A live 1 MB dump of the town path (new `LOF_SEGDUMP` hook) is byte-identical to
+  the raw `LOF.EXE` image at `0x3EF32`: the `es:[idx*0x24+0x2712]` table is the
+  141-record spell table, already transcribed correctly in `port/char_spells.inc`.
+  No live-engine dump was ever needed. Full evidence:
+  `docs/notes-maintainer-itemuse.md`. PR **#93** (merged).
+- **BLK-006 opened (Agent B).** `port/char_itemuse.inc` / `tools/spec.py
+  emit_itemuse` extract from *file* `0x42712` = image `0x3D222` = `ds:0xa02`,
+  which **no instruction references**; `item_use_flags()`/`item_is_usable()` are
+  therefore built on bytes the engine never reads. Item state comes from the
+  32-byte item record (`es:[bx + 0xfda]`, `shl bx,5`).
+- New emulator hook `LOF_SEGDUMP=<file>,<seg>:<off>:<len>` (dump any linear
+  range) and `ds=`/`ss=` added to the `LOF_DEBUG` line; documented in `AGENTS.md`.
+- Note: `check.sh` is slow here (~11 golden scenarios, some 1600 frames) and can
+  exceed a 10-minute command timeout; `make test` + the `boot` golden hash are
+  the fast checks.
+
 ## Session 2026-11-11 (second session) — TL;DR
 
 Environment verified HEALTHY (`./check.sh`). No open PRs at start. This session:
@@ -125,10 +147,13 @@ Pick a workstream from `docs/WORKSTREAMS.md`. The highest-value open items:
    menu/town/panel glyphs are a *bold, double-struck* form with no exact match in
    `CHR1`/`CHR2`; the drop-in approximates with the `CHR1` cells. Next step:
    disassemble the glyph-blit routine that reads the `4130:` buffer.
-4. **Combat / shop / item-use oracle path (workstream B blocker).** B has
-   grounded everything reachable statically; the last runtime tables need a
-   scripted path into a combat encounter / shop / item-use screen
-   (`--keys`/`LOF_KEYAT`). See `docs/notes-b.md` "Blockers".
+4. **Combat / shop / item-use (workstream B).** *Updated 2026-11-12.* The
+   "runtime item-use table" is settled — it is the **static spell table**, already
+   transcribed (BLK-005, resolved; PR #93). What remains for B is **BLK-006**:
+   `port/char_itemuse.inc` is mis-sourced (image `0x3D222`, unreferenced) and
+   must be re-derived from the item record or dropped. Shop stock/prices still
+   want a scripted shop scenario (`--keys`/`LOF_KEYAT`). See `docs/notes-b.md`
+   "Blockers" and `docs/notes-maintainer-itemuse.md`.
 
 ## Hygiene
 
