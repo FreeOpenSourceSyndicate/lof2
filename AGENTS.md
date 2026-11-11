@@ -354,7 +354,8 @@ Roadmap:
 | `LOF_VDBG=1`         | framebuffer/palette/seq/gc dump at end |
 | `LOF_PAL2=1`         | per-register attribute palette dump |
 | `LOF_EDUMP=<file>`   | dump the 4 EGA planes (4 x 0x10000 bytes) |
-| `LOF_DUMP=<file>`    | dump VGA-style framebuffer |
+| `LOF_DUMP=<file>`    | dump the full 1 MB linear memory |
+| `LOF_SEGDUMP=<file>,<seg>:<off>:<len>` | dump `len` linear bytes at `seg:off` (e.g. read a runtime data table) |
 | `LOF_VTRACE=1`       | plane write min/max/nonzero statistics |
 | `LOF_WMODE=1`        | histogram of (map-mask, write-mode, set/reset, bitmask) |
 | `LOF_PTRACE=1`       | EGA/VGA port OUT trace |

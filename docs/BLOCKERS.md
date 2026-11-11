@@ -55,7 +55,8 @@ mark a `Dependencies` entry, the dependency's priority may have to rise (a
 | BLK-002 | A (dungeons) | Maintainer | Medium | In progress | — |
 | BLK-003 | Maintainer | Maintainer | Medium | Open | — |
 | BLK-004 | B (characters/items) | Maintainer | High | Resolved | — |
-| BLK-005 | B (characters/items) | Maintainer | Medium | Open | BLK-004 |
+| BLK-005 | B (characters/items) | Maintainer | Medium | Resolved | BLK-004 |
+| BLK-006 | B (characters/items) | Agent B | Medium | Open | — |
 
 ---
 
@@ -164,15 +165,44 @@ move randomly, so combat is not reproducible from a save alone.
 - **Blocked lane:** B (characters/items)
 - **Responsible:** Maintainer
 - **Priority:** Medium
-- **Status:** Open
+- **Status:** Resolved (2026-11-12)
 - **Dependencies:** BLK-004
 
 **Description & unblock action.** The play loop reads a 36-byte item-use table at
 `es:[item*0x24 + 0x2712]` (bit 2 = "usable"; read at image `0x13A82`, `0x1CFD2`,
-`0x1D156`). It is a **runtime** table in a segment no data file carries, so its
-contents are only reachable from a running engine. Unblock by adding a debug dump
-(like `LOF_EDUMP` but for that segment) and capturing it once BLK-004 lets the
-run reach the code that populates it. Detail: `docs/notes-b.md`.
+`0x1D156`). It was believed to be a **runtime** table in a segment no data file
+carries. Unblock by adding a debug dump (like `LOF_EDUMP` but for that segment)
+and capturing it once BLK-004 lets the run reach the code that populates it.
+Detail: `docs/notes-b.md`.
+
+**Resolution (2026-11-12).** The premise was wrong: the table at
+`es:[idx*0x24 + 0x2712]` is the **spell table**, and it is **static EXE data**,
+not runtime. A live 1 MB dump of the `town` path (new `LOF_SEGDUMP` hook in
+`src/main.cpp`) is **byte-identical** to the raw `LOF.EXE` image at `0x3EF32`
+(file `0x44422`); 141 records of `[22-byte name][14 data bytes]`, already
+transcribed correctly in `port/char_spells.inc`. No live-engine dump is needed.
+The cited read sites (`0x13A82` = image `0x0E592`, `0x1CFD2` = `0x17AE2`,
+`0x1D156` = `0x17C66`) are the spell-cast handlers. Full evidence:
+`docs/notes-maintainer-itemuse.md`. This also spawned **BLK-006**.
+
+## BLK-006 — `port/char_itemuse.inc` is sourced from the wrong EXE offset
+
+- **Blocked lane:** B (characters/items)
+- **Responsible:** Agent B
+- **Priority:** Medium
+- **Status:** Open
+- **Dependencies:** —
+
+**Description & unblock action.** `tools/spec.py` extracts the "item-use table"
+from *file* offset `0x42712` (image `0x3D222` = `ds:0xa02`). No instruction in
+the image references a `disp16` base of `0xa02` (only two incidental literal
+`0x0a02` bytes exist), so `item_use_flags()` / `item_is_usable()` are built on
+bytes the engine never reads. The handlers that BLK-005 pointed at read the
+**spell** table at `ds:0x2712` (image `0x3EF32`); an item's own state comes from
+its 32-byte item record (`es:[bx + 0xfda]`, `shl bx,5`), not a 36-byte table.
+Unblock by re-deriving the API from the real item record (the use/class byte the
+handlers test is the item record's own byte) or removing the mis-sourced API.
+Evidence: `docs/notes-maintainer-itemuse.md`. Detail also in `docs/notes-b.md`.
 
 ---
 
