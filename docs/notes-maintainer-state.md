@@ -8,15 +8,15 @@ this first, then `docs/HANDOFF.md` (the technical reference) and
 ## Session 2026-11-12 (third session) — TL;DR
 
 Environment verified HEALTHY (`./bootstrap.sh` + `make test`). Picked up the
-in-progress **BLK-005** and closed it.
+in-progress **BLK-B002** (was BLK-005) and closed it.
 
-- **BLK-005 resolved — the "runtime item-use table" is the static spell table.**
+- **BLK-B002 resolved — the "runtime item-use table" is the static spell table.**
   A live 1 MB dump of the town path (new `LOF_SEGDUMP` hook) is byte-identical to
   the raw `LOF.EXE` image at `0x3EF32`: the `es:[idx*0x24+0x2712]` table is the
   141-record spell table, already transcribed correctly in `port/char_spells.inc`.
   No live-engine dump was ever needed. Full evidence:
   `docs/notes-maintainer-itemuse.md`. PR **#93** (merged).
-- **BLK-006 opened (Agent B).** `port/char_itemuse.inc` / `tools/spec.py
+- **BLK-B003 opened (Agent B).** `port/char_itemuse.inc` / `tools/spec.py
   emit_itemuse` extract from *file* `0x42712` = image `0x3D222` = `ds:0xa02`,
   which **no instruction references**; `item_use_flags()`/`item_is_usable()` are
   therefore built on bytes the engine never reads. Item state comes from the
@@ -27,21 +27,24 @@ in-progress **BLK-005** and closed it.
   exceed a 10-minute command timeout; `make test` + the `boot` golden hash are
   the fast checks.
 - **Two open PRs reviewed (not merged — they need fixes):**
-  - **#91** (Agent B, `work/agent-b-itemuse-static`): also claims BLK-005 but
+  - **#91** (Agent B, `work/agent-b-itemuse-static`): also claims BLK-B002 but
     with a **conflated offset** — it treats "image `0x42712`" as "ds `0x2712`".
     The MZ header is `0x54F0`, so image `0x42712` is really `ds:0x0A02`, and the
     `es:[bx*0x24+0x2712]` read lands on the **spell** table. Its relocation
     analysis is real but for image `0x3D222`. Left a review comment asking it to
     retarget; detail in `docs/notes-maintainer-itemuse.md` (addendum).
   - **#89** (Agent A, `work/agent-a-blockers`): adds its own `BLK-006`/`BLK-007`,
-    which now **collide** with `main`'s BLK-006. Left a comment asking it to
-    rebase and renumber to `BLK-007`/`BLK-008`.
+    which collided with `main`'s `BLK-006` under the old single-counter scheme.
+    **Resolved structurally** this session: the registry is now split one file
+    per lane with lane-lettered IDs (`docs/blockers/{A,B,M}.md`), so no two lanes
+    can collide. Left a comment on #89 to rebase and renumber its entries to the
+    lane scheme (`BLK-A...`).
 
 ## Session 2026-11-11 (second session) — TL;DR
 
 Environment verified HEALTHY (`./check.sh`). No open PRs at start. This session:
 
-- Diagnosed BLK-002: the **emulator's whole play-loop palette is the wrong
+- Diagnosed BLK-A002 (was BLK-002): the **emulator's whole play-loop palette is the wrong
   ramp** (see item 2 below and `docs/BLOCKERS.md`). The drop-in is already
   correct; do not change it. PR #90 (docs only).
 - Corrected the palette item in this handover (it carried the superseded
@@ -135,7 +138,7 @@ Pick a workstream from `docs/WORKSTREAMS.md`. The highest-value open items:
    oracle` scores a composite against `ref/oracle/dungeon_slot1*.png`. The
    spawn view is `DP001` (0.952); the *moved* view matches no single sprite
    (best 0.576), confirming a composite. See `docs/notes-a.md`.
-2. **Emulator play-loop palette (workstream A / BLK-002).** *Corrected
+2. **Emulator play-loop palette (workstream A / BLK-A002).** *Corrected
    2026-11-11.* The emulator's final attribute palette at the menu, play and
    temple screens is the **ramp** `00..07 10..17`, not the standard EGA set, so
    brown renders yellow, blue renders cyan and dark-grey renders dark-green —
@@ -150,7 +153,7 @@ Pick a workstream from `docs/WORKSTREAMS.md`. The highest-value open items:
    must transform the table — that transform is the thing to recover. Ground
    truth (repo owner, in-game): the Temple is **greyscale right after loading**
    (standard palette grey indices 0/7/8/15), and colour appears only when moving
-   (small green specs on near walls). Full evidence: `docs/BLOCKERS.md` BLK-002
+   (small green specs on near walls). Full evidence: `docs/blockers/A.md` BLK-A002
    and `docs/notes-maintainer-town.md`. **Do not change the drop-in** — it is
    correct.
 3. **Font glyph transform (open, documented in `AGENTS.md`).** The engine's
@@ -159,7 +162,7 @@ Pick a workstream from `docs/WORKSTREAMS.md`. The highest-value open items:
    disassemble the glyph-blit routine that reads the `4130:` buffer.
 4. **Combat / shop / item-use (workstream B).** *Updated 2026-11-12.* The
    "runtime item-use table" is settled — it is the **static spell table**, already
-   transcribed (BLK-005, resolved; PR #93). What remains for B is **BLK-006**:
+   transcribed (BLK-B002, resolved; PR #93). What remains for B is **BLK-B003**:
    `port/char_itemuse.inc` is mis-sourced (image `0x3D222`, unreferenced) and
    must be re-derived from the item record or dropped. Shop stock/prices still
    want a scripted shop scenario (`--keys`/`LOF_KEYAT`). See `docs/notes-b.md`

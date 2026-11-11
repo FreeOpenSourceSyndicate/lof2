@@ -1,9 +1,10 @@
 # notes-maintainer-itemuse.md — the "runtime item-use table" is the static spell table
 
-Investigated 2026-11-12 while picking up **BLK-005** ("expose the runtime item-use
-table from a live engine"). Result: the premise of BLK-005 is **wrong**. The
-table the engine reads at `es:[idx*0x24 + 0x2712]` is the **spell table**, and it
-is **static EXE data**, byte-identical at run time — no live-engine dump is
+Investigated 2026-11-12 while picking up **BLK-B002** ("expose the runtime
+item-use table from a live engine"). Result: the premise of BLK-B002 is
+**wrong**. The table the engine reads at `es:[idx*0x24 + 0x2712]` is the
+**spell table**, and it is **static EXE data**, byte-identical at run time — no
+live-engine dump is
 needed. It is the same table workstream B already transcribed as
 `port/char_spells.inc`.
 
@@ -51,7 +52,7 @@ loaded straight from the EXE; it is *not* populated at run time.
 **B's transcription is correct.** `port/char_spells.inc` (`kSpellNames` +
 `kSpellData`) matches the image byte-for-byte, and its `byte 8 == 0x0f` family is
 exactly the heal spells (`Healing I/II/III`, `Cure light/serious wounds`),
-confirming the name↔data pairing. So the "item-use" bytes BLK-005 wanted are
+confirming the name↔data pairing. So the "item-use" bytes BLK-B002 wanted are
 already in the repo.
 
 **`port/char_itemuse.inc` is mis-sourced.** It was extracted from *file* offset
@@ -65,16 +66,16 @@ engine never reads. An item's own use state comes from its **item record**
 
 ## Consequence
 
-- **BLK-005 is resolved as "no such runtime table":** the table is static and
+- **BLK-B002 is resolved as "no such runtime table":** the table is static and
   already transcribed; nothing needs a live engine.
 - **New follow-up (for Agent B):** re-derive `char_itemuse.inc` (or drop the
-  API) — see BLK-006 in `docs/BLOCKERS.md`.
+  API) — see BLK-B003 in `docs/BLOCKERS.md`.
 - The `LOF_SEGDUMP` hook stays: it is the general "dump any segment" debug aid,
   useful for the next runtime-table question.
 
 ## Addendum 2026-11-12 — the offset conflation (and the conflict with PR #91)
 
-Open PR #91 (workstream B) reaches a *different* conclusion for BLK-005: that the
+Open PR #91 (workstream B) reaches a *different* conclusion for BLK-B002: that the
 "item-use table" is static at "image `0x42712` / data segment `0x2712`", and that
 a runtime dump only looks different because the **MZ loader relocates** it. The
 relocation observation is real, but the **offset is conflated**, and the table is
@@ -111,10 +112,13 @@ not the target of the `0x2712` read. Both facts are checkable:
 **Net:** `main`'s merged finding (PR #93) stands — the `0x2712` read is the
 spell table. PR #91 should be corrected before merge: its relocation note is
 worth keeping, but it must not claim image `0x42712`/`ds 0x2712` as the read
-target, and `port/char_itemuse.inc` remains mis-sourced (BLK-006).
+target, and `port/char_itemuse.inc` remains mis-sourced (BLK-B003).
 
-**Numbering collision to fix.** PR #89 (workstream A) independently adds a
-`BLK-006` and `BLK-007` (dungeon moved-view / dungeon key sequence). `main` now
-already has a `BLK-006` (this file's item-use mis-source). When #89 merges, its
-two entries must be renumbered to `BLK-007`/`BLK-008` (and its references in
-BLK-001/BLK-004 updated).
+**Numbering collisions — now structurally impossible.** The registry used to be a
+single file with one shared `BLK-NNN` counter, so two lanes could pick the same
+number (PR #89 picked `BLK-006`/`BLK-007` for dungeons while `main` used
+`BLK-006` for this item-use mis-source). The registry is now split **one file per
+lane** with **lane-lettered** IDs (`docs/blockers/{A,B,M}.md`, IDs
+`BLK-<lane><nnn>`), so lanes no longer share a counter and cannot collide. See
+the hub `docs/BLOCKERS.md` for the convention and the old→new ID map
+(`BLK-005 → BLK-B002`, `BLK-006 → BLK-B003`, etc.).

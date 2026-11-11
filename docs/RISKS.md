@@ -53,8 +53,9 @@ tests break, with no green state left to return to.
 2. Before a risky change, note the current commit: `git rev-parse HEAD`.
 3. If the tree goes red and you cannot fix it within a few minutes:
    `git checkout -- <files>` or `git stash`, confirm `make test` is green again,
-   then add an entry to the shared blocker registry `docs/BLOCKERS.md` describing
-   the problem (and a `docs/BLOCKED-<name>.md` file if it is long).
+   then add an entry to your lane's blocker file under `docs/blockers/` (A, B or
+   M — see the hub `docs/BLOCKERS.md`) describing the problem (and a
+   `docs/BLOCKED-<name>.md` file if it is long).
 4. `make test` green is the shared contract; never push a branch that breaks it.
 
 ## Risk 4 — accidentally running the original binaries
