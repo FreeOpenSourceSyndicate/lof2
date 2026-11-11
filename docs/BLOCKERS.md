@@ -54,7 +54,7 @@ mark a `Dependencies` entry, the dependency's priority may have to rise (a
 | BLK-001 | A (dungeons) | Agent A | Medium | Open | — |
 | BLK-002 | A (dungeons) | Maintainer | Medium | In progress | — |
 | BLK-003 | Maintainer | Maintainer | Medium | Open | — |
-| BLK-004 | B (characters/items) | Maintainer | High | Open | — |
+| BLK-004 | B (characters/items) | Maintainer | High | Resolved | — |
 | BLK-005 | B (characters/items) | Maintainer | Medium | Open | BLK-004 |
 
 ---
@@ -138,16 +138,26 @@ into, then reproducing the transform in `port/font.cpp`. Detail: `AGENTS.md`
 - **Blocked lane:** B (characters/items)
 - **Responsible:** Maintainer
 - **Priority:** High
-- **Status:** Open
+- **Status:** Resolved (2026-11-11)
 - **Dependencies:** —
 
-**Description & unblock action.** The oracle currently stops at the `town` screen
-(`--keys 0x18,0x1c`). Everything B can ground statically is done; the last
+**Description & unblock action.** The oracle previously stopped at the `town`
+screen (`--keys 0x18,0x1c`). Everything B can ground statically is done; the last
 runtime tables (combat resolution, shop stock/prices, item-use) can only be
-confirmed against real in-game state. Unblock by scripting a key path (via the
-`--keys` / `LOF_KEYAT` input hooks in `src/main.cpp`) that reaches a combat
-encounter and the shop/item-use screens, and recording golden frames for them.
-Detail: `docs/notes-b.md` ("Blockers → Needs the maintainer").
+confirmed against real in-game state.
+
+**Resolution.** The `town` scenario was wrong: the intro ends in the town's
+**Inn with no party members**, and `O` opens the load menu (digits 1-5 or `C`;
+**Enter is ignored**). The real town screen is reached from the Inn with
+`A` (add a character), `2` (the 2nd character), `C` (leave the add menu), `C`
+(leave the Inn) — scancodes `0x1e,0x03,0x2e,0x2e`. From the town menu the
+building hot-keys then work: `E` = Emporium (shop), `T` = Temple, etc. These are
+now golden scenarios `town`, `shop` and `temple_bldg` in
+`tests/golden_test.sh` (`LOF_KEYGAP=250`, since each screen dwells ~a million
+instructions). See `docs/notes-maintainer-town.md`
+("How to actually reach the town screen"). B can now ground the shop/item-use
+tables against these reads. Note (repo owner): enemies are generated on load and
+move randomly, so combat is not reproducible from a save alone.
 
 ## BLK-005 — Expose the runtime item-use table from a live engine
 

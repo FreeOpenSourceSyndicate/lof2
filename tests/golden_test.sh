@@ -45,6 +45,13 @@ scenario() {
 # The load is long and its timing varies, so the key feed must be adaptive
 # (LOF_KEYAUTO) rather than frame-scheduled.  Note the slot is chosen with the
 # digit key, not Enter (Enter on the dialog does nothing).
+#
+# The intro ends in the town's *Inn with no party members*, not the town menu.
+# "town" walks out of the Inn into the town (A add char, 2 the 2nd char, C leave
+# the add menu, C leave the Inn); "shop" and "temple_bldg" then enter the
+# Emporium / Temple.  Each of these screens dwells ~a million instructions, so
+# the key feed needs a large gap (LOF_KEYGAP=250) — a small gap delivers the
+# next key while the previous screen is still loading, which drops it.
 run() {
     scenario boot
     scenario look  LOF_KEYFRAME=10 --keys 0x26
@@ -54,6 +61,9 @@ run() {
     scenario erase LOF_KEYFRAME=10 --keys 0x12
     LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 scenario temple --frames 1500
     LOF_KEYAUTO=0x18,0x03 LOF_KEYGAP=8 scenario play   --frames 1000
+    LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e           LOF_KEYGAP=250 scenario town        --frames 1600
+    LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x12      LOF_KEYGAP=250 scenario shop        --frames 1600
+    LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x14      LOF_KEYGAP=250 scenario temple_bldg --frames 1600
 }
 
 if [ "${1:-}" = "--record" ] || [ ! -f "$GOLDEN_FILE" ]; then
