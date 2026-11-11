@@ -71,3 +71,50 @@ engine never reads. An item's own use state comes from its **item record**
   API) — see BLK-006 in `docs/BLOCKERS.md`.
 - The `LOF_SEGDUMP` hook stays: it is the general "dump any segment" debug aid,
   useful for the next runtime-table question.
+
+## Addendum 2026-11-12 — the offset conflation (and the conflict with PR #91)
+
+Open PR #91 (workstream B) reaches a *different* conclusion for BLK-005: that the
+"item-use table" is static at "image `0x42712` / data segment `0x2712`", and that
+a runtime dump only looks different because the **MZ loader relocates** it. The
+relocation observation is real, but the **offset is conflated**, and the table is
+not the target of the `0x2712` read. Both facts are checkable:
+
+1. **`image 0x42712` and `ds 0x2712` are different addresses.** The real MZ header
+   is `0x54F0` bytes, so *file* `0x42712` = *image* `0x3D222` = *ds* `0x0A02`.
+   The label "image `0x42712` / ds `0x2712`" only holds if one subtracts `0x40000`
+   (256 KB) instead of the header — `0x42712 - 0x40000 = 0x2712`. That is the
+   root cause of the conflation. `ds:0x2712` is actually image `0x3EF32`
+   (file `0x44422`).
+
+2. **The `es:[bx*0x24 + 0x2712]` read resolves to the spell table.** Every
+   stride-`0x24` read of `[bx + 0x2712]` first does `mov es, [0xafae]`; the image
+   word at `ds:0xafae` is `0x3C82`, which the loader relocates to the runtime
+   `0x4C92` (= `ds`). So `es:[bx*0x24 + 0x2712]` = linear `0x4C92*16 + 0x2712`
+   = image `0x3EF32` — the **spell** table (`[14 data][22 name]`, "Burning
+   hands"), not the `[22 name][14 data]`/dispatch bytes in `char_itemuse.inc`.
+   The surrounding strings confirm it is the spell-cast path: `ds:0x5cd9`
+   "covers all and slowly dissipates", `ds:0x5d26` "covers all, but has no
+   effect", `ds:0x5f10` "Who should speak out a spell (1-6)?".
+
+3. **What the `char_itemuse.inc` bytes really are.** The region at image
+   `0x3D222` (`ds:0x0A02`) *is* genuinely relocated at run time: 426 bytes
+   differ from the image, and the changed words are `0x3C82 → 0x4C92` far-pointer
+   *segment* words (dispatch lists into the code/data segment). So PR #91's
+   relocation analysis is correct **for image `0x3D222`** — but that table is
+   **not** reached by any `disp16` base of `0x0A02` (verified: zero such
+   references), and it is certainly not what `es:[bx*0x24 + 0x2712]` reads.
+   Whether/where the engine uses image `0x3D222` is still open (it may be a
+   dispatch table reached via a computed far pointer); it is **not** the
+   "item-use table".
+
+**Net:** `main`'s merged finding (PR #93) stands — the `0x2712` read is the
+spell table. PR #91 should be corrected before merge: its relocation note is
+worth keeping, but it must not claim image `0x42712`/`ds 0x2712` as the read
+target, and `port/char_itemuse.inc` remains mis-sourced (BLK-006).
+
+**Numbering collision to fix.** PR #89 (workstream A) independently adds a
+`BLK-006` and `BLK-007` (dungeon moved-view / dungeon key sequence). `main` now
+already has a `BLK-006` (this file's item-use mis-source). When #89 merges, its
+two entries must be renumbered to `BLK-007`/`BLK-008` (and its references in
+BLK-001/BLK-004 updated).

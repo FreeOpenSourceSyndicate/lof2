@@ -26,6 +26,16 @@ in-progress **BLK-005** and closed it.
 - Note: `check.sh` is slow here (~11 golden scenarios, some 1600 frames) and can
   exceed a 10-minute command timeout; `make test` + the `boot` golden hash are
   the fast checks.
+- **Two open PRs reviewed (not merged — they need fixes):**
+  - **#91** (Agent B, `work/agent-b-itemuse-static`): also claims BLK-005 but
+    with a **conflated offset** — it treats "image `0x42712`" as "ds `0x2712`".
+    The MZ header is `0x54F0`, so image `0x42712` is really `ds:0x0A02`, and the
+    `es:[bx*0x24+0x2712]` read lands on the **spell** table. Its relocation
+    analysis is real but for image `0x3D222`. Left a review comment asking it to
+    retarget; detail in `docs/notes-maintainer-itemuse.md` (addendum).
+  - **#89** (Agent A, `work/agent-a-blockers`): adds its own `BLK-006`/`BLK-007`,
+    which now **collide** with `main`'s BLK-006. Left a comment asking it to
+    rebase and renumber to `BLK-007`/`BLK-008`.
 
 ## Session 2026-11-11 (second session) — TL;DR
 
