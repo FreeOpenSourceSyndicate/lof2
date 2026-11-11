@@ -850,12 +850,12 @@ codes `1..33` select SPEC0 records whose type histogram matches the whole file
 records.  A full byte-identical mapping is **not** yet proven (codes reach 132
 vs 66 records), so it stays a hypothesis — see the blocker list.
 
-### Still open (in-lane)
+### Superseded by Round 16
 
-- The exact `[bp-0x44]` derivation (which byte of the object record, and the
-  `+0`/`+1` base) — needs either a live event screen or more disassembly of the
-  GFA body around `1F31E`.
-- The viewport compositing rule (base sprite + side pieces + overlay).
+The object-code hypothesis above (and the "exact `[bp-0x44]` derivation" item)
+is **wrong**: Round 16 shows `[bp-0x44]` is found by a location-key search, not
+from the cell's object code.  Still open in-lane: the viewport compositing rule
+(base sprite + side pieces + overlay) — see BLK-001.
 
 ## Round 16 — B's blocker resolved: there is NO cell-object -> SPEC index (2026-11-08)
 
@@ -935,3 +935,30 @@ oracle ref/oracle/dungeon_slot1_moved.png game/EGA 5 1
 The spawn window is `DP001` (0.952); the *moved* window matches no single sprite
 (best 0.576), confirming the view is a **composite** of the full views + the
 smaller side pieces.  The frame region is `MSCR` (0.89-0.92) in both.
+
+## Round 17 — registry + emulator-viewport correction (2026-11-08)
+
+Bookkeeping round (no engine change):
+
+- **Registry.** `docs/BLOCKERS.md` now carries my lane's state: BLK-001
+  `In progress` (with a log line), and two new entries — **BLK-006** (a moved
+  view matches no single sprite; needs the moved-view ground truth) and
+  **BLK-007** (maintainer: publish the key sequence that reaches a dungeon),
+  which BLK-006/BLK-001/BLK-004 depend on.
+- **Correction (important).** I briefly marked BLK-002 `Resolved` (as if the
+  divergence were only the oracle capture). That was **wrong and I reverted it**:
+  with current `main`, `tests/golden_test.sh`'s Temple recipe
+  (`LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 LOF_CMDLEN=3 --frames 1500`) leaves the
+  emulator's viewport **black** (EGA index 0) at frames 1500/2000/2500/3000,
+  while the oracle viewport holds indices {0,3,7,8,15}. Decoding the emulator's
+  dumped planes (`LOF_EDUMP`) shows the emulator *does* write colour there
+  (indices 6,7,8,9,15) — so the maintainer's original report stands: the
+  emulator's colour differs from the oracle. BLK-002 is **not** my lane, so I
+  left the maintainer's text in place and only noted this.
+- **Scope note.** The `dngs.py oracle` figures (0.921 / 0.952 / 0.928) score the
+  **drop-in's** static `DP001` composite, not the emulator. The drop-in's
+  viewport is a deliberate stand-in for the real per-cell composition (BLK-001).
+- **Emulator trace.** The engine selects the view per cell from a *subset* of the
+  D5 set: it opens `ega\d5\dp001` (facing), then `DP014`..`DP023`, then
+  `ega\anim\an*`. That is the selection I need to decode once BLK-006/007 give me
+  a moved-view ground truth.

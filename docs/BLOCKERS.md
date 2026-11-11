@@ -51,11 +51,13 @@ mark a `Dependencies` entry, the dependency's priority may have to rise (a
 
 | ID | Blocked lane | Responsible | Priority | Status | Depends on |
 |----|--------------|-------------|----------|--------|------------|
-| BLK-001 | A (dungeons) | Agent A | Medium | Open | — |
+| BLK-001 | A (dungeons) | Agent A | Medium | In progress | BLK-006 |
 | BLK-002 | A (dungeons) | Maintainer | Medium | Open | — |
 | BLK-003 | Maintainer | Maintainer | Medium | Open | — |
-| BLK-004 | B (characters/items) | Maintainer | High | Open | — |
+| BLK-004 | B (characters/items) | Maintainer | High | Open | BLK-007 |
 | BLK-005 | B (characters/items) | Maintainer | Medium | Open | BLK-004 |
+| BLK-006 | A (dungeons) | Agent A | Medium | Open | BLK-007 |
+| BLK-007 | A (dungeons) | Maintainer | Medium | Open | — |
 
 ---
 
@@ -64,17 +66,28 @@ mark a `Dependencies` entry, the dependency's priority may have to rise (a
 - **Blocked lane:** A (dungeons)
 - **Responsible:** Agent A
 - **Priority:** Medium
-- **Status:** Open
-- **Dependencies:** —
+- **Status:** In progress
+- **Dependencies:** BLK-006
 
 **Description & unblock action.** The drop-in's `--walk` viewport draws the
 static `EGA/D<d>/DP001` tile, but the engine composites the view from the full
-view sprites plus smaller side pieces per cell. Ground truth already exists:
+view sprites plus smaller side pieces per cell. Ground truth exists:
 `tools/dngs.py oracle <png> game/EGA <dungeon> <index>` scores a composite
 against `ref/oracle/dungeon_slot1*.png`. The spawn view matches `DP001` at 0.952;
-the *moved* view matches no single sprite (best 0.576), which confirms the
-composite. Unblock by decoding the per-cell sprite selection/placement and
-rendering it in `port/dungeon.{h,cpp}`. Detail: `docs/notes-a.md`.
+the *moved* view matches no single sprite (best 0.576). Unblock by decoding the
+per-cell sprite selection/placement and rendering it in `port/dungeon.{h,cpp}`.
+Detail: `docs/notes-a.md`.
+
+**Log.** 2026-11-08 Agent A: characterised the spawn composite. The spawn
+window's middle 80 columns (x 10..89) are **pixel-identical** to `DP001`; the
+whole residue (681 px, 4.8%) sits in a horizon band (rows ~40..77) at the window
+edges, and 608/681 of those are drawn where `DP001` is transparent — an engine
+overlay, not a wrong sprite. The emulator trace confirms the engine reads a
+*subset* of the D5 set per cell (`ega\d5\dp001` then `DP014`..`DP023` +
+`ega\anim\an*`), so selection is per-cell, not a single tile. Moved to
+`In progress`; finishing it needs the moved-view ground truth (BLK-006/007).
+Also: the `dngs.py oracle` 0.952 is a **drop-in** number, not the emulator's —
+see BLK-002.
 
 ## BLK-002 — Dungeon viewport palette: emulator draws colour, oracle is grey
 
@@ -144,6 +157,47 @@ Detail: `docs/notes-b.md` ("Blockers → Needs the maintainer").
 contents are only reachable from a running engine. Unblock by adding a debug dump
 (like `LOF_EDUMP` but for that segment) and capturing it once BLK-004 lets the
 run reach the code that populates it. Detail: `docs/notes-b.md`.
+
+## BLK-006 — A moved dungeon view matches no single sprite: need the composite ground truth
+
+- **Blocked lane:** A (dungeons)
+- **Responsible:** Agent A
+- **Priority:** Medium
+- **Status:** Open
+- **Dependencies:** BLK-007
+
+**Description & unblock action.** For the *spawn* cell the view is dominated by a
+single sprite (`DP001`, middle 80 cols pixel-identical). For a *moved* cell the
+view matches no single full-size sprite: `tools/dngs.py oracle
+ref/oracle/dungeon_slot1_moved.png game/EGA 5 1` reports a window match of only
+0.202 (best sprite `DP067` 0.576). That residual is either a genuine **composite**
+(full views + the smaller `DPnnn` side pieces, e.g. 64x59 / 32x59 / 16x29) or an
+**animation phase** mismatch (the viewport animates; the engine loads
+`ega\anim\an*`). To decide, I need the matching DOSBox ground truth: a capture of
+the *moved* cell taken with the **exact key sequence** that produced it (see
+BLK-007), ideally several consecutive frames so the animation phase can be
+matched. Unblock by recording that with `tools/capture_dosbox.sh` and dropping it
+in `ref/oracle/`; then the composite rule can be decoded from
+`port/dungeon.{h,cpp}`. Detail: `docs/notes-a.md`.
+
+## BLK-007 — Reaching a dungeon in the emulator requires the maintainer's scripted key sequence
+
+- **Blocked lane:** A (dungeons) — also blocks B via BLK-004
+- **Responsible:** Maintainer
+- **Priority:** Medium
+- **Status:** Open
+- **Dependencies:** —
+
+**Description & unblock action.** The `tests/golden_test.sh` recipe reaches the
+Temple (`LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 --frames 1500`), but it does not
+reproduce the `ref/oracle/dungeon_slot1.png` state (the emulator's viewport is
+black; the oracle's is grey) and I could not move the party within it. The
+maintainer produced `ref/oracle/dungeon_slot1*.png` (Temple slot-1 spawn *and* a
+moved frame), so a working recipe exists. Unblock by publishing it — the
+`--keys`/`LOF_KEYAT` timeline that produced `dungeon_slot1_moved.png`, and the
+frame index — as a one-line reproducible command in `tools/capture_dosbox.sh` or
+a `ref/oracle/README`. That single artefact unblocks BLK-006 (moved view),
+BLK-004/BLK-005 (combat/shop/item-use) and BLK-001. Detail: `docs/notes-a.md`.
 
 ---
 
