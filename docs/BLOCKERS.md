@@ -88,12 +88,20 @@ mark a `Dependencies` entry, the dependency's priority may have to rise (a
 - **Dependency changed?** Update the `Dependencies` field and, if needed, the
   priority of the blocker you depend on (add a dated `Log` line explaining why).
 - Commit and push the lane file the same way as any other repo change.
-- **Ownership of the files.** Add and edit entries in **your own lane's file
-  only**. The *single* exception: you may edit **another** lane's file **only to
-  add or change a `Dependencies` field** on an entry (and its summary-table row)
-  — e.g. to record that your blocker now depends on, or no longer depends on,
-  that lane's blocker. Do not rewrite another lane's description, status, or
-  priority; if you need a non-dependency change there, ask in that lane's PR.
+- **Ownership of the files.** Add new entries in **your own lane's file only**,
+  and do not rewrite another lane's entry *body* (its title, description, ID).
+  The **mutable fields are cross-editable**: anyone may edit **another** lane's
+  file to change a `Status`, a `Priority`, or a `Dependencies` field (and the
+  matching summary-table row) — e.g. to mark a blocker resolved, to raise its
+  priority because you now depend on it, or to record that your blocker depends
+  on it. This deliberately trades a few merge conflicts (which are small and
+  line-local, so easy to resolve) for the ability of any agent to keep the whole
+  registry honest. If you need a *body* change in another lane's file, ask in
+  that lane's PR.
+- **Merge conflict in a lane file?** Expected and cheap: the fields are one line
+  each, so keep **both** sides' changes (rebase and accept the union of the
+  `Status`/`Priority`/`Dependencies` edits). Never resolve a blocker conflict by
+  dropping someone else's update.
 
 ---
 

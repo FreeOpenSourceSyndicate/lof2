@@ -142,9 +142,9 @@ The blocker registry is split by lane so two agents never edit the same file:
 
 IDs are **lane-lettered** — `BLK-A001`, `BLK-B003`, `BLK-M001` — with each lane
 numbering from `001` independently, so IDs cannot collide across lanes. When
-blocked, append to **your lane's file only**. The one exception: you may edit
-another lane's file **only to add or change a `Dependencies` field** (and its
-summary-table row). Full convention: `docs/BLOCKERS.md`.
+blocked, append to **your lane's file**. The **mutable fields — `Status`,
+`Priority`, `Dependencies` — are cross-editable** in any lane's file (an entry's
+body stays lane-owned). Full convention: `docs/BLOCKERS.md`.
 
 ## Working agreements
 

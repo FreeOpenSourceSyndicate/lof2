@@ -1,10 +1,11 @@
 # BLOCKERS — lane B (characters / items)
 
-Owned by **Agent B**. Add and edit your entries here; do **not** edit another
-lane's file — the only exception is adding/changing a `Dependencies` field on an
-entry (and its summary-table row). Convention, ID rules and the priority/field
-definitions are in the hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are
-`BLK-B<nnn>`, numbered from `001`.
+Owned by **Agent B**. Add new entries here. The **mutable fields — `Status`,
+`Priority`, `Dependencies` — are cross-editable**: anyone may edit them (and the
+summary row) in *any* lane's file; only an entry's *body* (title, description, ID)
+is lane-owned. Convention, ID rules and the priority/field definitions are in the
+hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
+`001`.
 
 ## Summary
 
