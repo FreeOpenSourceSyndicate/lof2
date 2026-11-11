@@ -66,7 +66,8 @@ second → **B (characters/items)**. The maintainer owns the main loop.
 | `tools/spec.py` | **Agent B** | offline format explorer |
 | `docs/notes-a.md` | **Agent A** | running notes (push often) |
 | `docs/notes-b.md` | **Agent B** | running notes (push often) |
-| `docs/BLOCKED-*.md` | anyone | use when stuck (see HANDOFF) |
+| `docs/BLOCKERS.md` | anyone | shared blocker registry — append, don't rewrite others' entries |
+| `docs/BLOCKED-*.md` | anyone | per-incident detail; link it from your `BLOCKERS.md` entry |
 | `Makefile` | **Maintainer** | ask before changing |
 
 If you need a new module, pick a name that no one else uses and register it here

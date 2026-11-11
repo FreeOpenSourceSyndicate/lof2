@@ -32,7 +32,9 @@ Anyone can spin up a fresh agent with just this:
 > checklist rather than stopping after one step. Do not edit files you do not
 > own. Commit and push after every meaningful step (the workspace can reset).
 > Review and merge your own PRs. Never read the sibling repo
-> `FreeOpenSourceSyndicate/lof`.
+> `FreeOpenSourceSyndicate/lof`. If you get blocked, add an entry to the shared
+> blocker registry `docs/BLOCKERS.md` (fields and priority values are defined
+> there) instead of just stopping.
 
 That prompt plus the repo is all a replacement agent needs — no prior context.
 The agent picks its own workstream from `docs/WORKSTREAMS.md` (see "Pick your own
@@ -111,10 +113,13 @@ Mitigation:
   coordinating in the PR; that is how builds break.
 - **Keep `make test` green.** It is the shared contract. If your work needs a new
   test, add it to the test target in `Makefile`.
-- If you are truly stuck, push a branch with a `docs/BLOCKED-<yourname>.md` note
-  describing exactly what fails and what you tried. A fresh agent (or the
-  maintainer) can then pick it up with no context loss — that is the whole point
-  of the "any agent replaceable" design.
+- If you are truly stuck, **add an entry to the shared blocker registry
+  `docs/BLOCKERS.md`** (blocked lane, responsible agent, priority, precise
+  description + what unblocks it, dependencies) and push it. Add a
+  `docs/BLOCKED-<yourname>.md` detail file when the diagnosis is long, and link
+  it from the registry entry. A fresh agent (or the maintainer) can then pick it
+  up with no context loss — that is the whole point of the "any agent
+  replaceable" design.
 
 ## 3. How to prove your work is correct
 

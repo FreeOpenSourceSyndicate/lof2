@@ -3,7 +3,8 @@
 > **New here? Read `docs/HANDOFF.md` first, then `docs/RISKS.md`, then
 > `docs/WORKSTREAMS.md`.** They cover how to survive a workspace reset, how to
 > avoid the poisoned sibling repo, and which files you own. This file is the
-> deep technical reference.
+> deep technical reference. When you get blocked, record it in the shared
+> blocker registry `docs/BLOCKERS.md`.
 
 ## Goal
 
