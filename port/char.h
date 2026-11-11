@@ -223,16 +223,30 @@ std::vector<size_t> items_with_effect(uint8_t effect);
 // Out-of-range item or profession returns false.
 bool item_usable_by_class(int index, int prof);
 
-// --- Item-use table (runtime) ---------------------------------------------
+// --- Item-use table --------------------------------------------------------
 //
 // The play loop keeps a 41-record, 36-byte table at `es:[0x2712]` and indexes
 // it as `es:[item_index * 0x24 + 0x2712]` (item_index is 1-based into the item
-// table; record 0 is a null "no item" row).  The use/attack handlers read byte
-// 0 as a bitfield (image 0x13a82, 0x1cfd2, 0x1d156); the remaining 35 bytes
-// are handler parameters.  The table ships inside LOF.EXE (image 0x42712) so
-// it is transcribed into port/char_itemuse.inc.
+// table; record 0 is a null "no item" row).  The table ships *statically*
+// inside LOF.EXE (image 0x42712 / data segment 0x2712) and is transcribed into
+// port/char_itemuse.inc; the use handlers read it at image 0x0E59E, 0x0F072,
+// 0x17C6F, 0x1947E, 0x19690.
+//
+// Byte 0 is a flag byte.  The flag records carry no MZ relocation, so byte 0 is
+// stable across the load.  The other records (8..10, 15..37) are dispatch lists
+// of far pointers whose *segment* words the loader bumps by the load segment
+// (0x1010); their byte 0 is the low byte of the first pointer's segment and is
+// not a flag.  item_is_usable() therefore only reads the flag records.
 constexpr size_t kItemUseCount = 41;
 constexpr size_t kItemUseRec = 36;
+
+// Flag bits in byte 0 of a record, from the read sites: the use path tests
+// bits 0/1 (`test al,3`), bit 2 (`test al,4`), bits 3/4 (`test al,0x18`) and
+// bit 5 (`test al,0x20`).
+constexpr uint8_t kItemUseFlag01 = 0x03;  // tested together (0x0E59E)
+constexpr uint8_t kItemUseFlag2  = 0x04;  // "usable" (0x0E59E)
+constexpr uint8_t kItemUseFlag34 = 0x18;  // (0x0F072)
+constexpr uint8_t kItemUseFlag5  = 0x20;  // (0x0F072)
 
 // Byte 0 of record `item_index` (1-based; 0 = the null row).  Returns 0 for
 // out-of-range indices.

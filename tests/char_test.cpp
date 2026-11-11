@@ -546,17 +546,36 @@ static int real_data() {
     assert(items_with_effect(10)[0] == 0x2e);
     assert(items_with_effect(200).empty());
 
-    // Item-use table (transcribed from LOF.EXE image 0x42712; the play loop
-    // indexes it as `es:[item*0x24 + 0x2712]`).  41 records, 36 bytes each;
-    // record 0 is the null "no item" row and items are 1-based after it.
+    // Item-use table (transcribed from LOF.EXE image 0x42712 / data segment
+    // 0x2712; the play loop indexes it as `es:[item*0x24 + 0x2712]`).  41
+    // records, 36 bytes each; record 0 is the null "no item" row and items are
+    // 1-based after it.  The table is static (ships in LOF.EXE), not a runtime
+    // structure: the records the MZ loader touches (8..10, 15..37) are dispatch
+    // lists of far pointers whose segment words get bumped by the load segment.
     assert(kItemUseCount == 41 && kItemUseRec == 36);
+    assert(kItemUseFlag01 == 0x03 && kItemUseFlag2 == 0x04 &&
+           kItemUseFlag34 == 0x18 && kItemUseFlag5 == 0x20);
     assert(item_use_flags(0) == 0);       // null row
     assert(item_use_flags(1) == 1);       // Club
     assert(item_use_flags(11) == 220);    // Battle flail (0xdc)
     assert(item_use_flags(41) == 0 && item_use_flags(-1) == 0);  // out of range
-    // "usable" = low two bits clear and bit 2 set; only Battle flail qualifies.
+    // Dispatch-list records: byte 0 is the low byte of the first far pointer's
+    // segment (0x82 -> segment 0x3c82), so bit 1 is set and they are not flags.
+    assert(item_use_flags(8) == 0x28 && item_use_flags(9) == 0x82);
+    // "usable" = bits 0 and 1 clear and bit 2 set (predicate at image 0x0E59E).
     assert(item_is_usable(11));
     assert(!item_is_usable(0) && !item_is_usable(1) && !item_is_usable(41));
+    assert(!item_is_usable(8) && !item_is_usable(9) && !item_is_usable(20));
+    // Exactly one record is usable (the Battle flail); no dispatch-list record
+    // ever satisfies the predicate.
+    int usable_count = 0;
+    for (int i = 0; i < (int)kItemUseCount; i++) {
+        if (item_is_usable(i)) {
+            usable_count++;
+            assert(i == 11);
+        }
+    }
+    assert(usable_count == 1);
 
     // Spell table (141 x 36 bytes, also transcribed from LOF.EXE).
     const auto& sp = spells();

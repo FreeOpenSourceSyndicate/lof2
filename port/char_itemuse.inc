@@ -1,9 +1,11 @@
 // Legend of Faerghail item-use table — transcribed from the DOS release.
-// It lives only inside LOF.EXE (image offset 0x42712 / data segment 0x2712);
+// It lives inside LOF.EXE (image offset 0x42712 / data segment 0x2712);
 // no data file carries it.  The play loop indexes it as `es:[item*0x24 + 0x2712]`
 // with a 1-based item index (record 0 is a null 'no item' row); the use
-// handlers at image 0x13a82/0x1cfd2/0x1d156 test byte 0's low bits.
-// Regenerate with `tools/spec.py --emit-itemuse`.
+// handlers at image 0x0E59E/0x0F072/0x17C6F/0x1947E/0x19690 test byte 0's bits.
+// Records 8..10 and 15..37 are far-pointer dispatch lists whose segment
+// words the MZ loader bumps at load time; the transcription keeps the raw
+// EXE image.  Regenerate with `tools/spec.py --emit-itemuse`.
 
 static const uint8_t kItemUse[kItemUseCount][kItemUseRec] = {
     {0,0,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0},

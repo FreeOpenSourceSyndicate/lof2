@@ -1131,11 +1131,31 @@ Fields this grounds for the character struct (all read here, previously unnamed)
 `+0x0f` action byte (`3` = attack), `+0x0e` target slot, `+0x1a` class/category
 scaling byte, `+0x45` Strength, `+0x55` action-time divisor, `+0x56` SNSC speed, `+0x5e` Strength modifier.
 
-The play-loop **item-use** table is the 36-byte table `es:[bx*0x24 + 0x2712]`
-where `bx` is the item index (image `0x13A82`, `0x1CFD2`, `0x1D156`); its bit 2
-(`test al,4`) is the "usable" flag the use path checks.  It is a **runtime**
-table, not present in the data files, so its full contents are only reachable
-from the main loop (maintainer domain).
+The play-loop **item-use** table is the 41-record, 36-byte table read as
+`es:[bx*0x24 + 0x2712]` where `bx` is the 1-based item index (record 0 is the
+null "no item" row).  The reads are at image `0x0E59E`, `0x0F072`, `0x17C6F`,
+`0x1947E`, `0x19690` (plus the flag tests `0x0E5F8`, `0x0E7EB`, `0x0F0E6`,
+`0x194D6`); the earlier `0x13A82`/`0x1CFD2`/`0x1D156` in the comments were wrong
+(those bytes are mid-instruction).  Byte 0 is the flag byte the use path tests:
+the sites check bits 0/1 (`test al,3`), bit 2 (`test al,4`), bits 3/4
+(`test al,0x18`) and bit 5 (`test al,0x20`); `item_is_usable()` is the predicate
+"bits 0 and 1 clear, bit 2 set" taken from `0x0E59E`.
+
+**The table is static, not runtime-only** (this corrects BLK-005).  It lives in
+`LOF.EXE` at image `0x42712` / data segment `0x2712` and is transcribed verbatim
+into `port/char_itemuse.inc` (verified byte-identical to the EXE image).  What a
+runtime dump shows as a "different" table is the same table **after the MZ
+loader's relocations**: the words at record byte offsets {0,4,8,12,16,20,24,28,32}
+of records 8, 9, 10 and 15..37 are far-pointer *segments* (segment `0x3c82`) that
+the loader bumps by the load segment (`+0x1010`; `loadseg = PSP+0x10 = 0x1010`).
+Byte-exact check: `runtime DS:0x2712 == EXE template + loadseg` on exactly the
+MZ-relocated words (213 words, all and only the relocation targets).  So those
+records are *dispatch lists* of far pointers to per-item handler routines in code
+segment `0x3c82`; their byte 0 is merely the low byte of the first pointer's
+segment, not a flag.  The flag records (0..8, 11..14, 38..40) carry no relocated
+words, and their byte 0 is stable across the load.  The item and spell tables
+(image `0x42CEC`, `0x44430`) contain **no** relocated words, so only the use
+table is affected.
 
 ## Blockers (Workstream B) — 2026-11-08
 
@@ -1148,11 +1168,6 @@ need runtime state or another lane.
   stops at `town` (`--keys 0x18,0x1c`). A scripted path into a combat encounter
   (and the shop / item-use screens) would let B ground the last runtime tables
   against real reads (`LOF_I21`/`LOF_READ`), exactly as SPEC/ROST were grounded.
-- **MEDIUM — expose the runtime item-use table.** The 36-byte item-use table
-  `es:[item*0x24 + 0x2712]` (bit 2 = "usable", read at `0x13A82`, `0x1CFD2`,
-  `0x1D156`) lives in a runtime segment that is not in any data file, so its
-  contents can only be captured from a running engine (a debug dump like
-  `LOF_EDUMP` but for that segment).
 - **MEDIUM — wire B's grounded model into `lof.cpp`.** `defense_from_items()`,
   the slot semantics (`equipped`/`charges`/`condition`) and the combat-damage
   model (above) are ready to use; consuming them is `lof.cpp` (SERIAL) work.

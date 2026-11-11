@@ -55,7 +55,7 @@ mark a `Dependencies` entry, the dependency's priority may have to rise (a
 | BLK-002 | A (dungeons) | Maintainer | Medium | Open | — |
 | BLK-003 | Maintainer | Maintainer | Medium | Open | — |
 | BLK-004 | B (characters/items) | Maintainer | High | Open | — |
-| BLK-005 | B (characters/items) | Maintainer | Medium | Open | BLK-004 |
+| BLK-005 | B (characters/items) | Maintainer | Medium | Resolved | BLK-004 |
 
 ---
 
@@ -149,4 +149,29 @@ run reach the code that populates it. Detail: `docs/notes-b.md`.
 
 ## Closed (kept for the record)
 
-*(none yet — entries move here when `Status: Resolved`)*
+### BLK-005 — Expose the runtime item-use table from a live engine — RESOLVED
+
+- **Blocked lane:** B (characters/items)
+- **Responsible:** Agent B
+- **Priority:** Medium
+- **Status:** Resolved (2026-11-08)
+- **Dependencies:** BLK-004
+
+**Original premise (wrong).** The play loop's 36-byte item-use table at
+`es:[item*0x24 + 0x2712]` was believed to be a **runtime** structure in a
+segment no data file carries, reachable only from a live engine.
+
+**Resolution.** The table is **static**: it ships in `LOF.EXE` at image
+`0x42712` / data segment `0x2712` (41 records x 36 bytes) and is already
+transcribed byte-for-byte into `port/char_itemuse.inc`.  A runtime dump only
+looks different because the MZ loader relocates it: the words at record byte
+offsets {0,4,8,12,16,20,24,28,32} of records 8..10 and 15..37 are far-pointer
+*segment* words (segment `0x3c82`) that the loader bumps by the load segment
+`0x1010` (`loadseg = PSP+0x10`).  Verified: `runtime DS:0x2712 == EXE template +
+loadseg` on exactly the MZ-relocated words (213 words; changed set == relocation
+set).  The flag records (0..8, 11..14, 38..40) carry no relocated words, so their
+byte 0 -- the flag byte the use path tests -- is stable.  The cited read sites
+`0x13A82`/`0x1CFD2`/`0x1D156` were wrong (mid-instruction); the real reads are
+`0x0E59E`, `0x0F072`, `0x17C6F`, `0x1947E`, `0x19690` (flag tests `0x0E5F8`,
+`0x0E7EB`, `0x0F0E6`, `0x194D6`).  No maintainer/oracle dump is needed.  Detail:
+`docs/notes-b.md`.
