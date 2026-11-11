@@ -562,3 +562,27 @@ palette is standard (not a fixed grey), and the moved-view colour is real.
 the decompilation; verify against a fresh DOSBox capture of the menu and the
 temple (`tools/capture_dosbox.sh` — needs `dosbox`, not installed here). Do not
 "fix" the drop-in: it is already correct.
+
+## How to actually reach the town screen (repo owner, 2026-11-11)
+
+The intro ends in the **town's Inn with no party members** — that is the first
+playable screen, not the town menu. The Inn's own menu is
+`(L)ook for new character / (A)dd / (D)ismiss / (O)pen file / (C)ontinue`.
+
+* `O` opens the **load-file menu**, which accepts digits **1-5** (load slot) or
+  `C` (cancel). **Enter does nothing here** — an earlier note's "O then Enter"
+  was wrong: Enter is ignored, so the screen simply stays on the Inn. That is why
+  the `O,Enter` capture looked like a town screen and why the building letters
+  did nothing on it (they are not Inn hot-keys); `C` on it *does* work because
+  `C` = Continue/leave the Inn.
+* **Inn -> town:** press `A` (add a character), `2` (add the 2nd character to the
+  party), `C` (leave the add menu), `C` (leave the Inn). Scancodes
+  `0x1e,0x03,0x2e,0x2e`.
+* **Alternative (loaded save in front of town):** `O`, `2` (load slot 2),
+  `Down` (turn around), `Up` (step into town). Scancodes `0x18,0x03,0x50,0x48`.
+
+Only the real town screen has the building menu
+`(E)mporium (B)ank (I)nn (H)ouse of trades (T)emple (C)ontinue`.
+
+Enemies are **generated on load** (random positions/movement) and are not part of
+the save, so combat encounters are not reproducible from a save alone.
