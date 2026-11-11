@@ -485,8 +485,8 @@ int main(int argc, char** argv) {
       }
       if (const char* sp = getenv("LOF_SEGDUMP")) {
           // LOF_SEGDUMP=file,seg:off:len  -> dump linear memory at seg:off for
-          // len bytes.  Used to read runtime tables that live in a data segment
-          // no file carries (e.g. the item-use table at es:[item*0x24+0x2712]).
+          // len bytes.  Used to read data the engine holds in a segment at run
+          // time (e.g. to confirm a table read via es:[idx*0x24+0x2712]).
           char path[512]; unsigned seg = 0, off = 0, len = 0;
           if (sscanf(sp, "%511[^,],%x:%x:%x", path, &seg, &off, &len) == 4) {
               FILE* f = fopen(path, "wb");
