@@ -5,6 +5,19 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-11 (second session) — TL;DR
+
+Environment verified HEALTHY (`./check.sh`). No open PRs at start. This session:
+
+- Diagnosed BLK-002: the **emulator's whole play-loop palette is the wrong
+  ramp** (see item 2 below and `docs/BLOCKERS.md`). The drop-in is already
+  correct; do not change it. PR #90 (docs only).
+- Corrected the palette item in this handover (it carried the superseded
+  "dungeon viewport RGB" framing).
+- Slot-2 load remains genuinely slow (a full `--dir game` play run exceeds
+  several minutes); `--frames 100` is ~18 s. Use `LOF_NO_TIMER=1` and small
+  frame counts for triage.
+
 ## TL;DR — what changed this session
 
 The previous maintainer's work was **unlanded**: 48 commits on
