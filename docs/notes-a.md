@@ -1297,3 +1297,20 @@ wall-at-depth-2 piece (`DP037`) centred plus smaller side pieces.
 Implemented: `dungeon_base_view_index` + `dungeon_ahead_cell` +
 `render_dungeon_play` in `port/dungeon.{h,cpp}`; pinned by `test_base_view` in
 `tests/dungeon_test.cpp`.
+
+## Round 25 — registry migration (PR #89 rebase)
+
+Merged `origin/main` into `work/agent-a` and migrated the workstream-A blocker
+entries into the new per-lane registry (`docs/blockers/A.md`), per the
+maintainer's PR #89 review:
+
+| old | new | note |
+|-----|-----|------|
+| BLK-001 | BLK-A001 | first-person viewport composite (mine, In progress) |
+| BLK-002 | BLK-A002 | emulator plane-0 blit — **Resolved** by the maintainer |
+| BLK-006 | BLK-A003 | moved-view composite / side-piece selection (mine) |
+| BLK-007 | BLK-A004 | emulator extended-key delivery (maintainer) |
+
+The old single-file `docs/BLOCKERS.md` is now the static hub (taken from `main`
+during the merge); no entries live there.  `BLK-A001` gained a Round-24 log with
+the ahead-cell tile-code table.
