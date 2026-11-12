@@ -1118,11 +1118,18 @@ produced by parallel jobs and are therefore unreliable as *position* evidence.
 All results below were re-taken **sequentially** (one `lof-native` at a time,
 save restored between runs).
 
-**The position field is real (sequential).**  With the save at `0x9a0=125` the
-window is the `DP001` corridor view (ink 9298/9404 by phase); with `0x9a0=126`
-or `89` it is the all-walls `DP036` view (ink 12566).  So the engine *does* read
-`0x9a0` as the party position and the view depends on the local map structure
-ahead — the position-ground-truth mechanism works, it just needs sequential runs.
+**`0x9a0` changes the rendered view, but its semantics are unresolved.**  With
+the save at `0x9a0=125` the window is the `DP001` corridor view (ink 9298/9404 by
+phase); with `0x9a0=126`, `89`, `130`, `500` or `1000` it is the all-walls
+`DP036` view (ink 12566).  So the engine *does* read `0x9a0` and the view depends
+on it — but **every** tested non-native value gives the same all-walls view, even
+values whose `(x,y)` cell (assuming a 36-wide linear index) is open with the same
+surroundings as the spawn.  Two readings are possible: (a) `0x9a0` is the party
+position and the engine cross-checks it against another field, so a lone patch
+lands on a "no valid view" fallback (`DP036`); or (b) `0x9a0` is not the raw
+`(x,y)` index.  Either way it is **not yet** a turnkey position sweep, and I do
+**not** claim a value->cell mapping.  What *is* solid: the base view is chosen
+from the map, not from facing alone.
 
 **The viewport animates.**  Holding the save fixed and varying only the frame
 count (sequential) oscillates the window ink between two phases:
