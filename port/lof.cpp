@@ -198,6 +198,34 @@ static bool compose_menu_screen(const std::string& dir, Screen& menu, std::strin
     return true;
 }
 
+// Compose the in-game town screen: the same HUD background (EGA/UP/MSCR) with
+// the town scene EGA/TWN/TWN00 blitted into the 120x119 viewport at (10,11),
+// then the engine's message and building menu in CHR1's full face at a 6-px
+// pitch, x=139.  Recovered by template-matching the decoded assets and font
+// glyphs against the emulator's town frame (tests/golden_test.sh scenario
+// `town`): every glyph matches a CHR1 cell exactly.
+static bool compose_town_screen(const std::string& dir, Screen& town, std::string& err) {
+    town.resize(320, 200);
+    town.clear(0);
+    if (!blit_ega(town, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
+    if (!blit_ega(town, dir + "/EGA/TWN/TWN00", 10, 11, &err)) return false;
+    Font font;
+    if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
+    static const struct { int y; const char* text; uint8_t idx; } kText[] = {
+        { 92, "You enter the proud town of", 15},
+        {100, "Thyn. Which building do you", 15},
+        {108, "want to visit?", 15},
+        {132, "(E)mporium", 0},
+        {140, "(B)ank", 0},
+        {156, "(I)nn", 0},
+        {164, "(H)ouse of trades", 0},
+        {172, "(T)emple", 0},
+        {188, "(C)ontinue", 15},
+    };
+    for (const auto& e : kText) font.draw_text(town, 139, e.y, e.text, e.idx);
+    return true;
+}
+
 // --dump-dungeon: decode a few DNGS/DNGxx levels and print the 36x36 floor
 // plan (and object layer) so the recovered map format is visible from the
 // shipped front-end.
@@ -470,9 +498,22 @@ int main(int argc, char** argv) {
 // panel layout were recovered by matching the decoded assets against a
 // DOSBox capture of save slot 2 (ref/oracle/play.png).
     std::string play, save;
+    bool town_flag = false;
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
         else if (std::string(argv[i]) == "--save" && i + 1 < argc) save = argv[++i];
+        else if (std::string(argv[i]) == "--town") town_flag = true;
+    }
+    if (town_flag) {
+        std::string err;
+        Screen s;
+        if (!compose_town_screen(dir, s, err)) {
+            fprintf(stderr, "lof: %s\n", err.c_str());
+            return 1;
+        }
+        if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
+        if (!headless) present_sdl(s, "Legend of Faerghail");
+        return 0;
     }
     if (!play.empty()) {
         std::string err;
