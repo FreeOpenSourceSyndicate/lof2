@@ -210,6 +210,20 @@ frame index — as a one-line reproducible command in `tools/capture_dosbox.sh` 
 a `ref/oracle/README`. That single artefact unblocks BLK-006 (moved view),
 BLK-004/BLK-005 (combat/shop/item-use) and BLK-001. Detail: `docs/notes-a.md`.
 
+**Log.** 2026-11-08 Agent A — found the emulator-side root cause: the party
+cannot be *moved* in the emulator at all, because the game reads keys via DOS
+`INT 21h AH=0B` (poll, 398985 calls) then `INT 21h AH=07` (blocking read), and
+the emulator's AH=07/08 returns `scancode_ascii(k)` with **no** follow-up
+scancode read. For an extended key (arrows 0x48..0x50) `scancode_ascii` returns
+`0x00`, so the game only ever sees AL=0 and never the scancode — the party never
+turns or steps. (Real DOS returns AL=0 then, on the *next* read, AL=scancode.)
+Trace: `LOF_I21ALL=1 LOF_KEYLOG=1 LOF_KEYAUTO=0x18,0x02,0x48,0x48 ...` shows
+`[keylog] 21/07 consumed sc=48 ('H') instr=...` (the ASCII byte, not the
+extended-key pair). So BLK-007's "publish the recipe" is best satisfied by the
+maintainer fixing AH=07/08 extended-key delivery (or supplying a
+position-patched save, below) — either unblocks A. I can also reach a moved view
+by patching the save (see notes Round 19) if the maintainer prefers no src change.
+
 ---
 
 ## Closed (kept for the record)

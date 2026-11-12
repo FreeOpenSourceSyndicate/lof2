@@ -997,3 +997,50 @@ viewport colour.  Use `LOF_EDUMP` for verification, not `--shot`.
 
 DP001 placement re-derived against the emulator geometry: best IoU 0.922 at
 (10,11) (the drop-in's position), next-best 0.745 at (8,11) — so (10,11) is right.
+
+## Round 19 — facing-patched ground truth + the composite rule (2026-11-08)
+
+**The emulator can be driven to new views without keys, by patching the save's
+facing byte** (`kSaveFacing` = 0x9a6; the Temple save has 2 = South).  Patch it,
+re-run the golden recipe, and `LOF_EDUMP` yields a ground-truth frame:
+
+```
+cp game/GAMES/GAME1 /tmp/G1.orig
+printf '\x00' | dd of=game/GAMES/GAME1 bs=1 seek=$((0x9a6)) count=1 conv=notrunc
+LOF_EDUMP=planes.bin LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 LOF_CMDLEN=3 \
+  LOF_NO_TIMER=1 ./lof-native --dir game --headless --frames 1500 --shot /dev/null
+```
+
+Results (view window, screen (10,11)):
+
+| facing | base sprite | window ink | base IoU |
+|--------|-------------|-----------|----------|
+| 2 South (spawn) | `DP001` | 9404 | 0.922 |
+| 0 North         | `DP036`/`DP060` | 12566 | 0.880 |
+
+So the base view is a **function of facing**: facing 2 -> `DP001`, facing 0 ->
+`DP036` (`DP060` is a byte-identical duplicate of `DP036`).  `DP001` (spawn) is a
+*right-side* view and `DP036` (north) is an all-wall view; the window is 120x119.
+
+**The composite rule (ink level).**  A greedy "place D5 sprites to maximise newly
+covered target ink minus false positives" over the spawn window gives:
+
+```
+DP001@(0,0) 8690   DP042@(102,45) 230   DP056@(0,49) 110
+DP044@(90,52) 79   DP022@(104,52) 48    DP051@(72,42) 60   DP022@(104,57) 32
+=> ink IoU 0.966
+```
+
+i.e. the engine blits the full base view, then overlays the **small side pieces**
+(`DP042/044/051/056/022`, 29x16..59x16) in a **horizon band (y ~42..57)** at the
+window edges — exactly the residue characterised in Round 18.  The *north* view's
+`DP036` is a superset (its base already has all the ink), so there the composite
+adds nothing.  This confirms BLK-001's model (full view + per-cell side pieces)
+and gives the piece set; the exact *selection* (which pieces, from which cells)
+still needs a sweep of positions, not just facings.
+
+**Still open.** Position (not just facing) drives the side-piece set; the save's
+party x/y offsets are not yet identified, so a position sweep needs either those
+offsets or the maintainer's `INT 21h AH=07` fix (BLK-007).  Ink-level the rule is
+clear; index-exact placement has placement ambiguity (greedy FP), so it is not
+worth baking into `port/dungeon.{h,cpp}` until the selection is pinned.
