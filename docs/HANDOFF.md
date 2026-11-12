@@ -141,6 +141,10 @@ screen, and `make test` still passes.
 ## 4. Current status (update this list as you go)
 
 - [x] Analysis emulator boots LOF to the main menu (EGA mode 0Dh).
+- [x] **Emulator renders all four EGA planes correctly** (BLK-A002, fixed
+      2026-11-12): the emulator frame is byte-exact against `ref/oracle/menu.png`
+      (all planes 100%). The cause was `port_out16` dropping a zero data byte;
+      see `AGENTS.md` "Fixed bugs".
 - [x] Scripted input drives the menu: `--keys`/`LOF_KEYFRAME` inject keys, and
       letters switch screens (e.g. `L` opens the character screen). The menu is
       keyboard-driven, not mouse-only — an earlier note said otherwise; it was

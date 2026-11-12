@@ -5,6 +5,40 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-12 (fifth session) — TL;DR
+
+Environment verified HEALTHY (`./check.sh` → HEALTHY at the end of the session).
+
+- **BLK-A002 RESOLVED — the plane-0 bug was a dropped zero-byte port write.**
+  Root cause: `Machine::port_out16` only drove the paired EGA data port when
+  `AH != 0` (guard `if (v & 0xFF00)`), so a 16-bit `out dx, ax` that set a
+  register to **0** was silently dropped and the register kept its old value.
+  The game's plane blitter cycles GC *Read Map Select* `0,1,2,3` / SEQ *Map
+  Mask* `1,2,4,8` across four passes (`mov al,idx; mov ah,data; out dx,ax`);
+  the **first** pass sets Read Map Select **0**, that write was dropped, so the
+  pass read the still-selected plane 3 and copied it into plane 0. Hence plane 0
+  of *every* frame was wrong while planes 1–3 were perfect.
+  - How it was found: scanning each plane for its best base offset in the
+    emulator's plane memory — planes 1–3 matched the oracle at base `0x0000`
+    (100%), plane 0 matched best at `0x1F40` (88%). The earlier "double buffer"
+    probe (`A1F40`) was a *symptom* of this bug, not a renderer/page bug.
+  - Fix: always write the data byte (a zero data byte is a legitimate value).
+  - Verified against `ref/oracle/menu.png`: **all four planes 100.00%** (plane 0
+    80.29% → 100.00%; overall 80.29% → 100.00%). Golden hashes re-recorded
+    (`tests/golden.txt`). Recorded in `AGENTS.md` (do-not-regress) and
+    `docs/blockers/A.md` (BLK-A002 → Resolved). PR **#98** (merged).
+- **Play-screen check:** the play oracle (`ref/oracle/play.png`) still differs
+  (overall 0.7787, planes 1–3 ~98% not 100%), but that is a **different
+  animation/game-state frame**, not a plane bug — the diff is spread over the
+  dynamic viewport + party region, and the menu oracle (same emulator run, one
+  screen earlier) is byte-exact. Do not chase it as an emulator bug; if it
+  matters, regenerate the play oracle from the same save/animation phase.
+- **Open PRs left as-is (not mine to merge):** #89 (Agent A, `work/agent-a-blockers`)
+  and #91 (Agent B, `work/agent-b-itemuse-static`). Both are DRAFT and both
+  conflict on `docs/BLOCKERS.md`; #91 also carries the disputed item-use offset
+  (see `docs/blockers/B.md` BLK-B003 + the maintainer addendum). They need their
+  owners to rebase/renumber; do not merge them without that.
+
 ## Session 2026-11-12 (fourth session) — TL;DR
 
 Environment verified HEALTHY (`./check.sh`: repo, game data, both builds,
