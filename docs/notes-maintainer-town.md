@@ -592,19 +592,22 @@ Sequencer *Map Mask* (`0x3C4 <- 2, ah=cs:[0x17e+idx]`), with the runtime table
 plane 0, call `0x184` to advance, and repeat for all four planes. So the plane-0
 data comes from a `rep movsb` under map-mask `0x01`.
 
-**Prime suspect.** With map-mask `0x01` only plane 0 is written, but the
-emulator's `Ega::write` (src/ega.cpp) computes `val` from `gc_latch[p]` in write
-modes 1/2; a stale/incorrect latch on plane 0 (or a missing `latch` refresh on
-the read that precedes the copy) would corrupt exactly plane 0. Plane 0 is the
+**Prime suspect.** The write *mechanism* is not the cause: instrumenting
+`Ega::write` shows every EGA write in the menu render uses **write mode 0** and a
+**single-plane map mask** (`1/2/4/8`, 10439 writes each — perfectly balanced
+across the four planes). So plane 0 is written exactly like planes 1–3, yet only
+plane 0 is wrong — the defect is in the plane-0 **source data** (what the engine
+feeds the plane-0 pass), not in the mask/write-mode/latch path. Plane 0 is the
 lowest index bit, so the whole play loop renders one bit wrong — consistent with
 the owner's "Temple is greyscale on load but shows green specs when moving".
 
-**Next step.** Trace `gc_latch` around the plane-0 `rep movsb` (write mode in
-effect for the `0x184` loop) and fix the plane-0 write path in `src/ega.cpp`.
-This is an **emulator-only** defect: the drop-in (`port/gfx.cpp`) renders the
-planes correctly and already matches the oracle at 99.8%, so **do not touch the
-drop-in**. Verify any fix against `ref/oracle/menu.png` (expect plane-0 and thus
-overall match to jump from ~80% toward 100%).
+**Next step.** Trace where the plane-0 pass reads its source byte (the `rep
+movsb` at `119D:129D` copies from `es:[si]`; follow `si` back to the decoded
+buffer) and compare it to planes 1–3's source. Verify any fix against
+`ref/oracle/menu.png` (expect plane-0, and thus overall, match to jump from
+~80% toward 100%). This is an **emulator-only** defect: the drop-in
+(`port/gfx.cpp`) renders the planes correctly and already matches the oracle at
+99.8%, so **do not touch the drop-in**.
 
 ## How to actually reach the town screen (repo owner, 2026-11-11)
 
