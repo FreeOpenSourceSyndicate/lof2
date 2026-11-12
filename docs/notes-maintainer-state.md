@@ -5,6 +5,27 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-12 (sixth session) — TL;DR
+
+Environment HEALTHY. HEAD `97c9167`, `main` clean, 0 ahead / 0 behind.
+
+- **Town screen decoded + shipped** — `./lof --dir game --town`.  Composition:
+  `EGA/UP/MSCR` + `EGA/TWN/TWN00` at (10,11) + the engine message/building menu
+  in `CHR1` at x=139 (rows 92..188).  Every glyph template-matches a `CHR1`
+  cell exactly; recovered two unmapped cells (`.`=band1 cell 34, `?`=band1
+  cell 35) now in `port/font.cpp`.  Static match 99.2% vs the emulator frame
+  (`ref/oracle/town.png`); residue = a 16x16 top-left patch + the dynamic party
+  panel.  Guarded by `tests/port_town_test.py` (wired into `make golden-port`).
+  Commits `921665a`, `44f38fb`, `97c9167`.
+- **Open PRs (both other lanes' DRAFTS; left to their authors):** #99
+  (`work/agent-b-itemuse-fix`, BLK-B003, **merges cleanly**) and #89
+  (`work/agent-a-blockers`, **conflicts** on `docs/BLOCKERS.md`).
+- **Next session (lane M):** the building screens (Emporium/Temple/…).  The
+  `shop`/`temple_bldg` golden scenarios reach them, but a 1700-frame capture was
+  **partially drawn** — capture with `--frames` ≥3000 and a larger `LOF_KEYGAP`
+  first.  Then the 16x16 town corner patch (source unidentified; not any single
+  `EGA/**` asset).
+
 ## Session 2026-11-12 (fifth session) — TL;DR
 
 Environment verified HEALTHY (`./check.sh` → HEALTHY at the end of the session).
