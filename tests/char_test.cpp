@@ -554,28 +554,26 @@ static int real_data() {
     // lists of far pointers whose segment words get bumped by the load segment.
     assert(kItemUseCount == 41 && kItemUseRec == 36);
     assert(kItemUseFlag01 == 0x03 && kItemUseFlag2 == 0x04 &&
-           kItemUseFlag34 == 0x18 && kItemUseFlag5 == 0x20);
+           kItemUseFlag34 == 0x18 && kItemUseFlag5 == 0x20 && kItemUseGate == 0x07);
     assert(item_use_flags(0) == 0);       // null row
     assert(item_use_flags(1) == 1);       // Club
     assert(item_use_flags(11) == 220);    // Battle flail (0xdc)
     assert(item_use_flags(41) == 0 && item_use_flags(-1) == 0);  // out of range
     // Dispatch-list records: byte 0 is the low byte of the first far pointer's
-    // segment (0x82 -> segment 0x3c82), so bit 1 is set and they are not flags.
+    // segment (0x82 -> segment 0x3c82); records 9..11 and 15..37 pass the gate.
     assert(item_use_flags(8) == 0x28 && item_use_flags(9) == 0x82);
-    // "usable" = bits 0 and 1 clear and bit 2 set (predicate at image 0x0E59E).
-    assert(item_is_usable(11));
-    assert(!item_is_usable(0) && !item_is_usable(1) && !item_is_usable(41));
-    assert(!item_is_usable(8) && !item_is_usable(9) && !item_is_usable(20));
-    // Exactly one record is usable (the Battle flail); no dispatch-list record
-    // ever satisfies the predicate.
+    // The gate at 0x0E59E acts on the item when (byte0 & 7) != 0.  The records
+    // with byte 0 having bits 0..2 all clear (0, 2, 3, 8, 13) are skipped.
+    assert(item_is_usable(1) && item_is_usable(4) && item_is_usable(11));
+    assert(item_is_usable(9) && item_is_usable(20) && item_is_usable(40));
+    assert(!item_is_usable(0) && !item_is_usable(2) && !item_is_usable(3));
+    assert(!item_is_usable(8) && !item_is_usable(13));
+    assert(!item_is_usable(41) && !item_is_usable(-1));  // out of range
     int usable_count = 0;
     for (int i = 0; i < (int)kItemUseCount; i++) {
-        if (item_is_usable(i)) {
-            usable_count++;
-            assert(i == 11);
-        }
+        if (item_is_usable(i)) usable_count++;
     }
-    assert(usable_count == 1);
+    assert(usable_count == 36);  // 41 records minus 0, 2, 3, 8 and 13
 
     // Spell table (141 x 36 bytes, also transcribed from LOF.EXE).
     const auto& sp = spells();

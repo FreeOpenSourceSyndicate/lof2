@@ -232,29 +232,31 @@ bool item_usable_by_class(int index, int prof);
 // port/char_itemuse.inc; the use handlers read it at image 0x0E59E, 0x0F072,
 // 0x17C6F, 0x1947E, 0x19690.
 //
-// Byte 0 is a flag byte.  The flag records carry no MZ relocation, so byte 0 is
-// stable across the load.  The other records (8..10, 15..37) are dispatch lists
+// Byte 0 is a flag byte on the "flag" records; the gate at 0x0E59E acts on the
+// item when `(byte0 & 0x07) != 0` (it clears its result only when bits 0/1 and
+// bit 2 are all clear).  The other records (8..10, 15..37) are dispatch lists
 // of far pointers whose *segment* words the loader bumps by the load segment
-// (0x1010); their byte 0 is the low byte of the first pointer's segment and is
-// not a flag.  item_is_usable() therefore only reads the flag records.
+// (0x1010); their byte 0 is the low byte of the first pointer's segment (0x82)
+// and so always passes the gate.
 constexpr size_t kItemUseCount = 41;
 constexpr size_t kItemUseRec = 36;
 
-// Flag bits in byte 0 of a record, from the read sites: the use path tests
-// bits 0/1 (`test al,3`), bit 2 (`test al,4`), bits 3/4 (`test al,0x18`) and
-// bit 5 (`test al,0x20`).
-constexpr uint8_t kItemUseFlag01 = 0x03;  // tested together (0x0E59E)
-constexpr uint8_t kItemUseFlag2  = 0x04;  // "usable" (0x0E59E)
+// Flag bits in byte 0 of a record, from the read sites: the gate at 0x0E59E
+// tests bits 0/1 (`test al,3`) and bit 2 (`test al,4`), and the site at 0x0F072
+// tests bits 3/4 (`test al,0x18`) and bit 5 (`test al,0x20`).
+constexpr uint8_t kItemUseFlag01 = 0x03;  // (0x0E59E)
+constexpr uint8_t kItemUseFlag2  = 0x04;  // (0x0E59E)
 constexpr uint8_t kItemUseFlag34 = 0x18;  // (0x0F072)
 constexpr uint8_t kItemUseFlag5  = 0x20;  // (0x0F072)
+constexpr uint8_t kItemUseGate   = 0x07;  // (kItemUseFlag01 | kItemUseFlag2)
 
 // Byte 0 of record `item_index` (1-based; 0 = the null row).  Returns 0 for
 // out-of-range indices.
 uint8_t item_use_flags(int item_index);
 
-// True if the engine treats `item_index` as *usable*: byte 0 has neither bit 0
-// nor bit 1 set, and has bit 2 set.  This is the exact predicate the use
-// handlers compute before they dispatch the item's effect.
+// True when the use path at image 0x0E59E acts on `item_index`: byte 0 has bit
+// 0/1 or bit 2 set, i.e. `(byte0 & kItemUseGate) != 0`.  The records with bits
+// 0..2 all clear (0, 2, 3, 8 and 13) are skipped; the rest pass.
 bool item_is_usable(int item_index);
 
 // Print the decoded use table (for eyeballing).

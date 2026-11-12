@@ -1134,12 +1134,22 @@ scaling byte, `+0x45` Strength, `+0x55` action-time divisor, `+0x56` SNSC speed,
 The play-loop **item-use** table is the 41-record, 36-byte table read as
 `es:[bx*0x24 + 0x2712]` where `bx` is the 1-based item index (record 0 is the
 null "no item" row).  The reads are at image `0x0E59E`, `0x0F072`, `0x17C6F`,
-`0x1947E`, `0x19690` (plus the flag tests `0x0E5F8`, `0x0E7EB`, `0x0F0E6`,
-`0x194D6`); the earlier `0x13A82`/`0x1CFD2`/`0x1D156` in the comments were wrong
-(those bytes are mid-instruction).  Byte 0 is the flag byte the use path tests:
-the sites check bits 0/1 (`test al,3`), bit 2 (`test al,4`), bits 3/4
-(`test al,0x18`) and bit 5 (`test al,0x20`); `item_is_usable()` is the predicate
-"bits 0 and 1 clear, bit 2 set" taken from `0x0E59E`.
+`0x1947E`, `0x19690` (plus the gate `0x0E5F8`); the earlier
+`0x13A82`/`0x1CFD2`/`0x1D156` in the comments were wrong (those bytes are
+mid-instruction).  Byte 0 is a flag byte.  The gate at `0x0E59E` acts on the
+item when `(byte0 & 0x07) != 0`: the code is `test al,3; jne act; test al,4;
+je skip; act:` -- it clears its "process this item" result only when bits 0/1
+*and* bit 2 are all clear.  (Earlier I mis-read this as "bits 0/1 clear AND bit 2
+set", which inverted the predicate; the raw bytes are
+`f6 46 e0 03 75 06 f6 46 e0 04 74 08 2b c0`.)  The other read site (`0x0F072`)
+tests bits 3/4 (`test al,0x18`) and bit 5 (`test al,0x20`).  `item_is_usable()`
+is the `0x0E59E` gate, so the records with bits 0..2 all clear -- 0 (null row),
+2, 3, 8 and 13 -- are skipped (36 of the 41 records pass).  Caveat: the routine's
+index local comes from a per-character runtime array (`es:[0xfd4 + char*0x20]`,
+`bx = [bp-0x18]`), so whether the 0..40 code is a 1-based *item* index or the
+item's *effect* code is inferred from the 41-record geometry and the item-use
+context, not proven; `item_is_usable()` is correct either way (it is a function
+of the byte-0 gate alone).
 
 **The table is static, not runtime-only** (this corrects BLK-005).  It lives in
 `LOF.EXE` at image `0x42712` / data segment `0x2712` and is transcribed verbatim

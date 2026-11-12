@@ -256,13 +256,14 @@ uint8_t item_use_flags(int item_index) {
     return kItemUse[item_index][0];
 }
 
-// The predicate from image 0x0E59E: bits 0 and 1 must both be clear and bit 2
-// set.  Records 8..10 and 15..37 are far-pointer dispatch lists (byte 0 is a
-// segment low byte, not a flag) and always have bit 1 set, so they are never
-// reported usable -- the engine reaches them by a different path.
+// The gate at image 0x0E59E: the routine clears its "process this item" result
+// only when byte 0 has neither bit 0/1 nor bit 2 set, i.e. when (byte0 & 7)==0.
+// So the use path acts on the item exactly when (byte0 & 7) != 0.  The
+// dispatch-list records (8..10, 15..37) carry a segment low byte in byte 0
+// (0x82) and so pass; the records with bits 0..2 all clear (0, 2, 3, 8 and 13)
+// are skipped.
 bool item_is_usable(int item_index) {
-    uint8_t f = item_use_flags(item_index);
-    return (f & kItemUseFlag01) == 0 && (f & kItemUseFlag2) != 0;
+    return (item_use_flags(item_index) & (kItemUseFlag01 | kItemUseFlag2)) != 0;
 }
 
 void dump_item_use(FILE* out) {

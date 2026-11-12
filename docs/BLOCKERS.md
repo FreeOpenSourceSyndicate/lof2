@@ -130,23 +130,6 @@ confirmed against real in-game state. Unblock by scripting a key path (via the
 encounter and the shop/item-use screens, and recording golden frames for them.
 Detail: `docs/notes-b.md` ("Blockers → Needs the maintainer").
 
-## BLK-005 — Expose the runtime item-use table from a live engine
-
-- **Blocked lane:** B (characters/items)
-- **Responsible:** Maintainer
-- **Priority:** Medium
-- **Status:** Open
-- **Dependencies:** BLK-004
-
-**Description & unblock action.** The play loop reads a 36-byte item-use table at
-`es:[item*0x24 + 0x2712]` (bit 2 = "usable"; read at image `0x13A82`, `0x1CFD2`,
-`0x1D156`). It is a **runtime** table in a segment no data file carries, so its
-contents are only reachable from a running engine. Unblock by adding a debug dump
-(like `LOF_EDUMP` but for that segment) and capturing it once BLK-004 lets the
-run reach the code that populates it. Detail: `docs/notes-b.md`.
-
----
-
 ## Closed (kept for the record)
 
 ### BLK-005 — Expose the runtime item-use table from a live engine — RESOLVED
@@ -170,8 +153,9 @@ offsets {0,4,8,12,16,20,24,28,32} of records 8..10 and 15..37 are far-pointer
 `0x1010` (`loadseg = PSP+0x10`).  Verified: `runtime DS:0x2712 == EXE template +
 loadseg` on exactly the MZ-relocated words (213 words; changed set == relocation
 set).  The flag records (0..8, 11..14, 38..40) carry no relocated words, so their
-byte 0 -- the flag byte the use path tests -- is stable.  The cited read sites
-`0x13A82`/`0x1CFD2`/`0x1D156` were wrong (mid-instruction); the real reads are
-`0x0E59E`, `0x0F072`, `0x17C6F`, `0x1947E`, `0x19690` (flag tests `0x0E5F8`,
-`0x0E7EB`, `0x0F0E6`, `0x194D6`).  No maintainer/oracle dump is needed.  Detail:
-`docs/notes-b.md`.
+byte 0 -- the flag byte the gate at `0x0E59E` tests -- is stable.  The gate acts
+on an item when `(byte0 & 0x07) != 0` (it clears its result only when bits 0/1
+and bit 2 are all clear); the cited read sites
+`0x13A82`/`0x1CFD2`/`0x1D156` were wrong (mid-instruction), the real reads are
+`0x0E59E`, `0x0F072`, `0x17C6F`, `0x1947E`, `0x19690`.  No maintainer/oracle dump
+is needed.  Detail: `docs/notes-b.md`.
