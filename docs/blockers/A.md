@@ -67,14 +67,16 @@ palette was hiding a plane-0 *data* bug.
 plane counter `cs:[0x182]`. The copy loops (`119D:0F90`, `119D:1250` via
 `119D:1295`) `rep movsb` plane 0 under map-mask `0x01`, then advance.
 
-**Unblock.** Trace `gc_latch` (src/ega.cpp `Ega::write`) around the plane-0
-`rep movsb` — write modes 1/2 take their value from the latches, so a stale
-plane-0 latch (or a missing latch refresh on the read before the copy) corrupts
-exactly plane 0. Fix the plane-0 write path; verify against
-`ref/oracle/menu.png` (expect plane-0, and thus overall, match to approach
-100%). **Emulator-only:** the drop-in (`port/gfx.cpp`) renders the planes
-correctly (matches the oracle at 99.8%), so do not change it. Detail:
-`docs/notes-maintainer-town.md` ("BLK-A002 CORRECTED").
+**Unblock.** The write *mechanism* is not the cause: every EGA write in the menu
+render uses **write mode 0** and a single-plane map mask (`1/2/4/8`, 10439 writes
+each — balanced), so plane 0 is written just like planes 1–3 yet only plane 0 is
+wrong. The defect is in the plane-0 **source data** (what the engine feeds the
+plane-0 pass). Trace the `rep movsb` at `119D:129D` back to its `es:[si]` source
+and compare to the planes 1–3 source; verify against `ref/oracle/menu.png`
+(expect plane-0, and thus overall, match to approach 100%). **Emulator-only:**
+the drop-in (`port/gfx.cpp`) renders the planes correctly (matches the oracle at
+99.8%), so do not change it. Detail: `docs/notes-maintainer-town.md`
+("BLK-A002 CORRECTED").
 
 ## BLK-A002 (superseded framing) — emulator play-loop palette was thought wrong
 
