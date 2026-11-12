@@ -633,6 +633,24 @@ overwrote, or the window bound may differ from a real EGA (64 K vs 128 K). Log
 `ega.gc_read_map`/`seq_map_mask` at each plane pass and the exact `si`/`di`
 per pass, and compare the copied length to 8000. Still **emulator-only**.
 
+### RESOLVED (2026-11-12): the plane-0 bug was a dropped zero-byte port write
+
+The double-buffer probe was a *symptom*. Scanning each plane for its best
+base offset in the emulator's plane memory was the giveaway: planes 1–3 matched
+the oracle at base `0x0000` (100%), but plane 0 matched best at base `0x1F40`
+(88%) — i.e. plane 0's data had never been copied into the display page; it still
+held the *source* page. The pass that should have written it had read the wrong
+plane.
+
+Root cause: **`Machine::port_out16` skipped the paired data-port write whenever
+`AH == 0`** (guard `if (v & 0xFF00)`). The blitter sets GC *Read Map Select* to
+**0** on its first pass; that write was dropped, so Read Map Select kept its
+previous value (3) and the pass copied **plane 3** into plane 0. Fix: always
+write the data byte. Verified: all four planes now match `ref/oracle/menu.png`
+at **100.00%** (plane 0 was 80.29%). Golden hashes re-recorded. Recorded in
+`AGENTS.md` ("Fixed bugs — do not regress") and `docs/blockers/A.md` (BLK-A002
+Resolved).
+
 ## How to actually reach the town screen (repo owner, 2026-11-11)
 
 The intro ends in the **town's Inn with no party members** — that is the first
