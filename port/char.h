@@ -177,11 +177,19 @@ struct ItemRecord {
     //        non-stackable gear (weapons/armour/shields).  See
     //        ItemRecord::charges.
     uint8_t charges = 0;
-    int16_t f4 = 0;     // +0x18  armour sub-type / projectile flag; weapons:
-                        //        class code in the low byte, damage in the high
-                        //        byte (exposed as `damage`)
+    int16_t f4 = 0;     // +0x18  LOW byte = the 1-based *spell index* the item
+                        //        invokes when used (exposed as `spell`); HIGH
+                        //        byte = weapon damage (exposed as `damage`).
+    // +0x18  Spell index (the low byte of `f4`): 1-based into the spell table,
+    //        0 = the item casts nothing.  When the party "uses" an equipped
+    //        item the engine takes this byte and looks the spell up as
+    //        `es:[spell*0x24 + 0x2712]` (image 0x0E59E, 0x0F072, 0x17C6F,
+    //        0x1947E, 0x19690); DS:0x2712 is the spell table's record base plus
+    //        0x16, so the byte it gates on is `spells()[spell-1].data[0]`.  See
+    //        `item_spell()` / `item_use_flags()` / `item_is_usable()`.
+    uint8_t spell = 0;
     // +0x19  Weapon damage (the high byte of `f4`): subtracted from a target's
-    // HP in combat (image 0x13ebd `sub es:[bx+0x22],cx`).  0 for non-weapons.
+    //        HP in combat (image 0x13ebd `sub es:[bx+0x22],cx`).  0 for non-weapons.
     uint8_t damage = 0;
     int16_t f5 = 0;     // +0x1a  1-based index of the paired item: ammo<->launcher
                         //        (Sling 19<->Bullets 18), Flask of oil<->Lantern,
@@ -195,8 +203,12 @@ struct ItemRecord {
     // Item class: 0 misc/key, 1 melee, 2 armour, 3 shield, 4 projectile,
     // 5 staff, 6 scroll/book/map, 8 ring, 9 potion, 10 treasure, 11 bow/sling.
     uint8_t item_class = 0;
-    // Use/effect index: 0 for ordinary gear; 1..40 on magic & consumable items
-    // (potions, rings, wands, special weapons).  Not an equip slot.
+    // +0x1f  Use-effect code (the engine's `es:[bx + 0xfda]` is the *class*
+    //        byte below; this is the adjacent byte the use handlers switch on).
+    //        0 for ordinary gear; a small code on magic/consumable items that
+    //        `item_effect_name()` decodes (Healing potion 10, Poison I 3,
+    //        Gunpowder 4, quest jewels 15, book halves 14, …).  Not the spell
+    //        index (that is `spell` above).
     uint8_t effect = 0;
 };
 
@@ -223,27 +235,48 @@ std::vector<size_t> items_with_effect(uint8_t effect);
 // Out-of-range item or profession returns false.
 bool item_usable_by_class(int index, int prof);
 
-// --- Item-use table (runtime) ---------------------------------------------
-//
-// The play loop keeps a 41-record, 36-byte table at `es:[0x2712]` and indexes
-// it as `es:[item_index * 0x24 + 0x2712]` (item_index is 1-based into the item
-// table; record 0 is a null "no item" row).  The use/attack handlers read byte
-// 0 as a bitfield (image 0x13a82, 0x1cfd2, 0x1d156); the remaining 35 bytes
-// are handler parameters.  The table ships inside LOF.EXE (image 0x42712) so
-// it is transcribed into port/char_itemuse.inc.
-constexpr size_t kItemUseCount = 41;
-constexpr size_t kItemUseRec = 36;
+struct SpellRecord;  // defined below (spell table)
 
-// Byte 0 of record `item_index` (1-based; 0 = the null row).  Returns 0 for
-// out-of-range indices.
+// --- Item use (spell casting) ----------------------------------------------
+//
+// The engine has no separate item-use table.  The routine that handles "use an
+// item" reads the character's equipped-item record, takes its `+0x18` byte (a
+// 1-based *spell* index), and looks that spell up in the spell table:
+//
+//     mov  ax, 0x24 ; imul [idx]   ; 36-byte records
+//     mov  es, [0xafae]            ; DS
+//     mov  al, es:[bx + 0x2712]    ; image 0x0E59E (also 0x0F072/0x17C6F/…)
+//
+// DS:0x2712 is the spell table's record base (DS:0x26FC) + 0x16, i.e. the first
+// byte *after* a record's 14-byte parameter block, which is exactly the byte
+// `spells()[idx-1].data[0]`.  So the gate the engine evaluates on a spell
+// record is `(data[0] & 0x07) != 0` (it tests bits 0/1 with `test al,3` and bit
+// 2 with `test al,4`, and takes the "cast" path only when at least one is set;
+// otherwise it prints "is not useful in this situation.").
+//
+// `idx` is `ItemRecord::spell` (+0x18).  `item_use_flags(i)` therefore returns
+// `spells()[item[i].spell - 1].data[0]` (0 when the item casts nothing).
+
+// The 1-based spell index an item invokes when used: `ItemRecord::spell`
+// (record byte +0x18).  0 = the item casts nothing.
+uint8_t item_use_index(int item_index);
+
+// The gate byte the use routine reads for `item_index`: the spell record's
+// first parameter byte, `spells()[item[i].spell-1].data[0]`.  Returns 0 when
+// the item casts nothing or the index is out of range.
 uint8_t item_use_flags(int item_index);
 
-// True if the engine treats `item_index` as *usable*: byte 0 has neither bit 0
-// nor bit 1 set, and has bit 2 set.  This is the exact predicate the use
-// handlers compute before they dispatch the item's effect.
+// True when the use routine acts on `item_index`: it is a potion (item class 9,
+// which the routine exempts at image 0x0E5C5/0x0E618) or its spell's `data[0]`
+// has one of bits 0/1/2 set, i.e. `(data[0] & 0x07) != 0`.  This is the exact
+// predicate the handler at image 0x0E59E computes.
 bool item_is_usable(int item_index);
 
-// Print the decoded use table (for eyeballing).
+// The spell `item_index` casts, or nullptr when it casts nothing / is out of
+// range.  (Spells are 1-based; this resolves through `spell_by_index()`.)
+const SpellRecord* item_spell(int item_index);
+
+// Print the decoded use mapping (for eyeballing).
 void dump_item_use(FILE* out);
 
 // Print the decoded table (for eyeballing).

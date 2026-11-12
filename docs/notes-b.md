@@ -1131,11 +1131,49 @@ Fields this grounds for the character struct (all read here, previously unnamed)
 `+0x0f` action byte (`3` = attack), `+0x0e` target slot, `+0x1a` class/category
 scaling byte, `+0x45` Strength, `+0x55` action-time divisor, `+0x56` SNSC speed, `+0x5e` Strength modifier.
 
-The play-loop **item-use** table is the 36-byte table `es:[bx*0x24 + 0x2712]`
-where `bx` is the item index (image `0x13A82`, `0x1CFD2`, `0x1D156`); its bit 2
-(`test al,4`) is the "usable" flag the use path checks.  It is a **runtime**
-table, not present in the data files, so its full contents are only reachable
-from the main loop (maintainer domain).
+### Item use = the spell table, not a separate "item-use table" (BLK-B003)
+
+The read `es:[bx*0x24 + 0x2712]` (image `0x0E59E`, `0x0F072`, `0x17C6F`,
+`0x1947E`, `0x19690`) is **not** an item-use table.  It is the 141-record spell
+table.  With `DS` base `0x41d10` (verified: the "Club" string at file `0x42cec`
+is `DS:0x2712`+… , and `"is not useful in this situation."` at file `0x47961` is
+`DS:0x5c51`), `DS:0x2712` resolves to **file `0x44422`**.  The spell table's
+record base is `DS:0x26FC` = file `0x4440C`; `0x2712 - 0x26FC = 0x16`, so the
+read lands on the byte just *past* a record's 14-byte parameter block.  A live
+1 MB dump of the town path (`LOF_SEGDUMP`) is byte-identical to the EXE image at
+`0x44422`, so the table is static EXE data (see BLK-B002 resolution).
+
+The use routine at `0x0E562` is the ground truth.  It:
+
+1. `shl bx,5` (`0xE56F`) to reach the character's 32-byte item record; `+0x18`
+   is the item's **spell index** (`mov al, es:[bx+0xfd4]`, `0xE575`).  This is
+   exactly `ItemRecord::spell` (item record `+0x18`).
+2. `imul 0x24` and `mov al, es:[bx + 0x2712]` (`0xE59E`) — reads the spell
+   record's first parameter byte.
+3. `test al,3` / `test al,4`: if **either** is set it clears the "no-use" flag
+   and proceeds to use the item; if both are clear the item is rejected and the
+   routine prints "is not useful in this situation." (image `0xE15D`).
+4. Separately, `es:[bx+0xfda]` (item `+0x1f`, the use *category*) is compared
+   with `9` (`0xE5C5`, `0xE618`): **potions** (`class 9`) also clear the
+   "no-use" flag, i.e. they bypass the spell-parameter gate.
+
+So the engine's own byte is `spells()[spell-1].data[0]`, and the predicate is
+`(data[0] & 0x07) != 0` **or** the item is a potion.  `ItemRecord::spell` and
+`item_use_index()`/`item_use_flags()`/`item_is_usable()` now model this; the
+old `port/char_itemuse.inc` (transcribed from file `0x42712` = `ds:0xa02`, which
+no instruction references) is deleted.
+
+**Item `+0x18` is the spell index, not an "armour sub-type".**  Spot checks:
+Torch → spell 2 "Light"; Healing potion → spell 80 "Healing I"; Healing II →
+spell 92 "Healing II"; Ring of power → 129 "Regeneration I"; Healers' staff →
+116 "Restoration"; Staff of light → 84 "Fear undead".  Every mapping names the
+spell the item is documented to cast.  Item `+0x19` remains weapon damage.
+
+**Usable items** under the full predicate (24): Torch, Lantern, Holy water,
+Healing potion, Poison I/II, Antidote I/II, Healing II/III, Strength potion,
+Heroes' drink, Potion of Kybol/haste, Ring of Kybol, Ring of power, Healers'
+staff, Gain level, Drain level, Ring of shelter, Gunpowder, Magic protect.,
+Talisman, Gnokem Whisky.
 
 ## Blockers (Workstream B) — 2026-11-08
 
@@ -1144,15 +1182,6 @@ image (`LOF.EXE` disassembly + the data files) is already done; the items below
 need runtime state or another lane.
 
 ### Needs the maintainer (play loop / oracle)
-- **HIGH — reach combat/shop/item-use in the oracle.** The oracle currently
-  stops at `town` (`--keys 0x18,0x1c`). A scripted path into a combat encounter
-  (and the shop / item-use screens) would let B ground the last runtime tables
-  against real reads (`LOF_I21`/`LOF_READ`), exactly as SPEC/ROST were grounded.
-- **MEDIUM — expose the runtime item-use table.** The 36-byte item-use table
-  `es:[item*0x24 + 0x2712]` (bit 2 = "usable", read at `0x13A82`, `0x1CFD2`,
-  `0x1D156`) lives in a runtime segment that is not in any data file, so its
-  contents can only be captured from a running engine (a debug dump like
-  `LOF_EDUMP` but for that segment).
 - **MEDIUM — wire B's grounded model into `lof.cpp`.** `defense_from_items()`,
   the slot semantics (`equipped`/`charges`/`condition`) and the combat-damage
   model (above) are ready to use; consuming them is `lof.cpp` (SERIAL) work.
