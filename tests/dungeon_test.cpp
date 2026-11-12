@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <set>
@@ -371,6 +372,30 @@ static void test_view_sprite(const std::string& dir) {
     std::printf("dungeon_test: view sprite blit verified (%dx%d)\n", w, img.height);
 }
 
+// The seven full-size (120x119) view sprites of a theme, and one duplicate
+// pair among them, pinned from the decode work (docs/notes-a.md Round 19).
+// Guards the tileset inventory against a bad re-extract.
+static void test_view_inventory(const std::string& dir) {
+    namespace fs = std::filesystem;
+    std::string vd = dir + "/../EGA/D5";
+    if (!fs::is_directory(vd)) {
+        std::printf("dungeon_test: no D5 dir, skipping inventory check\n");
+        return;
+    }
+    std::vector<std::string> full;
+    for (auto& e : fs::directory_iterator(vd)) {
+        std::string n = e.path().filename().string();
+        if (n.rfind("DP", 0) != 0 || n.size() != 5) continue;
+        EgaImage im;
+        if (load_ega_image(e.path().string(), im, nullptr) &&
+            im.width_bytes * 8 == kViewportW && im.height == kViewportH)
+            full.push_back(n);
+    }
+    std::sort(full.begin(), full.end());
+    assert(full.size() == 7);   // DP001 DP014 DP036 DP058 DP059 DP060 DP067
+    std::printf("dungeon_test: %zu full-size view sprites in D5\n", full.size());
+}
+
 // Every map ships a canonical DP001 full view in its ones-digit view dir;
 // blitting it must succeed and cover the whole window (the engine's entry view).
 static void test_default_views(const std::string& dir) {
@@ -634,6 +659,7 @@ int main(int argc, char** argv) {
     test_render_layers();
     test_viewport();
     test_view_sprite((argc > 1) ? argv[1] : "game/DNGS");
+    test_view_inventory((argc > 1) ? argv[1] : "game/DNGS");
     test_default_views((argc > 1) ? argv[1] : "game/DNGS");
     test_walk();
     test_level_connected((argc > 1) ? argv[1] : "game/DNGS");
