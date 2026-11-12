@@ -1044,3 +1044,43 @@ party x/y offsets are not yet identified, so a position sweep needs either those
 offsets or the maintainer's `INT 21h AH=07` fix (BLK-007).  Ink-level the rule is
 clear; index-exact placement has placement ambiguity (greedy FP), so it is not
 worth baking into `port/dungeon.{h,cpp}` until the selection is pinned.
+
+### Round 19b — facing sweep + independent confirmation against the DOSBox oracle
+
+Swept all four facing bytes (0..3) on the Temple save and dumped planes for each:
+
+| facing byte | base sprite in the window | window ink |
+|-------------|---------------------------|-----------|
+| 0 | `DP036`/`DP060` (all-walls) | 12566 |
+| 1 | `DP036`/`DP060` (all-walls) | 12566 |
+| 2 (the save's own) | `DP001` | 9404 |
+| 3 | `DP036`/`DP060` (all-walls) | 12566 |
+
+So only the *native* facing (2, South) shows the `DP001` view; the other three
+show the all-walls view.  That is consistent with the base being the view of the
+**cell straight ahead**: at the Temple spawn the party looks down a corridor
+(open ahead), and turning to any other facing faces a wall.  It also means the
+view is *not* a simple facing->sprite table — it depends on the map, i.e. the
+engine reads the tiles ahead (matching the per-cell model).
+
+**Independent confirmation.** Running the same greedy composite over the
+**maintainer's real DOSBox capture** `ref/oracle/dungeon_slot1.png` gives the
+*identical* pieces at the *identical* offsets as the emulator frame:
+
+```
+DP001@(0,0) 8690   DP042@(102,45) 230   DP056@(0,49) 110
+DP044@(90,52) 79   DP022@(104,52) 48    DP022@(104,57) 32
+=> spawn-oracle ink IoU 0.974
+```
+
+That the emulator and real DOSBox agree on the composite (same base + same side
+pieces at the same coordinates) is strong evidence the rule is:
+
+    view = full base sprite (per cell structure ahead)
+         + the small side pieces (DP015..DP057) placed in the horizon band
+           (window y ~40..60) at the window edges.
+
+The maintainer's *moved* oracle frame reduces less cleanly (IoU 0.752; base
+`DP037` + pieces), so a second (position) ground truth would help pin the exact
+piece *selection*, but the base+side-piece *structure* is now confirmed on real
+hardware.
