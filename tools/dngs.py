@@ -31,6 +31,7 @@ Usage:
     python3 tools/dngs.py tiles game/EGA          # layered dungeon tilesets
     python3 tools/dngs.py atlas game/EGA D0 out.png  # sheet of a tileset
     python3 tools/dngs.py oracle ref/oracle/dungeon_slot1.png game/EGA 5 1
+    python3 tools/dngs.py patch game/DNGS/DNG05 /tmp/p.dng 17 4 12
     python3 tools/dngs.py all
 """
 import collections
@@ -597,6 +598,39 @@ def cmd_atlas(dn_dir, tile_set, out, cols=8, bg=0):
     print('codes: %s' % ' '.join('%03d' % c for c, _, _, _ in imgs))
 
 
+def rle_encode(data, esc):
+    """Re-encode a decoded buffer with the same RLE scheme (round-trips)."""
+    out = bytearray([esc])
+    i, n = 0, len(data)
+    while i < n:
+        j = i
+        while j < n and data[j] == data[i] and j - i < 255:
+            j += 1
+        run = j - i
+        if run >= 3 or data[i] == esc:
+            out += bytes([esc, run, data[i]])
+        else:
+            out += bytes([data[i]]) * run
+        i = j
+    return bytes(out)
+
+
+def cmd_patch(src, dst, pairs):
+    """Write `src` to `dst` with decoded tile cells overridden.
+
+    `pairs` is a flat list (x, y, value, ...) addressing tile cells, i.e.
+    decoded offset 4 + y*36 + x.  Used to feed the analysis emulator a specific
+    ahead-cell tile code without moving the party.
+    """
+    raw = open(src, 'rb').read()
+    esc = raw[0]
+    body = bytearray(rle_decode(raw, esc, 1))
+    for k in range(0, len(pairs), 3):
+        x, y, v = pairs[k], pairs[k + 1], pairs[k + 2]
+        body[HEADER + y * LAYER_W + x] = v
+    open(dst, 'wb').write(rle_encode(bytes(body), esc))
+
+
 def main(argv):
     if len(argv) < 2:
         sys.exit(__doc__)
@@ -640,6 +674,9 @@ def main(argv):
         cmd_composite(rest[0], rest[1] if len(rest) > 1 else 'game/EGA',
                       int(rest[2]) if len(rest) > 2 else 5,
                       planes='--planes' in argv[1:])
+    elif cmd == 'patch':
+        # dngs.py patch <in.dng> <out.dng> x y val [x y val ...]
+        cmd_patch(argv[1], argv[2], [int(a) for a in argv[3:]])
     elif cmd == 'all':
         for p in sorted(glob.glob('game/DNGS/DNG*')):
             cmd_info(p)
