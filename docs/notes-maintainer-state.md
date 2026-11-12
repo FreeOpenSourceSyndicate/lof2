@@ -5,6 +5,33 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-12 (fourth session) — TL;DR
+
+Environment verified HEALTHY (`./check.sh`: repo, game data, both builds,
+`make test`, oracle goldens, drop-in goldens, clean tree all ok).
+
+- **BLK-A002 reframed — it is an EGA plane-0 (blue) bug, not the palette.**
+  Re-derived the emulator's index image from its own plane dump (`LOF_EDUMP`)
+  and compared to the oracle's index image (oracle RGB inverted through the
+  standard palette; all 64000 oracle pixels invert cleanly): planes **1/2/3 are
+  byte-identical** (100.000%), plane 0 matches **80.29%**, 12616 pixels differ
+  and **every** difference is plane-0-only. So re-palletting the dump can never
+  exceed ~80% (the index image itself is 80.3% right — exactly the figure the
+  previous "standard palette" comparison reported). The wrong palette (ramp
+  `00..07 10..17`) is a **separate cosmetic** issue. Engine blits one plane at a
+  time (`119D:0184` cycles GC Read Map Select + SEQ Map Mask; `119D:0F90` /
+  `119D:1250` `rep movsb` plane 0 under mask `0x01`); prime suspect is the
+  `gc_latch` handling in `src/ega.cpp` `Ega::write`. **Emulator-only** — the
+  drop-in is correct (99.8% vs the oracle); do not change it. PR **#94** (docs
+  only) merged. Detail: `docs/blockers/A.md` BLK-A002 and
+  `docs/notes-maintainer-town.md` ("BLK-A002 CORRECTED").
+- **Next step for BLK-A002:** instrument `gc_latch` around the plane-0
+  `rep movsb` (which write mode is in effect for the `119D:0184` loop) and fix
+  the plane-0 write path; verify against `ref/oracle/menu.png`.
+- No code changed this session (diagnosis + docs only). Two agent drafts remain
+  open and unmerged (#89 needs a rebase/renumber; #91 has the conflated-offset
+  problem noted above).
+
 ## Session 2026-11-12 (third session) — TL;DR
 
 Environment verified HEALTHY (`./bootstrap.sh` + `make test`). Picked up the
