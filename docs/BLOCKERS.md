@@ -89,6 +89,18 @@ overlay, not a wrong sprite. The emulator trace confirms the engine reads a
 Also: the `dngs.py oracle` 0.952 is a **drop-in** number, not the emulator's —
 see BLK-002.
 
+**Log.** 2026-11-08 Agent A (Rounds 19–21): the composite is now **decoded at the
+ink level and reproduced exactly by the engine**. `tools/dngs.py composite
+ref/oracle/dungeon_slot1.png game/EGA 5` reduces the spawn window to `DP001` +
+side pieces `DP042/044/051/056/022` (ink IoU 0.974), and the *emulator* frame for
+the same cell gives the **identical** pieces/offsets. The viewport is a two-phase
+**animation** (frame 700/1200 vs 900/1500), and at the oracle phase the emulator
+window has **ink IoU 1.0000** with the DOSBox capture (identical 9298 ink px).
+The only residual is the per-pixel index (+/-1) of **BLK-002's** palette bug, so
+BLK-001's *shape* is fully explained; what remains for the drop-in is choosing the
+right base + side pieces per (position, facing), which needs the position->view
+mapping (Round 20; sequential runs only — parallel runs race on the save).
+
 ## BLK-002 — Dungeon viewport palette: emulator draws colour, oracle is grey
 
 - **Blocked lane:** A (dungeons)

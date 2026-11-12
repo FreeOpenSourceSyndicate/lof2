@@ -1093,16 +1093,56 @@ and 0 respectively).  Patching it and re-running the golden recipe changes the
 rendered viewport, so it is the party's position (a linear cell index candidate;
 125 = 17 + 3*36, 745 = 25 + 20*36 for a 36-wide grid).
 
-**Confirmed the view is map-driven, not a facing table.**  For the Temple, only
-the save's *exact* value (125) gives the corridor view `DP001`; every other tested
-value (124, 126, 89, 161, 468, 900, 1205) gives the all-walls view `DP036`.  For
-the wilderness save the window matches `DP036`/`DP014` at IoU **1.000** in
+**Confirmed the view is map-driven, not a facing table.**  For the Temple, the
+save's own value (125) gives the corridor view `DP001`, while adjacent values
+(126, 89 — re-run sequentially, see Round 21) give the all-walls view `DP036`.
+For the wilderness save the window matches `DP036`/`DP014` at IoU **1.000** in
 `EGA/D0`, confirming the maintainer's ones-digit view-dir rule (DNG10 -> `D0`)
 end-to-end.  So the base sprite is chosen from the local wall structure ahead,
-exactly as BLK-001/BLK-006 describe.
+exactly as BLK-001/BLK-006 describe.  (The 124/161/468/900/1205 values quoted in
+an earlier draft came from *parallel* runs that raced on one save file and are
+**withdrawn** — see Round 21.)
 
 **Ground-truth mechanism (partial).**  Patching `0x9a0` *does* move the party for
 the emulator, so position ground truth is reachable without keys — but the
 value->cell mapping is not yet pinned (only the exact original value reproduces
 the corridor), so it is not yet a turnkey sweep.  The maintainer's `INT 21h AH=07`
 fix (BLK-007) or the position mapping would make it one.
+
+### Round 21 — race correction + the viewport animates; spawn matches the oracle exactly
+
+**Race warning (corrects Round 20's method).**  Two emulator runs must **not** run
+in parallel on the same save: they both write `game/GAMES/GAME1`, so the second
+run can load the first run's patched bytes.  My earlier "sweep" frames were
+produced by parallel jobs and are therefore unreliable as *position* evidence.
+All results below were re-taken **sequentially** (one `lof-native` at a time,
+save restored between runs).
+
+**The position field is real (sequential).**  With the save at `0x9a0=125` the
+window is the `DP001` corridor view (ink 9298/9404 by phase); with `0x9a0=126`
+or `89` it is the all-walls `DP036` view (ink 12566).  So the engine *does* read
+`0x9a0` as the party position and the view depends on the local map structure
+ahead — the position-ground-truth mechanism works, it just needs sequential runs.
+
+**The viewport animates.**  Holding the save fixed and varying only the frame
+count (sequential) oscillates the window ink between two phases:
+
+| frames | window ink | note |
+|--------|-----------|------|
+| 700    | 9298 | == oracle |
+| 900    | 9404 | |
+| 1200   | 9298 | == oracle |
+| 1500   | 9404 | |
+
+So the viewport is a two-phase animation (matching the `ega\anim\an*` files the
+engine opens).  Frame 900/1500 capture the non-oracle phase; 700/1200 the oracle
+phase.  This is why the earlier single-frame match looked like a 4.8% residue.
+
+**Spawn shape is pixel-perfect vs the oracle.**  At the oracle phase (frames
+700/1200) the emulator viewport has **ink IoU 1.0000** with
+`ref/oracle/dungeon_slot1.png` (identical 9298 ink pixels).  The only remaining
+difference is the per-pixel *index*: 8107 px differ by exactly +/-1 in EGA index
+(4080 +1, 4027 -1) — the attribute-bit-0 palette issue of BLK-002, not a shape
+error.  So BLK-001's composite is reproduced **exactly** by the engine; the
+residual is purely BLK-002's palette.  Frame 1500's 9404-phase frame is ink IoU
+0.9887 vs the oracle (the same view, one overlay piece animated in).
