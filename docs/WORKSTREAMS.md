@@ -66,8 +66,11 @@ second → **B (characters/items)**. The maintainer owns the main loop.
 | `tools/spec.py` | **Agent B** | offline format explorer |
 | `docs/notes-a.md` | **Agent A** | running notes (push often) |
 | `docs/notes-b.md` | **Agent B** | running notes (push often) |
-| `docs/BLOCKERS.md` | anyone | shared blocker registry — append, don't rewrite others' entries |
-| `docs/BLOCKED-*.md` | anyone | per-incident detail; link it from your `BLOCKERS.md` entry |
+| `docs/blockers/A.md` | **Agent A** | lane-A blocker registry — append your entries |
+| `docs/blockers/B.md` | **Agent B** | lane-B blocker registry — append your entries |
+| `docs/blockers/M.md` | **Maintainer** | lane-M (shared/maintainer) blocker registry |
+| `docs/BLOCKERS.md` | **Maintainer** | registry hub — convention + lane index (static; do not add entries) |
+| `docs/BLOCKED-*.md` | anyone | per-incident detail; link it from your lane registry entry |
 | `Makefile` | **Maintainer** | ask before changing |
 
 If you need a new module, pick a name that no one else uses and register it here
@@ -125,6 +128,23 @@ expose them as native structs.
 plausible fields (verify against the emulator's reads of the same file with
 `LOF_I21=1` + `LOF_READ=1`), a `char_test` asserts record counts and a known
 value, and a `--dump-spec` style debug command prints them.
+
+## Blockers — one file per lane
+
+The blocker registry is split by lane so two agents never edit the same file:
+
+- `docs/blockers/A.md` — lane A (dungeons), owned by Agent A.
+- `docs/blockers/B.md` — lane B (characters/items), owned by Agent B.
+- `docs/blockers/M.md` — lane M (shared/maintainer), owned by the Maintainer.
+- `docs/BLOCKERS.md` — the **hub**: the ID convention, the priority/field
+  definitions, the old→new ID map, and the lane index. It is static; do not add
+  entries to it.
+
+IDs are **lane-lettered** — `BLK-A001`, `BLK-B003`, `BLK-M001` — with each lane
+numbering from `001` independently, so IDs cannot collide across lanes. When
+blocked, append to **your lane's file**. The **mutable fields — `Status`,
+`Priority`, `Dependencies` — are cross-editable** in any lane's file (an entry's
+body stays lane-owned). Full convention: `docs/BLOCKERS.md`.
 
 ## Working agreements
 

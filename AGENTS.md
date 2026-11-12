@@ -3,8 +3,10 @@
 > **New here? Read `docs/HANDOFF.md` first, then `docs/RISKS.md`, then
 > `docs/WORKSTREAMS.md`.** They cover how to survive a workspace reset, how to
 > avoid the poisoned sibling repo, and which files you own. This file is the
-> deep technical reference. When you get blocked, record it in the shared
-> blocker registry `docs/BLOCKERS.md`.
+> deep technical reference. When you get blocked, record it in your lane's
+> blocker file under `docs/blockers/` (A = dungeons, B = characters, M =
+> maintainer); the hub `docs/BLOCKERS.md` defines the `BLK-<lane><nnn>` IDs and
+> fields.
 
 ## Goal
 
@@ -303,22 +305,18 @@ Menu text is drawn at x=139, rows at y=124+8*n (colour 0). `port/font.{h,cpp}` l
 strip at run time (no font data is embedded) and draws text; `tests/font_test.cpp`
 covers the mapping, the advance and the draw path.
 
-**Known font-rendering gap (open).** The menu/town/panel text in the emulator
-oracle does *not* byte-match the `CHR1`/`CHR2` strip cells: sliding a rendered
-`(P)ick-pocket` / `Which building do you want to visit?` / `Welcome, hardy`
-against the oracle frame leaves a residual of a few hundred pixels, and the
-oracle glyph for the greeting's first letter is a *bold, double-struck* form
-(each stem two pixels wide) with no exact match anywhere in `CHR1`, `CHR2`, the
-decoded EGA planes, `MENU`, `MSCR`, `LOF.EXE` or `VOR.EXE`. The oracle's panel
-background is the correct colour (the custom-palette fix below) and the *strings
-and layout* are confirmed byte-for-byte from `LOF.EXE` (`Welcome, hardy` /
-`adventurers!` / `(P)ick-pocket` … / `(C)ontinue` at x=139, rows y=92,100,116,
-124,140,148,156,164,172,188), but the glyph *bitmaps* the engine blits are still
-unidentified — the engine appears to build them from `EGA\UP\CHR1`/`CHR2` at run
-time with an extra step (weighting/duplication) the drop-in does not yet model.
-`port/lof.cpp` draws them with the `CHR1` cells (colour 0) as the current best
-approximation. Next step: disassemble the engine's glyph-blit routine (the code
-that reads the `4130:` buffer `CHR1` is loaded into) to recover the transform.
+**Font rendering (resolved — no transform).** The engine's menu/town/panel text
+is the `EGA/UP/CHR1`/`CHR2` cell bitmaps blitted **directly**, left 6 columns at a
+6-px advance; there is no bold/double-struck weighting step. This was confirmed
+by pixel-matching the DOSBox oracle: every glyph of `Welcome, hardy` /
+`adventurers!` / `(P)ick-pocket` … / `(C)ontinue` equals the CHR1 cell
+`glyph_cell()` selects, and the *analysis emulator's* glyph shapes are
+byte-identical to the oracle capture (only its palette differs). The port's menu
+text is therefore pixel-exact (`tests/port_menu_test.py` pins the greeting /
+option list / `(C)ontinue` regions). The earlier "bold, double-struck, no exact
+match" note was an artefact of the wrong-palette era before `port/gfx.cpp` used
+the standard EGA set — with the correct palette the CHR1 cells match exactly.
+Resolved as `BLK-M001`.
 
 **EGA palette.** The engine programs the attribute controller at start-up
 (`INT 10h AH=10h AL=02h`) with the **standard EGA/BGI attribute set**
@@ -354,7 +352,8 @@ Roadmap:
 | `LOF_VDBG=1`         | framebuffer/palette/seq/gc dump at end |
 | `LOF_PAL2=1`         | per-register attribute palette dump |
 | `LOF_EDUMP=<file>`   | dump the 4 EGA planes (4 x 0x10000 bytes) |
-| `LOF_DUMP=<file>`    | dump VGA-style framebuffer |
+| `LOF_DUMP=<file>`    | dump the full 1 MB linear memory |
+| `LOF_SEGDUMP=<file>,<seg>:<off>:<len>` | dump `len` linear bytes at `seg:off` (e.g. read a runtime data table) |
 | `LOF_VTRACE=1`       | plane write min/max/nonzero statistics |
 | `LOF_WMODE=1`        | histogram of (map-mask, write-mode, set/reset, bitmask) |
 | `LOF_PTRACE=1`       | EGA/VGA port OUT trace |
@@ -561,6 +560,13 @@ save-location field: slot 1 opens `DNGS\DNG05` + `ega\d5`, slot 2 opens
   - 0x3C4/0x3C5, 0x3CE/0x3CF, 0x3D4/0x3D5 → write AH to port+1.
   - 0x3C0 attribute controller: **index and data both go to 0x3C0**, so a 16-bit
     OUT writes AL (index) then AH (data) to 0x3C0.
+  - The data byte must be written **even when AH is 0**: a zero data byte is a
+    legitimate register value (Read Map Select 0, Map Mask 0).  Guarding the
+    write with `if (AH != 0)` silently drops it and the register keeps its old
+    value.  This was BLK-A002: the game's plane blitter sets Read Map Select to
+    0 on its first pass, the write was dropped, so plane 0 was blitted from the
+    still-selected plane 3 and **every frame's plane 0 was wrong** (planes 1–3
+    perfect, plane 0 80.29% vs the oracle).  Guarded by the golden frames.
 - Graphics-controller register numbers: 7 = Read Map Select, 8 = Bit Mask
   (bit mask was wrongly mapped to 7, which forced a 0x3F mask → dropped pixels).
 - EGA colour: primary guns weight 2, secondary weight 1 (index 7 = light gray).

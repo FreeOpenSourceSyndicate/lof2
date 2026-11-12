@@ -520,3 +520,157 @@ several `EGA/D<d>/DPnnn` sprites per cell (not one blit — an exhaustive match 
 the emulator's Temple frame against every `D5` sprite tops out at ~0.65), so the
 walk loop currently draws a top-down level map in the window instead.  Pinning
 the per-cell sprite composition is workstream A's remaining task.
+
+## Palette: the emulator's play-loop palette is wrong (2026-11-11)
+
+**Finding.** At the menu, the play screen and the temple the emulator's final
+attribute palette is the **ramp** `00 01 02 03 04 05 06 07 10 11 12 13 14 15 16
+17` (measured with `LOF_DEBUG=1 LOF_VDBG=1 LOF_PAL2=1`, stable at frames
+60/150/300, with and without `LOF_NO_TIMER`). Re-rendering the emulator's own
+plane dump with the **standard EGA palette** (`00 01 02 03 04 05 06 07 38 39 3A
+3B 3C 3D 3E 3F`) matches the DOSBox oracle far better on every screen:
+
+| screen | ramp (emulator) | standard |
+|--------|-----------------|----------|
+| menu   | 59.2% | **80.3%** |
+| play   | 57.7% | **77.9%** |
+| temple | 58.3% | **75.1%** |
+
+The **drop-in already uses the standard set** and matches `ref/oracle/menu.png`
+at **99.8%** (`tests/port_menu_test.py`). So the standard palette is correct and
+only the emulator is wrong — this is not a dungeon-specific issue and not a
+plane/write-mode issue.
+
+**Cause.** The game programs the palette via `INT 10h AH=10h AL=02h` from tables
+in the loaded data segment: `4130:4834..4878` (five fade tables) called from
+`cs:ip=119D:0D04`, and `4130:47DF..4823` (ending in the literal ramp table
+`00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17`, stored in the EXE at
+`0x7012`) called from `cs:ip=119D:0C78`. The emulator stores the table bytes
+verbatim as attribute selectors, so the ramp table yields `attr_pal[n]=0x10+n`
+(dark-green…white) rather than the standard `0x38..0x3F` high half. The standard
+set is **not** present anywhere in `LOF.EXE`/`VOR.EXE`, so the engine either
+translates these tables or writes the attribute controller (`0x3C0`) directly;
+that translation is the thing to recover.
+
+**Ground truth from the repo owner (in-game, DOSBox).** The Temple is
+**greyscale right after loading** — consistent with the standard palette's grey
+indices 0/7/8/15, i.e. the standard set *is* what the engine intends. Colour
+appears only when moving: near walls show **small green specs**. So the correct
+palette is standard (not a fixed grey), and the moved-view colour is real.
+
+**Next step.** Recover the palette translation (or the direct `0x3C0` writes) in
+the decompilation; verify against a fresh DOSBox capture of the menu and the
+temple (`tools/capture_dosbox.sh` — needs `dosbox`, not installed here). Do not
+"fix" the drop-in: it is already correct.
+
+## BLK-A002 CORRECTED: it is plane 0, not the palette (2026-11-12)
+
+The "wrong ramp" above is real (the emulator *does* end up with
+`attr_pal[n]=0x10+n`), but it is **not** the reason the emulator's frame differs
+from the DOSBox oracle. I re-derived the emulator's **index image** from its own
+plane dump (`LOF_EDUMP`) and compared it to the oracle's index image (oracle RGB
+inverted through the standard palette; all 64000 oracle pixels map cleanly):
+
+* Planes **1, 2 and 3 are byte-identical** to the oracle (100.000%).
+* Only **plane 0 (blue)** differs: 80.29% match, 12616 differing pixels, and
+  **every** difference is plane 0 only (`idx_emu ^ idx_oracle == 0x1` for all of
+  them — verified).
+
+So the emulator's *pixel data* is wrong in the low bit-plane; the palette merely
+maps that wrong index through a different LUT. Re-palletting the emulator's
+dump therefore can never exceed ~80% (the index image is only 80.3% right), and
+that ~80.3% is exactly the "standard palette" figure above — the earlier
+conclusion "standard palette correct, only the emulator palette is wrong" was
+**wrong**: the standard palette was hiding a plane-0 data bug, not fixing a LUT.
+
+**What the engine does (decompiled).** The game blits the framebuffer
+**one plane at a time**: the routine at `119D:0184` cycles the
+Graphics-Controller *Read Map Select* (`0x3CE <- 4, ah=cs:[0x17a+idx]`) and the
+Sequencer *Map Mask* (`0x3C4 <- 2, ah=cs:[0x17e+idx]`), with the runtime table
+`cs:[0x17a] = 00 01 02 03 | 01 02 04 08` and `cs:[0x182]` the plane counter
+`0..3`. The copy loops (`119D:0F90`, `119D:1250` via `119D:1295`) `rep movsb`
+plane 0, call `0x184` to advance, and repeat for all four planes. So the plane-0
+data comes from a `rep movsb` under map-mask `0x01`.
+
+**Prime suspect.** The write *mechanism* is not the cause: instrumenting
+`Ega::write` shows every EGA write in the menu render uses **write mode 0** and a
+**single-plane map mask** (`1/2/4/8`, 10439 writes each — perfectly balanced
+across the four planes). So plane 0 is written exactly like planes 1–3, yet only
+plane 0 is wrong — the defect is in the plane-0 **source data** (what the engine
+feeds the plane-0 pass), not in the mask/write-mode/latch path. Plane 0 is the
+lowest index bit, so the whole play loop renders one bit wrong — consistent with
+the owner's "Temple is greyscale on load but shows green specs when moving".
+
+**Next step.** Trace where the plane-0 pass reads its source byte (the `rep
+movsb` at `119D:129D` copies from `es:[si]`; follow `si` back to the decoded
+buffer) and compare it to planes 1–3's source. Verify any fix against
+`ref/oracle/menu.png` (expect plane-0, and thus overall, match to jump from
+~80% toward 100%). This is an **emulator-only** defect: the drop-in
+(`port/gfx.cpp`) renders the planes correctly and already matches the oracle at
+99.8%, so **do not touch the drop-in**.
+
+### Follow-up probe (2026-11-12): the game uses an EGA double buffer
+
+Tracing the plane-copy loop (`119D:1288`, guarded by `cs:[0x182]` the plane
+counter 0..3) shows it copies **`ds=A1F4` → `es=A000`, same offset, `rep movsb`,
+one plane per pass**, with the GC *Read Map Select* / SEQ *Map Mask* cycled
+`0,1,2,3` / `1,2,4,8`. `A1F4` is `A000 + 0x1F40` (8000 = one 320×200 plane),
+i.e. the source lives **inside the EGA window** — the game is double-buffering in
+EGA memory (display page at `0xA0000`, source/staging page at `0xA1F40`).
+
+That is the likely source of the plane-0 divergence: in the emulator's plane
+memory the **source page** (`plane[k][0x1F40..0x3E80]`) matches the pristine
+`MSCR` decode well (plane 0 = 92.9%, planes 1–3 ≈ 79–80%), while the **display
+page** (`plane[k][0..0x1F40]`) matches it far worse for plane 0 (63.7%) than for
+planes 1–3 (73–77%) — and the display page for plane 0 equals the source page for
+only ~64–70% of rows (planes 1/2: 93%, plane 3: 98%). So the plane-0
+source→display copy does not land where it should.
+
+**Refined next step.** Check how the emulator's `is_ega()` window
+(`0xA0000..0xB0000`, src/emu.h) interacts with a staging buffer at `0xA1F40`:
+the plane-0 pass may read a display-page offset that a previous pass already
+overwrote, or the window bound may differ from a real EGA (64 K vs 128 K). Log
+`ega.gc_read_map`/`seq_map_mask` at each plane pass and the exact `si`/`di`
+per pass, and compare the copied length to 8000. Still **emulator-only**.
+
+### RESOLVED (2026-11-12): the plane-0 bug was a dropped zero-byte port write
+
+The double-buffer probe was a *symptom*. Scanning each plane for its best
+base offset in the emulator's plane memory was the giveaway: planes 1–3 matched
+the oracle at base `0x0000` (100%), but plane 0 matched best at base `0x1F40`
+(88%) — i.e. plane 0's data had never been copied into the display page; it still
+held the *source* page. The pass that should have written it had read the wrong
+plane.
+
+Root cause: **`Machine::port_out16` skipped the paired data-port write whenever
+`AH == 0`** (guard `if (v & 0xFF00)`). The blitter sets GC *Read Map Select* to
+**0** on its first pass; that write was dropped, so Read Map Select kept its
+previous value (3) and the pass copied **plane 3** into plane 0. Fix: always
+write the data byte. Verified: all four planes now match `ref/oracle/menu.png`
+at **100.00%** (plane 0 was 80.29%). Golden hashes re-recorded. Recorded in
+`AGENTS.md` ("Fixed bugs — do not regress") and `docs/blockers/A.md` (BLK-A002
+Resolved).
+
+## How to actually reach the town screen (repo owner, 2026-11-11)
+
+The intro ends in the **town's Inn with no party members** — that is the first
+playable screen, not the town menu. The Inn's own menu is
+`(L)ook for new character / (A)dd / (D)ismiss / (O)pen file / (C)ontinue`.
+
+* `O` opens the **load-file menu**, which accepts digits **1-5** (load slot) or
+  `C` (cancel). **Enter does nothing here** — an earlier note's "O then Enter"
+  was wrong: Enter is ignored, so the screen simply stays on the Inn. That is why
+  the `O,Enter` capture looked like a town screen and why the building letters
+  did nothing on it (they are not Inn hot-keys); `C` on it *does* work because
+  `C` = Continue/leave the Inn.
+* **Inn -> town:** press `A` (add a character), `2` (add the 2nd character to the
+  party), `C` (leave the add menu), `C` (leave the Inn). Scancodes
+  `0x1e,0x03,0x2e,0x2e`.
+* **Alternative (loaded save in front of town):** `O`, `2` (load slot 2),
+  `Down` (turn around), `Up` (step into town). Scancodes `0x18,0x03,0x50,0x48`.
+
+Only the real town screen has the building menu
+`(E)mporium (B)ank (I)nn (H)ouse of trades (T)emple (C)ontinue`.
+
+Enemies are **generated on load** (random positions/movement) and are not part of
+the save, so combat encounters are not reproducible from a save alone.

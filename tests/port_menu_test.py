@@ -53,6 +53,17 @@ def main() -> int:
         "%s=%d" % (k, int(diff[y0:y1, x0:x1].sum()))
         for k, (x0, x1, y0, y1) in regions.items())
     if n <= THRESHOLD:
+        # The menu text must be pixel-exact: the port blits the EGA/UP/CHR1
+        # cells directly (6-px advance), and the engine does the same, so any
+        # font-mapping or advance regression shows up here (the top-left
+        # residue above is the engine's dynamic town overlay, not text).
+        for name, (x0, x1, y0, y1) in {
+                "greeting": (139, 300, 90, 108),
+                "options": (139, 300, 112, 180),
+                "continue": (139, 300, 186, 196)}.items():
+            if diff[y0:y1, x0:x1].any():
+                print("port_menu_test: FAIL (%s text not pixel-exact)" % name)
+                return 1
         print("port_menu_test: ok (diff=%d/%d; %s)" % (n, diff.size, detail))
         return 0
     print("port_menu_test: FAIL (diff=%d/%d; %s)" % (n, diff.size, detail))

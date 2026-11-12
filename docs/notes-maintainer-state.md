@@ -5,6 +5,115 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-12 (fifth session) — TL;DR
+
+Environment verified HEALTHY (`./check.sh` → HEALTHY at the end of the session).
+
+- **BLK-A002 RESOLVED — the plane-0 bug was a dropped zero-byte port write.**
+  Root cause: `Machine::port_out16` only drove the paired EGA data port when
+  `AH != 0` (guard `if (v & 0xFF00)`), so a 16-bit `out dx, ax` that set a
+  register to **0** was silently dropped and the register kept its old value.
+  The game's plane blitter cycles GC *Read Map Select* `0,1,2,3` / SEQ *Map
+  Mask* `1,2,4,8` across four passes (`mov al,idx; mov ah,data; out dx,ax`);
+  the **first** pass sets Read Map Select **0**, that write was dropped, so the
+  pass read the still-selected plane 3 and copied it into plane 0. Hence plane 0
+  of *every* frame was wrong while planes 1–3 were perfect.
+  - How it was found: scanning each plane for its best base offset in the
+    emulator's plane memory — planes 1–3 matched the oracle at base `0x0000`
+    (100%), plane 0 matched best at `0x1F40` (88%). The earlier "double buffer"
+    probe (`A1F40`) was a *symptom* of this bug, not a renderer/page bug.
+  - Fix: always write the data byte (a zero data byte is a legitimate value).
+  - Verified against `ref/oracle/menu.png`: **all four planes 100.00%** (plane 0
+    80.29% → 100.00%; overall 80.29% → 100.00%). Golden hashes re-recorded
+    (`tests/golden.txt`). Recorded in `AGENTS.md` (do-not-regress) and
+    `docs/blockers/A.md` (BLK-A002 → Resolved). PR **#98** (merged).
+- **Play-screen check:** the play oracle (`ref/oracle/play.png`) still differs
+  (overall 0.7787, planes 1–3 ~98% not 100%), but that is a **different
+  animation/game-state frame**, not a plane bug — the diff is spread over the
+  dynamic viewport + party region, and the menu oracle (same emulator run, one
+  screen earlier) is byte-exact. Do not chase it as an emulator bug; if it
+  matters, regenerate the play oracle from the same save/animation phase.
+- **Open PRs left as-is (not mine to merge):** #89 (Agent A, `work/agent-a-blockers`)
+  and #91 (Agent B, `work/agent-b-itemuse-static`). Both are DRAFT and both
+  conflict on `docs/BLOCKERS.md`; #91 also carries the disputed item-use offset
+  (see `docs/blockers/B.md` BLK-B003 + the maintainer addendum). They need their
+  owners to rebase/renumber; do not merge them without that.
+
+## Session 2026-11-12 (fourth session) — TL;DR
+
+Environment verified HEALTHY (`./check.sh`: repo, game data, both builds,
+`make test`, oracle goldens, drop-in goldens, clean tree all ok).
+
+- **BLK-A002 reframed — it is an EGA plane-0 (blue) bug, not the palette.**
+  Re-derived the emulator's index image from its own plane dump (`LOF_EDUMP`)
+  and compared to the oracle's index image (oracle RGB inverted through the
+  standard palette; all 64000 oracle pixels invert cleanly): planes **1/2/3 are
+  byte-identical** (100.000%), plane 0 matches **80.29%**, 12616 pixels differ
+  and **every** difference is plane-0-only. So re-palletting the dump can never
+  exceed ~80% (the index image itself is 80.3% right — exactly the figure the
+  previous "standard palette" comparison reported). The wrong palette (ramp
+  `00..07 10..17`) is a **separate cosmetic** issue. Engine blits one plane at a
+  time (`119D:0184` cycles GC Read Map Select + SEQ Map Mask; `119D:0F90` /
+  `119D:1250` `rep movsb` plane 0 under mask `0x01`); prime suspect is the
+  `gc_latch` handling in `src/ega.cpp` `Ega::write`. **Emulator-only** — the
+  drop-in is correct (99.8% vs the oracle); do not change it. PR **#94** (docs
+  only) merged. Detail: `docs/blockers/A.md` BLK-A002 and
+  `docs/notes-maintainer-town.md` ("BLK-A002 CORRECTED").
+- **Next step for BLK-A002:** instrument `gc_latch` around the plane-0
+  `rep movsb` (which write mode is in effect for the `119D:0184` loop) and fix
+  the plane-0 write path; verify against `ref/oracle/menu.png`.
+- No code changed this session (diagnosis + docs only). Two agent drafts remain
+  open and unmerged (#89 needs a rebase/renumber; #91 has the conflated-offset
+  problem noted above).
+
+## Session 2026-11-12 (third session) — TL;DR
+
+Environment verified HEALTHY (`./bootstrap.sh` + `make test`). Picked up the
+in-progress **BLK-B002** (was BLK-005) and closed it.
+
+- **BLK-B002 resolved — the "runtime item-use table" is the static spell table.**
+  A live 1 MB dump of the town path (new `LOF_SEGDUMP` hook) is byte-identical to
+  the raw `LOF.EXE` image at `0x3EF32`: the `es:[idx*0x24+0x2712]` table is the
+  141-record spell table, already transcribed correctly in `port/char_spells.inc`.
+  No live-engine dump was ever needed. Full evidence:
+  `docs/notes-maintainer-itemuse.md`. PR **#93** (merged).
+- **BLK-B003 opened (Agent B).** `port/char_itemuse.inc` / `tools/spec.py
+  emit_itemuse` extract from *file* `0x42712` = image `0x3D222` = `ds:0xa02`,
+  which **no instruction references**; `item_use_flags()`/`item_is_usable()` are
+  therefore built on bytes the engine never reads. Item state comes from the
+  32-byte item record (`es:[bx + 0xfda]`, `shl bx,5`).
+- New emulator hook `LOF_SEGDUMP=<file>,<seg>:<off>:<len>` (dump any linear
+  range) and `ds=`/`ss=` added to the `LOF_DEBUG` line; documented in `AGENTS.md`.
+- Note: `check.sh` is slow here (~11 golden scenarios, some 1600 frames) and can
+  exceed a 10-minute command timeout; `make test` + the `boot` golden hash are
+  the fast checks.
+- **Two open PRs reviewed (not merged — they need fixes):**
+  - **#91** (Agent B, `work/agent-b-itemuse-static`): also claims BLK-B002 but
+    with a **conflated offset** — it treats "image `0x42712`" as "ds `0x2712`".
+    The MZ header is `0x54F0`, so image `0x42712` is really `ds:0x0A02`, and the
+    `es:[bx*0x24+0x2712]` read lands on the **spell** table. Its relocation
+    analysis is real but for image `0x3D222`. Left a review comment asking it to
+    retarget; detail in `docs/notes-maintainer-itemuse.md` (addendum).
+  - **#89** (Agent A, `work/agent-a-blockers`): adds its own `BLK-006`/`BLK-007`,
+    which collided with `main`'s `BLK-006` under the old single-counter scheme.
+    **Resolved structurally** this session: the registry is now split one file
+    per lane with lane-lettered IDs (`docs/blockers/{A,B,M}.md`), so no two lanes
+    can collide. Left a comment on #89 to rebase and renumber its entries to the
+    lane scheme (`BLK-A...`).
+
+## Session 2026-11-11 (second session) — TL;DR
+
+Environment verified HEALTHY (`./check.sh`). No open PRs at start. This session:
+
+- Diagnosed BLK-A002 (was BLK-002): the **emulator's whole play-loop palette is the wrong
+  ramp** (see item 2 below and `docs/BLOCKERS.md`). The drop-in is already
+  correct; do not change it. PR #90 (docs only).
+- Corrected the palette item in this handover (it carried the superseded
+  "dungeon viewport RGB" framing).
+- Slot-2 load remains genuinely slow (a full `--dir game` play run exceeds
+  several minutes); `--frames 100` is ~18 s. Use `LOF_NO_TIMER=1` and small
+  frame counts for triage.
+
 ## TL;DR — what changed this session
 
 The previous maintainer's work was **unlanded**: 48 commits on
@@ -90,21 +199,36 @@ Pick a workstream from `docs/WORKSTREAMS.md`. The highest-value open items:
    oracle` scores a composite against `ref/oracle/dungeon_slot1*.png`. The
    spawn view is `DP001` (0.952); the *moved* view matches no single sprite
    (best 0.576), confirming a composite. See `docs/notes-a.md`.
-2. **Dungeon viewport palette (workstream A).** The emulator draws the temple in
-   **colour** while the oracle is in **greys**; shape matches 99.6% but the RGB
-   does not. The maintainer traced this to the EGA attribute/palette path (how
-   plane bits map to attribute indices at render time), **not** a missing sprite.
-   Re-record the oracle with the exact capture sequence before treating 100% RGB
-   as the bar — the frame is a live animation (58% raw match at frame 1500, 66%
-   at 2500).
-3. **Font glyph transform (open, documented in `AGENTS.md`).** The engine's
-   menu/town/panel glyphs are a *bold, double-struck* form with no exact match in
-   `CHR1`/`CHR2`; the drop-in approximates with the `CHR1` cells. Next step:
-   disassemble the glyph-blit routine that reads the `4130:` buffer.
-4. **Combat / shop / item-use oracle path (workstream B blocker).** B has
-   grounded everything reachable statically; the last runtime tables need a
-   scripted path into a combat encounter / shop / item-use screen
-   (`--keys`/`LOF_KEYAT`). See `docs/notes-b.md` "Blockers".
+2. **Emulator play-loop plane 0 (workstream A / BLK-A002).** *Reframed
+   2026-11-12; the "palette" framing was a red herring.* The emulator's frame at
+   the menu, play and temple differs from the DOSBox oracle **only in EGA plane 0
+   (blue)**: comparing the emulator's own index image (`LOF_EDUMP`) to the
+   oracle's index image (oracle RGB inverted through the standard palette), planes
+   **1/2/3 are byte-identical** and plane 0 matches 80.29% — 12616 differing
+   pixels, every one plane-0-only. The emulator *also* ends up with the wrong
+   attribute palette (ramp `00..07 10..17`), but that is a **separate cosmetic**
+   issue: re-palletting the dump cannot exceed ~80%, because the index image
+   itself is only 80.3% right (that is exactly the "standard palette" figure the
+   old note reported, so the old "only the palette is wrong" conclusion was
+   wrong). The engine blits one plane at a time (`119D:0184` cycles GC Read Map
+   Select + SEQ Map Mask; `119D:0F90`/`119D:1250` `rep movsb` plane 0 under mask
+   `0x01`), so the bug is in the plane-0 write path — prime suspect the
+   `gc_latch` handling in `src/ega.cpp` `Ega::write` (write modes 1/2 take the
+   value from the latches). **Emulator-only:** the drop-in (`port/gfx.cpp`) is
+   correct (99.8% vs the oracle) — do not change it. Full evidence:
+   `docs/blockers/A.md` BLK-A002 and `docs/notes-maintainer-town.md`
+   ("BLK-A002 CORRECTED").
+3. **Font glyphs (resolved — `BLK-M001`).** The engine blits `CHR1`/`CHR2`
+   cells directly (no bold/double-struck transform); the port already does, and
+   its menu text is pixel-exact. The "bold, double-struck" note was an artefact
+   of the wrong-palette era. See `docs/blockers/M.md` and `AGENTS.md`.
+4. **Combat / shop / item-use (workstream B).** *Updated 2026-11-12.* The
+   "runtime item-use table" is settled — it is the **static spell table**, already
+   transcribed (BLK-B002, resolved; PR #93). What remains for B is **BLK-B003**:
+   `port/char_itemuse.inc` is mis-sourced (image `0x3D222`, unreferenced) and
+   must be re-derived from the item record or dropped. Shop stock/prices still
+   want a scripted shop scenario (`--keys`/`LOF_KEYAT`). See `docs/notes-b.md`
+   "Blockers" and `docs/notes-maintainer-itemuse.md`.
 
 ## Hygiene
 
