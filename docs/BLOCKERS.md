@@ -191,6 +191,19 @@ matched. Unblock by recording that with `tools/capture_dosbox.sh` and dropping i
 in `ref/oracle/`; then the composite rule can be decoded from
 `port/dungeon.{h,cpp}`. Detail: `docs/notes-a.md`.
 
+**Log.** 2026-11-08 Agent A — decoded the composite *structure* without needing a
+new capture, by re-running the greedy composite over the maintainer's **existing**
+`ref/oracle/dungeon_slot1.png`: it reduces to `DP001` plus the small side pieces
+`DP042/044/051/056/022` at fixed offsets (ink IoU **0.974**), and the *emulator*
+frame for the same cell gives the **identical** pieces/offsets — so emulator and
+real DOSBox agree on the rule `view = full base + side pieces in the horizon band
+(window y ~40..60)`.  The base is map-driven (Temple spawn `DP001`; every other
+patched position/facing gives the all-walls `DP036`; the wilderness save's window
+matches `DP036/DP014` in `D0` at IoU 1.000).  The moved oracle still reduces less
+cleanly (`DP037` + pieces, 0.752), so the only open item is the exact piece
+*selection* — which needs the position->view mapping (Round 20) or BLK-007.
+Detail: `docs/notes-a.md` Rounds 18–20.
+
 ## BLK-007 — Reaching a dungeon in the emulator requires the maintainer's scripted key sequence
 
 - **Blocked lane:** A (dungeons) — also blocks B via BLK-004

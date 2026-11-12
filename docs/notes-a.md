@@ -1084,3 +1084,25 @@ The maintainer's *moved* oracle frame reduces less cleanly (IoU 0.752; base
 `DP037` + pieces), so a second (position) ground truth would help pin the exact
 piece *selection*, but the base+side-piece *structure* is now confirmed on real
 hardware.
+
+### Round 20 — the save's party-position field (0x9a0) and view ground truth
+
+`0x9a0..0x9a1` is a 16-bit little-endian field that differs between the two
+shipped saves: GAME1 (Temple) = **125**, GAME2 (wilderness) = **745** (facing 2
+and 0 respectively).  Patching it and re-running the golden recipe changes the
+rendered viewport, so it is the party's position (a linear cell index candidate;
+125 = 17 + 3*36, 745 = 25 + 20*36 for a 36-wide grid).
+
+**Confirmed the view is map-driven, not a facing table.**  For the Temple, only
+the save's *exact* value (125) gives the corridor view `DP001`; every other tested
+value (124, 126, 89, 161, 468, 900, 1205) gives the all-walls view `DP036`.  For
+the wilderness save the window matches `DP036`/`DP014` at IoU **1.000** in
+`EGA/D0`, confirming the maintainer's ones-digit view-dir rule (DNG10 -> `D0`)
+end-to-end.  So the base sprite is chosen from the local wall structure ahead,
+exactly as BLK-001/BLK-006 describe.
+
+**Ground-truth mechanism (partial).**  Patching `0x9a0` *does* move the party for
+the emulator, so position ground truth is reachable without keys — but the
+value->cell mapping is not yet pinned (only the exact original value reproduces
+the corridor), so it is not yet a turnkey sweep.  The maintainer's `INT 21h AH=07`
+fix (BLK-007) or the position mapping would make it one.
