@@ -563,6 +563,49 @@ the decompilation; verify against a fresh DOSBox capture of the menu and the
 temple (`tools/capture_dosbox.sh` — needs `dosbox`, not installed here). Do not
 "fix" the drop-in: it is already correct.
 
+## BLK-A002 CORRECTED: it is plane 0, not the palette (2026-11-12)
+
+The "wrong ramp" above is real (the emulator *does* end up with
+`attr_pal[n]=0x10+n`), but it is **not** the reason the emulator's frame differs
+from the DOSBox oracle. I re-derived the emulator's **index image** from its own
+plane dump (`LOF_EDUMP`) and compared it to the oracle's index image (oracle RGB
+inverted through the standard palette; all 64000 oracle pixels map cleanly):
+
+* Planes **1, 2 and 3 are byte-identical** to the oracle (100.000%).
+* Only **plane 0 (blue)** differs: 80.29% match, 12616 differing pixels, and
+  **every** difference is plane 0 only (`idx_emu ^ idx_oracle == 0x1` for all of
+  them — verified).
+
+So the emulator's *pixel data* is wrong in the low bit-plane; the palette merely
+maps that wrong index through a different LUT. Re-palletting the emulator's
+dump therefore can never exceed ~80% (the index image is only 80.3% right), and
+that ~80.3% is exactly the "standard palette" figure above — the earlier
+conclusion "standard palette correct, only the emulator palette is wrong" was
+**wrong**: the standard palette was hiding a plane-0 data bug, not fixing a LUT.
+
+**What the engine does (decompiled).** The game blits the framebuffer
+**one plane at a time**: the routine at `119D:0184` cycles the
+Graphics-Controller *Read Map Select* (`0x3CE <- 4, ah=cs:[0x17a+idx]`) and the
+Sequencer *Map Mask* (`0x3C4 <- 2, ah=cs:[0x17e+idx]`), with the runtime table
+`cs:[0x17a] = 00 01 02 03 | 01 02 04 08` and `cs:[0x182]` the plane counter
+`0..3`. The copy loops (`119D:0F90`, `119D:1250` via `119D:1295`) `rep movsb`
+plane 0, call `0x184` to advance, and repeat for all four planes. So the plane-0
+data comes from a `rep movsb` under map-mask `0x01`.
+
+**Prime suspect.** With map-mask `0x01` only plane 0 is written, but the
+emulator's `Ega::write` (src/ega.cpp) computes `val` from `gc_latch[p]` in write
+modes 1/2; a stale/incorrect latch on plane 0 (or a missing `latch` refresh on
+the read that precedes the copy) would corrupt exactly plane 0. Plane 0 is the
+lowest index bit, so the whole play loop renders one bit wrong — consistent with
+the owner's "Temple is greyscale on load but shows green specs when moving".
+
+**Next step.** Trace `gc_latch` around the plane-0 `rep movsb` (write mode in
+effect for the `0x184` loop) and fix the plane-0 write path in `src/ega.cpp`.
+This is an **emulator-only** defect: the drop-in (`port/gfx.cpp`) renders the
+planes correctly and already matches the oracle at 99.8%, so **do not touch the
+drop-in**. Verify any fix against `ref/oracle/menu.png` (expect plane-0 and thus
+overall match to jump from ~80% toward 100%).
+
 ## How to actually reach the town screen (repo owner, 2026-11-11)
 
 The intro ends in the **town's Inn with no party members** — that is the first

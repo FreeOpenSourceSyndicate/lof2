@@ -33,7 +33,7 @@ the *moved* view matches no single sprite (best 0.576), which confirms the
 composite. Unblock by decoding the per-cell sprite selection/placement and
 rendering it in `port/dungeon.{h,cpp}`. Detail: `docs/notes-a.md`.
 
-## BLK-A002 — The emulator's whole play-loop palette is wrong (ramp, not the standard EGA set)
+## BLK-A002 — The emulator renders plane 0 (blue) wrong across the play loop
 
 - **Blocked lane:** A (dungeons)
 - **Responsible:** Maintainer
@@ -41,32 +41,47 @@ rendering it in `port/dungeon.{h,cpp}`. Detail: `docs/notes-a.md`.
 - **Status:** In progress
 - **Dependencies:** —
 
-**Description & unblock action.** The emulator renders the *entire* play loop in
-the wrong palette — not just the dungeon. At the menu, the play screen and the
-temple, the emulator's final attribute palette is the **ramp**
-`00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17` (measured with
-`LOF_DEBUG=1 LOF_VDBG=1 LOF_PAL2=1`), which turns brown into yellow, blue into
-cyan, dark-grey into dark-green, etc. Re-rendering the emulator's own plane dump
-with the **standard EGA palette** (`00 01 02 03 04 05 06 07 38 39 3A 3B 3C 3D 3E
-3F`) lifts the match against the oracle on all three screens:
+**Description & unblock action.** *Reframed 2026-11-12 (the earlier "palette"
+framing was a red herring).* The emulator's frame at the menu, play and temple
+differs from the DOSBox oracle **only in EGA plane 0 (blue)**. Comparing the
+emulator's own index image (`LOF_EDUMP`, planes decoded to attribute indices)
+against the oracle's index image (oracle RGB inverted through the standard
+palette; all 64000 oracle pixels invert cleanly):
 
-| screen | ramp (emulator) | standard |
-|--------|-----------------|----------|
-| menu   | 59.2% | **80.3%** |
-| play   | 57.7% | **77.9%** |
-| temple | 58.3% | **75.1%** |
+- planes **1, 2, 3 are byte-identical** to the oracle (100.000%);
+- plane 0 matches **80.29%**; 12616 pixels differ and **every** difference is
+  plane 0 only (`idx_emu ^ idx_oracle == 0x1` for all of them).
 
-The **drop-in** (`port/`) already uses the standard palette and matches
-`ref/oracle/menu.png` at **99.8%** (`tests/port_menu_test.py`), so the standard
-set is the correct one and only the emulator is wrong. Cause: the game programs
-the palette via `INT 10h AH=10h AL=02h` from tables in the loaded data segment
-(`4130:4834` fade tables, `4130:47DF` ramp; `cs:ip=119D:0D04` then `119D:0C78`).
-The emulator stores the table bytes verbatim as attribute selectors, so the ramp
-table yields `attr_pal[n] = 0x10+n` (dark-green…white) instead of the standard
-`0x38..0x3F` high half. Unblock by determining the palette the engine actually
-intends (the source tables do not contain the standard set, so the engine
-translates them or writes `0x3C0` directly) and reproducing it in `src/ega.cpp`
-/ the `INT 10h` handler. **Ground truth (repo owner, in-game):** the Temple is
-greyscale right after loading (matches the standard palette's grey indices
-0/7/8/15); colour appears only when moving (green specs on near walls). Detail:
-`docs/BLOCKED-agent-a.md`, `docs/notes-maintainer-town.md`.
+The emulator *also* ends up with the wrong attribute palette (ramp
+`00..07 10..17` rather than the standard EGA set), but that is a **separate**
+cosmetic issue: re-palletting the dump cannot exceed ~80% because the index
+image itself is only 80.3% right, and that 80.3% is exactly the figure the
+"standard palette" comparison reported. So the earlier conclusion ("standard
+palette correct, only the emulator palette wrong") was wrong — the standard
+palette was hiding a plane-0 *data* bug.
+
+**What the engine does.** The game blits the framebuffer one plane at a time:
+`119D:0184` cycles Graphics-Controller *Read Map Select* (`0x3CE <- 4`,
+`ah=cs:[0x17a+idx]`) and Sequencer *Map Mask* (`0x3C4 <- 2`,
+`ah=cs:[0x17e+idx]`), runtime table `cs:[0x17a] = 00 01 02 03 | 01 02 04 08`,
+plane counter `cs:[0x182]`. The copy loops (`119D:0F90`, `119D:1250` via
+`119D:1295`) `rep movsb` plane 0 under map-mask `0x01`, then advance.
+
+**Unblock.** Trace `gc_latch` (src/ega.cpp `Ega::write`) around the plane-0
+`rep movsb` — write modes 1/2 take their value from the latches, so a stale
+plane-0 latch (or a missing latch refresh on the read before the copy) corrupts
+exactly plane 0. Fix the plane-0 write path; verify against
+`ref/oracle/menu.png` (expect plane-0, and thus overall, match to approach
+100%). **Emulator-only:** the drop-in (`port/gfx.cpp`) renders the planes
+correctly (matches the oracle at 99.8%), so do not change it. Detail:
+`docs/notes-maintainer-town.md` ("BLK-A002 CORRECTED").
+
+## BLK-A002 (superseded framing) — emulator play-loop palette was thought wrong
+
+The emulator's final attribute palette at the menu, play and temple is the
+**ramp** `00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17` (measured with
+`LOF_DEBUG=1 LOF_VDBG=1 LOF_PAL2=1`). It is programmed via `INT 10h AH=10h
+AL=02h` from tables in the loaded data segment (`4130:4834` fade tables,
+`4130:47DF` ramp; called from `cs:ip=119D:0D04` then `119D:0C78`). This is real
+but is a *second*, cosmetic defect; the substantive defect is the plane-0 data
+bug above. Detail: `docs/BLOCKED-agent-a.md`, `docs/notes-maintainer-town.md`.

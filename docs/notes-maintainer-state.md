@@ -138,24 +138,25 @@ Pick a workstream from `docs/WORKSTREAMS.md`. The highest-value open items:
    oracle` scores a composite against `ref/oracle/dungeon_slot1*.png`. The
    spawn view is `DP001` (0.952); the *moved* view matches no single sprite
    (best 0.576), confirming a composite. See `docs/notes-a.md`.
-2. **Emulator play-loop palette (workstream A / BLK-A002).** *Corrected
-   2026-11-11.* The emulator's final attribute palette at the menu, play and
-   temple screens is the **ramp** `00..07 10..17`, not the standard EGA set, so
-   brown renders yellow, blue renders cyan and dark-grey renders dark-green —
-   the whole play loop, not just the dungeon. Re-rendering the emulator's own
-   plane dump with the standard palette matches the oracle far better
-   (menu 80% vs 59%, play 78% vs 58%, temple 75% vs 58%), and the drop-in
-   (already standard) matches `ref/oracle/menu.png` at 99.8%. So the standard
-   palette is correct and only the emulator is wrong. The game programs the
-   palette via `INT 10h AH=10h AL=02h` from `4130:4834`/`4130:47DF` (the ramp
-   table is the literal bytes at EXE `0x7012`); the standard set is nowhere in
-   the EXEs and the emulator traces zero direct `0x3C0` writes, so the engine
-   must transform the table — that transform is the thing to recover. Ground
-   truth (repo owner, in-game): the Temple is **greyscale right after loading**
-   (standard palette grey indices 0/7/8/15), and colour appears only when moving
-   (small green specs on near walls). Full evidence: `docs/blockers/A.md` BLK-A002
-   and `docs/notes-maintainer-town.md`. **Do not change the drop-in** — it is
-   correct.
+2. **Emulator play-loop plane 0 (workstream A / BLK-A002).** *Reframed
+   2026-11-12; the "palette" framing was a red herring.* The emulator's frame at
+   the menu, play and temple differs from the DOSBox oracle **only in EGA plane 0
+   (blue)**: comparing the emulator's own index image (`LOF_EDUMP`) to the
+   oracle's index image (oracle RGB inverted through the standard palette), planes
+   **1/2/3 are byte-identical** and plane 0 matches 80.29% — 12616 differing
+   pixels, every one plane-0-only. The emulator *also* ends up with the wrong
+   attribute palette (ramp `00..07 10..17`), but that is a **separate cosmetic**
+   issue: re-palletting the dump cannot exceed ~80%, because the index image
+   itself is only 80.3% right (that is exactly the "standard palette" figure the
+   old note reported, so the old "only the palette is wrong" conclusion was
+   wrong). The engine blits one plane at a time (`119D:0184` cycles GC Read Map
+   Select + SEQ Map Mask; `119D:0F90`/`119D:1250` `rep movsb` plane 0 under mask
+   `0x01`), so the bug is in the plane-0 write path — prime suspect the
+   `gc_latch` handling in `src/ega.cpp` `Ega::write` (write modes 1/2 take the
+   value from the latches). **Emulator-only:** the drop-in (`port/gfx.cpp`) is
+   correct (99.8% vs the oracle) — do not change it. Full evidence:
+   `docs/blockers/A.md` BLK-A002 and `docs/notes-maintainer-town.md`
+   ("BLK-A002 CORRECTED").
 3. **Font glyphs (resolved — `BLK-M001`).** The engine blits `CHR1`/`CHR2`
    cells directly (no bold/double-struck transform); the port already does, and
    its menu text is pixel-exact. The "bold, double-struck" note was an artefact
