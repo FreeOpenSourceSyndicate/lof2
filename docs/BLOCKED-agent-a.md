@@ -1,30 +1,32 @@
 # BLOCKED — workstream A (dungeons): first-person viewport needs an oracle frame
 
 Owner: Agent A.  Branch: `work/agent-a`.  Status: **LARGELY UNBLOCKED — the
-base-sprite rule is decoded (Round 24); the remaining gap is the exact
-tile-bitmask → DPnnn rule and the procedural overlay.**
+base-sprite rule is fully decoded (Round 26); the remaining gap is the corridor
+multi-piece composite (BLK-A003) and the procedural overlay.**
 
-## Round 24 update (2026-11-08) — the base-sprite rule is a tile-code table
+## Round 26 update (2026-11-08) — the base-sprite rule is a low-nibble table
 
-The earlier report below said the base-sprite rule was unknowable without more
-oracles.  It is not: the rule is a **tile-code → DPnnn table** keyed on the tile
-code of the cell **directly ahead** of the party.  Method (no new oracle needed):
-patch DNG05's RLE tile layer, run the analysis emulator with `LOF_EDUMP=`, and
-compare the 120x119 window to every `EGA/D5/DP*` sprite by pixel IoU.  Full
-table in `docs/notes-a.md` Round 24.  Highlights: 4/20/36/52 → DP058 (IoU
-1.000), 5/21 → DP059 (1.000), 6/13 → DP060 (1.000), 10 → DP014 (0.997), wall /
-off-map / unknown → DP001 (0.922).  Side and depth-≥2 cells are provably
-irrelevant (patched dumps are byte-identical).  Implemented as
-`dungeon_base_view_index` + `dungeon_ahead_cell` + `render_dungeon_play` in
-`port/dungeon.{h,cpp}` and pinned by `test_base_view`.
+The base view sprite is selected by the **low nibble** of the tile code of the
+cell **directly ahead** of the party; the high nibble (an object/feature class)
+is ignored.  Method (no new oracle needed): patch DNG05's RLE tile layer with
+`tools/dngs.py patch`, run the analysis emulator with `LOF_EDUMP=`, and compare
+the 120x119 window to every `EGA/D5/DP*` sprite by pixel IoU.  Swept every tile
+code that occurs in `DNGS/` (26 distinct); seven high-nibble variants each of
+nibble 4 and 5 give byte-identical windows.  Full table in `docs/notes-a.md`
+Round 26.  Highlights: `0x4` → DP058 (IoU 1.000), `0x5` → DP059 (1.000),
+`0x6`/`0xd` → DP060 (1.000), `0xa` → DP014 (0.997); the corridor/opening
+nibbles `0x0/0x1/0x2/0x3/0x7/0x8/0x9/0xb/0xc` fall back to the wall view DP001
+(0.922).  Implemented as `dungeon_base_view_index` (returns `tile & 0x0f`) +
+`dungeon_ahead_cell` + `render_dungeon_play` in `port/dungeon.{h,cpp}` and
+pinned by `test_base_view`.
 
-Still open (tracked as BLK-001/BLK-006): the exact bitmask → DPnnn rule (the
-tile code looks like `(param << 4) | structure`; codes 2/7/8 are the
-"corridor straight ahead, no side wall" case whose view the engine *composites*
-from a 64x59 piece `DP037` centred plus smaller side pieces) and the residual
-procedural overlay.  The emulator now renders the viewport (maintainer fix), so
-further sweeps are possible; the sandbox copies fail the disk check, so sweeps
-must run against `game/` sequentially.
+Still open (tracked as BLK-A003): the corridor/opening view the engine
+*composites* from a 64x59 wall-at-depth-2 piece `DP037` centred plus smaller
+side pieces (greedy fixed-offset decomposition of the corridor window reaches
+only IoU 0.571, so the pieces are placed by a perspective rule, not fixed
+offsets), and the residual procedural overlay.  The emulator now renders the
+viewport (maintainer fix), so further sweeps are possible; they can run in
+parallel by copying the tree and passing each copy to `--dir`.
 
 The original report is kept below for the record.
 
