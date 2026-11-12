@@ -240,6 +240,29 @@ std::string dungeon_view_dir(int dungeon) {
     return "D" + std::to_string(dungeon % 10);
 }
 
+bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax,
+                        int& ay) {
+    int x = p.x + dungeon_facing_dx(p.facing);
+    int y = p.y + dungeon_facing_dy(p.facing);
+    if (x < 0 || y < 0 || x >= kDungeonW || y >= kDungeonH) return false;
+    ax = x;
+    ay = y;
+    return true;
+}
+
+int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p) {
+    int x, y;
+    if (!dungeon_ahead_cell(d, p, x, y)) return 1;   // off-map -> wall ahead
+    switch (d.tile(x, y)) {
+        case 0x04: case 0x14: case 0x24: case 0x34: return 58;
+        case 0x05: case 0x15: return 59;
+        case 0x06: case 0x0d: return 60;
+        case 0x0a: return 14;
+        case 0x02: case 0x07: case 0x08: return 37;
+        default: return 1;
+    }
+}
+
 std::string dungeon_view_path(const std::string& dir, int dungeon, int index) {
     char buf[32];
     std::snprintf(buf, sizeof(buf), "/EGA/%s/DP%03d",
@@ -263,6 +286,12 @@ bool render_dungeon_screen(Screen& scr, const std::string& dir, int dungeon,
     blit_image(scr, frame, 0, 0);
     return render_dungeon_view(scr, dungeon_view_path(dir, dungeon, index),
                                kViewportX, kViewportY);
+}
+
+bool render_dungeon_play(Screen& scr, const std::string& dir, int dungeon,
+                         const Dungeon& d, const DungeonPos& p) {
+    return render_dungeon_screen(scr, dir, dungeon,
+                                 dungeon_base_view_index(d, p));
 }
 
 // Colour indices of the synthetic fallback viewport.  The oracle's window uses

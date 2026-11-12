@@ -499,6 +499,69 @@ static void test_dungeon_screen(const std::string& dir) {
     std::printf("dungeon_test: dungeon screen composite verified\n");
 }
 
+// The base first-person view is selected by the tile code of the cell directly
+// ahead (see dungeon_base_view_index / docs/notes-a.md Round 24).  Synthetic
+// cases pin the measured map; the real DNG05 entry cell pins the two regimes the
+// oracle confirms (wall ahead -> DP001, corridor ahead -> DP037).
+static void test_base_view(const std::string& dir) {
+    Dungeon d;
+    d.tiles.assign(kDungeonTiles, 6);
+    d.objects.assign(kDungeonTiles, 0);
+    DungeonPos p{5, 5, 0};                 // facing N -> ahead is (5,4)
+
+    int ax = -1, ay = -1;
+    assert(dungeon_ahead_cell(d, p, ax, ay) && ax == 5 && ay == 4);
+    p.facing = 1;                          // E -> (6,5)
+    assert(dungeon_ahead_cell(d, p, ax, ay) && ax == 6 && ay == 5);
+    p.x = 5; p.facing = 3;                 // W -> (4,5)
+    assert(dungeon_ahead_cell(d, p, ax, ay) && ax == 4 && ay == 5);
+    p.x = 0;                               // W off-map
+    assert(!dungeon_ahead_cell(d, p, ax, ay));
+
+    // Measured tile-code -> base view map (D5 Temple tileset).
+    p = DungeonPos{5, 5, 0};
+    d.tiles[4 * kDungeonW + 5] = 4;  assert(dungeon_base_view_index(d, p) == 58);
+    d.tiles[4 * kDungeonW + 5] = 20; assert(dungeon_base_view_index(d, p) == 58);
+    d.tiles[4 * kDungeonW + 5] = 36; assert(dungeon_base_view_index(d, p) == 58);
+    d.tiles[4 * kDungeonW + 5] = 5;  assert(dungeon_base_view_index(d, p) == 59);
+    d.tiles[4 * kDungeonW + 5] = 21; assert(dungeon_base_view_index(d, p) == 59);
+    d.tiles[4 * kDungeonW + 5] = 6;  assert(dungeon_base_view_index(d, p) == 60);
+    d.tiles[4 * kDungeonW + 5] = 13; assert(dungeon_base_view_index(d, p) == 60);
+    d.tiles[4 * kDungeonW + 5] = 10; assert(dungeon_base_view_index(d, p) == 14);
+    d.tiles[4 * kDungeonW + 5] = 2;  assert(dungeon_base_view_index(d, p) == 37);
+    d.tiles[4 * kDungeonW + 5] = 7;  assert(dungeon_base_view_index(d, p) == 37);
+    d.tiles[4 * kDungeonW + 5] = 8;  assert(dungeon_base_view_index(d, p) == 37);
+    d.tiles[4 * kDungeonW + 5] = 3;  assert(dungeon_base_view_index(d, p) == 1);
+    d.tiles[4 * kDungeonW + 5] = 12; assert(dungeon_base_view_index(d, p) == 1);
+    d.tiles[4 * kDungeonW + 5] = 0;  assert(dungeon_base_view_index(d, p) == 1);
+    // Off-map ahead always falls back to the wall view.
+    p = DungeonPos{5, 0, 0};
+    assert(dungeon_base_view_index(d, p) == 1);
+
+    // Real DNG05: entry (17,3) facing 2 (S) -> ahead (17,4) is tile 3 -> wall;
+    // turned to face N the ahead cell (17,2) is tile 7 -> the corridor composite.
+    Dungeon r;
+    if (load_dungeon(dir + "/DNG05", r)) {
+        DungeonPos e; dungeon_place_entry(r, e);
+        assert(e.x == 17 && e.y == 3 && e.facing == 2);
+        assert(r.tile(17, 4) == 3 && dungeon_base_view_index(r, e) == 1);
+        e.facing = 0;
+        assert(r.tile(17, 2) == 7 && dungeon_base_view_index(r, e) == 37);
+        std::printf("dungeon_test: base-view selection verified (entry wall, "
+                    "corridor composite)\n");
+    }
+
+    // render_dungeon_play picks the same sprite render_dungeon_screen would.
+    std::string root = dir + "/..";
+    Screen a, b; a.resize(320, 200); a.clear(9); b.resize(320, 200); b.clear(9);
+    DungeonPos q{5, 5, 0};
+    d.tiles[4 * kDungeonW + 5] = 6;
+    if (render_dungeon_play(a, root, 5, d, q)) {
+        assert(render_dungeon_screen(b, root, 5, 60));
+        assert(a.pixels == b.pixels);
+    }
+}
+
 static void test_walk() {
     Dungeon d;
     d.tiles.assign(kDungeonTiles, 6);
@@ -691,6 +754,7 @@ int main(int argc, char** argv) {
     test_walk_real(dir);
     test_view_themes(dir);
     test_dungeon_screen(dir);
+    test_base_view(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }

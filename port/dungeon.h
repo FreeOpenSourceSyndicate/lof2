@@ -197,6 +197,35 @@ std::string dungeon_view_path(const std::string& dir, int dungeon, int index = 1
 // The view directory name for a map id: `D<ones-digit>` (see dungeon_view_path).
 std::string dungeon_view_dir(int dungeon);
 
+// The cell directly ahead of the party (one step in the facing direction).
+// Returns false (leaving *ax,*ay untouched) if that cell is off-map.
+bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax, int& ay);
+
+// The DPnnn index of the first-person *base* view sprite the engine blits for
+// the party at `p`.  PARTIAL DECODE — see docs/notes-a.md Round 24.
+//
+// Ground truth: patch DNG05's RLE tile layer, run the analysis emulator and dump
+// the EGA planes (`LOF_EDUMP=`), then compare the 120x119 view window to every
+// `EGA/D5/DP*` sprite.  This shows the base view is chosen by the **tile code of
+// the cell directly ahead**: the cells to the sides and at depth >= 2 do not
+// change it (patched and re-dumped: identical), and the low nibble of the ahead
+// code selects the sprite for several codes at once (4/20/36/52 -> DP058,
+// 5/21 -> DP059).  Measured map for the D5 (Temple) tileset:
+//
+//   0x04,0x14,0x24,0x34  -> 58   side passage
+//   0x05,0x15            -> 59   side passage variant
+//   0x06,0x0d            -> 60   open room
+//   0x0a                 -> 14   doorway
+//   0x02,0x07,0x08       -> 37   corridor: no single full-size sprite; the view
+//                                is a composite of a 64x59 wall-at-depth-2 piece
+//                                (DP037) centred plus smaller side pieces
+//   anything else        -> 1    wall directly ahead (DP001, 0.92 of the frame)
+//
+// The full rule (the tile code looks like a wall mask whose bits encode which
+// sides are walls) is not yet pinned, so unknown codes fall back to the wall
+// view.  `index` 0 is never returned: DP000 does not exist on disk.
+int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p);
+
 // Convenience: blit the dungeon's canonical view sprite (DP001) at (10,11).
 // This is the base first-person view the engine shows on entry; it is verified
 // for dungeon 5 (the slot-1 Temple oracle) and structurally valid for all
@@ -212,6 +241,13 @@ bool render_dungeon_default_view(Screen& scr, const std::string& dir,
 // or sprite cannot be loaded.
 bool render_dungeon_screen(Screen& scr, const std::string& dir, int dungeon,
                            int index = 1);
+
+// Compose the play screen and blit the base view selected for the party's
+// current position (dungeon_base_view_index).  This is the drop-in's walkable
+// first-person view: as the party moves/turns the view changes with the tile
+// code of the cell ahead.  Returns false if the frame or sprite is missing.
+bool render_dungeon_play(Screen& scr, const std::string& dir, int dungeon,
+                         const Dungeon& d, const DungeonPos& p);
 
 // Synthetic *fallback* for a level with no pre-rendered view sprite (and useful
 // as an automap-style aid): ray-cast the 36x36 tile grid along the party facing

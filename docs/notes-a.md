@@ -1250,3 +1250,48 @@ confirmed: "wall ahead" → `DP001`, "open ahead" → `DP060`/`DP014`).  Pinning
 needs a **position** sweep, which needs the maintainer's input fix (BLK-007) —
 the emulator does not consume patched position bytes, so I cannot place the party
 at arbitrary cells to sweep the view without keys.
+
+## Round 24 — base-view selection: the ahead-cell tile code (BLK-001)
+
+Round 23 said the base view is "not a facing→sprite table".  It *is* a
+**tile-code → sprite table**, keyed on the tile code of the cell **directly
+ahead** of the party.  Method: patch DNG05's RLE tile layer
+(`/tmp/tilepatch.py`, verified to change exactly the intended decoded cell),
+run the analysis emulator with `LOF_EDUMP=`, and compare the 120x119 window at
+(10,11) to every `EGA/D5/DP*` sprite by pixel IoU.
+
+Measured map (D5 = Temple tileset; `ahead` = the single cell one step in the
+facing direction):
+
+| ahead tile | view ink | match |
+|------------|----------|-------|
+| 3, 12, 0, off-map | 9404 | `DP001` (0.922) — wall ahead |
+| 4, 20, 36, 52 | 13199 | `DP058` (**1.000**) |
+| 5, 21 | 12992 | `DP059` (**1.000**) |
+| 6, 13 | 14280 | `DP060` (**1.000**) |
+| 10 | 13072 | `DP014` (0.997) — doorway |
+| 2, 7, 8 | 4941 | no single sprite; composite (`DP037` + pieces, IoU 0.75) |
+| 9, 11, 14..19 | 9404 | `DP001` |
+| 22, 26, 366 (nibbles 6/A/E/F on the *floor* code) | 9404 | `DP001` |
+
+Two independent confirmations that the *ahead* cell is the key, not a
+neighbourhood:
+
+* Patches to the left/right and depth ≥2 cells leave the dump **byte-identical**
+  (`md5` equal), so they do not enter the selection.
+* The low nibble groups several codes: 4/20/36/52 all give `DP058`, 5/21 give
+  `DP059`.  So the tile code is a **structure bitmask** (walls on N/E/S/W), and
+  the low nibble is the "what is on the side" field.
+
+Open question (still BLK-001): the exact bitmask → DPnnn rule.  The measured
+`switch` is implemented in `dungeon_base_view_index`; unknown codes fall back to
+the wall view (`DP001`), which is correct for a wall directly ahead and a
+harmless over-estimate elsewhere.  The four stride-16 groups
+(4/20/36/52, 5/21, 6/13, 7/8) strongly suggest the code is
+`(param << 4) | structure`; `0x02/0x07/0x08` are the "corridor straight ahead,
+no side wall" case whose view is a **composite** the engine builds from a 64x59
+wall-at-depth-2 piece (`DP037`) centred plus smaller side pieces.
+
+Implemented: `dungeon_base_view_index` + `dungeon_ahead_cell` +
+`render_dungeon_play` in `port/dungeon.{h,cpp}`; pinned by `test_base_view` in
+`tests/dungeon_test.cpp`.
