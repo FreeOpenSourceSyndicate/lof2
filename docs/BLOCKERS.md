@@ -101,6 +101,15 @@ BLK-001's *shape* is fully explained; what remains for the drop-in is choosing t
 right base + side pieces per (position, facing), which needs the position->view
 mapping (Round 20; sequential runs only — parallel runs race on the save).
 
+**Log.** 2026-11-08 Agent A (Round 22): the DNG header is now decoded —
+`[flag, entry_facing, entry_pos_hi, entry_pos_lo]`, entry_pos **big-endian**
+`y*36+x` — and matches the saves exactly (DNG05 125/facing 2 = GAME1; DNG10
+745/facing 0 = GAME2).  So the party's position/facing encoding is known; what
+remains for the view is the base-sprite *selection*, which the single cell ahead
+does **not** explain: DNG05 (17,3) facing 2 has front+side walls yet renders the
+open `DP001`, while (18,3) renders all-walls `DP036`.  The rule needs the wider
+neighbourhood (or the engine's own selection code, BLK-007).
+
 ## BLK-002 — Dungeon viewport palette: emulator draws colour, oracle is grey
 
 - **Blocked lane:** A (dungeons)

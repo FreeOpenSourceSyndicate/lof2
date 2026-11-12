@@ -49,8 +49,8 @@ static void test_synthetic() {
     // Zero the object region so only the one record we set is non-zero.
     for (size_t k = kDungeonHeader + kDungeonTiles; k < plain.size(); k++)
         plain[k] = 0;
-    plain[0] = 0; plain[1] = 2;
-    plain[2] = 0x34; plain[3] = 0x12;         // field = 0x1234
+    plain[0] = 0; plain[1] = 2;               // flag = 0, entry_facing = 2
+    plain[2] = 0x12; plain[3] = 0x34;         // entry_pos = 0x1234 (big-endian)
     plain[kDungeonHeader + 0] = 12;           // tile (0,0)
     plain[kDungeonHeader + 1] = 3;            // tile (1,0)
     plain[kDungeonHeader + kDungeonW * 5 + 7] = 0;  // tile (7,5)
@@ -104,16 +104,16 @@ static void test_synthetic() {
 static void test_real(const std::string& dir) {
     // DNG00 is the only level with a non-uniform border (its outer ring is 12,
     // the interior mostly 0); DNG26 is almost entirely 6.
-    struct Expect { const char* name; int h1; uint16_t field;
+    struct Expect { const char* name; int facing; uint16_t pos;
                     int x, y, tile; };
     Expect cases[] = {
-        {"DNG00", 3, 52738, 0, 0, 12},
-        {"DNG00", 3, 52738, 35, 35, 12},
-        {"DNG00", 3, 52738, 17, 17, 0},
-        {"DNG01", 1, 65280, 0, 0, 6},
-        {"DNG01", 1, 65280, 17, 17, 0},
-        {"DNG26", 3, 17156, 0, 0, 6},
-        {"DNG26", 3, 17156, 5, 6, 6},
+        {"DNG00", 3, 718, 0, 0, 12},
+        {"DNG00", 3, 718, 35, 35, 12},
+        {"DNG00", 3, 718, 17, 17, 0},
+        {"DNG01", 1, 255, 0, 0, 6},
+        {"DNG01", 1, 255, 17, 17, 0},
+        {"DNG26", 3, 1091, 0, 0, 6},
+        {"DNG26", 3, 1091, 5, 6, 6},
     };
     int checked = 0;
     for (auto& e : cases) {
@@ -123,10 +123,29 @@ static void test_real(const std::string& dir) {
         if (!load_dungeon(path, d, &err)) continue;   // no data -> skip
         assert((int)d.tiles.size() == kDungeonTiles);
         assert((int)d.objects.size() == kDungeonTiles);
-        assert(d.h1 == e.h1);
-        assert(d.field == e.field);
+        assert(d.h1 == e.facing);
+        assert(d.field == e.pos);
+        assert(d.entry_facing() == e.facing);
+        assert(d.entry_x() == e.pos % kDungeonW);
+        assert(d.entry_y() == e.pos / kDungeonW);
         assert(d.tile(e.x, e.y) == e.tile);
         checked++;
+    }
+    // The header entry cell/facing is the party's start: it must equal the save
+    // (DNG05 = GAME1 125/2, DNG10 = GAME2 745/0), and the start is not a wall.
+    for (auto& e : {std::pair<const char*, int>{"DNG05", 125},
+                    std::pair<const char*, int>{"DNG10", 745}}) {
+        Dungeon d;
+        std::string err;
+        if (load_dungeon(dir + "/" + e.first, d, &err)) {
+            assert(d.field == e.second);
+            assert(d.tile(d.entry_x(), d.entry_y()) != 3 &&
+                   d.tile(d.entry_x(), d.entry_y()) != 12);   // start is not wall
+            DungeonPos p;
+            assert(dungeon_place_entry(d, p));
+            assert(p.x == d.entry_x() && p.y == d.entry_y());
+            assert(p.facing == d.h1);
+        }
     }
     if (checked) std::printf("dungeon_test: verified %d real cells\n", checked);
     else std::printf("dungeon_test: no game data, skipping real-file checks\n");

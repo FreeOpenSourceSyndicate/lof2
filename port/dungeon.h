@@ -25,11 +25,16 @@ constexpr int kDungeonDecoded = kDungeonHeader + kDungeonTiles + kDungeonObjects
 
 // One dungeon level.
 struct Dungeon {
-    // Header.  The meaning of h0/h1 is not yet pinned down (h0 is 0 for all but
-    // DNG13; h1 varies).  `field` is the little-endian h2|h3 word; it is not a
-    // decompressed size (that is always 3892) and is kept verbatim for now.
-    uint8_t h0 = 0, h1 = 0;
-    uint16_t field = 0;
+    // Header bytes: `[h0, h1, h2, h3]` = `[flag, entry_facing, entry_pos_hi,
+    // entry_pos_lo]`.  `h0` (flag) is 0 for every level but DNG13 (4).  `h1` is
+    // the party's **entry facing**.  `field` (h2|h3, BIG-endian) is the party's
+    // **entry position**: a row-major cell index y*36+x into `tiles` (so
+    // `entry_x()`/`entry_y()` decode it).  Verified against the saves: DNG05
+    // entry=125/facing=2 equals GAME1 (0x9a0=125, 0x9a6=2); DNG10 entry=745/
+    // facing=0 equals GAME2 (0x9a0=745, 0x9a6=0).  See docs/notes-a.md Round 22.
+    uint8_t h0 = 0;       // flag
+    uint8_t h1 = 0;       // entry facing
+    uint16_t field = 0;   // entry position, big-endian h2|h3
 
     // 36x36 tile codes, row-major.  Values seen: 0,3,6,7,8,12; 6 dominates and
     // is the "empty/floor" tile for most levels.
@@ -51,6 +56,11 @@ struct Dungeon {
     inline uint8_t obj_code(int x, int y) const {
         return (uint8_t)(object(x, y) >> 8);
     }
+
+    // Party entry cell from the header (see above).
+    inline int entry_x() const { return (int)(field % kDungeonW); }
+    inline int entry_y() const { return (int)(field / kDungeonW); }
+    inline int entry_facing() const { return h1; }
 
     inline uint8_t tile(int x, int y) const {
         return (x >= 0 && y >= 0 && x < kDungeonW && y < kDungeonH)
@@ -132,6 +142,11 @@ bool dungeon_step(const Dungeon& d, DungeonPos& p);
 // Place `p` at the nearest walkable cell to (x,y) (spiral search), or leave it
 // unchanged if the whole level is solid.  Returns true if a spot was found.
 bool dungeon_place(const Dungeon& d, DungeonPos& p, int x, int y);
+
+// Place the party at the level's entry cell and facing, taken from the DNG
+// header (see Dungeon).  This is where the game starts the party: for DNG05 the
+// header gives (17,3) facing 2, which is exactly GAME1's saved position/facing.
+bool dungeon_place_entry(const Dungeon& d, DungeonPos& p);
 
 // Draw a top-down map of the level onto `scr`, `cell` pixels per tile,
 // centred, with the player drawn at (px,py).  Tile codes are colour-coded and

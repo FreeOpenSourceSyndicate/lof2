@@ -12,7 +12,10 @@ Observations so far (workstream A):
 
 Decoded layout (3892 bytes):
 
-    0    .. 3    : header (4 bytes; h2|h3 is a 16-bit word, meaning open)
+    0    .. 3    : header = [flag, entry_facing, entry_pos_hi, entry_pos_lo].
+                   entry_pos is BIG-endian (hi first) and is a row-major cell
+                   index y*36+x.  It is the party's start cell: DNG05 -> 125
+                   facing 2 (= GAME1's save), DNG10 -> 745 facing 0 (= GAME2's).
     4    .. 1299 : tile map, 36x36 = 1296 bytes, row-major
     1300 .. 3891 : 1296 two-byte records (feature code in the *high* byte)
 
@@ -109,11 +112,29 @@ def render_grid(blk, w=LAYER_W, symbol=True):
     return out
 
 
+def header(path):
+    """Return (flag, entry_facing, entry_pos, entry_x, entry_y) from a DNG file.
+
+    The 4-byte header is [flag, entry_facing, entry_pos_hi, entry_pos_lo]; the
+    entry position is big-endian and is a row-major cell index y*36+x (see the
+    module docstring and docs/notes-a.md Round 22)."""
+    hdr, _ = decode(path)
+    pos = (hdr[2] << 8) | hdr[3]
+    return hdr[0], hdr[1], pos, pos % LAYER_W, pos // LAYER_W
+
+
+def cmd_header(path):
+    f, fa, pos, x, y = header(path)
+    print('%s: flag=%d entry_facing=%d entry_pos=%d (x=%d,y=%d)' %
+          (os.path.basename(path), f, fa, pos, x, y))
+
+
 def cmd_info(path):
     hdr, body = decode(path)
-    v = struct.unpack('<H', hdr[2:4])[0]
-    print('%s  size=%d hdr=%s  word=%d (0x%X)' %
-          (os.path.basename(path), os.path.getsize(path), hdr.hex(' '), v, v))
+    f, fa, pos, ex, ey = header(path)
+    print('%s  size=%d hdr=%s  entry=%d (x=%d,y=%d) facing=%d flag=%d' %
+          (os.path.basename(path), os.path.getsize(path), hdr.hex(' '),
+           pos, ex, ey, fa, f))
     tl = tiles(body)
     tc = collections.Counter(tl)
     print('  tiles:   top %s' % tc.most_common(6))
@@ -585,6 +606,9 @@ def main(argv):
     elif cmd == 'info':
         for p in argv[1:]:
             cmd_info(p)
+    elif cmd == 'header':
+        for p in argv[1:]:
+            cmd_header(p)
     elif cmd == 'grid':
         cmd_grid(argv[1], argv[2] if len(argv) > 2 else 'tiles',
                  int(argv[3]) if len(argv) > 3 else LAYER_W)

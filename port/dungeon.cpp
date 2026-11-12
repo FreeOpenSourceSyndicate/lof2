@@ -48,9 +48,9 @@ bool decode_dungeon(const std::vector<uint8_t>& raw, Dungeon& out,
         return false;
     }
 
-    out.h0 = d[0];
-    out.h1 = d[1];
-    out.field = (uint16_t)(d[2] | (d[3] << 8));
+    out.h0 = d[0];                                        // flag
+    out.h1 = d[1];                                        // entry facing
+    out.field = (uint16_t)((d[2] << 8) | d[3]);           // entry pos, big-endian
 
     out.tiles.assign(d.begin() + kDungeonHeader,
                      d.begin() + kDungeonHeader + kDungeonTiles);
@@ -166,6 +166,11 @@ bool dungeon_place(const Dungeon& d, DungeonPos& p, int x, int y) {
         }
     }
     return false;
+}
+
+bool dungeon_place_entry(const Dungeon& d, DungeonPos& p) {
+    p.facing = d.entry_facing() & 3;
+    return dungeon_place(d, p, d.entry_x(), d.entry_y());
 }
 
 // Colour per tile code (EGA 16-colour indices).

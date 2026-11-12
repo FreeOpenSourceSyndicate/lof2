@@ -1109,6 +1109,41 @@ value->cell mapping is not yet pinned (only the exact original value reproduces
 the corridor), so it is not yet a turnkey sweep.  The maintainer's `INT 21h AH=07`
 fix (BLK-007) or the position mapping would make it one.
 
+### Round 22 — the DNG header is the party's entry cell + facing (pinned)
+
+**The 4-byte DNG header is `[flag, entry_facing, entry_pos_hi, entry_pos_lo]`.**
+The 16-bit `entry_pos` is **big-endian** (hi byte first) and is a row-major cell
+index `y*36 + x` into the tile map.  It is the **party's start cell** and
+`entry_facing` is the start facing.  This is not a guess: it matches the saves
+exactly.
+
+| file  | header        | entry_pos | (x,y)   | facing | save  | save 0x9a0 / 0x9a6 |
+|-------|---------------|-----------|---------|--------|-------|--------------------|
+| DNG05 | `00 02 00 7d` | 125       | (17,3)  | 2      | GAME1 | 125 / 2            |
+| DNG10 | `00 00 02 e9` | 745       | (25,20) | 0      | GAME2 | 745 / 0            |
+
+Both rows are byte-exact matches, and the endianness is forced: read little-endian
+DNG10's word would be 59650 (out of the 1296-cell range), while big-endian gives
+745.  So `0x9a0` (the save's party position, Round 20) *is* the cell index, and
+the DNG header tells us where each level starts the party.  `flag` (h0) is 0 for
+every level except DNG13 (4).
+
+This closes the "position field semantics" question of Round 20/21: the engine
+reads the position from the save, and the DNG header supplies the same encoding
+for the level's entry.  (Which DNG file a given save loads is a separate
+question — the *encoding* is what is pinned here.)  Note the view a cell renders
+is **not** determined by the single cell ahead: DNG05 cell (17,3) facing 2 has a
+wall at front and both side cells at y=4 yet renders the open corridor `DP001`,
+while (18,3) renders the all-walls `DP036`, so the view depends on the wider
+neighbourhood; the base-sprite selection rule is still BLK-006.
+
+Implemented: `port/dungeon.{h,cpp}` now decodes the header as entry facing +
+big-endian entry position (was previously kept verbatim as an opaque little-endian
+`field`), exposes `entry_x()/entry_y()/entry_facing()` and a
+`dungeon_place_entry()` that places the party at the header start;
+`tools/dngs.py header` prints it; `tests/dungeon_test.cpp` pins DNG05=125/2 and
+DNG10=745/0 and asserts the entry cell is not a wall.
+
 ### Round 21 — race correction + the viewport animates; spawn matches the oracle exactly
 
 **Race warning (corrects Round 20's method).**  Two emulator runs must **not** run
