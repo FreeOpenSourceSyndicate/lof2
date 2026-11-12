@@ -1188,3 +1188,65 @@ difference is the per-pixel *index*: 8107 px differ by exactly +/-1 in EGA index
 error.  So BLK-001's composite is reproduced **exactly** by the engine; the
 residual is purely BLK-002's palette.  Frame 1500's 9404-phase frame is ink IoU
 0.9887 vs the oracle (the same view, one overlay piece animated in).
+
+## Round 23 — structure-driven view ground truth (2026-11-12)
+
+**The dungeon view is a function of the map *structure ahead*, and I can now
+drive it deterministically by patching the DNG tile map** — no keys, no party
+position field.  This supersedes the earlier "position sweep" attempts.
+
+### The lever: patch the DNG tile layer, not the save
+
+The engine reads `DNGS\DNG<loc>` at level load and renders from it.  Patching the
+**save's** `0x9a0` (party position) has **no effect** on the emulator's view
+(Round 20's 125-vs-126/89/108/120/124/468/900 results are **withdrawn**: all give
+a byte-identical `DP001` view — those earlier "different view" readings were
+parallel-run races on one save file).  What *does* change the view is the DNG
+**header byte d[2] (facing)** and the DNG **tile layer**.
+
+I added a byte-exact RLE re-encoder (verified: a no-op re-encode of `DNG05`
+reproduces the original file byte-for-byte, 1464 bytes).  Patching a tile cell
+and re-encoding lets me set the map structure under the emulator's feet.
+
+### Results (Temple save, DNG05, spawn (17,3); recipe `LOF_EDUMP=… LOF_KEYAUTO=0x18,0x02
+LOF_KEYGAP=8 LOF_CMDLEN=3 LOF_NO_TIMER=1 --frames 900`)
+
+`d[2]` (facing) and the tile **directly ahead** both change the base view:
+
+| change | ahead cell tile | view ink | nearest D5 sprite |
+|--------|-----------------|----------|-------------------|
+| native (facing 2) | 3 (wall) | 9404 | `DP001` (0.922) |
+| ahead → 0 | 0 (open) | 4941 | `DP060` (0.346) |
+| ahead → 1 | 1 | 9404 | `DP001` |
+| ahead → 2 | 2 | 4941 | `DP060` |
+| ahead → 6 | 6 | 14280 | `DP060` (**1.000**) |
+| ahead → 7 | 7 | 4941 | `DP060` |
+| ahead → 8 | 8 | 4941 | `DP060` |
+| ahead+2 → 0 | 3 | 4941 | `DP060` |
+| facing → 0 (ahead 7) | 7 | 13072 | `DP014` (0.997) |
+| facing → 1 | 7 | 11540 | (composite) |
+| facing → 3 | 7 | 12504 | (composite) |
+
+So the engine classifies the cell ahead: **tile 3 (and 1) → the "closed" wall
+view `DP001`**; **open cells (0/2/6/7/8) → an "open corridor" view**.  Changing
+the *second* cell ahead (161 unchanged) still changes the view, so depth ≥2 is
+read.  Changing only the cell at depth 2 (`162`) does **not** change the view, so
+the base view is dominated by the **nearest** structure ahead.
+
+### `dungeon_slot1_moved.png` explained (BLK-006)
+
+Opening the cell ahead (`161 → 0`) makes the emulator viewport match the
+maintainer's moved oracle at **ink IoU 0.998** (4941 vs 4951 ink).  So the moved
+frame is simply the view with an **open cell ahead** — the composite-decode
+"mess" (`DP037` + pieces, IoU 0.75) was an artefact of greedy placement over a
+low-ink open view, not a different rule.
+
+### Why this matters / what is still open
+
+The base view is **not** a facing→sprite table and **not** driven by the save's
+`0x9a0`; it is computed from the tile structure ahead.  Exact per-cell
+`(neighbourhood → DPnnn)` selection is still not pinned (only two regimes are
+confirmed: "wall ahead" → `DP001`, "open ahead" → `DP060`/`DP014`).  Pinning it
+needs a **position** sweep, which needs the maintainer's input fix (BLK-007) —
+the emulator does not consume patched position bytes, so I cannot place the party
+at arbitrary cells to sweep the view without keys.
