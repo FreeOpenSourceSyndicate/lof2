@@ -202,29 +202,33 @@ std::string dungeon_view_dir(int dungeon);
 bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax, int& ay);
 
 // The DPnnn index of the first-person *base* view sprite the engine blits for
-// the party at `p`.  PARTIAL DECODE — see docs/notes-a.md Round 24.
+// the party at `p`.  DECODED for the D5 (Temple) tileset — see notes-a.md
+// Round 26.
 //
-// Ground truth: patch DNG05's RLE tile layer, run the analysis emulator and dump
-// the EGA planes (`LOF_EDUMP=`), then compare the 120x119 view window to every
-// `EGA/D5/DP*` sprite.  This shows the base view is chosen by the **tile code of
-// the cell directly ahead**: the cells to the sides and at depth >= 2 do not
-// change it (patched and re-dumped: identical), and the low nibble of the ahead
-// code selects the sprite for several codes at once (4/20/36/52 -> DP058,
-// 5/21 -> DP059).  Measured map for the D5 (Temple) tileset:
+// Ground truth: patch DNG05's RLE tile layer (`tools/dngs.py patch`), run the
+// analysis emulator and dump the EGA planes (`LOF_EDUMP=`), then compare the
+// 120x119 view window to every `EGA/D5/DP*` sprite by pixel IoU.  Sweeping the
+// cell directly ahead of the spawn shows:
 //
-//   0x04,0x14,0x24,0x34  -> 58   side passage
-//   0x05,0x15            -> 59   side passage variant
-//   0x06,0x0d            -> 60   open room
-//   0x0a                 -> 14   doorway
-//   0x02,0x07,0x08       -> 1    corridor: no single full-size sprite; the
-//                                engine composites a 64x59 wall-at-depth-2 piece
-//                                (DP037) centred plus smaller side pieces, so the
-//                                drop-in falls back to the wall view
-//   anything else        -> 1    wall directly ahead (DP001, 0.92 of the frame)
+//   * only the **low nibble** of the ahead tile code selects the base view; the
+//     high nibble is ignored (all seven observed high-nibble variants of 0x4
+//     -> DP058 and of 0x5 -> DP059 give identical windows, IoU 1.000);
+//   * the cells to the sides and at depth >= 2 do not change the base view.
 //
-// The full rule (the tile code looks like a wall mask whose bits encode which
-// sides are walls) is not yet pinned, so unknown codes fall back to the wall
-// view.  `index` 0 is never returned: DP000 does not exist on disk.
+// Measured map (all 14 low nibbles that occur in DNGS/, IoU in parentheses):
+//
+//   0x4                       -> 58   side passage        (1.000)
+//   0x5                       -> 59   side passage var.   (1.000)
+//   0x6, 0xd                  -> 60   open room           (1.000)
+//   0xa                       -> 14   doorway             (0.997)
+//   0x0,0x2,0x7,0x8,0x9,0xb,  -> 1    corridor/opening: the engine composites
+//   0xc,0x1,0x3                      a 64x59 wall-at-depth-2 piece (DP037)
+//                                    centred plus smaller side pieces, so no
+//                                    single full-size sprite reproduces it; the
+//                                    drop-in falls back to the wall view DP001
+//                                    (0.922, matching the plain-wall case)
+//
+// `index` 0 is never returned: DP000 does not exist on disk.
 int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p);
 
 // Convenience: blit the dungeon's canonical view sprite (DP001) at (10,11).

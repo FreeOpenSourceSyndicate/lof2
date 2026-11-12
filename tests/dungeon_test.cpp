@@ -518,24 +518,27 @@ static void test_base_view(const std::string& dir) {
     p.x = 0;                               // W off-map
     assert(!dungeon_ahead_cell(d, p, ax, ay));
 
-    // Measured tile-code -> base view map (D5 Temple tileset).
+    // Measured tile-code -> base view map (D5 Temple tileset).  The base view is
+    // selected by the LOW nibble of the ahead tile code; the high nibble (an
+    // object/feature class) is ignored.  Ground truth: emulator sweep of all 14
+    // low nibbles that occur in DNGS/ (see port/dungeon.h).
     p = DungeonPos{5, 5, 0};
-    d.tiles[4 * kDungeonW + 5] = 4;  assert(dungeon_base_view_index(d, p) == 58);
-    d.tiles[4 * kDungeonW + 5] = 20; assert(dungeon_base_view_index(d, p) == 58);
-    d.tiles[4 * kDungeonW + 5] = 36; assert(dungeon_base_view_index(d, p) == 58);
-    d.tiles[4 * kDungeonW + 5] = 5;  assert(dungeon_base_view_index(d, p) == 59);
-    d.tiles[4 * kDungeonW + 5] = 21; assert(dungeon_base_view_index(d, p) == 59);
-    d.tiles[4 * kDungeonW + 5] = 6;  assert(dungeon_base_view_index(d, p) == 60);
-    d.tiles[4 * kDungeonW + 5] = 13; assert(dungeon_base_view_index(d, p) == 60);
-    d.tiles[4 * kDungeonW + 5] = 10; assert(dungeon_base_view_index(d, p) == 14);
-    // The corridor case (2/7/8) has no single full-size sprite (the engine
+    auto view_for = [&](int code) {
+        d.tiles[4 * kDungeonW + 5] = code;
+        return dungeon_base_view_index(d, p);
+    };
+    // Every high-nibble variant of a low nibble must give the same view.
+    for (int hi = 0; hi <= 0xf0; hi += 0x10) {
+        assert(view_for(hi | 0x4) == 58);
+        assert(view_for(hi | 0x5) == 59);
+        assert(view_for(hi | 0x6) == 60);
+        assert(view_for(hi | 0xd) == 60);
+        assert(view_for(hi | 0xa) == 14);
+    }
+    // The corridor/opening cases have no single full-size sprite (the engine
     // composites DP037 + side pieces); the drop-in falls back to the wall view.
-    d.tiles[4 * kDungeonW + 5] = 2;  assert(dungeon_base_view_index(d, p) == 1);
-    d.tiles[4 * kDungeonW + 5] = 7;  assert(dungeon_base_view_index(d, p) == 1);
-    d.tiles[4 * kDungeonW + 5] = 8;  assert(dungeon_base_view_index(d, p) == 1);
-    d.tiles[4 * kDungeonW + 5] = 3;  assert(dungeon_base_view_index(d, p) == 1);
-    d.tiles[4 * kDungeonW + 5] = 12; assert(dungeon_base_view_index(d, p) == 1);
-    d.tiles[4 * kDungeonW + 5] = 0;  assert(dungeon_base_view_index(d, p) == 1);
+    for (int nib : {0x0, 0x1, 0x2, 0x3, 0x7, 0x8, 0x9, 0xb, 0xc})
+        assert(view_for(nib) == 1);
     // Off-map ahead always falls back to the wall view.
     p = DungeonPos{5, 0, 0};
     assert(dungeon_base_view_index(d, p) == 1);

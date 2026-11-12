@@ -1314,3 +1314,41 @@ maintainer's PR #89 review:
 The old single-file `docs/BLOCKERS.md` is now the static hub (taken from `main`
 during the merge); no entries live there.  `BLK-A001` gained a Round-24 log with
 the ahead-cell tile-code table.
+
+## Round 26 — base-view rule fully decoded: the **low nibble** selects the sprite
+
+Rebuilt the emulator sweep pipeline (the workspace reset had cleared `/tmp`).
+`tools/dngs.py patch <in> <out> x y val` now writes a DNG with chosen tile cells
+overridden, re-encoding with the same RLE scheme (round-trips byte-exactly), so a
+chosen *ahead-cell* code can be fed to the emulator without moving the party.
+DNG05's party spawns at (17,3) facing 2 (south), so cell (17,4) is directly
+ahead; the `LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 --frames 1500` recipe opens save
+slot 1 (Temple) and dumps the planes with `LOF_EDUMP=`.
+
+Swept every tile code that occurs in `DNGS/` (26 distinct values).  The result is
+unambiguous: **only the low nibble of the ahead tile code selects the base view;
+the high nibble is ignored.**  Evidence: seven observed high-nibble variants of
+low nibble 4 (`0x04,0x14,0x24,0x34,0x44,0x54,0xf4`) all give the *identical*
+window matching `DP058` at IoU 1.000, and seven variants of low nibble 5
+(`0x05,0x15,0x25,0x35,0x45,0x55,0x65`) all give `DP059` at 1.000.
+
+| ahead low nibble | view | IoU | note |
+|---|---|---|---|
+| `0x4` | `DP058` | 1.000 | side passage |
+| `0x5` | `DP059` | 1.000 | side passage variant |
+| `0x6` | `DP060` | 1.000 | open room |
+| `0xd` | `DP060` | 1.000 | open room variant |
+| `0xa` | `DP014` | 0.997 | doorway |
+| `0x0,0x1,0x2,0x3,0x7,0x8,0x9,0xb,0xc` | `DP001` | 0.922 | corridor/opening: multi-piece composite, no single full-size sprite |
+
+The "corridor" set (`0x0/0x2/0x7/0x8/0x9`) is the perspective composite: its
+window (ink ~4941) matches **no** full-size `DPnnn` (best 0.346); template
+matching the smaller pieces finds `DP037` (64x59 wall-at-depth-2) at IoU 0.785
+plus side pieces (`DP041` 0.757, `DP018` 0.754, `DP040` 0.738) — i.e. the engine
+composes the corridor view from a centred wall piece and flanking pieces, which
+is exactly the residual tracked by BLK-A003.
+
+Implemented `dungeon_base_view_index` as `tile & 0x0f` (was the high-nibble
+`param`-based table) and widened `test_base_view` to assert the invariance across
+all 16 high nibbles for nibbles 4/5/6/13/10 and the wall fallback for the
+corridor nibbles.  `make test` and `make port` green.

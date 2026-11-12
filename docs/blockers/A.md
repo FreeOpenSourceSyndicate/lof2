@@ -78,6 +78,18 @@ bitmask -> DPnnn rule (the code looks like `(param << 4) | structure`) and the
 corridor composite's piece selection (BLK-A003); `render_dungeon_play` is not yet
 wired into the maintainer-owned `port/lof.cpp` walk path.
 
+**Log.** 2026-11-08 Agent A (Round 26): the base-sprite rule is now **fully
+decoded**. Swept every tile code that occurs in `DNGS/` (26 distinct values) by
+patching DNG05's ahead cell with `tools/dngs.py patch` and diffing the emulator's
+`LOF_EDUMP=` window against every `EGA/D5/DP*` sprite. Result: **only the low
+nibble of the ahead tile code selects the base view; the high nibble is
+ignored** — seven high-nibble variants each of nibble 4 and nibble 5 give
+byte-identical windows (`DP058` / `DP059`, IoU 1.000). Map: `0x4`→`DP058`,
+`0x5`→`DP059`, `0x6`/`0xd`→`DP060` (all 1.000), `0xa`→`DP014` (0.997); the
+corridor/opening nibbles `0x0/0x1/0x2/0x3/0x7/0x8/0x9/0xb/0xc` fall back to
+`DP001` (0.922). `dungeon_base_view_index` now returns `tile & 0x0f`; the only
+remaining gap is the corridor composite (BLK-A003).
+
 ## BLK-A002 — The emulator renders plane 0 (blue) wrong across the play loop
 
 - **Blocked lane:** A (dungeons)
