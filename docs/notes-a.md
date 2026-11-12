@@ -962,3 +962,38 @@ Bookkeeping round (no engine change):
   D5 set: it opens `ega\d5\dp001` (facing), then `DP014`..`DP023`, then
   `ega\anim\an*`. That is the selection I need to decode once BLK-006/007 give me
   a moved-view ground truth.
+
+## Round 18 — emulator geometry vs oracle, and BLK-002 root cause (2026-11-08)
+
+I reproduced the maintainer's BLK-002 measurement **from the EGA planes** (not the
+`--shot` framebuffer, which is black in the viewport — see below).  Recipe:
+
+```
+LOF_EDUMP=planes.bin LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 LOF_CMDLEN=3 \
+  LOF_NO_TIMER=1 ./lof-native --dir game --headless --frames 1500 --shot /dev/null
+```
+
+Decoding `planes.bin` (4 x 0x10000, row stride 40 bytes) to attribute indices and
+comparing to `ref/oracle/dungeon_slot1.png`:
+
+- **Shape match 0.996** whole screen, **0.993** inside the 120x119 viewport —
+  exactly the maintainer's number.  So the emulator's per-cell geometry is
+  correct and **is** a usable geometry oracle.
+- **Viewport histogram:** emu `{0:4876, 6:4146, 9:4044, 15:1214}` vs oracle
+  `{0:4982, 3:5, 7:4080, 8:4027, 15:1186}`.
+- **Pixel-pair confusion:** emu 6 ↔ orc 7 (4080), emu 9 ↔ orc 8 (4025), emu 0 ↔
+  orc 0, emu 15 ↔ orc 15.  So the divergence is *one attribute bit*: `6(0110)`
+  and `7(0111)` differ in bit 0; `9(1001)` and `8(1000)` differ in bit 0.  The
+  emulator's `attr_pal` at the dungeon is the **identity** (`00 01 02 03 04 05 06
+  07 10 11 12 13 14 15 16 17`, via `LOF_PAL2`), so the game's attribute-palette
+  table (which must map the plane bits to grey) is **not being applied**.
+  `seq_mask=01`, `gc_mode=00`, `bpp=4` — planes are read correctly, so this is
+  purely the palette path, not write-mode/plane selection.  Confirms BLK-002's
+  "not a missing sprite table".
+
+Also: `--shot`'s RGB framebuffer is black in the viewport even though the EGA
+planes have ink (48574 non-black pixels overall) — the shot path drops the
+viewport colour.  Use `LOF_EDUMP` for verification, not `--shot`.
+
+DP001 placement re-derived against the emulator geometry: best IoU 0.922 at
+(10,11) (the drop-in's position), next-best 0.745 at (8,11) — so (10,11) is right.

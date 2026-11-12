@@ -108,6 +108,17 @@ RGB as the bar, re-record the oracle with the exact capture sequence — the fra
 is a live animation (58% raw match at frame 1500, 66% at 2500). Detail:
 `docs/BLOCKED-agent-a.md`.
 
+**Log.** 2026-11-08 Agent A (evidence for the maintainer, not a fix): reproduced
+the 0.996 shape match **from the EGA planes** via `LOF_EDUMP` (the `--shot`
+framebuffer is black in the viewport, so `--shot` is the wrong test). The
+viewport confusion is exactly emu 6↔orc 7 and emu 9↔orc 8, i.e. **one attribute
+bit** (bit 0). At the dungeon the emulator's `attr_pal` is the **identity**
+(`00..07 10..17`), so the game's grey palette table is not being applied;
+`seq_mask=01 gc_mode=00 bpp=4` shows planes are read correctly. This narrows the
+fix to the palette path — likely `INT 10h AH=10h/AL=02` (or an AL=00/AL=03)
+whose effect is lost, or a palette table the game builds *before* the EGA mode
+set and never re-applies. Repro in `docs/notes-a.md` Round 18.
+
 ## BLK-003 — Engine font glyphs are an unidentified bold/double-struck transform
 
 - **Blocked lane:** Maintainer
