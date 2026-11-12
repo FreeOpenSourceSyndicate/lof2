@@ -609,6 +609,30 @@ buffer) and compare it to planes 1–3's source. Verify any fix against
 (`port/gfx.cpp`) renders the planes correctly and already matches the oracle at
 99.8%, so **do not touch the drop-in**.
 
+### Follow-up probe (2026-11-12): the game uses an EGA double buffer
+
+Tracing the plane-copy loop (`119D:1288`, guarded by `cs:[0x182]` the plane
+counter 0..3) shows it copies **`ds=A1F4` → `es=A000`, same offset, `rep movsb`,
+one plane per pass**, with the GC *Read Map Select* / SEQ *Map Mask* cycled
+`0,1,2,3` / `1,2,4,8`. `A1F4` is `A000 + 0x1F40` (8000 = one 320×200 plane),
+i.e. the source lives **inside the EGA window** — the game is double-buffering in
+EGA memory (display page at `0xA0000`, source/staging page at `0xA1F40`).
+
+That is the likely source of the plane-0 divergence: in the emulator's plane
+memory the **source page** (`plane[k][0x1F40..0x3E80]`) matches the pristine
+`MSCR` decode well (plane 0 = 92.9%, planes 1–3 ≈ 79–80%), while the **display
+page** (`plane[k][0..0x1F40]`) matches it far worse for plane 0 (63.7%) than for
+planes 1–3 (73–77%) — and the display page for plane 0 equals the source page for
+only ~64–70% of rows (planes 1/2: 93%, plane 3: 98%). So the plane-0
+source→display copy does not land where it should.
+
+**Refined next step.** Check how the emulator's `is_ega()` window
+(`0xA0000..0xB0000`, src/emu.h) interacts with a staging buffer at `0xA1F40`:
+the plane-0 pass may read a display-page offset that a previous pass already
+overwrote, or the window bound may differ from a real EGA (64 K vs 128 K). Log
+`ega.gc_read_map`/`seq_map_mask` at each plane pass and the exact `si`/`di`
+per pass, and compare the copied length to 8000. Still **emulator-only**.
+
 ## How to actually reach the town screen (repo owner, 2026-11-11)
 
 The intro ends in the **town's Inn with no party members** — that is the first
