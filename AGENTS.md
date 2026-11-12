@@ -560,6 +560,13 @@ save-location field: slot 1 opens `DNGS\DNG05` + `ega\d5`, slot 2 opens
   - 0x3C4/0x3C5, 0x3CE/0x3CF, 0x3D4/0x3D5 → write AH to port+1.
   - 0x3C0 attribute controller: **index and data both go to 0x3C0**, so a 16-bit
     OUT writes AL (index) then AH (data) to 0x3C0.
+  - The data byte must be written **even when AH is 0**: a zero data byte is a
+    legitimate register value (Read Map Select 0, Map Mask 0).  Guarding the
+    write with `if (AH != 0)` silently drops it and the register keeps its old
+    value.  This was BLK-A002: the game's plane blitter sets Read Map Select to
+    0 on its first pass, the write was dropped, so plane 0 was blitted from the
+    still-selected plane 3 and **every frame's plane 0 was wrong** (planes 1–3
+    perfect, plane 0 80.29% vs the oracle).  Guarded by the golden frames.
 - Graphics-controller register numbers: 7 = Read Map Select, 8 = Bit Mask
   (bit mask was wrongly mapped to 7, which forced a 0x3F mask → dropped pixels).
 - EGA colour: primary guns weight 2, secondary weight 1 (index 7 = light gray).

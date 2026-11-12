@@ -12,7 +12,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 | ID | Blocked lane | Responsible | Priority | Status | Depends on |
 |----|--------------|-------------|----------|--------|------------|
 | BLK-A001 | A (dungeons) | Agent A | Medium | Open | — |
-| BLK-A002 | A (dungeons) | Maintainer | Medium | In progress | — |
+| BLK-A002 | A (dungeons) | Maintainer | Medium | **Resolved** (2026-11-12) | — |
 
 ---
 
@@ -38,45 +38,39 @@ rendering it in `port/dungeon.{h,cpp}`. Detail: `docs/notes-a.md`.
 - **Blocked lane:** A (dungeons)
 - **Responsible:** Maintainer
 - **Priority:** Medium
-- **Status:** In progress
+- **Status:** **Resolved** (2026-11-12)
 - **Dependencies:** —
 
-**Description & unblock action.** *Reframed 2026-11-12 (the earlier "palette"
-framing was a red herring).* The emulator's frame at the menu, play and temple
-differs from the DOSBox oracle **only in EGA plane 0 (blue)**. Comparing the
-emulator's own index image (`LOF_EDUMP`, planes decoded to attribute indices)
-against the oracle's index image (oracle RGB inverted through the standard
-palette; all 64000 oracle pixels invert cleanly):
+**Resolution (2026-11-12).** Root cause found and fixed: **`Machine::port_out16`
+dropped the paired data-port write whenever the data byte was 0** (the guard was
+`if (v & 0xFF00)`). The game's plane blitter cycles GC *Read Map Select*
+`0,1,2,3` and SEQ *Map Mask* `1,2,4,8` across four passes using
+`mov al,idx; mov ah,data; out dx,ax`. The **first** pass sets Read Map Select
+**0**, so the write was skipped and the register kept its previous value
+(plane 3); that pass then copied plane 3's data into plane 0. Hence plane 0 of
+every rendered frame was wrong while planes 1–3 were perfect.
 
-- planes **1, 2, 3 are byte-identical** to the oracle (100.000%);
-- plane 0 matches **80.29%**; 12616 pixels differ and **every** difference is
-  plane 0 only (`idx_emu ^ idx_oracle == 0x1` for all of them).
+Fix: always drive the paired data port (`0x3C5`/`0x3CF`/`0x3D5`, or the
+attribute controller's second `0x3C0` write) regardless of the AH value; a zero
+data byte is a legitimate register value. Verified against
+`ref/oracle/menu.png`: **all four planes now match the oracle at 100.00%**
+(plane 0 went 80.29% → 100.00%); overall frame 80.29% → 100.00%. Golden hashes
+re-recorded. Detail: `docs/notes-maintainer-town.md` ("BLK-A002 CORRECTED").
 
-The emulator *also* ends up with the wrong attribute palette (ramp
-`00..07 10..17` rather than the standard EGA set), but that is a **separate**
-cosmetic issue: re-palletting the dump cannot exceed ~80% because the index
-image itself is only 80.3% right, and that 80.3% is exactly the figure the
-"standard palette" comparison reported. So the earlier conclusion ("standard
-palette correct, only the emulator palette wrong") was wrong — the standard
-palette was hiding a plane-0 *data* bug.
+**Original investigation (kept for the record).** *Reframed 2026-11-12 (the
+earlier "palette" framing was a red herring).* The emulator's frame at the menu,
+play and temple differed from the DOSBox oracle **only in EGA plane 0 (blue)**:
 
-**What the engine does.** The game blits the framebuffer one plane at a time:
-`119D:0184` cycles Graphics-Controller *Read Map Select* (`0x3CE <- 4`,
-`ah=cs:[0x17a+idx]`) and Sequencer *Map Mask* (`0x3C4 <- 2`,
-`ah=cs:[0x17e+idx]`), runtime table `cs:[0x17a] = 00 01 02 03 | 01 02 04 08`,
-plane counter `cs:[0x182]`. The copy loops (`119D:0F90`, `119D:1250` via
-`119D:1295`) `rep movsb` plane 0 under map-mask `0x01`, then advance.
+- planes **1, 2, 3 were byte-identical** to the oracle (100.000%);
+- plane 0 matched **80.29%**; every difference was plane 0 only.
 
-**Unblock.** The write *mechanism* is not the cause: every EGA write in the menu
-render uses **write mode 0** and a single-plane map mask (`1/2/4/8`, 10439 writes
-each — balanced), so plane 0 is written just like planes 1–3 yet only plane 0 is
-wrong. The defect is in the plane-0 **source data** (what the engine feeds the
-plane-0 pass). Trace the `rep movsb` at `119D:129D` back to its `es:[si]` source
-and compare to the planes 1–3 source; verify against `ref/oracle/menu.png`
-(expect plane-0, and thus overall, match to approach 100%). **Emulator-only:**
-the drop-in (`port/gfx.cpp`) renders the planes correctly (matches the oracle at
-99.8%), so do not change it. Detail: `docs/notes-maintainer-town.md`
-("BLK-A002 CORRECTED").
+The write *mechanism* was ruled out: every EGA write in the menu render used
+write mode 0 and a single-plane map mask (`1/2/4/8`, 10439 writes each —
+balanced). Tracing the blitter (`119D:1288`, plane counter `cs:[0x182]`) showed
+it copies `ds=A1F4 → es=A000` (`A1F4 = A000 + 0x1F40`, i.e. an EGA double
+buffer), one plane per pass — which pointed at the *register setup* for the
+plane-0 pass, where the `port_out16` zero-byte bug lived. The drop-in
+(`port/gfx.cpp`) was never affected; it renders the planes correctly.
 
 ## BLK-A002 (superseded framing) — emulator play-loop palette was thought wrong
 

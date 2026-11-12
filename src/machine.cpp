@@ -112,18 +112,21 @@ void Machine::port_out16(uint16_t p, uint16_t v) {
     }
     port_write_byte(p, (uint8_t)(v & 0xFF));
     // A 16-bit OUT to an index port also drives the paired data port with AH.
-    // EGA/VGA code commonly uses `mov al,idx; mov ah,data; out dx,ax`.
-    if (v & 0xFF00) {
-        switch (p) {
-            case 0x3C0:
-                // Attribute controller: index and data both go to 0x3C0.
-                port_write_byte(0x3C0, (uint8_t)(v >> 8));
-                break;
-            case 0x3C4: case 0x3CE: case 0x3D4:
-                port_write_byte((uint16_t)(p + 1), (uint8_t)(v >> 8));
-                break;
-            default: break;
-        }
+    // EGA/VGA code commonly uses `mov al,idx; mov ah,data; out dx,ax`.  The data
+    // byte must be written even when it is zero — AH==0 is a legitimate register
+    // value (e.g. Read Map Select 0 / Map Mask 0), and skipping it leaves the
+    // register at its previous value.  That is what corrupted plane 0: the first
+    // blit pass sets Read Map Select to 0, the write was dropped, so the pass
+    // read the still-selected plane 3.
+    switch (p) {
+        case 0x3C0:
+            // Attribute controller: index and data both go to 0x3C0.
+            port_write_byte(0x3C0, (uint8_t)(v >> 8));
+            break;
+        case 0x3C4: case 0x3CE: case 0x3D4:
+            port_write_byte((uint16_t)(p + 1), (uint8_t)(v >> 8));
+            break;
+        default: break;
     }
 }
 
