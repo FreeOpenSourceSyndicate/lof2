@@ -1284,9 +1284,11 @@ neighbourhood:
   the low nibble is the "what is on the side" field.
 
 Open question (still BLK-001): the exact bitmask → DPnnn rule.  The measured
-`switch` is implemented in `dungeon_base_view_index`; unknown codes fall back to
-the wall view (`DP001`), which is correct for a wall directly ahead and a
-harmless over-estimate elsewhere.  The four stride-16 groups
+`switch` is implemented in `dungeon_base_view_index`; the corridor case (2/7/8)
+and unknown codes fall back to the wall view (`DP001`), which is correct for a
+wall directly ahead and a harmless over-estimate elsewhere (a bare `DP037` blit
+would leave the window mostly empty, since the engine's corridor view is a
+multi-piece composite).  The four stride-16 groups
 (4/20/36/52, 5/21, 6/13, 7/8) strongly suggest the code is
 `(param << 4) | structure`; `0x02/0x07/0x08` are the "corridor straight ahead,
 no side wall" case whose view is a **composite** the engine builds from a 64x59

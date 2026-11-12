@@ -258,7 +258,10 @@ int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p) {
         case 0x05: case 0x15: return 59;
         case 0x06: case 0x0d: return 60;
         case 0x0a: return 14;
-        case 0x02: case 0x07: case 0x08: return 37;
+        // 0x02/0x07/0x08 are the "corridor straight ahead" case.  The engine
+        // builds that view as a composite of a 64x59 wall-at-depth-2 piece
+        // (DP037) centred plus smaller side pieces, so no single full-size
+        // sprite reproduces it; fall back to the wall view (see notes-a.md).
         default: return 1;
     }
 }

@@ -216,9 +216,10 @@ bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax, int& ay)
 //   0x05,0x15            -> 59   side passage variant
 //   0x06,0x0d            -> 60   open room
 //   0x0a                 -> 14   doorway
-//   0x02,0x07,0x08       -> 37   corridor: no single full-size sprite; the view
-//                                is a composite of a 64x59 wall-at-depth-2 piece
-//                                (DP037) centred plus smaller side pieces
+//   0x02,0x07,0x08       -> 1    corridor: no single full-size sprite; the
+//                                engine composites a 64x59 wall-at-depth-2 piece
+//                                (DP037) centred plus smaller side pieces, so the
+//                                drop-in falls back to the wall view
 //   anything else        -> 1    wall directly ahead (DP001, 0.92 of the frame)
 //
 // The full rule (the tile code looks like a wall mask whose bits encode which

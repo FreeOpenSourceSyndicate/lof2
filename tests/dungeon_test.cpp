@@ -528,9 +528,11 @@ static void test_base_view(const std::string& dir) {
     d.tiles[4 * kDungeonW + 5] = 6;  assert(dungeon_base_view_index(d, p) == 60);
     d.tiles[4 * kDungeonW + 5] = 13; assert(dungeon_base_view_index(d, p) == 60);
     d.tiles[4 * kDungeonW + 5] = 10; assert(dungeon_base_view_index(d, p) == 14);
-    d.tiles[4 * kDungeonW + 5] = 2;  assert(dungeon_base_view_index(d, p) == 37);
-    d.tiles[4 * kDungeonW + 5] = 7;  assert(dungeon_base_view_index(d, p) == 37);
-    d.tiles[4 * kDungeonW + 5] = 8;  assert(dungeon_base_view_index(d, p) == 37);
+    // The corridor case (2/7/8) has no single full-size sprite (the engine
+    // composites DP037 + side pieces); the drop-in falls back to the wall view.
+    d.tiles[4 * kDungeonW + 5] = 2;  assert(dungeon_base_view_index(d, p) == 1);
+    d.tiles[4 * kDungeonW + 5] = 7;  assert(dungeon_base_view_index(d, p) == 1);
+    d.tiles[4 * kDungeonW + 5] = 8;  assert(dungeon_base_view_index(d, p) == 1);
     d.tiles[4 * kDungeonW + 5] = 3;  assert(dungeon_base_view_index(d, p) == 1);
     d.tiles[4 * kDungeonW + 5] = 12; assert(dungeon_base_view_index(d, p) == 1);
     d.tiles[4 * kDungeonW + 5] = 0;  assert(dungeon_base_view_index(d, p) == 1);
@@ -539,16 +541,19 @@ static void test_base_view(const std::string& dir) {
     assert(dungeon_base_view_index(d, p) == 1);
 
     // Real DNG05: entry (17,3) facing 2 (S) -> ahead (17,4) is tile 3 -> wall;
-    // turned to face N the ahead cell (17,2) is tile 7 -> the corridor composite.
+    // turned to face N the ahead cell (17,2) is tile 7 -> the corridor case,
+    // which has no single sprite and so also falls back to the wall view.
     Dungeon r;
     if (load_dungeon(dir + "/DNG05", r)) {
         DungeonPos e; dungeon_place_entry(r, e);
         assert(e.x == 17 && e.y == 3 && e.facing == 2);
         assert(r.tile(17, 4) == 3 && dungeon_base_view_index(r, e) == 1);
         e.facing = 0;
-        assert(r.tile(17, 2) == 7 && dungeon_base_view_index(r, e) == 37);
-        std::printf("dungeon_test: base-view selection verified (entry wall, "
-                    "corridor composite)\n");
+        assert(r.tile(17, 2) == 7 && dungeon_base_view_index(r, e) == 1);
+        // Facing E the ahead cell (18,3) is open room (tile 0) -> wall view too.
+        e.facing = 1;
+        assert(r.tile(18, 3) == 0 && dungeon_base_view_index(r, e) == 1);
+        std::printf("dungeon_test: base-view selection verified (DNG05 entry)\n");
     }
 
     // render_dungeon_play picks the same sprite render_dungeon_screen would.
