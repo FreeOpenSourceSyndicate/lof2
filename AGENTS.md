@@ -305,22 +305,18 @@ Menu text is drawn at x=139, rows at y=124+8*n (colour 0). `port/font.{h,cpp}` l
 strip at run time (no font data is embedded) and draws text; `tests/font_test.cpp`
 covers the mapping, the advance and the draw path.
 
-**Known font-rendering gap (open).** The menu/town/panel text in the emulator
-oracle does *not* byte-match the `CHR1`/`CHR2` strip cells: sliding a rendered
-`(P)ick-pocket` / `Which building do you want to visit?` / `Welcome, hardy`
-against the oracle frame leaves a residual of a few hundred pixels, and the
-oracle glyph for the greeting's first letter is a *bold, double-struck* form
-(each stem two pixels wide) with no exact match anywhere in `CHR1`, `CHR2`, the
-decoded EGA planes, `MENU`, `MSCR`, `LOF.EXE` or `VOR.EXE`. The oracle's panel
-background is the correct colour (the custom-palette fix below) and the *strings
-and layout* are confirmed byte-for-byte from `LOF.EXE` (`Welcome, hardy` /
-`adventurers!` / `(P)ick-pocket` … / `(C)ontinue` at x=139, rows y=92,100,116,
-124,140,148,156,164,172,188), but the glyph *bitmaps* the engine blits are still
-unidentified — the engine appears to build them from `EGA\UP\CHR1`/`CHR2` at run
-time with an extra step (weighting/duplication) the drop-in does not yet model.
-`port/lof.cpp` draws them with the `CHR1` cells (colour 0) as the current best
-approximation. Next step: disassemble the engine's glyph-blit routine (the code
-that reads the `4130:` buffer `CHR1` is loaded into) to recover the transform.
+**Font rendering (resolved — no transform).** The engine's menu/town/panel text
+is the `EGA/UP/CHR1`/`CHR2` cell bitmaps blitted **directly**, left 6 columns at a
+6-px advance; there is no bold/double-struck weighting step. This was confirmed
+by pixel-matching the DOSBox oracle: every glyph of `Welcome, hardy` /
+`adventurers!` / `(P)ick-pocket` … / `(C)ontinue` equals the CHR1 cell
+`glyph_cell()` selects, and the *analysis emulator's* glyph shapes are
+byte-identical to the oracle capture (only its palette differs). The port's menu
+text is therefore pixel-exact (`tests/port_menu_test.py` pins the greeting /
+option list / `(C)ontinue` regions). The earlier "bold, double-struck, no exact
+match" note was an artefact of the wrong-palette era before `port/gfx.cpp` used
+the standard EGA set — with the correct palette the CHR1 cells match exactly.
+Resolved as `BLK-M001`.
 
 **EGA palette.** The engine programs the attribute controller at start-up
 (`INT 10h AH=10h AL=02h`) with the **standard EGA/BGI attribute set**

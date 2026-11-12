@@ -156,10 +156,10 @@ Pick a workstream from `docs/WORKSTREAMS.md`. The highest-value open items:
    (small green specs on near walls). Full evidence: `docs/blockers/A.md` BLK-A002
    and `docs/notes-maintainer-town.md`. **Do not change the drop-in** — it is
    correct.
-3. **Font glyph transform (open, documented in `AGENTS.md`).** The engine's
-   menu/town/panel glyphs are a *bold, double-struck* form with no exact match in
-   `CHR1`/`CHR2`; the drop-in approximates with the `CHR1` cells. Next step:
-   disassemble the glyph-blit routine that reads the `4130:` buffer.
+3. **Font glyphs (resolved — `BLK-M001`).** The engine blits `CHR1`/`CHR2`
+   cells directly (no bold/double-struck transform); the port already does, and
+   its menu text is pixel-exact. The "bold, double-struck" note was an artefact
+   of the wrong-palette era. See `docs/blockers/M.md` and `AGENTS.md`.
 4. **Combat / shop / item-use (workstream B).** *Updated 2026-11-12.* The
    "runtime item-use table" is settled — it is the **static spell table**, already
    transcribed (BLK-B002, resolved; PR #93). What remains for B is **BLK-B003**:

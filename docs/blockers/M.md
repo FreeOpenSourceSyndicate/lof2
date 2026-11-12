@@ -15,7 +15,7 @@ work that no single lane owns.
 
 | ID | Blocked lane | Responsible | Priority | Status | Depends on |
 |----|--------------|-------------|----------|--------|------------|
-| BLK-M001 | M (maintainer) | Maintainer | Medium | Open | — |
+| BLK-M001 | M (maintainer) | Maintainer | Medium | Resolved | — |
 
 ---
 
@@ -24,16 +24,32 @@ work that no single lane owns.
 - **Blocked lane:** M (maintainer)
 - **Responsible:** Maintainer
 - **Priority:** Medium
-- **Status:** Open
+- **Status:** Resolved
 - **Dependencies:** —
 
-**Description & unblock action.** The menu/town/panel glyphs the engine blits do
-not byte-match the `CHR1`/`CHR2` strip cells: sliding a rendered `(P)ick-pocket`
-against the oracle leaves a residual, and the greeting's first letter is a bold,
-double-struck form with no exact match in `CHR1`, `CHR2`, the decoded planes,
-`MENU`, `MSCR`, `LOF.EXE` or `VOR.EXE`. The strings/layout are confirmed from
-`LOF.EXE`, so only the glyph *bitmaps* are unknown — the engine appears to build
-them from the strip with an extra step (weighting/duplication). Unblock by
-disassembling the glyph-blit routine that reads the `4130:` buffer `CHR1` loads
-into, then reproducing the transform in `port/font.cpp`. Detail: `AGENTS.md`
-("Known font-rendering gap").
+**Description (original premise).** The menu/town/panel glyphs the engine blits
+were believed not to byte-match the `CHR1`/`CHR2` strip cells — a residual when
+sliding a rendered `(P)ick-pocket` against the oracle, and a "bold,
+double-struck" greeting glyph with no exact match in `CHR1`, `CHR2`, `MENU`,
+`MSCR`, `LOF.EXE` or `VOR.EXE` — implying the engine applied an extra
+weighting/duplication step.
+
+**Resolution — the premise was wrong; there is no transform.** The engine blits
+the `EGA/UP/CHR1`/`CHR2` cells **directly** (left 6 columns, 6-px advance), and
+the drop-in already does exactly that. Verified by pixel-matching the DOSBox
+oracle: every glyph of `Welcome, hardy` / `adventurers!` / `(P)ick-pocket` … /
+`(C)ontinue` equals the `CHR1` cell `glyph_cell()` selects (all 10 menu strings
+exact), and the *analysis emulator's* glyph **shapes** are byte-identical to the
+oracle capture (only its palette differs — the separate emulator-palette issue).
+The "double-struck" appearance is simply CHR1's real 2-px stems (e.g. band-0
+cell 22 `W` = `##.##` rows), not a transform.
+
+The original residue came from the **wrong-palette era** (before `port/gfx.cpp`
+used the standard EGA set, commit `7ca187c`): with the wrong palette the
+anti-aliased-looking diff read as a font mismatch. With the correct palette the
+port's menu text is pixel-exact and the play-screen status/panel text is exact.
+
+**Guard.** `tests/port_menu_test.py` now pins the greeting / option-list /
+`(C)ontinue` regions to zero diff, so a real font regression (mapping or advance)
+fails the test. `AGENTS.md`'s "Known font-rendering gap" section is rewritten as
+resolved.
