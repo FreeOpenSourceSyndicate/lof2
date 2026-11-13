@@ -375,6 +375,11 @@ Roadmap:
 | `LOF_DISASM=seg:off:len` | hex-dump `len` bytes of the loaded image at `seg:off` |
 | `LOF_ALLOC=1`        | log each INT 21h AH=48 allocation (want, free paragraph) |
 
+**Gotcha — `LOF_DEBUG`'s `mode=` field is decimal.** A run at EGA mode `0Dh`
+prints `mode=13`; that is **13 decimal = 0x0D**, i.e. EGA 320x200x16, *not* VGA
+mode 13h. The game only ever selects EGA `0Dh` (see `src/machine.cpp`). Do not
+read the debug field as hex.
+
 ## Town / play-loop flow (oracle for the drop-in)
 
 The save filename the engine opens is `GAMES\GAME%3d` (printf `%3d`), i.e.
