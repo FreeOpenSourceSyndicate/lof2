@@ -5,6 +5,33 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-13 (seventh session) — TL;DR
+
+Environment HEALTHY. HEAD `4ee2159`, `main` clean and pushed.
+
+- **Rule 8 added** (`docs/RULES.md`): agents stay in their lane; unowned work must
+  be **added to a lane** first; work only the owner can do is an **owner task**
+  (`docs/OWNER-TASKS.md`), and lane M re-reminds the owner every session. Wired
+  into README/AGENTS/HANDOFF/WORKSTREAMS + `check.sh` + the prompt addendum.
+- **Building screens are NOT incomplete.** The old note was wrong: at the golden
+  `--frames 1600` the Emporium is fully drawn and its EGA-plane md5 reproduces the
+  recorded golden exactly (`shop c9781d20…`). `LOF_DEBUG`'s `mode=13` is
+  **decimal** = `0x0D` (EGA 320x200x16); there is **no VGA mode-13h path**.
+  `ref/oracle/shop.png` saved. The Emporium reads **no new files** (redraws from
+  `ROST/ROST`+`ROST/SHOP`+built-in art).
+- **G-001 (town-name "Thyn")**: not a plain string reference — the routine loads
+  `0x5a31` / `0x5a4c` / `0x5a69` (plural-form / `(C)ontinue` / etc.) into AX and
+  calls the string drawer; the singular "Thyn" is selected further up (not yet
+  traced). Kept queued; needs a focused decompilation pass.
+- **G-002 (16x16 corner patch)**: shared by the *menu* and *town* frames (so not
+  a town-specific sprite), matches no `EGA/**` asset at any offset, and differs
+  from `MSCR` in both DOSBox and the emulator → engine-drawn residue. Kept on the
+  watchlist.
+- No open owner tasks (nothing only the owner can do right now).
+- **Next (lane M):** implement the Emporium/Temple screen in the drop-in
+  (`--shop` / `--building`), decoding the ornate panel from `ref/oracle/shop.png`;
+  and finish G-001 by tracing the singular town-name selection.
+
 ## Session 2026-11-12 (sixth session) — TL;DR
 
 Environment HEALTHY. HEAD `97c9167`, `main` clean, 0 ahead / 0 behind.

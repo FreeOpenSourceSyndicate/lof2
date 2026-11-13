@@ -710,12 +710,34 @@ wraps the leftmost ~10 columns with the right end of `TWN00`'s top rows (the sam
 wrap the menu's `MENU` frame shows), so a naive `TWN00[0:119,0:120]` still lands
 the interior pixels correctly; only the corner differs.
 
-## Building screens (Emporium/Temple) — capture is incomplete (2026-11-12)
+## Building screens (Emporium/Temple) — captured; no new files (2026-11-13)
 
-`tests/golden_test.sh` reaches the Emporium with
-`LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x12` and the Temple with `...,0x14`, but a
-1700-frame capture with `LOF_KEYGAP=250` produced a **partially drawn** frame
-(the viewport is still mid-composite; text is garbled).  The screen is a
-different, denser layout than the town menu (a bordered list panel on the left,
-a status area on the right).  Next session: capture with a larger `--frames`
-(≥3000) and/or a larger `LOF_KEYGAP`, then decode.  Do not guess the layout.
+The earlier note ("capture is incomplete") was **wrong**: the Emporium *is* fully
+drawn. The confusion came from a 1700-frame run under `golden_test.sh`, which
+uses `FRAMES=60` per scenario (so a partial frame was inspected); at the golden
+`--frames 1600` the screen is complete and the EGA-plane md5 matches the recorded
+golden (`shop c9781d20…`). Confirmed this session by re-running the scenario and
+reproducing the golden hash exactly.
+
+**It is the same video mode as the town screen: EGA mode 0Dh.** `LOF_DEBUG`
+prints `mode=13`, but that field is **decimal** — 13 = 0x0D, i.e. EGA 320x200x16
+(see `src/machine.cpp:set_video_mode`, which the game calls with `0D`). There is
+**no VGA mode-13h path**; do not be misled by the decimal `13`.
+
+**Grounding for the drop-in:** the Emporium reads **no new files** — it redraws
+from `ROST/ROST` + `ROST/SHOP` and built-in art (`LOF_I21=1` shows the last opens
+are `ROST/ROST` then `ROST/SHOP`; nothing after). The oracle frame is saved at
+`ref/oracle/shop.png`. Reproduce with:
+
+```
+LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x12 LOF_KEYGAP=250 LOF_CMDLEN=3 LOF_NO_TIMER=1 \
+  ./lof-native --dir game --headless --frames 1600 --shot out.png
+```
+
+Temple: same with `...,0x14`. The layout is a large **ornate-framed panel** (a
+decorative border with a repeating motif) filling most of the screen, a dark
+inner region, and text/options; it is a denser, more decorative screen than the
+town menu. Implement it only from the decoded frame — do not guess the border
+art (identify its EGA source or the engine's draw routine first).
+
+
