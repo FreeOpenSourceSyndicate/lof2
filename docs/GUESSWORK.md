@@ -42,6 +42,13 @@ How to use each section:
   asset, and not a shifted/wrapped copy of either (best match ≈0% on that patch;
   the oracle patch is a diagonal arrow shape). See
   `docs/notes-maintainer-town.md`.
+- **New evidence (2026-11-13):** the *same* patch appears in both the town frame
+  and the main-menu frame (the two frames are identical in rows 0..10 of the
+  corner), so it is **not** a town-specific sprite. It also differs from `MSCR`
+  in **both** DOSBox and the emulator, so it is not a decode artefact — it is
+  something the engine draws over `MSCR`. Template-matching every `EGA/**` asset
+  at every 4-px offset found **no** match (<25 mean-abs threshold). This points
+  firmly at an engine-drawn sprite/algorithm (→ trace the routine).
 - **Why unclear:** it may be removable by tracing the routine that draws the town
   screen (a small sprite blit / arrow) in `analysis/lof.asm`; not yet attempted.
 - **To clear it:** trace the town-screen draw path in the decompilation. If the
