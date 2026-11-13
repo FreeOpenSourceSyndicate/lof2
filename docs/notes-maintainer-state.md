@@ -5,6 +5,27 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-12 (sixth session) — TL;DR
+
+Environment HEALTHY. HEAD `97c9167`, `main` clean, 0 ahead / 0 behind.
+
+- **Town screen decoded + shipped** — `./lof --dir game --town`.  Composition:
+  `EGA/UP/MSCR` + `EGA/TWN/TWN00` at (10,11) + the engine message/building menu
+  in `CHR1` at x=139 (rows 92..188).  Every glyph template-matches a `CHR1`
+  cell exactly; recovered two unmapped cells (`.`=band1 cell 34, `?`=band1
+  cell 35) now in `port/font.cpp`.  Static match 99.2% vs the emulator frame
+  (`ref/oracle/town.png`); residue = a 16x16 top-left patch + the dynamic party
+  panel.  Guarded by `tests/port_town_test.py` (wired into `make golden-port`).
+  Commits `921665a`, `44f38fb`, `97c9167`.
+- **Open PRs (both other lanes' DRAFTS; left to their authors):** #99
+  (`work/agent-b-itemuse-fix`, BLK-B003, **merges cleanly**) and #89
+  (`work/agent-a-blockers`, **conflicts** on `docs/BLOCKERS.md`).
+- **Next session (lane M):** the building screens (Emporium/Temple/…).  The
+  `shop`/`temple_bldg` golden scenarios reach them, but a 1700-frame capture was
+  **partially drawn** — capture with `--frames` ≥3000 and a larger `LOF_KEYGAP`
+  first.  Then the 16x16 town corner patch (source unidentified; not any single
+  `EGA/**` asset).
+
 ## Session 2026-11-12 (fifth session) — TL;DR
 
 Environment verified HEALTHY (`./check.sh` → HEALTHY at the end of the session).
@@ -237,3 +258,23 @@ Pick a workstream from `docs/WORKSTREAMS.md`. The highest-value open items:
 - `game/`, `downloads/`, `GAME1` are git-ignored (proprietary); restore with
   `./bootstrap.sh`.
 - Commit and push after every meaningful step — the workspace can reset.
+
+### Guesswork audit (2026-11-12, sixth session)
+
+All guesses are now tracked in the canonical register **`docs/GUESSWORK.md`**
+(read it every session, per `docs/RULES.md`). The Lane-M findings from this
+audit were moved there:
+
+- **G-001** (queued task) — the town name "Thyn." is hardcoded in
+  `compose_town_screen()`; the town name is a variable (a string table in
+  `LOF.EXE` at file `0x45A1D`, names `"Thyn. "` and `"Cyldane. "`). Derivable →
+  normal task.
+- **G-002** (watchlist) — the 16×16 town top-left patch; not `MSCR`, not `TWN00`,
+  not any single `EGA/**` asset, not a shift/wrap of either. Removability unclear
+  → revisit until clear.
+- **E (not a guess)** — the RNG is seeded from the BIOS tick counter
+  (`analysis/lof.asm` image `0x47A6`, `int 0x1a` then `add cx,dx`), so combat is
+  non-reproducible by design; listed so nobody mistakes it for a guess.
+- **Party-panel live state** (time of day, morale, rations) is engine state a
+  save does not carry; the port deliberately draws the labels only. This is
+  correct-by-construction, not guesswork.

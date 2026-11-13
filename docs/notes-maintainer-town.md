@@ -674,3 +674,48 @@ Only the real town screen has the building menu
 
 Enemies are **generated on load** (random positions/movement) and are not part of
 the save, so combat encounters are not reproducible from a save alone.
+
+## Town screen decoded + shipped (`--town`, 2026-11-12)
+
+The town screen is now reproduced by the drop-in (`./lof --dir game --town`).
+Composition, recovered by template-matching the emulator's `town` golden frame:
+
+* background `EGA/UP/MSCR` at (0,0);
+* town scene `EGA/TWN/TWN00` blitted into the 120x119 viewport at **(10,11)**;
+* the engine's message and building menu in `CHR1`'s full face, 6-px advance,
+  **x=139**, colour 15 (white) for the message, colour 0 (black) for the menu:
+
+  | row | text |
+  |-----|------|
+  | 92  | `You enter the proud town of` |
+  | 100 | `Thyn. Which building do you` |
+  | 108 | `want to visit?` |
+  | 132 | `(E)mporium` |
+  | 140 | `(B)ank` |
+  | 156 | `(I)nn` |
+  | 164 | `(H)ouse of trades` |
+  | 172 | `(T)emple` |
+  | 188 | `(C)ontinue` |
+
+Every glyph template-matches a `CHR1` cell exactly (score 1.0), which also
+recovered two previously unmapped cells: `.` = band 1 cell 34, `?` = band 1
+cell 35 (added to `port/font.cpp`).  Static match 99.2% vs `ref/oracle/town.png`;
+the only residue is a 16x16 top-left patch (88 px, `MSCR` corners + a small
+diagonal arrow the engine draws at ~(4..15,0..15) — source not yet identified;
+`TWN00` does not supply it and it is not any single `EGA/**` asset) and the
+dynamic party panel (top-right).  Guarded by `tests/port_town_test.py`.
+
+Note the town viewport is **120 wide, not 118**: the engine's viewport blitter
+wraps the leftmost ~10 columns with the right end of `TWN00`'s top rows (the same
+wrap the menu's `MENU` frame shows), so a naive `TWN00[0:119,0:120]` still lands
+the interior pixels correctly; only the corner differs.
+
+## Building screens (Emporium/Temple) — capture is incomplete (2026-11-12)
+
+`tests/golden_test.sh` reaches the Emporium with
+`LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x12` and the Temple with `...,0x14`, but a
+1700-frame capture with `LOF_KEYGAP=250` produced a **partially drawn** frame
+(the viewport is still mid-composite; text is garbled).  The screen is a
+different, denser layout than the town menu (a bordered list panel on the left,
+a status area on the right).  Next session: capture with a larger `--frames`
+(≥3000) and/or a larger `LOF_KEYGAP`, then decode.  Do not guess the layout.

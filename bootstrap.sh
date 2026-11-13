@@ -114,3 +114,4 @@ make -s port       || { say "[bootstrap] 'make port' failed"; exit 5; }
 say "[bootstrap] running tests (make test) ..."
 make -s test       || { say "[bootstrap] 'make test' failed"; exit 6; }
 say "[bootstrap] OK — ./lof-native (emulator oracle), ./lof and ./vor (drop-in)"
+say "[bootstrap] AGENTS: read docs/RULES.md (owner rules + changelog) and docs/GUESSWORK.md (guess register) before working."

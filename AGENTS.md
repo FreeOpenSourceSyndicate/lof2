@@ -1,10 +1,16 @@
 # AGENTS.md — Legend of Faerghail native drop-in
 
-> **New here? Read `docs/HANDOFF.md` first, then `docs/RISKS.md`, then
-> `docs/WORKSTREAMS.md`.** They cover how to survive a workspace reset, how to
-> avoid the poisoned sibling repo, and which files you own. This file is the
-> deep technical reference. When you get blocked, record it in your lane's
-> blocker file under `docs/blockers/` (A = dungeons, B = characters, M =
+> **New here? Read `docs/RULES.md` first (the owner's standing rules + their
+> changelog), then `docs/GUESSWORK.md` (the guess register) and
+> `docs/OWNER-TASKS.md` (owner-only work), then `docs/HANDOFF.md`,
+> `docs/RISKS.md`, and `docs/WORKSTREAMS.md`.** The rules file
+> is authoritative: **never guess** and **stay in your lane** — every underived
+> value must be removed, filed as a blocker if another lane is needed, or (if it
+> cannot be removed) reported to the owner and re-reminded every session. They
+> cover how to survive a workspace reset, how to avoid the poisoned sibling repo,
+> and which files you own. This
+> file is the deep technical reference. When you get blocked, record it in your
+> lane's blocker file under `docs/blockers/` (A = dungeons, B = characters, M =
 > maintainer); the hub `docs/BLOCKERS.md` defines the `BLK-<lane><nnn>` IDs and
 > fields.
 

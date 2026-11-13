@@ -6,6 +6,12 @@ productive in the first ten minutes, and how to survive a workspace reset or a
 dead-end error. Deep detail lives in `AGENTS.md`; the work split lives in
 `docs/WORKSTREAMS.md`.
 
+> **Before anything else: read `docs/RULES.md`** (the owner's standing rules and
+> their dated changelog), `docs/GUESSWORK.md` (the guess register), and
+> `docs/OWNER-TASKS.md` (work only the owner can do; lane M re-reminds the owner
+> every session). The single most important rule is **never guess** — see Rule 1
+> there. Rule changes are announced in the `docs/RULES.md` changelog.
+
 > **Incoming maintainer? Read `docs/notes-maintainer-state.md` first** — it
 > records the last session's landing of the play-loop work and the current open
 > items.
@@ -167,10 +173,17 @@ screen, and `make test` still passes.
       number, `GOOD` status).  The panel is pixel-exact; the screen matches the
       DOSBox capture at ~94.2% (residue = the engine's dynamic viewport sprite).
       Guarded by `tests/port_play_test.py`.
-- [ ] Drop-in: reproduce the in-game (town) screen — compare against the `town`
-      golden frame.  Investigated: the viewport is composited at runtime (no
-      single asset matches), so this needs its own session (see
-      `docs/notes-maintainer-town.md`).
+- [x] Drop-in: reproduce the in-game (town) screen — `--town`.  It is
+      `EGA/UP/MSCR` + `EGA/TWN/TWN00` at (10,11) + the engine's message and
+      building menu drawn in `CHR1` at x=139 (rows 92..188).  Static match
+      99.2% vs the emulator frame (viewport + every text row pixel-exact; the
+      residue is a 16x16 top-left patch and the dynamic party panel).  Guarded
+      by `tests/port_town_test.py` (oracle `ref/oracle/town.png`).
+- [ ] Building screens (Emporium/Temple/Inn/Bank/…): the `shop`/`temple_bldg`
+      golden scenarios capture the Emporium/Temple, but the screen is a
+      different (more complex) layout; the first capture was incomplete.  Next
+      session: capture with a longer key gap and decode.  See
+      `docs/notes-maintainer-town.md`.
 - [ ] Dungeon subsystem (`DNGS/`) — workstream A.
 - [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — workstream B. **Unblocked:**
       the SPEC/ROST reads now happen in the oracle (`town` scenario), so B can
