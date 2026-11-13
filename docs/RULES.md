@@ -99,19 +99,51 @@ Any change to these rules is appended to the **Changelog** below, newest first,
 with the date and a one-line summary. This file is the canonical announcement
 point; other documents may summarise but MUST point here.
 
+## Rule 8 — Stay in your lane. Owner-only work goes on the owner-task list.
+
+Every agent **stays in its own lane** and works only on the files it owns (the
+map in `docs/WORKSTREAMS.md`). Do not edit another lane's files, and do not pick
+up unowned work ad hoc.
+
+- **Work that belongs to no lane yet MUST be added to a lane** — either give it
+  to an existing lane whose remit fits, or create a new lane and register it in
+  `docs/WORKSTREAMS.md` (name, owner, files, goal) **before** starting it.
+- **Exception — work only the owner can do is an owner task.** It is not an
+  agent lane. Record it in `docs/OWNER-TASKS.md` with what is needed and why
+  only the owner can do it.
+- **The Maintainer (lane M) MUST re-remind the owner of every open owner task
+  every session**, in the reply/handover, until the owner confirms it is done.
+  This is the same standing obligation as Rule 3 (unremovable guesses) — an
+  owner task is never allowed to go quiet.
+
+Owner tasks include (non-exhaustive): deciding the fate of an unremovable guess
+(Rule 3), playing the game to answer a question (Rule 5), authorising a guess
+(Rule 6), and any blocker whose `Responsible` is `External (repo owner)`.
+
 ---
 
 ## Session checklist (do this at the start of every session)
 
 1. Read this file (and the changelog for anything new).
 2. Read `docs/GUESSWORK.md` — resolve, advance, or re-remind on every open item.
-3. Read `docs/HANDOFF.md`, `docs/RISKS.md`, `docs/WORKSTREAMS.md`.
-4. Run `./bootstrap.sh` and `./check.sh` if the workspace may have reset.
-5. Only then start work. If you would have to guess, stop and apply Rules 2–6.
+3. Read `docs/OWNER-TASKS.md` — the Maintainer re-reminds the owner of every
+   open owner task in the reply/handover.
+4. Read `docs/HANDOFF.md`, `docs/RISKS.md`, `docs/WORKSTREAMS.md`.
+5. Stay in your lane (Rule 8); if work is unowned, add it to a lane first.
+6. Run `./bootstrap.sh` and `./check.sh` if the workspace may have reset.
+7. Only then start work. If you would have to guess, stop and apply Rules 2–6.
 
 ---
 
 ## Changelog (newest first)
+
+### 2026-11-13 — Lane discipline + owner-task reminders
+
+- Rule 8: agents **stay in their lane**; unowned work must be **added to a lane**
+  first (register new lanes in `docs/WORKSTREAMS.md`); work only the owner can do
+  is an **owner task** recorded in the new `docs/OWNER-TASKS.md`, and the
+  Maintainer **re-reminds the owner every session** until it is confirmed done.
+- Added `docs/OWNER-TASKS.md` and folded it into the session checklist.
 
 ### 2026-11-12 — Guesswork policy established
 

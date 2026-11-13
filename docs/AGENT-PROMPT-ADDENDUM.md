@@ -22,9 +22,15 @@ revisited every session. If something is knowable by playing the game, ask the
 owner instead of guessing. Guesswork is allowed ONLY when the owner explicitly
 authorises it (and it is then recorded in docs/GUESSWORK.md).
 
-Then read docs/GUESSWORK.md (act on every open item), docs/HANDOFF.md,
-docs/RISKS.md, and docs/WORKSTREAMS.md, run ./bootstrap.sh and ./check.sh if the
-workspace may have reset, and only then start work.
+Then read docs/GUESSWORK.md (act on every open item), docs/OWNER-TASKS.md (work
+only the owner can do), docs/HANDOFF.md, docs/RISKS.md, and
+docs/WORKSTREAMS.md, run ./bootstrap.sh and ./check.sh if the workspace may have
+reset, and only then start work.
+
+Stay in your lane: work only the files you own, and if something has to be done
+that no lane owns, add it to a lane (register a new lane in docs/WORKSTREAMS.md)
+before starting it. Work only the owner can do is an owner task, recorded in
+docs/OWNER-TASKS.md — never an agent lane.
 ```
 
 ---

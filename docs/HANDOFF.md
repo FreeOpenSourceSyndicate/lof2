@@ -7,9 +7,10 @@ dead-end error. Deep detail lives in `AGENTS.md`; the work split lives in
 `docs/WORKSTREAMS.md`.
 
 > **Before anything else: read `docs/RULES.md`** (the owner's standing rules and
-> their dated changelog) and `docs/GUESSWORK.md` (the guess register). The single
-> most important rule is **never guess** — see Rule 1 there. Rule changes are
-> announced in the `docs/RULES.md` changelog.
+> their dated changelog), `docs/GUESSWORK.md` (the guess register), and
+> `docs/OWNER-TASKS.md` (work only the owner can do; lane M re-reminds the owner
+> every session). The single most important rule is **never guess** — see Rule 1
+> there. Rule changes are announced in the `docs/RULES.md` changelog.
 
 > **Incoming maintainer? Read `docs/notes-maintainer-state.md` first** — it
 > records the last session's landing of the play-loop work and the current open

@@ -69,6 +69,14 @@ if [ -f docs/GUESSWORK.md ]; then
 else
     bad "docs/GUESSWORK.md missing"
 fi
+if [ -f docs/OWNER-TASKS.md ]; then
+    ok "docs/OWNER-TASKS.md present (owner-only work)"
+    # Rule 8: lane M must re-remind the owner of every open owner task.
+    open_owner="$(awk '/^## Open/,/^## Done/' docs/OWNER-TASKS.md | grep -cE '^### ')"
+    printf '  note owner tasks: %s open — the Maintainer must remind the owner every session\n' "${open_owner:-0}"
+else
+    bad "docs/OWNER-TASKS.md missing"
+fi
 
 echo "[check] hygiene"
 if [ -n "$(git status --porcelain)" ]; then

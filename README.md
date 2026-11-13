@@ -16,7 +16,8 @@ make check          # health check: poison guard, build, tests, git hygiene
 
 1. `docs/RULES.md` — **the owner's standing rules and their changelog.** Read
    this first, every session. In particular: **never guess** (see
-   `docs/GUESSWORK.md`, the guess register, which you also read every session).
+   `docs/GUESSWORK.md`, the guess register, which you also read every session)
+   and **stay in your lane** (see `docs/OWNER-TASKS.md` for owner-only work).
 2. `docs/HANDOFF.md` — orientation, the two hard constraints, and the rules for
    surviving a workspace reset or an unrecoverable error.
 3. `docs/RISKS.md` — the four risks (especially the poisoned sibling repo).
