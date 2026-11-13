@@ -48,6 +48,38 @@ How to use each section:
   sprite/algorithm is found → move to **D** (or a blocker if another lane owns
   the routine). If it cannot be derived → move to **A**.
 
+### G-003 — `item_is_usable()` default for `spell == 0` non-potions (Lane B)
+
+- **What:** the item-use gate (image `0x0E562`) keeps its verdict in the word
+  `[bp-4]:[bp-2]`, written **only** in the `spell != 0` branch (`0xE588/0xE58D`)
+  and the potion branch (`0xE5CF/0xE5D2`).  In the `spell == 0`, non-potion path
+  the branch at `0xE586` skips both, so the flag is never written and the test at
+  `0xE5D5/0xE5D8` reads **uninitialised stack**.  `item_is_usable()` returns
+  `false` for that case — a defensible default, not a derived value.
+- **Source of truth:** `analysis/lof.asm` `0x0E562`–`0x0E5E0`, routine entry
+  `0xD9FC`, callers `0xF52A` and `0x13EA6`.
+- **Why unclear:** caller `0x13EA6` reaches the routine only for potions (class
+  9), where the flag is cleared, so the uninitialised read is unreachable there.
+  Caller `0xF52A` can offer any carried item, but whether a `spell == 0`
+  non-potion is ever actually selected is a **live-play** question (Rule 5).
+- **To clear it:** play the item-use menu and use a `spell == 0` non-potion; if
+  the engine accepts it, the flag defaults to "usable" and the predicate must
+  change.  Otherwise move to **A** (or leave as the documented default).
+
+### G-004 — `item_effect_name()` labels beyond the traced dispatcher values (Lane B)
+
+- **What:** `item_effect_name()` gives 41 labels for the item effect byte
+  (`+0x1f`).  Only some are traceable to code that tests that byte.
+- **Source of truth:** the use routine's dispatch at `0x0E89D` (tests 1, 2, 3,
+  10; 10 = healing, proven by the HP add at `0x0EA90`) and the unequip handler at
+  `0x29984` (tests 8, 0x0c, 0x15, 0x18, 0x1c, 0x1d); other sites test 0x0d,
+  0x14, 0x1f.  Labels for these values are grounded; the rest were assigned by
+  grouping the item table by name.
+- **Why unclear:** the remaining effect handlers live in the play loop, so
+  grounding every label may need Lane M to drive those screens (a blocker).
+- **To clear it:** trace each effect value's handler to a concrete stat change /
+  message; ground it, or drop the label to a neutral `effect <n>` string.
+
 ---
 
 ## C. Owner-authorised guesses

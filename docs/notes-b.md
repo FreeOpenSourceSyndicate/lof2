@@ -1175,6 +1175,44 @@ Heroes' drink, Potion of Kybol/haste, Ring of Kybol, Ring of power, Healers'
 staff, Gain level, Drain level, Ring of shelter, Gunpowder, Magic protect.,
 Talisman, Gnokem Whisky.
 
+### The `spell==0` "not-usable" default is an uninitialised-read quirk (BLK-B003 follow-up)
+
+The gate at image `0x0E562` keeps its verdict in the word `[bp-4]:[bp-2]`
+(0 = usable).  It is written **only** inside the two branches that clear it —
+`0xE588/0xE58D` (spell != 0) and `0xE5CF/0xE5D2` (potion, class 9) — and read at
+`0xE5D5/0xE5D8` (`or [bp-4],[bp-2]; je 0xE5E0`).  In the `spell == 0`,
+non-potion path the branch at `0xE586` jumps straight to `0xE5BA`, so the flag is
+**never written** and the read at `0xE5D5` consumes whatever the previous
+stack frame left there.  The routine prologue (`0xD9FC`..`0xDA0A`) initialises
+`[bp-6]/[bp-8]`, not `[bp-4]/[bp-2]`.
+
+Both callers (`0xF52A`, `0x13EA6`) drive the routine from the item menus.  Caller
+2 only reaches it for **potions** (class 9), where the flag *is* cleared, so the
+uninitialised case is unreachable there.  Caller 1 can offer any carried item, so
+for a `spell == 0` non-potion the engine's verdict is a stack-dependent quirk,
+not a derived value.  `item_is_usable()` therefore returns **false** for that
+case (the defensible default) and the choice is recorded on the guess watchlist
+(`docs/GUESSWORK.md`, G-003) rather than presented as derived.
+
+### The effect byte (`+0x1f`) is consumed by real dispatchers, not just a label
+
+`ItemRecord::effect` (`es:[bx+0xfdb]`) is **not** only a display label: the
+engine tests it directly.  Two traced consumers:
+
+- the use routine's effect dispatch at `0x0E89D` (`mov al, es:[bx+0xfdb]`, then
+  `cmp`/`jbe` to `0xEA90` (10), `0xEDB0` (else), `0xE95E` (2), `0xE9C2` (3),
+  `0xDF38` (return)); effect **10** at `0xEA90` adds the item's `+0x19` to the
+  target's current HP (`+0x22`) and clamps to max (`+0x20`) — i.e. 10 = *healing*.
+- the "take off / unequip" handler at `0x29984`.., which adjusts character stats
+  by effect byte: 8 → `+0x5a -= 4`, 0x0c → `+0x59 -= 1`, 0x15 → `+0x52 = 0`,
+  0x18 → `+0x53 = 0`, 0x1c → `+0x5a -= 1`, 0x1d → `+0x5a -= 2`.
+
+So `item_effect_name()`'s labels (8 = antimagic, 0x15 = dragon armour,
+0x18 = healer staff, 0x1c/0x1d = protecting/shelter ring) are grounded for the
+values the dispatchers test; the rest remain name-grouping heuristics.  The
+distinction is recorded in `docs/GUESSWORK.md` (G-004).
+
+
 ## Blockers (Workstream B) — 2026-11-08
 
 Sorted by who is needed to unblock. Everything B can ground from the static

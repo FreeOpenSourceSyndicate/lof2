@@ -105,3 +105,10 @@ which is a 1-based **spell index** — not an "armour sub-type". Changes:
 Spot checks confirm `+0x18` is the spell index: Torch→"Light", Healing potion→
 "Healing I", Healing II→"Healing II", Ring of power→"Regeneration I", Healers'
 staff→"Restoration", Staff of light→"Fear undead".
+
+**Follow-up (2026-11-13).** Two residual choices surfaced while proving the gate
+and were filed on the guess watchlist rather than presented as derived:
+**G-003** (the `spell == 0` non-potion case reads an uninitialised flag; the port
+defaults to "not usable") and **G-004** (`item_effect_name()` labels are grounded
+only for the effect values the engine actually tests — dispatch `0x0E89D`,
+unequip `0x29984`). Evidence: `docs/notes-b.md`.

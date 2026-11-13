@@ -272,6 +272,11 @@ uint8_t item_use_flags(int item_index) {
 // routine separately clears that verdict for **potions** (item class 9, tested
 // at image 0x0E5C5/0x0E618), so a potion is always usable regardless of its
 // spell's parameter byte.
+//
+// A `spell == 0` non-potion reaches neither branch, so the engine's verdict
+// word is never written and the test reads uninitialised stack (image 0x0E562;
+// see docs/notes-b.md).  We return false — a defensible default, not a derived
+// value; it is tracked as G-003 in docs/GUESSWORK.md.
 bool item_is_usable(int item_index) {
     const ItemRecord* it = item_by_index(item_index);
     if (!it) return false;
