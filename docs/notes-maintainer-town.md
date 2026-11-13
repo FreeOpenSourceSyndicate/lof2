@@ -740,4 +740,23 @@ inner region, and text/options; it is a denser, more decorative screen than the
 town menu. Implement it only from the decoded frame — do not guess the border
 art (identify its EGA source or the engine's draw routine first).
 
+### Leads for the next session (do not re-derive)
+
+- The Emporium panel is **not** any `EGA/UP/*` asset: `MENU`/`BOX1..5`/`LIN1..2`/
+  `MIN1..4`/`RAHM0`/`BLK5`/`UP00..25`/`ARR1..6`/`CRS0..1`/`MSCR` were each
+  template-matched into the frame at 2-px granularity — none scores below 8
+  mean-abs. It is engine-drawn (or drawn from a buffer the game built earlier),
+  so it must be traced in `analysis/lof.asm`, not composed from assets.
+- **G-001 (town name):** the file holds **two** names only — `ds 0x5A39 "Thyn. "`
+  and `ds 0x5A40 "Cyldane. "` (adjacent, NUL-separated). Neither is referenced by
+  a plain pointer, so the selector is computed. The surrounding code loads
+  `0x5A31 "town of"`, `0x5A4C "ich building do you want to visit?"`,
+  `0x5A69 "isit?"` into AX and calls the string drawer (`lcall 0x18d:0x16a8`) —
+  these are the *tails* of the three lines, so the full strings are assembled
+  from fragments and the name is chosen upstream. Trace the routine around image
+  `0x0C055..0x0C24D` and find where the `0x5A39`/`0x5A40` choice is made.
+  Both available saves (`GAME1`/`GAME2`, town scenario 5) resolve to Thyn, so a
+  save that stands in Cyldane is needed to observe the other branch.
+
+
 
