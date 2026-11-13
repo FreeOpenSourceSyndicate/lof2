@@ -180,10 +180,14 @@ screen, and `make test` still passes.
       residue is a 16x16 top-left patch and the dynamic party panel).  Guarded
       by `tests/port_town_test.py` (oracle `ref/oracle/town.png`).
 - [ ] Building screens (Emporium/Temple/Inn/Bank/…): the `shop`/`temple_bldg`
-      golden scenarios capture the Emporium/Temple, but the screen is a
-      different (more complex) layout; the first capture was incomplete.  Next
-      session: capture with a longer key gap and decode.  See
-      `docs/notes-maintainer-town.md`.
+      golden scenarios capture the Emporium/Temple; they are **fully drawn** at
+      the golden `--frames 1600` (the earlier "incomplete" note was wrong — it
+      inspected a 60-frame partial).  Same video mode as the town screen (EGA
+      `0Dh`; `LOF_DEBUG`'s `mode=13` is decimal).  The Emporium reads **no new
+      files** — it redraws from `ROST/ROST`+`ROST/SHOP`+built-in art, and the
+      ornate panel is **engine-drawn** (matches no `EGA/**` asset).  Next: decode
+      the panel's draw routine from the decompilation and implement it.  Oracle
+      `ref/oracle/shop.png`.  See `docs/notes-maintainer-town.md`.
 - [ ] Dungeon subsystem (`DNGS/`) — workstream A.
 - [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — workstream B. **Unblocked:**
       the SPEC/ROST reads now happen in the oracle (`town` scenario), so B can
