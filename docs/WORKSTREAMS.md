@@ -1,5 +1,10 @@
 # WORKSTREAMS — who owns what
 
+> **Read `docs/RULES.md` first** (the owner's standing rules + changelog) and
+> `docs/GUESSWORK.md` (the guess register). In particular, **never guess**: if a
+> task would require guessing and removing the guess needs another lane's files,
+> that is a **blocker** (`docs/BLOCKERS.md`) — see `docs/RULES.md` Rule 2.
+
 The project is split so that agents can work **in parallel without touching each
 other's files**. The rule that keeps builds green is simple:
 

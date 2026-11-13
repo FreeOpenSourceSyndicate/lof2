@@ -58,6 +58,18 @@ else
     bad "golden-port failed — the drop-in's menu/play/ui/walk/vor screen changed (see /tmp/lof_golden_port.log)"
 fi
 
+echo "[check] rules"
+if [ -f docs/RULES.md ]; then ok "docs/RULES.md present (owner rules + changelog)"; else bad "docs/RULES.md missing"; fi
+if [ -f docs/GUESSWORK.md ]; then
+    ok "docs/GUESSWORK.md present (guess register)"
+    # Remind the agent of items that need action every session (Rules 3-4).
+    open_a="$(awk '/^## A\./,/^## B\./' docs/GUESSWORK.md | grep -cE '^- \*\*G-|^### G-')"
+    open_b="$(awk '/^## B\./,/^## C\./' docs/GUESSWORK.md | grep -cE '^### G-')"
+    printf '  note guess register: %s item(s) awaiting an owner decision, %s on the watchlist — read docs/GUESSWORK.md\n' "${open_a:-0}" "${open_b:-0}"
+else
+    bad "docs/GUESSWORK.md missing"
+fi
+
 echo "[check] hygiene"
 if [ -n "$(git status --porcelain)" ]; then
     printf '  note uncommitted changes present (commit + push before you stop)\n'

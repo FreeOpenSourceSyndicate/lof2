@@ -261,31 +261,20 @@ Pick a workstream from `docs/WORKSTREAMS.md`. The highest-value open items:
 
 ### Guesswork audit (2026-11-12, sixth session)
 
-Where Lane M still relies on a value that is *not* fully derived from the
-decompilation, and whether it is permanent:
+All guesses are now tracked in the canonical register **`docs/GUESSWORK.md`**
+(read it every session, per `docs/RULES.md`). The Lane-M findings from this
+audit were moved there:
 
-- **Town name "Thyn." is a hardcoded guess — but fixable, not permanent.**  The
-  town screen text is not in a data file; it is a string table in `LOF.EXE`
-  (file `0x45A1D`: `"You enter the proud town of"`, then NUL-separated
-  `"Thyn. "` and `"Cyldane. "`, `0x45A4A` `"Which building do you want to
-  visit?"`, then the building labels).  So there are **two** town names and the
-  engine picks one; `--town` hardcodes "Thyn".  `compose_town_screen()` should
-  take the name as a parameter and the front-end should select it from the save
-  (both available slots resolve to Thyn today).  Not a permanent guess: it is
-  data-driven, the second name is known, and the selector is discoverable by
-  tracing the call to the routine that prints `ds:0x52D`.
-- **The 16x16 town top-left patch is a genuine unknown (small).**  It is not
-  `MSCR`, not `TWN00`, not any single `EGA/**` asset, and not a shifted/wrapped
-  copy of either (verified: best match is the raw `MSCR`/port at 0% on that
-  patch; the oracle patch is 88 differing px forming a diagonal arrow).  Until
-  its source is found it stays a documented gap, not a guess — the rest of the
-  screen is pixel-exact.
+- **G-001** (queued task) — the town name "Thyn." is hardcoded in
+  `compose_town_screen()`; the town name is a variable (a string table in
+  `LOF.EXE` at file `0x45A1D`, names `"Thyn. "` and `"Cyldane. "`). Derivable →
+  normal task.
+- **G-002** (watchlist) — the 16×16 town top-left patch; not `MSCR`, not `TWN00`,
+  not any single `EGA/**` asset, not a shift/wrap of either. Removability unclear
+  → revisit until clear.
+- **E (not a guess)** — the RNG is seeded from the BIOS tick counter
+  (`analysis/lof.asm` image `0x47A6`, `int 0x1a` then `add cx,dx`), so combat is
+  non-reproducible by design; listed so nobody mistakes it for a guess.
 - **Party-panel live state** (time of day, morale, rations) is engine state a
-  save does not carry; the port deliberately draws the labels only.  This is
+  save does not carry; the port deliberately draws the labels only. This is
   correct-by-construction, not guesswork.
-- **NOT guesswork, and deliberately so — the RNG.**  The engine seeds its
-  generator from the BIOS tick counter: `analysis/lof.asm` image `0x47A6`
-  `int 0x1a` (TIME) then `add cx,dx` as the seed.  Enemy placement/movement is
-  therefore **non-reproducible by design**; this is why combat is grounded from
-  the decompilation + live play, not from a golden frame.  Any future "combat
-  oracle" must accept a fixed seed, not expect bit-exact frames.

@@ -6,6 +6,11 @@ productive in the first ten minutes, and how to survive a workspace reset or a
 dead-end error. Deep detail lives in `AGENTS.md`; the work split lives in
 `docs/WORKSTREAMS.md`.
 
+> **Before anything else: read `docs/RULES.md`** (the owner's standing rules and
+> their dated changelog) and `docs/GUESSWORK.md` (the guess register). The single
+> most important rule is **never guess** — see Rule 1 there. Rule changes are
+> announced in the `docs/RULES.md` changelog.
+
 > **Incoming maintainer? Read `docs/notes-maintainer-state.md` first** — it
 > records the last session's landing of the play-loop work and the current open
 > items.

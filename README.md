@@ -14,14 +14,19 @@ make check          # health check: poison guard, build, tests, git hygiene
 
 **Read these, in order. They are short and they tell you everything.**
 
-1. `docs/HANDOFF.md` — orientation, the two hard constraints, and the rules for
+1. `docs/RULES.md` — **the owner's standing rules and their changelog.** Read
+   this first, every session. In particular: **never guess** (see
+   `docs/GUESSWORK.md`, the guess register, which you also read every session).
+2. `docs/HANDOFF.md` — orientation, the two hard constraints, and the rules for
    surviving a workspace reset or an unrecoverable error.
-2. `docs/RISKS.md` — the four risks (especially the poisoned sibling repo).
-3. `docs/WORKSTREAMS.md` — the work split, file ownership, and **how to pick your
+3. `docs/RISKS.md` — the four risks (especially the poisoned sibling repo).
+4. `docs/WORKSTREAMS.md` — the work split, file ownership, and **how to pick your
    workstream yourself** (no one needs to assign it to you).
 
 You do not need any prior context. `AGENTS.md` holds the deep technical
-reference; `docs/` holds the operating instructions.
+reference; `docs/` holds the operating instructions. If the owner asks you to add
+rules to an agent's prompt, the paste-in block is
+`docs/AGENT-PROMPT-ADDENDUM.md`.
 
 ## Layout
 
