@@ -91,7 +91,10 @@ How to use each section:
   routine that prints `ds:0x5A1D`/`0x5A31`. Both currently-available save slots
   resolve to Thyn, which is why the current frame still matches — a save standing
   in Cyldane is needed to observe the other branch (owner can supply one; Rule 5).
-- **Status:** derivable → normal Lane M task (not a blocker).
+- **Status:** derivable → normal Lane M task (not a blocker). Blocked on
+  observing the other branch: tracked as owner task **OT-001** in
+  `docs/OWNER-TASKS.md` (a Cyldane save is needed to see the selector; both
+  shipped saves resolve to Thyn).
 
 ---
 

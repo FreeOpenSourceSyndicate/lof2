@@ -5,6 +5,50 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-14 (eighth session) — TL;DR
+
+Environment HEALTHY. HEAD at start `3fc53c8`, `main` clean and pushed. This
+session was **state assessment + documentation corrections** (the owner was
+about to stop for the night); no engine/drop-in code changed.
+
+- **Address mapping corrected and pinned.** The rule is **`file = ds_offset +
+  0x40000`** (the engine runs with `ds = 0x4AC1`; physical `= 0x4AC10 + off`).
+  Verified against the live 1 MB RAM dump (`LOF_DUMP`) **and** the raw EXE:
+  `ds:0x5A31 "town of"` -> file `0x45A31` -> physical `0x50641`. The town notes
+  previously recorded the wrong name offsets (`ds=0x5A56`/`0x5A5E`, "Cyldane at
+  file `0x7C41`"); both are wrong and now fixed. See
+  `docs/notes-maintainer-town.md` and `docs/GUESSWORK.md` G-001.
+- **G-001 (town name) advanced, not resolved.** The only two town names are
+  `ds:0x5A39 "Thyn. "` / `ds:0x5A40 "Cyldane. "` (plus a second "Thyn" at
+  `ds:0x687D`). **Neither is loaded by a plain `mov ax, imm`** anywhere in the
+  image (searched `B8 39 5A` / `B8 40 5A`), so the selector is computed. The
+  town routine at image `0xC22B` loads the message *fragments* `0x5A31`
+  ("town of"), `0x5A4C`, `0x5A69` and calls the string drawer
+  (`lcall 0x18d:0x16a8`). Next: trace the **caller** of `image 0xC22B` to find
+  where the `0x5A39`/`0x5A40` choice is made. Both shipped saves resolve to Thyn;
+  a Cyldane save (owner can supply) would expose the other branch (Rule 5).
+- **G-002 (16×16 corner patch)** unchanged: still on the watchlist (shared by the
+  menu and town frames, no `EGA/**` match, engine-drawn).
+- **PR queue (unchanged; not mine to merge):** #99 (Agent B,
+  `work/agent-b-itemuse-fix`, draft, **mergeable**) and #89 (Agent A,
+  `work/agent-a-blockers`, **mergeable** now — the `docs/BLOCKERS.md` conflict
+  was resolved by the lane-split registry). #91 was **closed**. Both open PRs are
+  other lanes' work; their authors own merging them.
+- **`check.sh` is slow here (~4.5 min per 1600-frame scenario × 11 scenarios ≈
+  45–60 min).** `make test` + the `boot` golden hash are the fast checks. Do not
+  let a slow `check.sh` block a session; run it once in the background.
+- **No open owner tasks** at this point (OWNER-TASKS.md empty). Reminder per
+  Rule 8: none to re-raise this session. (Rule 5 question raised below.)
+
+### Open question for the owner (Rule 5)
+
+- **A save that stands the party in `Cyldane`** (or any town other than Thyn)
+  would let lane M observe the town-name selection branch and close G-001
+  without guessing. If the owner can produce one (play to Cyldane, save, and drop
+  the file in `game/GAMES/`), that unblocks it. Until then G-001 stays queued and
+  the drop-in keeps the Thyn string (both available saves resolve to Thyn, so the
+  current `--town` frame is still correct).
+
 ## Session 2026-11-13 (seventh session) — TL;DR
 
 Environment HEALTHY. HEAD `4ee2159`, `main` clean and pushed.
