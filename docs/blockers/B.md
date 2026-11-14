@@ -13,7 +13,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
 |----|--------------|-------------|----------|--------|------------|
 | BLK-B001 | B (characters/items) | Maintainer | High | Resolved | — |
 | BLK-B002 | B (characters/items) | Maintainer | Medium | Resolved | BLK-B001 |
-| BLK-B003 | B (characters/items) | Agent B | Medium | Open | — |
+| BLK-B003 | B (characters/items) | Agent B | Medium | Resolved | — |
 
 ---
 
@@ -73,7 +73,7 @@ The cited read sites (`0x13A82` = image `0x0E592`, `0x1CFD2` = `0x17AE2`,
 - **Blocked lane:** B (characters/items)
 - **Responsible:** Agent B
 - **Priority:** Medium
-- **Status:** Open
+- **Status:** Resolved (2026-11-13)
 - **Dependencies:** —
 
 **Description & unblock action.** `tools/spec.py` extracts the "item-use table"
@@ -87,9 +87,34 @@ Unblock by re-deriving the API from the real item record (the use/class byte the
 handlers test is the item record's own byte) or removing the mis-sourced API.
 Evidence: `docs/notes-maintainer-itemuse.md`. Detail also in `docs/notes-b.md`.
 
-**Note (Maintainer, 2026-11-12).** Open PR #91 also claims this area; it labels
-*image* `0x42712` as *ds* `0x2712`, but those differ by the `0x54F0` MZ header
-(`0x42712 - 0x40000 = 0x2712`). Image `0x42712` is really `ds:0x0a02`. PR #91's
-MZ-relocation analysis is correct **for image `0x3D222`**, but that region is not
-what the `0x2712` read touches. See the addendum in
-`docs/notes-maintainer-itemuse.md`.
+**Resolution (2026-11-13).** Re-derived from the use routine at image `0x0E562`.
+The read `es:[bx*0x24 + 0x2712]` indexes the **spell** table (record base
+`DS:0x26FC` = file `0x4440C`; `0x2712 = 0x26FC + 0x16`, the byte just past a
+record's 14-byte parameter block). The index is the item record's `+0x18` byte,
+which is a 1-based **spell index** — not an "armour sub-type". Changes:
+
+- `port/char_itemuse.inc` (and its `--emit-itemuse` path in `tools/spec.py`)
+  **deleted**; the mis-sourced table is gone.
+- `ItemRecord::spell` added (+0x18 low byte); `item_use_index()`,
+  `item_use_flags()` and `item_spell()` now resolve through the spell table.
+- `item_is_usable()` is `(spells()[spell-1].data[0] & 0x07) != 0`, with the
+  engine's potion carve-out (`item_class == 9`). 24 of 185 items qualify.
+- `tests/char_test.cpp` pins the corrected mapping (Torch→spell 2 "Light",
+  Healing potion→spell 80 "Healing I", 24 usable items).
+
+Spot checks confirm `+0x18` is the spell index: Torch→"Light", Healing potion→
+"Healing I", Healing II→"Healing II", Ring of power→"Regeneration I", Healers'
+staff→"Restoration", Staff of light→"Fear undead".
+
+**Follow-up (2026-11-13).** Two residual choices surfaced while proving the gate
+and were filed on the guess watchlist rather than presented as derived:
+**G-003** (the `spell == 0` non-potion case reads an uninitialised flag) and
+**G-004** (`item_effect_name()` labels are grounded only for the effect values
+the engine actually tests — dispatch `0x0E89D`, unequip `0x29984`). Evidence:
+`docs/notes-b.md`.
+
+**Follow-up 2 (2026-11-14).** Owner live play **resolved G-003**: using an
+ordinary item prints "is not useful in this situation.", so `item_is_usable()`'s
+`false` default matches the engine. The same report grounded item effect 34
+(lantern: consumes oil, "make light"). G-004 narrowed to the effect values the
+engine never tests.

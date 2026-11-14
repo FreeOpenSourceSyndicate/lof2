@@ -55,6 +55,36 @@ How to use each section:
   sprite/algorithm is found → move to **D** (or a blocker if another lane owns
   the routine). If it cannot be derived → move to **A**.
 
+### G-004 — `item_effect_name()` labels beyond the traced dispatcher values (Lane B)
+
+- **What:** `item_effect_name()` gives 41 labels for the item effect byte
+  (`+0x1f`).  The engine tests the byte at several sites; the returned strings
+  are item-name-derived descriptions, not engine symbol names.
+- **Source of truth:** every read of `es:0xfdb` (`+0x1f`) in the image.  The
+  complete set of values the engine is **proven** to compare against, with a
+  site: `1,2,3,10,19,23,30,31` (use-routine effect dispatch `0x0E89D` /
+  `0x0EDB0`); `2,8,12,21,24,28,29,33` (equip/unequip handler `0x2995C` /
+  `0x29FB1`); `9,13,15,20,27,40` (misc sites `0x14A09`, `0x13AF4`, `0xDF7E`,
+  `0x14976`, `0xE274`, `0xE1BC`).  The engine's own messages fix the meaning of
+  several: 1 "growing professionalism." (enchant weapon), 2 "feels himself
+  safer." (enchant armour), 3/23 "goes green in the face!" (poison), 10 adds HP
+  (`0x0EA90`), 15/40 "fits together." (combine paired items), 30/31 clear the
+  poison state (`0xEBE4`/`0xECE2`).  Live play grounds one more: **34 (lantern)**
+  — using a lantern with a flask of oil and a tinderbox consumed the oil and
+  printed "… make light…" (the lantern's `+0x18` spell index 7 is "Permanent
+  light").  Effects the engine never compares (5, 7, 35, 37, …) keep purely
+  descriptive labels.
+- **Why unclear:** for the values the engine **never** compares, the label is a
+  grouping of the item table by effect (effect 5 = "Crystal ball", effect 8 =
+  "Antimagic ring", …) — the engine stores no effect-name table, so those strings
+  can only ever be descriptive naming choices, not engine symbols.  The
+  equip/unequip stat deltas (effects `2,8,12,21,24,28,29,33`) **are** now
+  derived statically (see `docs/notes-b.md`); the residual is the effect values
+  the engine never tests.
+- **To clear it:** for values the engine never tests, the descriptive name is
+  already the correct answer (a naming choice, not a claim about the engine); no
+  further derivation is possible or needed for them.
+
 ---
 
 ## C. Owner-authorised guesses
@@ -97,4 +127,19 @@ How to use each section:
 
 ## F. Resolved / removed
 
-*(none yet)*
+### G-003 — `item_is_usable()` default for `spell == 0` non-potions (Lane B)
+
+**Resolved 2026-11-14 by owner live play.**  Using an ordinary item in the
+item-use menu prints "<item> is not useful in this situation." (+ a "(C)ontinue"
+prompt), so the engine treats a `spell == 0` non-potion as **not usable**.
+`item_is_usable()` returning `false` matches it, so the value is derived (live
+play is a Rule-1 source of truth) rather than guessed.  The decompilation agrees:
+the gate's verdict word `[bp-4]:[bp-2]` (image `0x0E562`) is left unwritten on
+this path and the "is not useful in this situation." string (`ds:0x5C52`, loaded
+at image `0x0E1A9`) is what the engine prints.
+
+**Bonus from the same live-play report:** a **lantern** used with a flask of oil
+and a tinderbox consumes the oil and prints "… make light…", grounding item
+effect value 34 (lantern) as a light source; recorded under G-004.
+
+*(The original watchlist entry moved here from section B.)*
