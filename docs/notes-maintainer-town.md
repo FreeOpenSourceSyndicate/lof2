@@ -781,5 +781,13 @@ art (identify its EGA source or the engine's draw routine first).
   Both available saves (`GAME1`/`GAME2`, town scenario 5) resolve to Thyn, so a
   save that stands in Cyldane is needed to observe the other branch.
 
+- **Emporium menu strings (found 2026-11-14, `file = ds+0x40000`):** the
+  Emporium options live at `ds:0x5BA5` `"(B)uy wares"`, `ds:0x5BB1`
+  `"(S)ell wares"`, `ds:0x5BBE` `"(R)epair wares"`, `ds:0x5BCD`
+  `"(G)ather gold"`, `ds:0x5BDB` `"(C)ontinue"` (file `0x45BA5`…). The town
+  building label `"(E)mporium"` is `ds:0x5A6F`. Greeting: `ds:0x5B90`
+  `"would you like, huh?"`. Use these to place the Emporium text once the
+  panel art is traced; the *options* are known, only the ornate frame is not.
+
 
 
