@@ -1646,3 +1646,52 @@ or drawn by the fill routine `0x18d:0x1fb2`. No `EGA/**` file reproduces it
 (best colour match 63 %, best full-size IoU 0.35), consistent with Round 30.
 The open work is to catch the memory image of entry 1..5 while it is live; the
 table, the loader and the routine are now all located.
+
+## Round 32 — the dungeon view sprite table (index -> dp number) located
+
+`dngs.py`/the port currently treat a "view index" as a DP number directly
+(`DP%03d`). The engine does not: it indexes a **table of filenames**. The table
+lives in LOF's data segment `0x3120` at offset `0x4A29` (image offset `0x35C29`),
+6 bytes per entry `[seg=0][0x0100][filename offset]`, where the filename strings
+are the `ega\d0\dpNNN` block at image `0x361E1` (`ds:0x4FEE`). Decoded
+index -> file:
+
+```
+ 0 dp001    1 dp014    2 dp015    3 dp016    4 dp017    5 dp018
+ 6 dp019    7 dp020    8 dp021    9 dp022   10 dp023   11 dp024
+12 dp025   13 dp026   14 dp027   15 dp028   16 dp029   17 dp030
+18 dp031   19 dp032   20 dp033   21 dp034   22 dp035   23 dp036
+24 dp037   25 dp038   26 dp039   27 dp040   28 dp041   29 dp042
+30 dp043   31 dp045   32 dp045   33 dp046   34 dp047   35 dp048
+36 dp049   37 dp050   38 dp051   39 dp052   40 dp053   41 dp054
+42 dp055   43 dp056   44 dp057   45 dp061   46 dp058   47 dp059
+48 dp060   49 dp002   50 dp003   51 dp004   52 dp005   53 dp006
+54 dp007   55 dp008   56 dp009   57 dp010   58 dp011   59 dp012
+60 dp013   61 dp062   62 dp063   63 dp064   64 dp065   65 dp066
+66 dp067   67 dp068   68 dp069
+```
+
+The port's `dungeon_base_view_index` returns **dp numbers** (1, 14, 58, 59, 60)
+and feeds them straight to `DP%03d`, so it is internally consistent and selects
+the right files; it is simply a different (coarser) parametrisation than the
+engine's 69-entry table. No port change is needed for the wall/door cases.
+
+The routine that consumes the table is image `0x4198` (runtime `119D:28C8`): it
+reads three parallel arrays indexed by a view id — `X=cs:[0x28b6+2i]`,
+`Y=cs:[0x28bc+2i]`, `spr=cs:[0x28c2+2i]` — then `dx = ds:[0x4A29 + spr*6]` and
+calls the blitter `lcall 0x18d,0x3a0`. This routine did **not** fire in our
+headless run, so the wall/corridor screens we captured are drawn by the sibling
+routine at image `0x3B72` (the `ds:0x49F3` six-slot sprite cache). Both routines
+load sprites into the same segment cache, so which one runs depends on game
+state; pinning that state remains open.
+
+### Corridor (BLK-A003) — procedural, now with strong evidence
+
+Exhaustive matching of the captured corridor viewport (frame 697, ink 4941)
+against **every** 120x119 `EGA/**` file gives a best colour match of 0.633
+(`CHAR2/CH65`, `CHAR1/CH61`) and a best shape-IoU of 0.35 (`DP036`/`DP060`); the
+seven full-size `D5` sprites top out at shape-IoU 0.346. No single file (and no
+reduced-plane mask) reproduces it. Together with the 3D-perspective structure
+visible in the ink map (converging side walls, receding floor), this confirms the
+corridor view is **composited/ray-drawn**, not a sprite blit — the port's
+procedural DDA renderer (`render_dungeon_viewport`) is the right model.
