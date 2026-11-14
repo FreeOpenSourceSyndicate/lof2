@@ -922,3 +922,55 @@ are already standing on the town's map tile.
 **Golden status.**  The recorded golden scenarios (`tests/golden.txt`) never
 press an arrow key (they use letters + digits only), so this fix does not change
 any of them; re-running `make golden` must stay green (verified separately).
+
+## Leaving town -> wilderness -> amulet -> combat (2026-11-14, later)
+
+With the arrow fix in place the whole post-town flow is now reachable and
+**deterministic** (same key sequence + same frame count -> same plane md5;
+`LOF_NO_TIMER=1` pins the clock hook, which is the only variability).
+
+Reproduction (from the town menu reached by `O,2,Down,Up`):
+
+```
+LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAUTO=0x18,0x03,0x50,0x48,0x2e LOF_KEYGAP=50 \
+  ./lof-native --dir game --headless --frames <F> --shot out.png
+```
+
+Sequence observed (all via `LOF_EDUMP` plane dumps, decoded with `CHR1`):
+
+| frames | state |
+|--------|-------|
+| ~260 | town menu (`C` consumed) |
+| 300 | **wilderness map** (bright viewport, right panel empty) |
+| 400 | amulet prompt: `Who should receive that (1-6)?` + `(L)eave it` |
+| 500+ | *idle on the map* — no text, viewport drifting |
+| ~700 | **combat**: `You unknowingly meet` / `4 Mercenaries (Rnk 2)` / `6 Mercenaries (Rnk 1)` / `What will you do?` / `(A)ttack` `(G)reet your opponents` `(T)alk to them` `(W)ithdraw at once` |
+| + digit `1` | **character sheet** (Decker: `Human-Paladin`, `Rnk 01 Hitpoint 0010/0010 Mana 0000/0000 Str 19 Con 14 State Good Dex 14 Experience 000000379 Int 12 Wis 15 Weight 0029/00530`, options `(E)xchange gold/rations`, `(S)how next page`, `(C)ontinue`) |
+
+Key facts:
+
+* **Leaving town is just `(C)ontinue`** on the town menu — no phase-of-day gate
+  on the loaded-save path (the "gates closed 'till early morning" text is a
+  different branch).  A single `C` goes straight to the wilderness.
+* **First leave grants an amulet.**  Prompt `Who should receive that (1-6)?` +
+  `(L)eave it` (EXE `0x48fa0`); grant text `On starting your journey, you
+  receive an amulet from a town guard. A gift from the Count.` (EXE `0x42457`).
+  NB: the prompt's **first line renders in a face our `CHR1` 6-px decoder cannot
+  read cleanly** (the `(1-6)?` / `(L)eave it` line decodes fine), so its exact
+  wording is *not* claimed — do not hard-code it in the port without re-decoding.
+* **Time advances on the map** even while idle, and **wandering monsters attack**
+  (~frame 700 here, no input).  This is the save-load warning in action; a
+  headless capture must not linger after leaving town.
+* Enemies are generated on load (not stored in the save), consistent with the
+  existing note.
+
+Oracle frames captured with the emulator (`ref/oracle/`):
+
+| file | state | png md5 |
+|------|-------|---------|
+| `wilderness.png` | wilderness map | `f37fc751e17c46510931a78db0061fda` |
+| `amulet.png`     | amulet prompt | `94ced1aeb7aff1de5e6d7d6af2e071ad` |
+| `combat.png`     | first combat  | `70e1f5789545df7ad87236085f79cbef` |
+| `charsheet.png`  | character sheet (after digit `1`) | `5af0e7d4d51cf6559571981cd9271e32` |
+
+(The town main menu itself is the golden `town_entry` scenario, `--frames 600`.)
