@@ -1393,3 +1393,58 @@ model.  `make test` and `make port` green.
 is strong direct evidence for 6/13 and for 0/1/2/3/7/8/12, but codes that never
 occur ahead of a party were not individually swept.  It is an oracle result, not
 a decompiled one — flagged in `docs/GUESSWORK.md` (G-003).
+
+## Round 28 — full ahead-code sweep: the base-view map is corrected, and the view is ray-composed
+
+Rebuilt the capture pipeline again (workspace reset clears `/tmp`) and swept
+**every** ahead-cell code for DNG05's spawn (17,3) facing 2, i.e. cell (17,4),
+holding the cell behind it (17,5) at its original 0.  Each run:
+`tools/dngs.py patch` the tile cell, `cp` into `game/DNGS/DNG05`,
+`LOF_EDUMP=… LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=100 ./lof-native --dir game
+--headless --frames 1600 --shot /dev/null` (~4 min/run), then diff the 120x119
+window against every `EGA/D5/DP*`.
+
+**Corrected map** (IoU against the best single sprite):
+
+| ahead code | view | IoU | note |
+|---|---|---|---|
+| `0x4` | `DP058` | 1.000 | side passage |
+| `0x5` | `DP059` | 1.000 | side passage variant |
+| `0x6`, `0xd` | `DP060` (= `DP036`) | 1.000 | looking at a wall: flat face |
+| `0xa` | `DP014` | 0.997 | doorway |
+| `0x1`,`0x3`,`0xb`,`0xc` | `DP001` | 0.91 | textured wall/room |
+| `0x0`,`0x2`,`0x7`,`0x8` | **none** | 0.35 | open corridor, composed view |
+| `0x9` | **none** | 0.32 | corridor variant |
+
+Round 26's table said the corridor nibbles fall back to `DP001` at IoU **0.922**;
+the direct sweep does not reproduce that — the corridor nibbles give a distinct,
+stable image (ink 4941; identical for 0/2/7/8, md5 `e165034f…`) that matches
+**no** single sprite.  (`cmd_patch` is verified correct: patching `(17,4)` to 0
+changes decoded tile byte 161, exactly `y*36+x`.)  Round 26's 0.922 reading is
+superseded.
+
+**It is not a sprite composite either.**  Greedy + exact-cover decomposition over
+all 51 `EGA/D5/DP*` and all 24 `EGA/ANIM/AN*` pieces tops out at 57% ink with
+large false positives, and a **colour-exact** search (sprite pixels must equal
+target pixels, not just be non-zero) finds *zero* placements.  It is also not the
+drop-in's own DDA ray-caster (IoU 0.17 — the ray-caster draws a symmetric
+wall band; the engine's corridor view is asymmetric with ceiling/floor detail).
+
+**The view is ray-composed, not a pure function of the ahead cell.**  With the
+ahead cell fixed at 0, changing the depth-2 cell (17,5) changes the window
+(ink 4941 → 5111 for both `3` and `6`).  So the engine marches the whole column
+and composes per-depth geometry; `dungeon_base_view_index` (which only looks one
+cell ahead) is therefore a documented approximation.  This is the true residual
+of BLK-A003.
+
+**Positive result: the emulator reproduces the moved oracle.**  The corridor
+capture (ahead = 0) matches the maintainer's `ref/oracle/dungeon_slot1_moved.png`
+at symmetric-difference **10 pixels** (ink 4941 vs 4951) — i.e. the emulator's
+dungeon view is faithful to real DOSBox, so BLK-A004's "the party cannot be moved
+/ the moved frame cannot be reproduced" is stale: patching the tile layer is an
+equivalent and much cheaper way to reach any view.
+
+Implemented: corrected `dungeon_base_view_index` (0x1/0x3/0xb/0xc → 1 explicitly;
+0x0/0x2/0x7/0x8/0x9 fall back to 1 as the documented approximation) and
+`test_base_view` now pins the full map.  `make test` and `make port` green.
+The corridor case stays BLK-A003 (Open); the fallback is recorded as G-004.

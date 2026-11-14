@@ -151,13 +151,37 @@ bug above. Detail: `docs/BLOCKED-agent-a.md`, `docs/notes-maintainer-town.md`.
 single sprite (`DP001`, middle 80 cols pixel-identical). For a *moved* cell the
 view matches no single full-size sprite: `tools/dngs.py oracle
 ref/oracle/dungeon_slot1_moved.png game/EGA 5 1` reports a window match of only
-0.202 (best sprite `DP067` 0.576). That residual is either a genuine **composite**
-(full views + the smaller `DPnnn` side pieces, e.g. 64x59 / 32x59 / 16x29) or an
-**animation phase** mismatch (the viewport animates; the engine loads
-`ega\anim\an*`). Unblock by decoding the piece selection from
-`port/dungeon.{h,cpp}`; the per-cell base rule is now known (BLK-A001 Round 24),
-so what remains is the *side-piece* selection for the horizon band. Detail:
-`docs/notes-a.md`.
+0.202 (best sprite `DP067` 0.576). The residual is a **composed** view the engine
+builds from the whole ahead column (not a single sprite and not a simple piece
+composite — see the Round-28 log). Unblock by decoding the engine's per-depth
+geometry composition from `port/dungeon.{h,cpp}` or the decompilation; the
+per-cell base rule is known (Round 26/28), so what remains is the *composition*
+rule for open cells. Detail: `docs/notes-a.md`.
+
+**Log.** 2026-11-08 Agent A (Round 28) — **the "piece composite" hypothesis is
+disproved, and the blocker is now precisely characterised.**  Swept every
+ahead-cell code for DNG05's spawn (tile layer genuinely patched; see the
+`cmd_patch` fix note) and diffed the 120×119 window against every sprite.  The
+open-cell codes `0x0/0x2/0x7/0x8` give an **identical** view (ink 4941, md5
+`e165034f…`) and `0x9` a near-variant (ink 4583).  That view:
+
+- matches **no** single full-size sprite — best IoU 0.35 across **all 221**
+  120×119 `EGA/**` files, and 0.346 among `EGA/D5/DP*`;
+- is **not** a composite of `EGA/D5/DP*` (greedy + exact cover ≤ 57% ink, heavy
+  false positives) nor of `EGA/ANIM/AN*` (≤ 44%);
+- is **not** explained by a **colour-exact** placement search (zero placements —
+  the ink-only composites above were over-counting because the D5 sprites use
+  different palette indices than the corridor view);
+- is **not** the drop-in's DDA ray-caster (IoU 0.17).
+
+So the earlier `DP037`+side-pieces reading (`dungeon_slot1_moved.png` → 0.745)
+was an ink-overlap artefact, not the engine's rule.  The view is **ray-composed
+over the whole column**: with the ahead cell fixed at 0, changing the depth-2
+cell changes the window (4941 → 5111).  That column-marching composition is the
+residual.  Positive side result: the emulator's corridor capture matches the
+moved oracle at symmetric-difference **10 px**, so the emulator *does* reproduce
+the moved frame (BLK-A004's premise is stale).  The drop-in keeps the `DP001`
+fallback meanwhile (G-004).
 
 **Log.** 2026-11-08 Agent A (Round 27) — the opacity sweep that fixed the wall
 set (`{6,13}`, `docs/notes-a.md`) also sharpens this blocker: a **wall** cell
@@ -196,6 +220,15 @@ publishing the `--keys`/`LOF_KEYAT` timeline that produced
 `dungeon_slot1_moved.png` (and the frame index) as a one-line reproducible
 command in `tools/capture_dosbox.sh` or a `ref/oracle/README`. Detail:
 `docs/notes-a.md`.
+
+**Log.** 2026-11-08 Agent A (Round 28) — the *view* half of this blocker is
+resolved by an independent route: patching the DNG tile layer
+(`tools/dngs.py patch game/DNGS/DNG05 17 4 0`) and re-running the headless
+emulator reproduces the maintainer's `dungeon_slot1_moved.png` at
+symmetric-difference **10 px** (ink 4941 vs 4951).  So the moved *frame* is
+reproducible without any key sequence; only live *movement* (arrow keys) still
+depends on the maintainer's AH=07/08 extended-key delivery.  The tile-patch route
+is the recommended ground-truth method for Lane A (no keys, ~4 min/capture).
 
 **Log.** 2026-11-08 Agent A — found the emulator-side root cause: the party
 cannot be *moved* in the emulator at all, because the game reads keys via DOS
