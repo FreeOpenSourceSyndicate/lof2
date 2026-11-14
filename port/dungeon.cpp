@@ -48,9 +48,9 @@ bool decode_dungeon(const std::vector<uint8_t>& raw, Dungeon& out,
         return false;
     }
 
-    out.h0 = d[0];
-    out.h1 = d[1];
-    out.field = (uint16_t)(d[2] | (d[3] << 8));
+    out.h0 = d[0];                                        // flag
+    out.h1 = d[1];                                        // entry facing
+    out.field = (uint16_t)((d[2] << 8) | d[3]);           // entry pos, big-endian
 
     out.tiles.assign(d.begin() + kDungeonHeader,
                      d.begin() + kDungeonHeader + kDungeonTiles);
@@ -168,6 +168,11 @@ bool dungeon_place(const Dungeon& d, DungeonPos& p, int x, int y) {
     return false;
 }
 
+bool dungeon_place_entry(const Dungeon& d, DungeonPos& p) {
+    p.facing = d.entry_facing() & 3;
+    return dungeon_place(d, p, d.entry_x(), d.entry_y());
+}
+
 // Colour per tile code (EGA 16-colour indices).
 static uint8_t tile_colour(uint8_t v) {
     switch (v) {
@@ -235,6 +240,36 @@ std::string dungeon_view_dir(int dungeon) {
     return "D" + std::to_string(dungeon % 10);
 }
 
+bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax,
+                        int& ay) {
+    int x = p.x + dungeon_facing_dx(p.facing);
+    int y = p.y + dungeon_facing_dy(p.facing);
+    if (x < 0 || y < 0 || x >= kDungeonW || y >= kDungeonH) return false;
+    ax = x;
+    ay = y;
+    return true;
+}
+
+int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p) {
+    int x, y;
+    if (!dungeon_ahead_cell(d, p, x, y)) return 1;   // off-map -> wall ahead
+    // Only the LOW nibble of the ahead tile code selects the base view; the
+    // high nibble is an object/feature class the base blit ignores.  Ground
+    // truth: swept all 14 low nibbles that occur in DNGS/ (see dungeon.h),
+    // including every high-nibble variant of 0x4 and 0x5.
+    switch (d.tile(x, y) & 0x0f) {
+        case 0x4: return 58;          // side passage
+        case 0x5: return 59;          // side passage variant
+        case 0x6: case 0xd: return 60;  // open room
+        case 0xa: return 14;          // doorway
+        // 0x0/0x2/0x7/0x8/0x9 are the "corridor/opening straight ahead" case.
+        // The engine builds that view as a composite of a 64x59 wall-at-depth-2
+        // piece (DP037) centred plus smaller side pieces, so no single full-size
+        // sprite reproduces it; fall back to the wall view (see notes-a.md).
+        default: return 1;            // wall directly ahead (DP001)
+    }
+}
+
 std::string dungeon_view_path(const std::string& dir, int dungeon, int index) {
     char buf[32];
     std::snprintf(buf, sizeof(buf), "/EGA/%s/DP%03d",
@@ -258,6 +293,12 @@ bool render_dungeon_screen(Screen& scr, const std::string& dir, int dungeon,
     blit_image(scr, frame, 0, 0);
     return render_dungeon_view(scr, dungeon_view_path(dir, dungeon, index),
                                kViewportX, kViewportY);
+}
+
+bool render_dungeon_play(Screen& scr, const std::string& dir, int dungeon,
+                         const Dungeon& d, const DungeonPos& p) {
+    return render_dungeon_screen(scr, dir, dungeon,
+                                 dungeon_base_view_index(d, p));
 }
 
 // Colour indices of the synthetic fallback viewport.  The oracle's window uses

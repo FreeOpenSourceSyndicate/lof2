@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <set>
@@ -48,8 +49,8 @@ static void test_synthetic() {
     // Zero the object region so only the one record we set is non-zero.
     for (size_t k = kDungeonHeader + kDungeonTiles; k < plain.size(); k++)
         plain[k] = 0;
-    plain[0] = 0; plain[1] = 2;
-    plain[2] = 0x34; plain[3] = 0x12;         // field = 0x1234
+    plain[0] = 0; plain[1] = 2;               // flag = 0, entry_facing = 2
+    plain[2] = 0x12; plain[3] = 0x34;         // entry_pos = 0x1234 (big-endian)
     plain[kDungeonHeader + 0] = 12;           // tile (0,0)
     plain[kDungeonHeader + 1] = 3;            // tile (1,0)
     plain[kDungeonHeader + kDungeonW * 5 + 7] = 0;  // tile (7,5)
@@ -103,16 +104,16 @@ static void test_synthetic() {
 static void test_real(const std::string& dir) {
     // DNG00 is the only level with a non-uniform border (its outer ring is 12,
     // the interior mostly 0); DNG26 is almost entirely 6.
-    struct Expect { const char* name; int h1; uint16_t field;
+    struct Expect { const char* name; int facing; uint16_t pos;
                     int x, y, tile; };
     Expect cases[] = {
-        {"DNG00", 3, 52738, 0, 0, 12},
-        {"DNG00", 3, 52738, 35, 35, 12},
-        {"DNG00", 3, 52738, 17, 17, 0},
-        {"DNG01", 1, 65280, 0, 0, 6},
-        {"DNG01", 1, 65280, 17, 17, 0},
-        {"DNG26", 3, 17156, 0, 0, 6},
-        {"DNG26", 3, 17156, 5, 6, 6},
+        {"DNG00", 3, 718, 0, 0, 12},
+        {"DNG00", 3, 718, 35, 35, 12},
+        {"DNG00", 3, 718, 17, 17, 0},
+        {"DNG01", 1, 255, 0, 0, 6},
+        {"DNG01", 1, 255, 17, 17, 0},
+        {"DNG26", 3, 1091, 0, 0, 6},
+        {"DNG26", 3, 1091, 5, 6, 6},
     };
     int checked = 0;
     for (auto& e : cases) {
@@ -122,10 +123,29 @@ static void test_real(const std::string& dir) {
         if (!load_dungeon(path, d, &err)) continue;   // no data -> skip
         assert((int)d.tiles.size() == kDungeonTiles);
         assert((int)d.objects.size() == kDungeonTiles);
-        assert(d.h1 == e.h1);
-        assert(d.field == e.field);
+        assert(d.h1 == e.facing);
+        assert(d.field == e.pos);
+        assert(d.entry_facing() == e.facing);
+        assert(d.entry_x() == e.pos % kDungeonW);
+        assert(d.entry_y() == e.pos / kDungeonW);
         assert(d.tile(e.x, e.y) == e.tile);
         checked++;
+    }
+    // The header entry cell/facing is the party's start: it must equal the save
+    // (DNG05 = GAME1 125/2, DNG10 = GAME2 745/0), and the start is not a wall.
+    for (auto& e : {std::pair<const char*, int>{"DNG05", 125},
+                    std::pair<const char*, int>{"DNG10", 745}}) {
+        Dungeon d;
+        std::string err;
+        if (load_dungeon(dir + "/" + e.first, d, &err)) {
+            assert(d.field == e.second);
+            assert(d.tile(d.entry_x(), d.entry_y()) != 3 &&
+                   d.tile(d.entry_x(), d.entry_y()) != 12);   // start is not wall
+            DungeonPos p;
+            assert(dungeon_place_entry(d, p));
+            assert(p.x == d.entry_x() && p.y == d.entry_y());
+            assert(p.facing == d.h1);
+        }
     }
     if (checked) std::printf("dungeon_test: verified %d real cells\n", checked);
     else std::printf("dungeon_test: no game data, skipping real-file checks\n");
@@ -371,6 +391,30 @@ static void test_view_sprite(const std::string& dir) {
     std::printf("dungeon_test: view sprite blit verified (%dx%d)\n", w, img.height);
 }
 
+// The seven full-size (120x119) view sprites of a theme, and one duplicate
+// pair among them, pinned from the decode work (docs/notes-a.md Round 19).
+// Guards the tileset inventory against a bad re-extract.
+static void test_view_inventory(const std::string& dir) {
+    namespace fs = std::filesystem;
+    std::string vd = dir + "/../EGA/D5";
+    if (!fs::is_directory(vd)) {
+        std::printf("dungeon_test: no D5 dir, skipping inventory check\n");
+        return;
+    }
+    std::vector<std::string> full;
+    for (auto& e : fs::directory_iterator(vd)) {
+        std::string n = e.path().filename().string();
+        if (n.rfind("DP", 0) != 0 || n.size() != 5) continue;
+        EgaImage im;
+        if (load_ega_image(e.path().string(), im, nullptr) &&
+            im.width_bytes * 8 == kViewportW && im.height == kViewportH)
+            full.push_back(n);
+    }
+    std::sort(full.begin(), full.end());
+    assert(full.size() == 7);   // DP001 DP014 DP036 DP058 DP059 DP060 DP067
+    std::printf("dungeon_test: %zu full-size view sprites in D5\n", full.size());
+}
+
 // Every map ships a canonical DP001 full view in its ones-digit view dir;
 // blitting it must succeed and cover the whole window (the engine's entry view).
 static void test_default_views(const std::string& dir) {
@@ -453,6 +497,77 @@ static void test_dungeon_screen(const std::string& dir) {
     blit_image(frame_only, frame, 0, 0);
     assert(got.pixels != frame_only.pixels);   // the window was replaced
     std::printf("dungeon_test: dungeon screen composite verified\n");
+}
+
+// The base first-person view is selected by the tile code of the cell directly
+// ahead (see dungeon_base_view_index / docs/notes-a.md Round 24).  Synthetic
+// cases pin the measured map; the real DNG05 entry cell pins the two regimes the
+// oracle confirms (wall ahead -> DP001, corridor ahead -> DP037).
+static void test_base_view(const std::string& dir) {
+    Dungeon d;
+    d.tiles.assign(kDungeonTiles, 6);
+    d.objects.assign(kDungeonTiles, 0);
+    DungeonPos p{5, 5, 0};                 // facing N -> ahead is (5,4)
+
+    int ax = -1, ay = -1;
+    assert(dungeon_ahead_cell(d, p, ax, ay) && ax == 5 && ay == 4);
+    p.facing = 1;                          // E -> (6,5)
+    assert(dungeon_ahead_cell(d, p, ax, ay) && ax == 6 && ay == 5);
+    p.x = 5; p.facing = 3;                 // W -> (4,5)
+    assert(dungeon_ahead_cell(d, p, ax, ay) && ax == 4 && ay == 5);
+    p.x = 0;                               // W off-map
+    assert(!dungeon_ahead_cell(d, p, ax, ay));
+
+    // Measured tile-code -> base view map (D5 Temple tileset).  The base view is
+    // selected by the LOW nibble of the ahead tile code; the high nibble (an
+    // object/feature class) is ignored.  Ground truth: emulator sweep of all 14
+    // low nibbles that occur in DNGS/ (see port/dungeon.h).
+    p = DungeonPos{5, 5, 0};
+    auto view_for = [&](int code) {
+        d.tiles[4 * kDungeonW + 5] = code;
+        return dungeon_base_view_index(d, p);
+    };
+    // Every high-nibble variant of a low nibble must give the same view.
+    for (int hi = 0; hi <= 0xf0; hi += 0x10) {
+        assert(view_for(hi | 0x4) == 58);
+        assert(view_for(hi | 0x5) == 59);
+        assert(view_for(hi | 0x6) == 60);
+        assert(view_for(hi | 0xd) == 60);
+        assert(view_for(hi | 0xa) == 14);
+    }
+    // The corridor/opening cases have no single full-size sprite (the engine
+    // composites DP037 + side pieces); the drop-in falls back to the wall view.
+    for (int nib : {0x0, 0x1, 0x2, 0x3, 0x7, 0x8, 0x9, 0xb, 0xc})
+        assert(view_for(nib) == 1);
+    // Off-map ahead always falls back to the wall view.
+    p = DungeonPos{5, 0, 0};
+    assert(dungeon_base_view_index(d, p) == 1);
+
+    // Real DNG05: entry (17,3) facing 2 (S) -> ahead (17,4) is tile 3 -> wall;
+    // turned to face N the ahead cell (17,2) is tile 7 -> the corridor case,
+    // which has no single sprite and so also falls back to the wall view.
+    Dungeon r;
+    if (load_dungeon(dir + "/DNG05", r)) {
+        DungeonPos e; dungeon_place_entry(r, e);
+        assert(e.x == 17 && e.y == 3 && e.facing == 2);
+        assert(r.tile(17, 4) == 3 && dungeon_base_view_index(r, e) == 1);
+        e.facing = 0;
+        assert(r.tile(17, 2) == 7 && dungeon_base_view_index(r, e) == 1);
+        // Facing E the ahead cell (18,3) is open room (tile 0) -> wall view too.
+        e.facing = 1;
+        assert(r.tile(18, 3) == 0 && dungeon_base_view_index(r, e) == 1);
+        std::printf("dungeon_test: base-view selection verified (DNG05 entry)\n");
+    }
+
+    // render_dungeon_play picks the same sprite render_dungeon_screen would.
+    std::string root = dir + "/..";
+    Screen a, b; a.resize(320, 200); a.clear(9); b.resize(320, 200); b.clear(9);
+    DungeonPos q{5, 5, 0};
+    d.tiles[4 * kDungeonW + 5] = 6;
+    if (render_dungeon_play(a, root, 5, d, q)) {
+        assert(render_dungeon_screen(b, root, 5, 60));
+        assert(a.pixels == b.pixels);
+    }
 }
 
 static void test_walk() {
@@ -634,6 +749,7 @@ int main(int argc, char** argv) {
     test_render_layers();
     test_viewport();
     test_view_sprite((argc > 1) ? argv[1] : "game/DNGS");
+    test_view_inventory((argc > 1) ? argv[1] : "game/DNGS");
     test_default_views((argc > 1) ? argv[1] : "game/DNGS");
     test_walk();
     test_level_connected((argc > 1) ? argv[1] : "game/DNGS");
@@ -646,6 +762,7 @@ int main(int argc, char** argv) {
     test_walk_real(dir);
     test_view_themes(dir);
     test_dungeon_screen(dir);
+    test_base_view(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }

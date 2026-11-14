@@ -25,11 +25,16 @@ constexpr int kDungeonDecoded = kDungeonHeader + kDungeonTiles + kDungeonObjects
 
 // One dungeon level.
 struct Dungeon {
-    // Header.  The meaning of h0/h1 is not yet pinned down (h0 is 0 for all but
-    // DNG13; h1 varies).  `field` is the little-endian h2|h3 word; it is not a
-    // decompressed size (that is always 3892) and is kept verbatim for now.
-    uint8_t h0 = 0, h1 = 0;
-    uint16_t field = 0;
+    // Header bytes: `[h0, h1, h2, h3]` = `[flag, entry_facing, entry_pos_hi,
+    // entry_pos_lo]`.  `h0` (flag) is 0 for every level but DNG13 (4).  `h1` is
+    // the party's **entry facing**.  `field` (h2|h3, BIG-endian) is the party's
+    // **entry position**: a row-major cell index y*36+x into `tiles` (so
+    // `entry_x()`/`entry_y()` decode it).  Verified against the saves: DNG05
+    // entry=125/facing=2 equals GAME1 (0x9a0=125, 0x9a6=2); DNG10 entry=745/
+    // facing=0 equals GAME2 (0x9a0=745, 0x9a6=0).  See docs/notes-a.md Round 22.
+    uint8_t h0 = 0;       // flag
+    uint8_t h1 = 0;       // entry facing
+    uint16_t field = 0;   // entry position, big-endian h2|h3
 
     // 36x36 tile codes, row-major.  Values seen: 0,3,6,7,8,12; 6 dominates and
     // is the "empty/floor" tile for most levels.
@@ -51,6 +56,11 @@ struct Dungeon {
     inline uint8_t obj_code(int x, int y) const {
         return (uint8_t)(object(x, y) >> 8);
     }
+
+    // Party entry cell from the header (see above).
+    inline int entry_x() const { return (int)(field % kDungeonW); }
+    inline int entry_y() const { return (int)(field / kDungeonW); }
+    inline int entry_facing() const { return h1; }
 
     inline uint8_t tile(int x, int y) const {
         return (x >= 0 && y >= 0 && x < kDungeonW && y < kDungeonH)
@@ -133,6 +143,11 @@ bool dungeon_step(const Dungeon& d, DungeonPos& p);
 // unchanged if the whole level is solid.  Returns true if a spot was found.
 bool dungeon_place(const Dungeon& d, DungeonPos& p, int x, int y);
 
+// Place the party at the level's entry cell and facing, taken from the DNG
+// header (see Dungeon).  This is where the game starts the party: for DNG05 the
+// header gives (17,3) facing 2, which is exactly GAME1's saved position/facing.
+bool dungeon_place_entry(const Dungeon& d, DungeonPos& p);
+
 // Draw a top-down map of the level onto `scr`, `cell` pixels per tile,
 // centred, with the player drawn at (px,py).  Tile codes are colour-coded and
 // a cell with an object code is marked.  Intended for headless verification
@@ -182,6 +197,40 @@ std::string dungeon_view_path(const std::string& dir, int dungeon, int index = 1
 // The view directory name for a map id: `D<ones-digit>` (see dungeon_view_path).
 std::string dungeon_view_dir(int dungeon);
 
+// The cell directly ahead of the party (one step in the facing direction).
+// Returns false (leaving *ax,*ay untouched) if that cell is off-map.
+bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax, int& ay);
+
+// The DPnnn index of the first-person *base* view sprite the engine blits for
+// the party at `p`.  DECODED for the D5 (Temple) tileset — see notes-a.md
+// Round 26.
+//
+// Ground truth: patch DNG05's RLE tile layer (`tools/dngs.py patch`), run the
+// analysis emulator and dump the EGA planes (`LOF_EDUMP=`), then compare the
+// 120x119 view window to every `EGA/D5/DP*` sprite by pixel IoU.  Sweeping the
+// cell directly ahead of the spawn shows:
+//
+//   * only the **low nibble** of the ahead tile code selects the base view; the
+//     high nibble is ignored (all seven observed high-nibble variants of 0x4
+//     -> DP058 and of 0x5 -> DP059 give identical windows, IoU 1.000);
+//   * the cells to the sides and at depth >= 2 do not change the base view.
+//
+// Measured map (all 14 low nibbles that occur in DNGS/, IoU in parentheses):
+//
+//   0x4                       -> 58   side passage        (1.000)
+//   0x5                       -> 59   side passage var.   (1.000)
+//   0x6, 0xd                  -> 60   open room           (1.000)
+//   0xa                       -> 14   doorway             (0.997)
+//   0x0,0x2,0x7,0x8,0x9,0xb,  -> 1    corridor/opening: the engine composites
+//   0xc,0x1,0x3                      a 64x59 wall-at-depth-2 piece (DP037)
+//                                    centred plus smaller side pieces, so no
+//                                    single full-size sprite reproduces it; the
+//                                    drop-in falls back to the wall view DP001
+//                                    (0.922, matching the plain-wall case)
+//
+// `index` 0 is never returned: DP000 does not exist on disk.
+int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p);
+
 // Convenience: blit the dungeon's canonical view sprite (DP001) at (10,11).
 // This is the base first-person view the engine shows on entry; it is verified
 // for dungeon 5 (the slot-1 Temple oracle) and structurally valid for all
@@ -197,6 +246,13 @@ bool render_dungeon_default_view(Screen& scr, const std::string& dir,
 // or sprite cannot be loaded.
 bool render_dungeon_screen(Screen& scr, const std::string& dir, int dungeon,
                            int index = 1);
+
+// Compose the play screen and blit the base view selected for the party's
+// current position (dungeon_base_view_index).  This is the drop-in's walkable
+// first-person view: as the party moves/turns the view changes with the tile
+// code of the cell ahead.  Returns false if the frame or sprite is missing.
+bool render_dungeon_play(Screen& scr, const std::string& dir, int dungeon,
+                         const Dungeon& d, const DungeonPos& p);
 
 // Synthetic *fallback* for a level with no pre-rendered view sprite (and useful
 // as an automap-style aid): ray-cast the 36x36 tile grid along the party facing

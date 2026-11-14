@@ -850,12 +850,12 @@ codes `1..33` select SPEC0 records whose type histogram matches the whole file
 records.  A full byte-identical mapping is **not** yet proven (codes reach 132
 vs 66 records), so it stays a hypothesis — see the blocker list.
 
-### Still open (in-lane)
+### Superseded by Round 16
 
-- The exact `[bp-0x44]` derivation (which byte of the object record, and the
-  `+0`/`+1` base) — needs either a live event screen or more disassembly of the
-  GFA body around `1F31E`.
-- The viewport compositing rule (base sprite + side pieces + overlay).
+The object-code hypothesis above (and the "exact `[bp-0x44]` derivation" item)
+is **wrong**: Round 16 shows `[bp-0x44]` is found by a location-key search, not
+from the cell's object code.  Still open in-lane: the viewport compositing rule
+(base sprite + side pieces + overlay) — see BLK-001.
 
 ## Round 16 — B's blocker resolved: there is NO cell-object -> SPEC index (2026-11-08)
 
@@ -935,3 +935,420 @@ oracle ref/oracle/dungeon_slot1_moved.png game/EGA 5 1
 The spawn window is `DP001` (0.952); the *moved* window matches no single sprite
 (best 0.576), confirming the view is a **composite** of the full views + the
 smaller side pieces.  The frame region is `MSCR` (0.89-0.92) in both.
+
+## Round 17 — registry + emulator-viewport correction (2026-11-08)
+
+Bookkeeping round (no engine change):
+
+- **Registry.** `docs/BLOCKERS.md` now carries my lane's state: BLK-001
+  `In progress` (with a log line), and two new entries — **BLK-006** (a moved
+  view matches no single sprite; needs the moved-view ground truth) and
+  **BLK-007** (maintainer: publish the key sequence that reaches a dungeon),
+  which BLK-006/BLK-001/BLK-004 depend on.
+- **Correction (important).** I briefly marked BLK-002 `Resolved` (as if the
+  divergence were only the oracle capture). That was **wrong and I reverted it**:
+  with current `main`, `tests/golden_test.sh`'s Temple recipe
+  (`LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 LOF_CMDLEN=3 --frames 1500`) leaves the
+  emulator's viewport **black** (EGA index 0) at frames 1500/2000/2500/3000,
+  while the oracle viewport holds indices {0,3,7,8,15}. Decoding the emulator's
+  dumped planes (`LOF_EDUMP`) shows the emulator *does* write colour there
+  (indices 6,7,8,9,15) — so the maintainer's original report stands: the
+  emulator's colour differs from the oracle. BLK-002 is **not** my lane, so I
+  left the maintainer's text in place and only noted this.
+- **Scope note.** The `dngs.py oracle` figures (0.921 / 0.952 / 0.928) score the
+  **drop-in's** static `DP001` composite, not the emulator. The drop-in's
+  viewport is a deliberate stand-in for the real per-cell composition (BLK-001).
+- **Emulator trace.** The engine selects the view per cell from a *subset* of the
+  D5 set: it opens `ega\d5\dp001` (facing), then `DP014`..`DP023`, then
+  `ega\anim\an*`. That is the selection I need to decode once BLK-006/007 give me
+  a moved-view ground truth.
+
+## Round 18 — emulator geometry vs oracle, and BLK-002 root cause (2026-11-08)
+
+I reproduced the maintainer's BLK-002 measurement **from the EGA planes** (not the
+`--shot` framebuffer, which is black in the viewport — see below).  Recipe:
+
+```
+LOF_EDUMP=planes.bin LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 LOF_CMDLEN=3 \
+  LOF_NO_TIMER=1 ./lof-native --dir game --headless --frames 1500 --shot /dev/null
+```
+
+Decoding `planes.bin` (4 x 0x10000, row stride 40 bytes) to attribute indices and
+comparing to `ref/oracle/dungeon_slot1.png`:
+
+- **Shape match 0.996** whole screen, **0.993** inside the 120x119 viewport —
+  exactly the maintainer's number.  So the emulator's per-cell geometry is
+  correct and **is** a usable geometry oracle.
+- **Viewport histogram:** emu `{0:4876, 6:4146, 9:4044, 15:1214}` vs oracle
+  `{0:4982, 3:5, 7:4080, 8:4027, 15:1186}`.
+- **Pixel-pair confusion:** emu 6 ↔ orc 7 (4080), emu 9 ↔ orc 8 (4025), emu 0 ↔
+  orc 0, emu 15 ↔ orc 15.  So the divergence is *one attribute bit*: `6(0110)`
+  and `7(0111)` differ in bit 0; `9(1001)` and `8(1000)` differ in bit 0.  The
+  emulator's `attr_pal` at the dungeon is the **identity** (`00 01 02 03 04 05 06
+  07 10 11 12 13 14 15 16 17`, via `LOF_PAL2`), so the game's attribute-palette
+  table (which must map the plane bits to grey) is **not being applied**.
+  `seq_mask=01`, `gc_mode=00`, `bpp=4` — planes are read correctly, so this is
+  purely the palette path, not write-mode/plane selection.  Confirms BLK-002's
+  "not a missing sprite table".
+
+Also: `--shot`'s RGB framebuffer is black in the viewport even though the EGA
+planes have ink (48574 non-black pixels overall) — the shot path drops the
+viewport colour.  Use `LOF_EDUMP` for verification, not `--shot`.
+
+DP001 placement re-derived against the emulator geometry: best IoU 0.922 at
+(10,11) (the drop-in's position), next-best 0.745 at (8,11) — so (10,11) is right.
+
+## Round 19 — facing-patched ground truth + the composite rule (2026-11-08)
+
+**The emulator can be driven to new views without keys, by patching the save's
+facing byte** (`kSaveFacing` = 0x9a6; the Temple save has 2 = South).  Patch it,
+re-run the golden recipe, and `LOF_EDUMP` yields a ground-truth frame:
+
+```
+cp game/GAMES/GAME1 /tmp/G1.orig
+printf '\x00' | dd of=game/GAMES/GAME1 bs=1 seek=$((0x9a6)) count=1 conv=notrunc
+LOF_EDUMP=planes.bin LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 LOF_CMDLEN=3 \
+  LOF_NO_TIMER=1 ./lof-native --dir game --headless --frames 1500 --shot /dev/null
+```
+
+Results (view window, screen (10,11)):
+
+| facing | base sprite | window ink | base IoU |
+|--------|-------------|-----------|----------|
+| 2 South (spawn) | `DP001` | 9404 | 0.922 |
+| 0 North         | `DP036`/`DP060` | 12566 | 0.880 |
+
+So the base view is a **function of facing**: facing 2 -> `DP001`, facing 0 ->
+`DP036` (`DP060` is a byte-identical duplicate of `DP036`).  `DP001` (spawn) is a
+*right-side* view and `DP036` (north) is an all-wall view; the window is 120x119.
+
+**The composite rule (ink level).**  A greedy "place D5 sprites to maximise newly
+covered target ink minus false positives" over the spawn window gives:
+
+```
+DP001@(0,0) 8690   DP042@(102,45) 230   DP056@(0,49) 110
+DP044@(90,52) 79   DP022@(104,52) 48    DP051@(72,42) 60   DP022@(104,57) 32
+=> ink IoU 0.966
+```
+
+i.e. the engine blits the full base view, then overlays the **small side pieces**
+(`DP042/044/051/056/022`, 29x16..59x16) in a **horizon band (y ~42..57)** at the
+window edges — exactly the residue characterised in Round 18.  The *north* view's
+`DP036` is a superset (its base already has all the ink), so there the composite
+adds nothing.  This confirms BLK-001's model (full view + per-cell side pieces)
+and gives the piece set; the exact *selection* (which pieces, from which cells)
+still needs a sweep of positions, not just facings.
+
+**Still open.** Position (not just facing) drives the side-piece set; the save's
+party x/y offsets are not yet identified, so a position sweep needs either those
+offsets or the maintainer's `INT 21h AH=07` fix (BLK-007).  Ink-level the rule is
+clear; index-exact placement has placement ambiguity (greedy FP), so it is not
+worth baking into `port/dungeon.{h,cpp}` until the selection is pinned.
+
+### Round 19b — facing sweep + independent confirmation against the DOSBox oracle
+
+Swept all four facing bytes (0..3) on the Temple save and dumped planes for each:
+
+| facing byte | base sprite in the window | window ink |
+|-------------|---------------------------|-----------|
+| 0 | `DP036`/`DP060` (all-walls) | 12566 |
+| 1 | `DP036`/`DP060` (all-walls) | 12566 |
+| 2 (the save's own) | `DP001` | 9404 |
+| 3 | `DP036`/`DP060` (all-walls) | 12566 |
+
+So only the *native* facing (2, South) shows the `DP001` view; the other three
+show the all-walls view.  That is consistent with the base being the view of the
+**cell straight ahead**: at the Temple spawn the party looks down a corridor
+(open ahead), and turning to any other facing faces a wall.  It also means the
+view is *not* a simple facing->sprite table — it depends on the map, i.e. the
+engine reads the tiles ahead (matching the per-cell model).
+
+**Independent confirmation.** Running the same greedy composite over the
+**maintainer's real DOSBox capture** `ref/oracle/dungeon_slot1.png` gives the
+*identical* pieces at the *identical* offsets as the emulator frame:
+
+```
+DP001@(0,0) 8690   DP042@(102,45) 230   DP056@(0,49) 110
+DP044@(90,52) 79   DP022@(104,52) 48    DP022@(104,57) 32
+=> spawn-oracle ink IoU 0.974
+```
+
+That the emulator and real DOSBox agree on the composite (same base + same side
+pieces at the same coordinates) is strong evidence the rule is:
+
+    view = full base sprite (per cell structure ahead)
+         + the small side pieces (DP015..DP057) placed in the horizon band
+           (window y ~40..60) at the window edges.
+
+The maintainer's *moved* oracle frame reduces less cleanly (IoU 0.752; base
+`DP037` + pieces), so a second (position) ground truth would help pin the exact
+piece *selection*, but the base+side-piece *structure* is now confirmed on real
+hardware.
+
+### Round 20 — the save's party-position field (0x9a0) and view ground truth
+
+`0x9a0..0x9a1` is a 16-bit little-endian field that differs between the two
+shipped saves: GAME1 (Temple) = **125**, GAME2 (wilderness) = **745** (facing 2
+and 0 respectively).  Patching it and re-running the golden recipe changes the
+rendered viewport, so it is the party's position (a linear cell index candidate;
+125 = 17 + 3*36, 745 = 25 + 20*36 for a 36-wide grid).
+
+**Confirmed the view is map-driven, not a facing table.**  For the Temple, the
+save's own value (125) gives the corridor view `DP001`, while adjacent values
+(126, 89 — re-run sequentially, see Round 21) give the all-walls view `DP036`.
+For the wilderness save the window matches `DP036`/`DP014` at IoU **1.000** in
+`EGA/D0`, confirming the maintainer's ones-digit view-dir rule (DNG10 -> `D0`)
+end-to-end.  So the base sprite is chosen from the local wall structure ahead,
+exactly as BLK-001/BLK-006 describe.  (The 124/161/468/900/1205 values quoted in
+an earlier draft came from *parallel* runs that raced on one save file and are
+**withdrawn** — see Round 21.)
+
+**Ground-truth mechanism (partial).**  Patching `0x9a0` *does* move the party for
+the emulator, so position ground truth is reachable without keys — but the
+value->cell mapping is not yet pinned (only the exact original value reproduces
+the corridor), so it is not yet a turnkey sweep.  The maintainer's `INT 21h AH=07`
+fix (BLK-007) or the position mapping would make it one.
+
+### Round 22 — the DNG header is the party's entry cell + facing (pinned)
+
+**The 4-byte DNG header is `[flag, entry_facing, entry_pos_hi, entry_pos_lo]`.**
+The 16-bit `entry_pos` is **big-endian** (hi byte first) and is a row-major cell
+index `y*36 + x` into the tile map.  It is the **party's start cell** and
+`entry_facing` is the start facing.  This is not a guess: it matches the saves
+exactly.
+
+| file  | header        | entry_pos | (x,y)   | facing | save  | save 0x9a0 / 0x9a6 |
+|-------|---------------|-----------|---------|--------|-------|--------------------|
+| DNG05 | `00 02 00 7d` | 125       | (17,3)  | 2      | GAME1 | 125 / 2            |
+| DNG10 | `00 00 02 e9` | 745       | (25,20) | 0      | GAME2 | 745 / 0            |
+
+Both rows are byte-exact matches, and the endianness is forced: read little-endian
+DNG10's word would be 59650 (out of the 1296-cell range), while big-endian gives
+745.  So `0x9a0` (the save's party position, Round 20) *is* the cell index, and
+the DNG header tells us where each level starts the party.  `flag` (h0) is 0 for
+every level except DNG13 (4).
+
+This closes the "position field semantics" question of Round 20/21: the engine
+reads the position from the save, and the DNG header supplies the same encoding
+for the level's entry.  (Which DNG file a given save loads is a separate
+question — the *encoding* is what is pinned here.)  Note the view a cell renders
+is **not** determined by the single cell ahead: DNG05 cell (17,3) facing 2 has a
+wall at front and both side cells at y=4 yet renders the open corridor `DP001`,
+while (18,3) renders the all-walls `DP036`, so the view depends on the wider
+neighbourhood; the base-sprite selection rule is still BLK-006.
+
+Implemented: `port/dungeon.{h,cpp}` now decodes the header as entry facing +
+big-endian entry position (was previously kept verbatim as an opaque little-endian
+`field`), exposes `entry_x()/entry_y()/entry_facing()` and a
+`dungeon_place_entry()` that places the party at the header start;
+`tools/dngs.py header` prints it; `tests/dungeon_test.cpp` pins DNG05=125/2 and
+DNG10=745/0 and asserts the entry cell is not a wall.
+
+### Round 21 — race correction + the viewport animates; spawn matches the oracle exactly
+
+**Race warning (corrects Round 20's method).**  Two emulator runs must **not** run
+in parallel on the same save: they both write `game/GAMES/GAME1`, so the second
+run can load the first run's patched bytes.  My earlier "sweep" frames were
+produced by parallel jobs and are therefore unreliable as *position* evidence.
+All results below were re-taken **sequentially** (one `lof-native` at a time,
+save restored between runs).
+
+**`0x9a0` changes the rendered view, but its semantics are unresolved.**  With
+the save at `0x9a0=125` the window is the `DP001` corridor view (ink 9298/9404 by
+phase); with `0x9a0=126`, `89`, `130`, `500` or `1000` it is the all-walls
+`DP036` view (ink 12566).  So the engine *does* read `0x9a0` and the view depends
+on it — but **every** tested non-native value gives the same all-walls view, even
+values whose `(x,y)` cell (assuming a 36-wide linear index) is open with the same
+surroundings as the spawn.  Two readings are possible: (a) `0x9a0` is the party
+position and the engine cross-checks it against another field, so a lone patch
+lands on a "no valid view" fallback (`DP036`); or (b) `0x9a0` is not the raw
+`(x,y)` index.  Either way it is **not yet** a turnkey position sweep, and I do
+**not** claim a value->cell mapping.  What *is* solid: the base view is chosen
+from the map, not from facing alone.
+
+**The viewport animates.**  Holding the save fixed and varying only the frame
+count (sequential) oscillates the window ink between two phases:
+
+| frames | window ink | note |
+|--------|-----------|------|
+| 700    | 9298 | == oracle |
+| 900    | 9404 | |
+| 1200   | 9298 | == oracle |
+| 1500   | 9404 | |
+
+So the viewport is a two-phase animation (matching the `ega\anim\an*` files the
+engine opens).  Frame 900/1500 capture the non-oracle phase; 700/1200 the oracle
+phase.  This is why the earlier single-frame match looked like a 4.8% residue.
+
+**Spawn shape is pixel-perfect vs the oracle.**  At the oracle phase (frames
+700/1200) the emulator viewport has **ink IoU 1.0000** with
+`ref/oracle/dungeon_slot1.png` (identical 9298 ink pixels).  The only remaining
+difference is the per-pixel *index*: 8107 px differ by exactly +/-1 in EGA index
+(4080 +1, 4027 -1) — the attribute-bit-0 palette issue of BLK-002, not a shape
+error.  So BLK-001's composite is reproduced **exactly** by the engine; the
+residual is purely BLK-002's palette.  Frame 1500's 9404-phase frame is ink IoU
+0.9887 vs the oracle (the same view, one overlay piece animated in).
+
+## Round 23 — structure-driven view ground truth (2026-11-12)
+
+**The dungeon view is a function of the map *structure ahead*, and I can now
+drive it deterministically by patching the DNG tile map** — no keys, no party
+position field.  This supersedes the earlier "position sweep" attempts.
+
+### The lever: patch the DNG tile layer, not the save
+
+The engine reads `DNGS\DNG<loc>` at level load and renders from it.  Patching the
+**save's** `0x9a0` (party position) has **no effect** on the emulator's view
+(Round 20's 125-vs-126/89/108/120/124/468/900 results are **withdrawn**: all give
+a byte-identical `DP001` view — those earlier "different view" readings were
+parallel-run races on one save file).  What *does* change the view is the DNG
+**header byte d[2] (facing)** and the DNG **tile layer**.
+
+I added a byte-exact RLE re-encoder (verified: a no-op re-encode of `DNG05`
+reproduces the original file byte-for-byte, 1464 bytes).  Patching a tile cell
+and re-encoding lets me set the map structure under the emulator's feet.
+
+### Results (Temple save, DNG05, spawn (17,3); recipe `LOF_EDUMP=… LOF_KEYAUTO=0x18,0x02
+LOF_KEYGAP=8 LOF_CMDLEN=3 LOF_NO_TIMER=1 --frames 900`)
+
+`d[2]` (facing) and the tile **directly ahead** both change the base view:
+
+| change | ahead cell tile | view ink | nearest D5 sprite |
+|--------|-----------------|----------|-------------------|
+| native (facing 2) | 3 (wall) | 9404 | `DP001` (0.922) |
+| ahead → 0 | 0 (open) | 4941 | `DP060` (0.346) |
+| ahead → 1 | 1 | 9404 | `DP001` |
+| ahead → 2 | 2 | 4941 | `DP060` |
+| ahead → 6 | 6 | 14280 | `DP060` (**1.000**) |
+| ahead → 7 | 7 | 4941 | `DP060` |
+| ahead → 8 | 8 | 4941 | `DP060` |
+| ahead+2 → 0 | 3 | 4941 | `DP060` |
+| facing → 0 (ahead 7) | 7 | 13072 | `DP014` (0.997) |
+| facing → 1 | 7 | 11540 | (composite) |
+| facing → 3 | 7 | 12504 | (composite) |
+
+So the engine classifies the cell ahead: **tile 3 (and 1) → the "closed" wall
+view `DP001`**; **open cells (0/2/6/7/8) → an "open corridor" view**.  Changing
+the *second* cell ahead (161 unchanged) still changes the view, so depth ≥2 is
+read.  Changing only the cell at depth 2 (`162`) does **not** change the view, so
+the base view is dominated by the **nearest** structure ahead.
+
+### `dungeon_slot1_moved.png` explained (BLK-006)
+
+Opening the cell ahead (`161 → 0`) makes the emulator viewport match the
+maintainer's moved oracle at **ink IoU 0.998** (4941 vs 4951 ink).  So the moved
+frame is simply the view with an **open cell ahead** — the composite-decode
+"mess" (`DP037` + pieces, IoU 0.75) was an artefact of greedy placement over a
+low-ink open view, not a different rule.
+
+### Why this matters / what is still open
+
+The base view is **not** a facing→sprite table and **not** driven by the save's
+`0x9a0`; it is computed from the tile structure ahead.  Exact per-cell
+`(neighbourhood → DPnnn)` selection is still not pinned (only two regimes are
+confirmed: "wall ahead" → `DP001`, "open ahead" → `DP060`/`DP014`).  Pinning it
+needs a **position** sweep, which needs the maintainer's input fix (BLK-007) —
+the emulator does not consume patched position bytes, so I cannot place the party
+at arbitrary cells to sweep the view without keys.
+
+## Round 24 — base-view selection: the ahead-cell tile code (BLK-001)
+
+Round 23 said the base view is "not a facing→sprite table".  It *is* a
+**tile-code → sprite table**, keyed on the tile code of the cell **directly
+ahead** of the party.  Method: patch DNG05's RLE tile layer
+(`/tmp/tilepatch.py`, verified to change exactly the intended decoded cell),
+run the analysis emulator with `LOF_EDUMP=`, and compare the 120x119 window at
+(10,11) to every `EGA/D5/DP*` sprite by pixel IoU.
+
+Measured map (D5 = Temple tileset; `ahead` = the single cell one step in the
+facing direction):
+
+| ahead tile | view ink | match |
+|------------|----------|-------|
+| 3, 12, 0, off-map | 9404 | `DP001` (0.922) — wall ahead |
+| 4, 20, 36, 52 | 13199 | `DP058` (**1.000**) |
+| 5, 21 | 12992 | `DP059` (**1.000**) |
+| 6, 13 | 14280 | `DP060` (**1.000**) |
+| 10 | 13072 | `DP014` (0.997) — doorway |
+| 2, 7, 8 | 4941 | no single sprite; composite (`DP037` + pieces, IoU 0.75) |
+| 9, 11, 14..19 | 9404 | `DP001` |
+| 22, 26, 366 (nibbles 6/A/E/F on the *floor* code) | 9404 | `DP001` |
+
+Two independent confirmations that the *ahead* cell is the key, not a
+neighbourhood:
+
+* Patches to the left/right and depth ≥2 cells leave the dump **byte-identical**
+  (`md5` equal), so they do not enter the selection.
+* The low nibble groups several codes: 4/20/36/52 all give `DP058`, 5/21 give
+  `DP059`.  So the tile code is a **structure bitmask** (walls on N/E/S/W), and
+  the low nibble is the "what is on the side" field.
+
+Open question (still BLK-001): the exact bitmask → DPnnn rule.  The measured
+`switch` is implemented in `dungeon_base_view_index`; the corridor case (2/7/8)
+and unknown codes fall back to the wall view (`DP001`), which is correct for a
+wall directly ahead and a harmless over-estimate elsewhere (a bare `DP037` blit
+would leave the window mostly empty, since the engine's corridor view is a
+multi-piece composite).  The four stride-16 groups
+(4/20/36/52, 5/21, 6/13, 7/8) strongly suggest the code is
+`(param << 4) | structure`; `0x02/0x07/0x08` are the "corridor straight ahead,
+no side wall" case whose view is a **composite** the engine builds from a 64x59
+wall-at-depth-2 piece (`DP037`) centred plus smaller side pieces.
+
+Implemented: `dungeon_base_view_index` + `dungeon_ahead_cell` +
+`render_dungeon_play` in `port/dungeon.{h,cpp}`; pinned by `test_base_view` in
+`tests/dungeon_test.cpp`.
+
+## Round 25 — registry migration (PR #89 rebase)
+
+Merged `origin/main` into `work/agent-a` and migrated the workstream-A blocker
+entries into the new per-lane registry (`docs/blockers/A.md`), per the
+maintainer's PR #89 review:
+
+| old | new | note |
+|-----|-----|------|
+| BLK-001 | BLK-A001 | first-person viewport composite (mine, In progress) |
+| BLK-002 | BLK-A002 | emulator plane-0 blit — **Resolved** by the maintainer |
+| BLK-006 | BLK-A003 | moved-view composite / side-piece selection (mine) |
+| BLK-007 | BLK-A004 | emulator extended-key delivery (maintainer) |
+
+The old single-file `docs/BLOCKERS.md` is now the static hub (taken from `main`
+during the merge); no entries live there.  `BLK-A001` gained a Round-24 log with
+the ahead-cell tile-code table.
+
+## Round 26 — base-view rule fully decoded: the **low nibble** selects the sprite
+
+Rebuilt the emulator sweep pipeline (the workspace reset had cleared `/tmp`).
+`tools/dngs.py patch <in> <out> x y val` now writes a DNG with chosen tile cells
+overridden, re-encoding with the same RLE scheme (round-trips byte-exactly), so a
+chosen *ahead-cell* code can be fed to the emulator without moving the party.
+DNG05's party spawns at (17,3) facing 2 (south), so cell (17,4) is directly
+ahead; the `LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 --frames 1500` recipe opens save
+slot 1 (Temple) and dumps the planes with `LOF_EDUMP=`.
+
+Swept every tile code that occurs in `DNGS/` (26 distinct values).  The result is
+unambiguous: **only the low nibble of the ahead tile code selects the base view;
+the high nibble is ignored.**  Evidence: seven observed high-nibble variants of
+low nibble 4 (`0x04,0x14,0x24,0x34,0x44,0x54,0xf4`) all give the *identical*
+window matching `DP058` at IoU 1.000, and seven variants of low nibble 5
+(`0x05,0x15,0x25,0x35,0x45,0x55,0x65`) all give `DP059` at 1.000.
+
+| ahead low nibble | view | IoU | note |
+|---|---|---|---|
+| `0x4` | `DP058` | 1.000 | side passage |
+| `0x5` | `DP059` | 1.000 | side passage variant |
+| `0x6` | `DP060` | 1.000 | open room |
+| `0xd` | `DP060` | 1.000 | open room variant |
+| `0xa` | `DP014` | 0.997 | doorway |
+| `0x0,0x1,0x2,0x3,0x7,0x8,0x9,0xb,0xc` | `DP001` | 0.922 | corridor/opening: multi-piece composite, no single full-size sprite |
+
+The "corridor" set (`0x0/0x2/0x7/0x8/0x9`) is the perspective composite: its
+window (ink ~4941) matches **no** full-size `DPnnn` (best 0.346); template
+matching the smaller pieces finds `DP037` (64x59 wall-at-depth-2) at IoU 0.785
+plus side pieces (`DP041` 0.757, `DP018` 0.754, `DP040` 0.738) — i.e. the engine
+composes the corridor view from a centred wall piece and flanking pieces, which
+is exactly the residual tracked by BLK-A003.
+
+Implemented `dungeon_base_view_index` as `tile & 0x0f` (was the high-nibble
+`param`-based table) and widened `test_base_view` to assert the invariance across
+all 16 high nibbles for nibbles 4/5/6/13/10 and the wall fallback for the
+corridor nibbles.  `make test` and `make port` green.
