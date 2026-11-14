@@ -63,7 +63,10 @@ workstream"); you do not have to point it at one.
 
 ### Merging your PR
 
-You may review and merge pull requests yourself — you do not need the maintainer.
+**Canonical rule: `docs/RULES.md` Rule 10** — agents create, check, push, and
+merge their own PRs; the repository owner never does repository mechanics and
+must not be asked to. You may review and merge pull requests yourself — you do
+not need the maintainer.
 
 1. Keep the branch green: `make check` must pass.
 2. `gh pr create` (or the API) against `main`.

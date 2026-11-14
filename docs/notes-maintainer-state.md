@@ -41,6 +41,12 @@ about to stop for the night); no engine/drop-in code changed.
   and the `town` and `shop` oracle golden hashes reproduce exactly.
 - **No open owner tasks** at this point (OWNER-TASKS.md empty). Reminder per
   Rule 8: none to re-raise this session. (Rule 5 question raised below.)
+- **Added Rule 9 + Rule 10 to `docs/RULES.md`** (owner instruction, 2026-11-14;
+  changelog entry added). Rule 9: when the owner states a rule, reconcile it
+  against the book — add only if absent, adapt only if the phrasing changes the
+  meaning, never duplicate. Rule 10: **agents create, check, push, and merge
+  their own PRs; the owner never does repository mechanics.** `docs/HANDOFF.md`
+  "Merging your PR" now points at Rule 10 as canonical.
 
 ### Open question for the owner (Rule 5)
 

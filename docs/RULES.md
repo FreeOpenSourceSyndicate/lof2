@@ -120,6 +120,43 @@ Owner tasks include (non-exhaustive): deciding the fate of an unremovable guess
 (Rule 3), playing the game to answer a question (Rule 5), authorising a guess
 (Rule 6), and any blocker whose `Responsible` is `External (repo owner)`.
 
+## Rule 9 — When the owner states a rule, reconcile it against this book (never duplicate).
+
+The owner may state a rule at any time — in chat, an issue, or a PR comment. The
+owner may have **forgotten that a rule was already stated**, or be unsure whether
+it arrived correctly, so re-stating a rule is **not** an instruction to duplicate
+it. On receiving one, an agent MUST:
+
+1. **Check whether it is already documented here** (and in the docs this file
+   points to, e.g. `docs/HANDOFF.md`, `docs/WORKSTREAMS.md`).
+2. **Already present with the same meaning → change nothing.** Do not re-add it
+   and do not reword it.
+3. **Absent → add it** as a new rule, with a dated changelog entry (Rule 7).
+4. **Present but the owner's new phrasing changes the meaning → adapt the rule**
+   to the owner's intended meaning, and note the rephrasing in the changelog.
+
+The rule text lives **only** in this file, so there is a single source of truth;
+other docs may summarise but MUST point here. Reconciling owner-stated rules is
+the Maintainer's (lane M) job; any agent that notices a mismatch may also fix it.
+
+## Rule 10 — Agents create, check, and merge their own PRs; the owner does not.
+
+Pull-request mechanics are **entirely agent work**. The repository owner does
+**not** create, review, check, or push PRs (or branches), and MUST NOT be asked
+to. The agent that did the work owns its PR **end to end**:
+
+- **Create** — the agent opens the PR against `main` from its own branch
+  (`work/<name>`, see `docs/WORKSTREAMS.md`).
+- **Check** — the same agent verifies it: `make check` must be green (see
+  `docs/HANDOFF.md`), plus a read-through of its own diff.
+- **Push / merge** — the same agent pushes the branch and **squash-merges** the
+  PR once `make check` is green. No coordinator or owner approval is required.
+
+The owner's role in the workflow is therefore only to **state rules** (Rule 9),
+**answer questions** (Rule 5), **authorise guesses** (Rule 6), and **decide
+unremovable guesses** (Rule 3) — never repository mechanics. Detail and commands:
+`docs/HANDOFF.md` "Merging your PR".
+
 ---
 
 ## Session checklist (do this at the start of every session)
@@ -131,11 +168,25 @@ Owner tasks include (non-exhaustive): deciding the fate of an unremovable guess
 4. Read `docs/HANDOFF.md`, `docs/RISKS.md`, `docs/WORKSTREAMS.md`.
 5. Stay in your lane (Rule 8); if work is unowned, add it to a lane first.
 6. Run `./bootstrap.sh` and `./check.sh` if the workspace may have reset.
-7. Only then start work. If you would have to guess, stop and apply Rules 2–6.
+7. If the owner stated any rule (this session or in the prompt), reconcile it
+   via Rule 9 — check whether it is already here; add only if absent, adapt if the
+   phrasing changes the meaning; never duplicate.
+8. Only then start work. If you would have to guess, stop and apply Rules 2–6.
 
 ---
 
 ## Changelog (newest first)
+
+### 2026-11-14 — Owner-stated rules + PR ownership
+
+- Rule 9: when the owner states a rule, **reconcile it against this book** —
+  check whether it is already documented, and only add it if absent (same meaning
+  → leave it; changed meaning → adapt it). Prevents duplicate/conflicting rules
+  when the owner re-states something already recorded.
+- Rule 10: **agents create, check, push, and merge their own PRs**; the owner
+  never does repository mechanics and must not be asked to.
+- Added the session checklist item to re-read this file and reconcile any
+  owner-stated rule via Rule 9.
 
 ### 2026-11-13 — Lane discipline + owner-task reminders
 
