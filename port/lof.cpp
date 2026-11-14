@@ -198,20 +198,37 @@ static bool compose_menu_screen(const std::string& dir, Screen& menu, std::strin
     return true;
 }
 
-// Compose the in-game town screen: the same HUD background (EGA/UP/MSCR) with
-// the town scene EGA/TWN/TWN00 blitted into the 120x119 viewport at (10,11),
-// then the engine's message and building menu in CHR1's full face at a 6-px
-// pitch, x=139.  Recovered by template-matching the decoded assets and font
-// glyphs against the emulator's town frame (tests/golden_test.sh scenario
-// `town`): every glyph matches a CHR1 cell exactly.
-static bool compose_town_screen(const std::string& dir, Screen& town, std::string& err) {
-    town.resize(320, 200);
-    town.clear(0);
-    if (!blit_ega(town, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
-    if (!blit_ega(town, dir + "/EGA/TWN/TWN00", 10, 11, &err)) return false;
+// One text row of a town/building screen: y position, string, and colour
+// (15 = white, 0 = black).
+struct TownTextRow { int y; const char* text; uint8_t idx; };
+
+// Compose a town-style screen: the HUD background (EGA/UP/MSCR), a town scene
+// tile (EGA/TWN/<tile>) in the 120x119 viewport at (10,11), then the engine's
+// message + option text in CHR1's full face at a 6-px pitch, x=139.  Every
+// town building shares this layout; only the viewport tile and the text rows
+// differ.  The viewport tile is the building's exterior art: TWN00 is the
+// town-menu street, TWN01/02/04 are the Emporium/Bank/House exteriors.
+static bool compose_building_screen(const std::string& dir, const char* tile,
+                                    const TownTextRow* rows, size_t n,
+                                    Screen& s, std::string& err) {
+    s.resize(320, 200);
+    s.clear(0);
+    if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
+    if (!blit_ega(s, dir + "/EGA/TWN/" + tile, 10, 11, &err)) return false;
     Font font;
     if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
-    static const struct { int y; const char* text; uint8_t idx; } kText[] = {
+    for (size_t i = 0; i < n; i++)
+        font.draw_text(s, 139, rows[i].y, rows[i].text, rows[i].idx);
+    return true;
+}
+
+// Compose the in-game town screen (the building menu you get on entering a
+// town): MSCR + the street viewport EGA/TWN/TWN00 + the message and building
+// list.  Recovered by template-matching the decoded assets and font glyphs
+// against the emulator's town frame (tests/golden_test.sh scenario `town`):
+// every glyph matches a CHR1 cell exactly.
+static bool compose_town_screen(const std::string& dir, Screen& town, std::string& err) {
+    static const TownTextRow kText[] = {
         { 92, "You enter the proud town of", 15},
         {100, "Thyn. Which building do you", 15},
         {108, "want to visit?", 15},
@@ -222,8 +239,29 @@ static bool compose_town_screen(const std::string& dir, Screen& town, std::strin
         {172, "(T)emple", 0},
         {188, "(C)ontinue", 15},
     };
-    for (const auto& e : kText) font.draw_text(town, 139, e.y, e.text, e.idx);
-    return true;
+    return compose_building_screen(dir, "TWN00", kText,
+                                   sizeof(kText) / sizeof(kText[0]), town, err);
+}
+
+// Compose the Emporium screen: MSCR + the shop exterior EGA/TWN/TWN01 + the
+// shopkeeper's greeting and the buy/sell/repair/gather menu.  Decoded from the
+// emulator's `shop` golden frame (tests/golden_test.sh scenario `shop`); the
+// greeting ("Well hi, wealthy heroes, what / would you like, huh?") is drawn
+// white (15) on the light-gray MSCR box, the options black (0).  The strings
+// are the engine's own (LOF.EXE ds:0x5B71/0x5B8B/0x5BA5/...); the greeting
+// wraps after "what" (the engine's own row break, not a reflow).
+static bool compose_emporium_screen(const std::string& dir, Screen& s, std::string& err) {
+    static const TownTextRow kText[] = {
+        { 92, "Well hi, wealthy heroes, what", 15},
+        {100, "would you like, huh?", 15},
+        {116, "(B)uy wares", 0},
+        {124, "(S)ell wares", 0},
+        {140, "(R)epair wares", 0},
+        {156, "(G)ather gold", 0},
+        {172, "(C)ontinue", 15},
+    };
+    return compose_building_screen(dir, "TWN01", kText,
+                                   sizeof(kText) / sizeof(kText[0]), s, err);
 }
 
 // --dump-dungeon: decode a few DNGS/DNGxx levels and print the 36x36 floor
@@ -499,15 +537,19 @@ int main(int argc, char** argv) {
 // DOSBox capture of save slot 2 (ref/oracle/play.png).
     std::string play, save;
     bool town_flag = false;
+    bool emporium_flag = false;
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
         else if (std::string(argv[i]) == "--save" && i + 1 < argc) save = argv[++i];
         else if (std::string(argv[i]) == "--town") town_flag = true;
+        else if (std::string(argv[i]) == "--emporium") emporium_flag = true;
     }
-    if (town_flag) {
+    if (town_flag || emporium_flag) {
         std::string err;
         Screen s;
-        if (!compose_town_screen(dir, s, err)) {
+        bool ok = emporium_flag ? compose_emporium_screen(dir, s, err)
+                                : compose_town_screen(dir, s, err);
+        if (!ok) {
             fprintf(stderr, "lof: %s\n", err.c_str());
             return 1;
         }

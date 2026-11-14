@@ -240,6 +240,18 @@ Progress:
       Both are pure image blits, so the port reproduces each *pixel-exactly*
       from the game data. Guarded by `tests/port_vor_test.py` (`make
       golden-port`); no DOSBox capture needed.
+- [x] LOF town + Emporium screens (`--town`, `--emporium`): both are the HUD
+      background `EGA/UP/MSCR` with a town-scene tile blitted into the 120x119
+      viewport at (10,11) plus `CHR1` text at x=139.  The town menu uses the
+      street tile `EGA/TWN/TWN00` and the message/building list; the Emporium
+      uses the shop tile `EGA/TWN/TWN01` and the shopkeeper's greeting
+      ("Well hi, wealthy heroes, what / would you like, huh?", white) with the
+      buy/sell/repair/gather/continue options.  The viewport and text are
+      pixel-exact against the emulator frames; only the engine's 16x16
+      top-left patch and the dynamic party panel differ.  (Bank = TWN02,
+      House of trades = TWN04; the Inn and Temple open first-person `D5`
+      interiors instead of a TWN tile.)  Guarded by `tests/port_town_test.py`
+      and `tests/port_emporium_test.py` (`make golden-port`).
 
 ### Font / text rendering (decoded)
 
