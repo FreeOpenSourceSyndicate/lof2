@@ -757,19 +757,64 @@ LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x12 LOF_KEYGAP=250 LOF_CMDLEN=3 LOF_NO_TIMER=1 
   ./lof-native --dir game --headless --frames 1600 --shot out.png
 ```
 
-Temple: same with `...,0x14`. The layout is a large **ornate-framed panel** (a
-decorative border with a repeating motif) filling most of the screen, a dark
-inner region, and text/options; it is a denser, more decorative screen than the
-town menu. Implement it only from the decoded frame — do not guess the border
-art (identify its EGA source or the engine's draw routine first).
+Temple: same with `...,0x14`.
+
+**Correction (2026-11-14) — the Emporium is NOT an ornate engine-drawn panel.**
+An earlier note called the layout "a large ornate-framed panel … denser, more
+decorative than the town menu"; that is **wrong**. Decoding the golden frame
+plane-by-plane (`LOF_EDUMP`, index 0..15) shows the Emporium is the **same
+screen as the town**, only with a different viewport tile and a different text
+block:
+
+- background `EGA/UP/MSCR` at (0,0) — its right side already contains the
+  light-gray (7) menu box the text sits in, so **no panel art is drawn**;
+- town scene tile blitted into the 120x119 viewport at (10,11);
+- the engine's message + option text in `CHR1`, 6-px advance, x=139.
+
+Verified by composition: `MSCR + TWN01@(10,11)` differs from the golden frame
+`c9781d20…` by only **2257 px**, and those are exactly the text + the dark-gray
+message box (below). The per-building viewport tile (exact match at (10,11)):
+
+| building | viewport tile | source |
+|----------|---------------|--------|
+| (E)mporium | `EGA/TWN/TWN01` | exact (L1=39 over 120x119) |
+| (B)ank     | `EGA/TWN/TWN02` | exact (L1=21) |
+| (H)ouse of trades | `EGA/TWN/TWN04` | exact (L1=55) |
+| (I)nn      | *first-person D5 interior*, not a TWN tile | D5 scene (L1≥44833) |
+| (T)emple   | *first-person D5 interior*, not a TWN tile | D5 scene (L1≥63350) |
+
+`TWN00` is the **streets/town-menu** viewport; the Emporium/Bank/House use
+`TWN01`/`TWN02`/`TWN04`; the **Inn and Temple switch to a first-person `D5`
+scene** (they are walkable interiors — the intro even ends inside the Inn).
+`TWN03` and `TWN05` were not reached by any building key tried (may be exterior
+views or other towns; unknown).
+
+### Emporium text (decoded 2026-11-14)
+
+Two text blocks, both `CHR1`, x=139, 6-px advance, 8-px line pitch:
+
+- **Greeting** (white, index 15) inside a **dark-gray (index 8) box** the
+  engine draws over the light-gray MSCR box — rows y=92 and y=100:
+  `"Well hi, wealthy heroes, "` / `"what would you like, huh?"`
+  (EXE: `ds:0x5B71` + `ds:0x5B8B`; both NUL-terminated and split across two rows
+  at the space after "heroes,").
+- **Options** (black, index 0) on the light-gray MSCR box:
+  `(B)uy wares` y=116, `(S)ell wares` y=124, `(R)epair wares` y=140,
+  `(G)ather gold` y=156 (EXE: `ds:0x5BA5`, `0x5BB1`, `0x5BBE`, `0x5BCD`).
+  A 5th option is expected (`ds:0x5BDB "(C)ontinue"`); it is **not visible in
+  the captured frame** — do not guess its row (see GUESSWORK/notes).
+
+The dark-gray greeting box is engine-drawn (`sh==8` where `MSCR` differs) and
+the white greeting text is drawn into it; the black option text sits directly on
+the MSCR light-gray box (no extra fill).
 
 ### Leads for the next session (do not re-derive)
 
-- The Emporium panel is **not** any `EGA/UP/*` asset: `MENU`/`BOX1..5`/`LIN1..2`/
-  `MIN1..4`/`RAHM0`/`BLK5`/`UP00..25`/`ARR1..6`/`CRS0..1`/`MSCR` were each
-  template-matched into the frame at 2-px granularity — none scores below 8
-  mean-abs. It is engine-drawn (or drawn from a buffer the game built earlier),
-  so it must be traced in `analysis/lof.asm`, not composed from assets.
+- ~~The Emporium panel is **not** any `EGA/UP/*` asset … must be traced in
+  `analysis/lof.asm`~~ **SUPERSEDED 2026-11-14:** there is no panel art — the
+  Emporium is `MSCR` + a `TWN` viewport tile + `CHR1` text (see the correction
+  above). The "engine-drawn panel" idea came from mistaking `MSCR`'s own
+  light-gray menu box (already present in the background) for a drawn frame.
 - **G-001 (town name):** the file holds **two** names only — `ds 0x5A39 "Thyn. "`
   and `ds 0x5A40 "Cyldane. "` (adjacent, NUL-separated). Neither is referenced by
   a plain pointer, so the selector is computed. The surrounding code loads
@@ -784,10 +829,11 @@ art (identify its EGA source or the engine's draw routine first).
 - **Emporium menu strings (found 2026-11-14, `file = ds+0x40000`):** the
   Emporium options live at `ds:0x5BA5` `"(B)uy wares"`, `ds:0x5BB1`
   `"(S)ell wares"`, `ds:0x5BBE` `"(R)epair wares"`, `ds:0x5BCD`
-  `"(G)ather gold"`, `ds:0x5BDB` `"(C)ontinue"` (file `0x45BA5`…). The town
-  building label `"(E)mporium"` is `ds:0x5A6F`. Greeting: `ds:0x5B90`
-  `"would you like, huh?"`. Use these to place the Emporium text once the
-  panel art is traced; the *options* are known, only the ornate frame is not.
+  `"(G)ather gold"`, `ds:0x5BDB` `"(C)ontinue"` (file `0x45BA5`…). Greeting:
+  `ds:0x5B71` `"Well hi, wealthy heroes, "` + `ds:0x5B8B` `"what would you
+  like, huh?"` (these two wrap the greeting onto two rows). See the "Emporium
+  text" section above for the exact rows/colours (greeting white in an
+  engine-drawn dark-gray box; options black on MSCR's light-gray box).
 
 
 
