@@ -5,6 +5,42 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-15 (tenth session) — TL;DR
+
+Environment HEALTHY. HEAD at start `f70b55f`, `main` clean and pushed. This
+session picked up the interrupted "Up-arrow does nothing" investigation and
+**closed it**: the root cause was an emulator keyboard bug, not the game.
+
+- **Fixed the DOS extended-key convention** (lane M, `src/machine.cpp` +
+  `src/emu.h`): a key whose ASCII is 0 (arrows, PgUp, function keys) must return
+  `AL=0` and then the **scan code** on the *next* console read. The emulator only
+  ever produced the `AL=0` half, so every arrow was invisible to LOF (which reads
+  with `INT 21h AH=07` and keys off the scan code). This is why the party could
+  not turn/step on the map and why "Up" never entered the town. **Merged as
+  PR #102** (commit `46a5fda`).
+- **Town entry now works end to end**: `O`, `2` (load slot 2 = party on the
+  wilderness map facing *away* from town), `Down` (turn 180°), `Up` (step into
+  town) -> the town main menu. Added a permanent `town_entry` golden scenario
+  (`tests/golden_test.sh`, hash in `tests/golden.txt`) so an arrow regression
+  fails loudly. Re-ran `make golden` — green.
+- **Mapped the post-town flow** (docs + oracle frames, **PR #103**): from the
+  town menu a single `(C)ontinue` leaves town (no time gate) -> wilderness ->
+  amulet prompt -> idle time -> wandering-monster combat (~frame 700, no input).
+  Four new emulator oracle frames in `ref/oracle/` (`wilderness`, `amulet`,
+  `combat`, `charsheet`).
+- **`check.sh` HEALTHY** at session end; `main` clean and pushed at `e1811b9`.
+
+**Open / next:**
+
+- **OT-001 (owner task, re-reminded):** provide a save standing in a town other
+  than Thyn (e.g. Cyldane) so the town-name selector (G-001) can be traced and
+  the hardcoded `"Thyn."` removed. No agent can do this (needs playing).
+- **Next lane-M work:** the Inn/Temple first-person `D5` interiors (the two
+  remaining town buildings), and the play-loop viewport foreground sprite.
+- The amulet prompt's first line is *not* decoded (font ambiguity) — do not
+  hard-code it (see `docs/notes-maintainer-town.md`).
+
+
 ## Session 2026-11-15 (ninth session) — TL;DR
 
 Environment HEALTHY. HEAD at start `f564a6f`, `main` clean and pushed. This
