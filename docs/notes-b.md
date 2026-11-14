@@ -1189,10 +1189,16 @@ stack frame left there.  The routine prologue (`0xD9FC`..`0xDA0A`) initialises
 Both callers (`0xF52A`, `0x13EA6`) drive the routine from the item menus.  Caller
 2 only reaches it for **potions** (class 9), where the flag *is* cleared, so the
 uninitialised case is unreachable there.  Caller 1 can offer any carried item, so
-for a `spell == 0` non-potion the engine's verdict is a stack-dependent quirk,
-not a derived value.  `item_is_usable()` therefore returns **false** for that
-case (the defensible default) and the choice is recorded on the guess watchlist
-(`docs/GUESSWORK.md`, G-003) rather than presented as derived.
+for a `spell == 0` non-potion the engine's verdict is a stack-dependent quirk.
+
+**Resolved by live play (2026-11-14):** the owner used an ordinary item and the
+engine printed "<item> is not useful in this situation." (+ a "(C)ontinue"
+prompt), so the engine treats a `spell == 0` non-potion as **not usable**.
+`item_is_usable()` returns `false`, which matches; the guess is cleared (G-003 →
+section F of `docs/GUESSWORK.md`).  The owner also reported that a **lantern**
+used with a flask of oil and a tinderbox consumes the oil and prints "… make
+light…" — grounding item effect value 34 (the lantern's `+0x18` spell index 7 is
+"Permanent light").
 
 ### The effect byte (`+0x1f`) is consumed by real dispatchers, not just a label
 
@@ -1227,7 +1233,10 @@ The engine's **own messages** fix the meaning of several values:
 
 So the labels for `1,2,3,8,10,12,19,21,23,24,28,29,30,31,33` are grounded;
 the rest are item-name-grouping descriptions (the engine stores no effect-name
-table).  The distinction is recorded in `docs/GUESSWORK.md` (G-004).
+table).  **Live play grounds one more:** using a **lantern** (effect 34) with a
+flask of oil and a tinderbox consumes the oil and prints "… make light…", so 34
+is a light source (the lantern's `+0x18` spell index 7 is "Permanent light").
+The distinction is recorded in `docs/GUESSWORK.md` (G-004).
 
 ### The spell effect code (data byte 8) is a real jump-table dispatch
 

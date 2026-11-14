@@ -108,7 +108,13 @@ staff→"Restoration", Staff of light→"Fear undead".
 
 **Follow-up (2026-11-13).** Two residual choices surfaced while proving the gate
 and were filed on the guess watchlist rather than presented as derived:
-**G-003** (the `spell == 0` non-potion case reads an uninitialised flag; the port
-defaults to "not usable") and **G-004** (`item_effect_name()` labels are grounded
-only for the effect values the engine actually tests — dispatch `0x0E89D`,
-unequip `0x29984`). Evidence: `docs/notes-b.md`.
+**G-003** (the `spell == 0` non-potion case reads an uninitialised flag) and
+**G-004** (`item_effect_name()` labels are grounded only for the effect values
+the engine actually tests — dispatch `0x0E89D`, unequip `0x29984`). Evidence:
+`docs/notes-b.md`.
+
+**Follow-up 2 (2026-11-14).** Owner live play **resolved G-003**: using an
+ordinary item prints "is not useful in this situation.", so `item_is_usable()`'s
+`false` default matches the engine. The same report grounded item effect 34
+(lantern: consumes oil, "make light"). G-004 narrowed to the effect values the
+engine never tests.

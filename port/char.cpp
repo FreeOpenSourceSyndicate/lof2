@@ -268,15 +268,16 @@ uint8_t item_use_flags(int item_index) {
 
 // The handler at 0x0E59E takes the "cast" path only when the spell's first
 // parameter byte has one of bits 0/1/2 set (it tests `test al,3` then
-// `test al,4`); otherwise it prints "is not useful in this situation.".  The
-// routine separately clears that verdict for **potions** (item class 9, tested
-// at image 0x0E5C5/0x0E618), so a potion is always usable regardless of its
-// spell's parameter byte.
+// `test al,4`); otherwise it prints "is not useful in this situation." (string
+// ds:0x5C51, image 0x0E15D).  The routine separately clears that verdict for
+// **potions** (item class 9, tested at image 0x0E5C5/0x0E618), so a potion is
+// always usable regardless of its spell's parameter byte.
 //
 // A `spell == 0` non-potion reaches neither branch, so the engine's verdict
-// word is never written and the test reads uninitialised stack (image 0x0E562;
-// see docs/notes-b.md).  We return false — a defensible default, not a derived
-// value; it is tracked as G-003 in docs/GUESSWORK.md.
+// word is never written and the test at 0x0E5D5 reads uninitialised stack.  But
+// live play settles the outcome: using an ordinary item prints "is not useful
+// in this situation.", i.e. the engine treats it as not usable.  We return false
+// to match (see docs/notes-b.md; the G-003 watchlist item is resolved).
 bool item_is_usable(int item_index) {
     const ItemRecord* it = item_by_index(item_index);
     if (!it) return false;

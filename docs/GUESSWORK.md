@@ -48,24 +48,6 @@ How to use each section:
   sprite/algorithm is found → move to **D** (or a blocker if another lane owns
   the routine). If it cannot be derived → move to **A**.
 
-### G-003 — `item_is_usable()` default for `spell == 0` non-potions (Lane B)
-
-- **What:** the item-use gate (image `0x0E562`) keeps its verdict in the word
-  `[bp-4]:[bp-2]`, written **only** in the `spell != 0` branch (`0xE588/0xE58D`)
-  and the potion branch (`0xE5CF/0xE5D2`).  In the `spell == 0`, non-potion path
-  the branch at `0xE586` skips both, so the flag is never written and the test at
-  `0xE5D5/0xE5D8` reads **uninitialised stack**.  `item_is_usable()` returns
-  `false` for that case — a defensible default, not a derived value.
-- **Source of truth:** `analysis/lof.asm` `0x0E562`–`0x0E5E0`, routine entry
-  `0xD9FC`, callers `0xF52A` and `0x13EA6`.
-- **Why unclear:** caller `0x13EA6` reaches the routine only for potions (class
-  9), where the flag is cleared, so the uninitialised read is unreachable there.
-  Caller `0xF52A` can offer any carried item, but whether a `spell == 0`
-  non-potion is ever actually selected is a **live-play** question (Rule 5).
-- **To clear it:** play the item-use menu and use a `spell == 0` non-potion; if
-  the engine accepts it, the flag defaults to "usable" and the predicate must
-  change.  Otherwise move to **A** (or leave as the documented default).
-
 ### G-004 — `item_effect_name()` labels beyond the traced dispatcher values (Lane B)
 
 - **What:** `item_effect_name()` gives 41 labels for the item effect byte
@@ -79,8 +61,11 @@ How to use each section:
   `0x14976`, `0xE274`, `0xE1BC`).  The engine's own messages fix the meaning of
   some: 1 "growing professionalism.", 2 "feels himself safer.", 3/23 "goes
   green in the face!" (poison), 10 adds HP (`0x0EA90`), 30/31 clear the poison
-  state (`0xEBE4`/`0xECE2`).  Effects the engine never compares (5, 7, 34, 35,
-  37, …) keep purely descriptive labels.
+  state (`0xEBE4`/`0xECE2`).  Live play grounds one more: **34 (lantern)** — the
+  owner used a lantern with a flask of oil and a tinderbox, which consumed the
+  oil and printed "… make light…" (the lantern's `+0x18` spell index 7 is
+  "Permanent light").  Effects the engine never compares (5, 7, 35, 37, …) keep
+  purely descriptive labels.
 - **Why unclear:** the *labels* are still derived by grouping the item table by
   effect value (effect 5 = "Crystal ball", effect 8 = "Antimagic ring", …); the
   engine stores no effect-name table, so the strings can only ever be
@@ -133,4 +118,19 @@ How to use each section:
 
 ## F. Resolved / removed
 
-*(none yet)*
+### G-003 — `item_is_usable()` default for `spell == 0` non-potions (Lane B)
+
+**Resolved 2026-11-14 by owner live play.**  Using an ordinary item in the
+item-use menu prints "<item> is not useful in this situation." (+ a "(C)ontinue"
+prompt), so the engine treats a `spell == 0` non-potion as **not usable**.
+`item_is_usable()` returning `false` matches it, so the value is derived (live
+play is a Rule-1 source of truth) rather than guessed.  The decompilation agrees:
+the gate's verdict word `[bp-4]:[bp-2]` (image `0x0E562`) is left unwritten on
+this path and the "is not useful in this situation." string (`ds:0x5C51`, image
+`0x0E15D`) is what the engine prints.
+
+**Bonus from the same live-play report:** a **lantern** used with a flask of oil
+and a tinderbox consumes the oil and prints "… make light…", grounding item
+effect value 34 (lantern) as a light source; recorded under G-004.
+
+*(The original watchlist entry moved here from section B.)*
