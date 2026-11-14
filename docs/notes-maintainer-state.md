@@ -5,6 +5,38 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-15 (ninth session) — TL;DR
+
+Environment HEALTHY. HEAD at start `f564a6f` (PR #100 merged this session), `main`
+clean and pushed. This session was **state assessment + one real feature**.
+
+- **Merged PR #100** (`docs(rules): Rule 9 + Rule 10`) after verifying its
+  `check.sh` FAIL was **false**: it was contention from the previous session's
+  concurrent emulator runs starving the golden scenario's `timeout 300`. Re-ran
+  `tests/golden_test.sh` alone → **ok**. Lesson: never run `golden_test.sh` /
+  `check.sh` while other `lof-native` runs are in flight.
+- **Implemented the Emporium screen** (`lof --emporium`), the top lane-M item.
+  It is the **same shape as the town menu** (MSCR + a `TWN` viewport tile at
+  (10,11) + `CHR1` text at x=139), not an ornate panel: viewport tile is
+  `EGA/TWN/TWN01`, text is the shopkeeper greeting (white) + buy/sell/repair/
+  gather/(C)ontinue options (black/white). **Pixel-exact (masked)** against the
+  emulator `shop` golden frame. New `tests/port_emporium_test.py` +
+  `ref/oracle/emporium.png`, wired into `make golden-port`. Refactored
+  `compose_town_screen` into a shared `compose_building_screen`. **PR #101.**
+- **Per-building viewport tiles pinned** (documented in AGENTS.md): Emporium =
+  `TWN01`, Bank = `TWN02`, House of trades = `TWN04`; Inn/Temple open
+  first-person `D5` interiors (no TWN tile). Bank/House screens are the next
+  easy lane-M wins (same shape, different tile + strings).
+- **Greeting is two engine strings** (`ds:0x5B71 "Well hi, wealthy heroes, "` +
+  `ds:0x5B8B "what would you like, huh?"`) drawn on consecutive rows 92/100; the
+  wrap after "what" is the engine's own row break.
+- **G-001 (town name) unchanged**: still queued (needs a Cyldane save to observe
+  the branch; owner question already open below). G-002 (16×16 corner patch)
+  unchanged.
+- **`ref/oracle/shop.png` (DOSBox) does NOT match the emulator's Emporium**
+  (~69%); it is not used by any test. `ref/oracle/town.png` *is* exact vs the
+  emulator. Do not treat `shop.png` as an oracle.
+
 ## Session 2026-11-14 (eighth session) — TL;DR
 
 Environment HEALTHY. HEAD at start `3fc53c8`, `main` clean and pushed. This
