@@ -20,10 +20,23 @@ other document, **this file wins** — say so in your notes and follow this file
 name, or algorithm in code, tests, or docs that is **not traceable to a source
 of truth**. The sources of truth, in order, are:
 
-1. the **decompilation** (`analysis/*.asm`) — the primary source;
+1. the **decompilation** (`analysis/*.asm`) — the primary source of truth;
 2. the **game data files** (`EGA/`, `SYST/`, `DNGS/`, `ROST/`, `*.SAV`, ...);
 3. the **emulator / DOSBox oracle frames** (`ref/oracle/`, golden tests);
 4. **playing the game** (ask the owner — see Rule 5).
+
+**The decompilation is the first source of truth; every other source is
+secondary.** When sources disagree, the decompilation wins — if a lower-ranked
+source (data file, oracle frame, live play) contradicts the disassembly, treat
+the disassembly as authoritative and re-examine the other source for the error
+(e.g. a stale capture or a mis-decoded file); do not silently prefer the
+lower-ranked source.
+
+**Reading the decompilation is never out of lane.** Although `analysis/*.asm`
+and the decompiler are Maintainer-owned (Rule 8), any agent — in any lane — may
+(and should) read the disassembly to find the source of truth for its own work.
+"Stay in your lane" restricts *editing* other lanes' files, never *reading* the
+decompilation.
 
 A number that was *recovered* (template-matched, decoded, traced) is not a
 guess. A number that was *chosen because it looked right* is a guess, even if it
@@ -103,7 +116,8 @@ point; other documents may summarise but MUST point here.
 
 Every agent **stays in its own lane** and works only on the files it owns (the
 map in `docs/WORKSTREAMS.md`). Do not edit another lane's files, and do not pick
-up unowned work ad hoc.
+up unowned work ad hoc. *Reading* files you do not own is always allowed — in
+particular, **reading the decompilation is never out of lane** (Rule 1).
 
 - **Work that belongs to no lane yet MUST be added to a lane** — either give it
   to an existing lane whose remit fits, or create a new lane and register it in
@@ -176,6 +190,25 @@ unremovable guesses** (Rule 3) — never repository mechanics. Detail and comman
 ---
 
 ## Changelog (newest first)
+
+### 2026-11-14 — Reading the decompilation is never out of lane (Rule 1)
+
+- Owner re-stated the rule with an added clause: **"Reading the decompilation is
+  never out of lane."** The primary-source half was already covered by the Rule 1
+  clarification below (Rule 9 step 2 → unchanged); the lane clause is **new**
+  (Rule 9 step 3 → added). Rule 1 now states explicitly that any agent in any
+  lane may read `analysis/*.asm` — "stay in your lane" restricts *editing* other
+  lanes' files, not *reading* the disassembly.
+
+### 2026-11-14 — Decompilation is the primary source (Rule 1 clarification)
+
+- Owner re-stated the source-of-truth ordering: **"the decompilation is the
+  first source of truth for all agents; every other source is secondary."** Per
+  Rule 9 this was reconciled against Rule 1, which already listed the
+  decompilation as the primary source. The owner's phrasing adds an explicit
+  precedence clause, so Rule 1 was **adapted** (not duplicated): the disassembly
+  wins when sources disagree; a lower-ranked source that contradicts it is
+  re-examined rather than preferred.
 
 ### 2026-11-14 — Owner-stated rules + PR ownership
 

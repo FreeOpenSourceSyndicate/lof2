@@ -25,8 +25,10 @@ clean and pushed. This session was **state assessment + one real feature**.
   `compose_town_screen` into a shared `compose_building_screen`. **PR #101.**
 - **Per-building viewport tiles pinned** (documented in AGENTS.md): Emporium =
   `TWN01`, Bank = `TWN02`, House of trades = `TWN04`; Inn/Temple open
-  first-person `D5` interiors (no TWN tile). Bank/House screens are the next
-  easy lane-M wins (same shape, different tile + strings).
+  first-person `D5` interiors (no TWN tile). **Implemented all three building
+  screens** (`--emporium`/`--bank`/`--house`, all pixel-exact masked); added the
+  `/` glyph (band 2 cell 2) to `font.cpp`. `tests/port_building_test.py` covers
+  all three (replaces the earlier single Emporium test).
 - **Greeting is two engine strings** (`ds:0x5B71 "Well hi, wealthy heroes, "` +
   `ds:0x5B8B "what would you like, huh?"`) drawn on consecutive rows 92/100; the
   wrap after "what" is the engine's own row break.
