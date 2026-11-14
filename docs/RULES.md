@@ -32,6 +32,12 @@ the disassembly as authoritative and re-examine the other source for the error
 (e.g. a stale capture or a mis-decoded file); do not silently prefer the
 lower-ranked source.
 
+**Reading the decompilation is never out of lane.** Although `analysis/*.asm`
+and the decompiler are Maintainer-owned (Rule 8), any agent — in any lane — may
+(and should) read the disassembly to find the source of truth for its own work.
+"Stay in your lane" restricts *editing* other lanes' files, never *reading* the
+decompilation.
+
 A number that was *recovered* (template-matched, decoded, traced) is not a
 guess. A number that was *chosen because it looked right* is a guess, even if it
 makes a test pass. "It works" is not "it is derived".
@@ -110,7 +116,8 @@ point; other documents may summarise but MUST point here.
 
 Every agent **stays in its own lane** and works only on the files it owns (the
 map in `docs/WORKSTREAMS.md`). Do not edit another lane's files, and do not pick
-up unowned work ad hoc.
+up unowned work ad hoc. *Reading* files you do not own is always allowed — in
+particular, **reading the decompilation is never out of lane** (Rule 1).
 
 - **Work that belongs to no lane yet MUST be added to a lane** — either give it
   to an existing lane whose remit fits, or create a new lane and register it in
@@ -183,6 +190,15 @@ unremovable guesses** (Rule 3) — never repository mechanics. Detail and comman
 ---
 
 ## Changelog (newest first)
+
+### 2026-11-14 — Reading the decompilation is never out of lane (Rule 1)
+
+- Owner re-stated the rule with an added clause: **"Reading the decompilation is
+  never out of lane."** The primary-source half was already covered by the Rule 1
+  clarification below (Rule 9 step 2 → unchanged); the lane clause is **new**
+  (Rule 9 step 3 → added). Rule 1 now states explicitly that any agent in any
+  lane may read `analysis/*.asm` — "stay in your lane" restricts *editing* other
+  lanes' files, not *reading* the disassembly.
 
 ### 2026-11-14 — Decompilation is the primary source (Rule 1 clarification)
 
