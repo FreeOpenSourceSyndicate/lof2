@@ -79,10 +79,14 @@ How to use each section:
     Thyn.", file `0x4687D`).
   - **Neither `0x5A39` nor `0x5A40` is loaded by a plain `mov ax, imm`** anywhere
     in the image (searched for `B8 39 5A` / `B8 40 5A`): the selector is computed,
-    not a fixed pointer. The town routine (`image 0xC22B`) loads the *fragments*
-    `0x5A31` ("town of"), `0x5A4C` ("ich building…"), `0x5A69` ("isit?") into AX
-    and calls the string drawer (`lcall 0x18d:0x16a8`), so the name is chosen
-    upstream of it.
+    not a fixed pointer. **Nor is either address stored as data anywhere**: a
+    search for the little-endian word `0x5A39` finds it **zero** times, and
+    `0x5A40` only as instruction immediates (e.g. `26 C6 40 5A …` =
+    `mov byte es:[bx+si+0x5a], …`), never as a pointer. So the name address is
+    built entirely from a computed base + offset. The town routine
+    (`image 0xC22B`) loads the *fragments* `0x5A31` ("town of"), `0x5A4C`
+    ("ich building…"), `0x5A69` ("isit?") into AX and calls the string drawer
+    (`lcall 0x18d:0x16a8`), so the name is chosen upstream of it.
 - **Superseded (wrong):** the earlier entry claimed the names are at
   `ds:0x5A56`/`0x5A5E`; those are the *middle* of the "Which building…" string.
   See `docs/notes-maintainer-town.md` for the corrected mapping.
