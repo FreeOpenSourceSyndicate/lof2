@@ -69,14 +69,28 @@ How to use each section:
 
 - **What:** `compose_town_screen()` hardcodes the string `"Thyn. Which building
   do you"`. The town name is **variable**.
-- **Source of truth:** `LOF.EXE` string table at file `0x45A1D`
-  (`"You enter the proud town of"`, then NUL-separated `"Thyn. "` and
-  `"Cyldane. "`), `0x45A4A` (`"Which building do you want to visit?"`), then the
-  building labels.
+- **Source of truth:** `LOF.EXE` string table. Verified offsets (2026-11-14;
+  `file = ds_offset + 0x40000`):
+  - `ds:0x5A1D` = `"You enter the proud town of"` (file `0x45A1D`);
+  - `ds:0x5A39` = `"Thyn. "` (file `0x45A39`), `ds:0x5A40` = `"Cyldane. "`
+    (file `0x45A40`) — the **only** two town names, NUL-separated;
+  - `ds:0x5A4A` = `"Which building do you want to visit?"` (file `0x45A4A`);
+  - a *second* `"Thyn"` at `ds:0x687D` ("The Grand Board of Trades greets you in
+    Thyn.", file `0x4687D`).
+  - **Neither `0x5A39` nor `0x5A40` is loaded by a plain `mov ax, imm`** anywhere
+    in the image (searched for `B8 39 5A` / `B8 40 5A`): the selector is computed,
+    not a fixed pointer. The town routine (`image 0xC22B`) loads the *fragments*
+    `0x5A31` ("town of"), `0x5A4C` ("ich building…"), `0x5A69` ("isit?") into AX
+    and calls the string drawer (`lcall 0x18d:0x16a8`), so the name is chosen
+    upstream of it.
+- **Superseded (wrong):** the earlier entry claimed the names are at
+  `ds:0x5A56`/`0x5A5E`; those are the *middle* of the "Which building…" string.
+  See `docs/notes-maintainer-town.md` for the corrected mapping.
 - **Fix:** take the name as a parameter of `compose_town_screen()`; select it from
-  the save/scenario. The selector is discoverable by tracing the call to the
-  routine that prints `ds:0x52D`. Both currently-available save slots resolve to
-  Thyn, which is why the current frame still matches.
+  the save/scenario. The selector is discoverable by tracing the call site of the
+  routine that prints `ds:0x5A1D`/`0x5A31`. Both currently-available save slots
+  resolve to Thyn, which is why the current frame still matches — a save standing
+  in Cyldane is needed to observe the other branch (owner can supply one; Rule 5).
 - **Status:** derivable → normal Lane M task (not a blocker).
 
 ---

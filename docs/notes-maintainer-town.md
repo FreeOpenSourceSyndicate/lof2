@@ -81,9 +81,32 @@ Which building do you want to visit?
 (E)mporium (B)ank (I)nn (H)ouse of trades (T)emple (C)ontinue
 ```
 
-The main town screen is **menu-only** — no free movement (confirmed).  The town
-name is `Thyn` / `Cyldane` (`ds=0x5A56` / `0x5A5E`; `Cyldane` is referenced at
-file `0x7C41`).  `(C)ontinue` at `ds=0x5AA2` is referenced at file `0x9A37`.
+The main town screen is **menu-only** — no free movement (confirmed).
+
+**Address mapping (verified 2026-11-14).** The `ds` offsets in this file are
+data-segment offsets; the engine runs with `ds = 0x4AC1`, so for a data offset
+`off`:
+
+    file offset = 0x40000 + off      (verified empirically, below)
+    physical    = 0x4AC10 + off      (ds*16 = 0x4AC10)
+
+Both are confirmed against the live 1 MB RAM dump (`LOF_DUMP`) and the raw EXE:
+`ds:0x5A31 "town of"` -> file `0x45A31` -> physical `0x50641`; the bytes match in
+both. **Rule of thumb: `file = ds_offset + 0x40000`.** (The `ds:off` form is what
+the disassembly shows, e.g. `mov ax, 0x5a31` at image `0xC22C`.)
+
+**Town-name strings.** The file holds exactly two town names, NUL-separated at
+`ds:0x5A39` (`"Thyn. "`) and `ds:0x5A40` (`"Cyldane. "`) — file `0x45A39` /
+`0x45A40`. There is a *second* `"Thyn"` at `ds:0x687D` ("The Grand Board of
+Trades greets you in Thyn."), file `0x4687D`. `(C)ontinue` is at `ds:0x5AA2`
+(file `0x45AA2`).
+
+> **Superseded claim (wrong):** an earlier revision said the names live at
+> `ds=0x5A56` / `0x5A5E` and that `Cyldane` is "referenced at file `0x7C41`".
+> Both are wrong: `ds:0x5A56` is the middle of `"Which building do you want to
+> visit?"`, and file `0x7C41` is code (`5E 5A 59 5B ...`), not a name. The
+> `0x5A56`/`0x5A5E` values were the file offsets `0x45A56`/`0x45A5E` minus
+> `0x40000` computed wrongly. See G-001 for the selection question.
 
 ## Internal clock (NOT the wall clock)
 
