@@ -7,37 +7,42 @@ this first, then `docs/HANDOFF.md` (the technical reference) and
 
 ## Session 2026-11-15 (ninth session) — TL;DR
 
-Environment HEALTHY. HEAD at start `f564a6f` (PR #100 merged this session), `main`
-clean and pushed. This session was **state assessment + one real feature**.
+Environment HEALTHY. HEAD at start `f564a6f`, `main` clean and pushed. This
+session: **state assessment + all three town building screens + two rule
+clarifications**; ends with `main` at the PR-#101 squash-merge and `check.sh`
+HEALTHY.
 
 - **Merged PR #100** (`docs(rules): Rule 9 + Rule 10`) after verifying its
   `check.sh` FAIL was **false**: it was contention from the previous session's
   concurrent emulator runs starving the golden scenario's `timeout 300`. Re-ran
   `tests/golden_test.sh` alone → **ok**. Lesson: never run `golden_test.sh` /
   `check.sh` while other `lof-native` runs are in flight.
-- **Implemented the Emporium screen** (`lof --emporium`), the top lane-M item.
-  It is the **same shape as the town menu** (MSCR + a `TWN` viewport tile at
-  (10,11) + `CHR1` text at x=139), not an ornate panel: viewport tile is
-  `EGA/TWN/TWN01`, text is the shopkeeper greeting (white) + buy/sell/repair/
-  gather/(C)ontinue options (black/white). **Pixel-exact (masked)** against the
-  emulator `shop` golden frame. New `tests/port_emporium_test.py` +
-  `ref/oracle/emporium.png`, wired into `make golden-port`. Refactored
-  `compose_town_screen` into a shared `compose_building_screen`. **PR #101.**
-- **Per-building viewport tiles pinned** (documented in AGENTS.md): Emporium =
-  `TWN01`, Bank = `TWN02`, House of trades = `TWN04`; Inn/Temple open
-  first-person `D5` interiors (no TWN tile). **Implemented all three building
-  screens** (`--emporium`/`--bank`/`--house`, all pixel-exact masked); added the
-  `/` glyph (band 2 cell 2) to `font.cpp`. `tests/port_building_test.py` covers
-  all three (replaces the earlier single Emporium test).
-- **Greeting is two engine strings** (`ds:0x5B71 "Well hi, wealthy heroes, "` +
-  `ds:0x5B8B "what would you like, huh?"`) drawn on consecutive rows 92/100; the
-  wrap after "what" is the engine's own row break.
-- **G-001 (town name) unchanged**: still queued (needs a Cyldane save to observe
-  the branch; owner question already open below). G-002 (16×16 corner patch)
-  unchanged.
+- **Implemented all three town building screens** (`lof --emporium/--bank/--house`,
+  lane M's top items) and **merged them as PR #101**. They share the town menu's
+  shape (MSCR + a `TWN` viewport tile at (10,11) + `CHR1` text at x=139); each is
+  pixel-exact (masked) against the emulator frame:
+    * Emporium = `TWN01`, Bank = `TWN02`, House of trades = `TWN04`;
+    * Inn/Temple open first-person `D5` interiors (no TWN tile) — still to do.
+  `compose_town_screen` refactored into a shared `compose_building_screen`; added
+  the `/` glyph (`CHR1` band 2 cell 2). `tests/port_building_test.py` (replaces
+  the single Emporium test) + `ref/oracle/{emporium,bank,house}.png`, wired into
+  `make golden-port`.
+- **Two Rule-1 clarifications** (owner re-stated the source-of-truth rule twice;
+  reconciled via Rule 9, changelog entries added): the decompilation is the
+  **first** source of truth and wins when sources disagree; and **reading the
+  decompilation is never out of lane** (Rule 8 cross-referenced).
+- **G-001 advanced (not resolved):** a raw word-search of `LOF.EXE` finds the
+  town-name addresses `0x5A39`/`0x5A40` stored as a **pointer nowhere** (`0x5A39`
+  zero hits; `0x5A40` only as `mov byte es:[bx+si+0x5a],…` immediates) — the
+  name address is computed from a data-driven base. Still needs a **Cyldane
+  save** to observe the branch: **owner task OT-001, re-reminded below**.
+- **G-002 (16×16 corner patch)** unchanged (engine-drawn residue).
 - **`ref/oracle/shop.png` (DOSBox) does NOT match the emulator's Emporium**
   (~69%); it is not used by any test. `ref/oracle/town.png` *is* exact vs the
   emulator. Do not treat `shop.png` as an oracle.
+- **check.sh timings:** `make test` + `tests/golden_test.sh` are the fast checks;
+  `./check.sh` end-to-end is ~15–20 min here (11 golden scenarios) — run it alone
+  in the background. Verified this session: `./check.sh` → **HEALTHY**.
 
 ## Session 2026-11-14 (eighth session) — TL;DR
 
