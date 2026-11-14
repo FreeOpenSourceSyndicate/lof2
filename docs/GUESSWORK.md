@@ -126,8 +126,8 @@ prompt), so the engine treats a `spell == 0` non-potion as **not usable**.
 `item_is_usable()` returning `false` matches it, so the value is derived (live
 play is a Rule-1 source of truth) rather than guessed.  The decompilation agrees:
 the gate's verdict word `[bp-4]:[bp-2]` (image `0x0E562`) is left unwritten on
-this path and the "is not useful in this situation." string (`ds:0x5C51`, image
-`0x0E15D`) is what the engine prints.
+this path and the "is not useful in this situation." string (`ds:0x5C52`, loaded
+at image `0x0E1A9`) is what the engine prints.
 
 **Bonus from the same live-play report:** a **lantern** used with a flask of oil
 and a tinderbox consumes the oil and prints "… make light…", grounding item

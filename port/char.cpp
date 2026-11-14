@@ -269,9 +269,9 @@ uint8_t item_use_flags(int item_index) {
 // The handler at 0x0E59E takes the "cast" path only when the spell's first
 // parameter byte has one of bits 0/1/2 set (it tests `test al,3` then
 // `test al,4`); otherwise it prints "is not useful in this situation." (string
-// ds:0x5C51, image 0x0E15D).  The routine separately clears that verdict for
-// **potions** (item class 9, tested at image 0x0E5C5/0x0E618), so a potion is
-// always usable regardless of its spell's parameter byte.
+// ds:0x5C52, loaded at image 0x0E1A9).  The routine separately clears that
+// verdict for **potions** (item class 9, tested at image 0x0E5C5/0x0E618), so a
+// potion is always usable regardless of its spell's parameter byte.
 //
 // A `spell == 0` non-potion reaches neither branch, so the engine's verdict
 // word is never written and the test at 0x0E5D5 reads uninitialised stack.  But

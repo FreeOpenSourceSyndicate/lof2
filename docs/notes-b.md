@@ -1135,11 +1135,12 @@ scaling byte, `+0x45` Strength, `+0x55` action-time divisor, `+0x56` SNSC speed,
 
 The read `es:[bx*0x24 + 0x2712]` (image `0x0E59E`, `0x0F072`, `0x17C6F`,
 `0x1947E`, `0x19690`) is **not** an item-use table.  It is the 141-record spell
-table.  With `DS` base `0x41d10` (verified: the "Club" string at file `0x42cec`
-is `DS:0x2712`+… , and `"is not useful in this situation."` at file `0x47961` is
-`DS:0x5c51`), `DS:0x2712` resolves to **file `0x44422`**.  The spell table's
-record base is `DS:0x26FC` = file `0x4440C`; `0x2712 - 0x26FC = 0x16`, so the
-read lands on the byte just *past* a record's 14-byte parameter block.  A live
+table.  With `DS` base `0x41d10` (verified: e.g. the spell name `"Burning hands"`
+at file `0x44430` is `DS:0x2720`, and `"is not useful in this situation."` at
+file `0x47962` is `DS:0x5c52`), `DS:0x2712` resolves to **file `0x44422`**.  The
+spell table's record base is `DS:0x26FC` = file `0x4440C`; `0x2712 - 0x26FC =
+0x16`, so the read lands on the byte just *past* a record's 14-byte parameter
+block.  A live
 1 MB dump of the town path (`LOF_SEGDUMP`) is byte-identical to the EXE image at
 `0x44422`, so the table is static EXE data (see BLK-B002 resolution).
 
