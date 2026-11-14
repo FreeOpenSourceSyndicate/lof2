@@ -59,21 +59,23 @@ How to use each section:
   `0x0EDB0`); `2,8,12,21,24,28,29,33` (equip/unequip handler `0x2995C` /
   `0x29FB1`); `9,13,15,20,27,40` (misc sites `0x14A09`, `0x13AF4`, `0xDF7E`,
   `0x14976`, `0xE274`, `0xE1BC`).  The engine's own messages fix the meaning of
-  some: 1 "growing professionalism.", 2 "feels himself safer.", 3/23 "goes
-  green in the face!" (poison), 10 adds HP (`0x0EA90`), 30/31 clear the poison
-  state (`0xEBE4`/`0xECE2`).  Live play grounds one more: **34 (lantern)** — the
-  owner used a lantern with a flask of oil and a tinderbox, which consumed the
-  oil and printed "… make light…" (the lantern's `+0x18` spell index 7 is
-  "Permanent light").  Effects the engine never compares (5, 7, 35, 37, …) keep
-  purely descriptive labels.
-- **Why unclear:** the *labels* are still derived by grouping the item table by
-  effect value (effect 5 = "Crystal ball", effect 8 = "Antimagic ring", …); the
-  engine stores no effect-name table, so the strings can only ever be
-  descriptive.  Some handlers live in the play loop, so fully characterising
-  each effect needs Lane M to drive those screens (a blocker).
-- **To clear it:** trace each effect value's handler to a concrete stat change /
-  message and align the label; for values the engine never tests, keep the
-  descriptive name (the label is then a naming choice, not a claim about the
+  several: 1 "growing professionalism." (enchant weapon), 2 "feels himself
+  safer." (enchant armour), 3/23 "goes green in the face!" (poison), 10 adds HP
+  (`0x0EA90`), 15/40 "fits together." (combine paired items), 30/31 clear the
+  poison state (`0xEBE4`/`0xECE2`).  Live play grounds one more: **34 (lantern)**
+  — using a lantern with a flask of oil and a tinderbox consumed the oil and
+  printed "… make light…" (the lantern's `+0x18` spell index 7 is "Permanent
+  light").  Effects the engine never compares (5, 7, 35, 37, …) keep purely
+  descriptive labels.
+- **Why unclear:** for the values the engine **never** compares, the label is a
+  grouping of the item table by effect (effect 5 = "Crystal ball", effect 8 =
+  "Antimagic ring", …) — the engine stores no effect-name table, so those strings
+  can only ever be descriptive naming choices, not engine symbols.  The
+  *magnitude* of the tested effects that live in the play loop (the exact stat
+  deltas for 12/19/21/24/28/29/33) still needs Lane M to drive those screens.
+- **To clear it:** trace each remaining effect value's handler to a concrete stat
+  change and align the label; for values the engine never tests, the descriptive
+  name is already the correct answer (a naming choice, not a claim about the
   engine).
 
 ---
