@@ -1524,3 +1524,52 @@ depth->=3 images are engine-drawn (best single-sprite IoU 0.36/0.35), so
 reproducing them still needs the decompiled view routine (BLK-A003, Lane M).  I
 extended `test_base_view` to pin that `dungeon_base_view_index` stays
 depth-independent, so it cannot silently drift into a half-correct depth model.
+
+## Round 30 — decompilation consulted; the corridor view is procedurally drawn, not a sprite composite
+
+Per `docs/RULES.md` Rule 1 the decompilation is the primary source, so I read
+`analysis/lof.asm` and the emulator's DOS traces. Findings:
+
+### The wall view is exactly `DP001`; the corridor view is not a sprite at all
+
+Colour-accurate template search of the 120x119 window (DNG05 entry, facing S,
+ahead cell tile 0 = open corridor vs tile 3 = wall):
+
+| view | best single sprite | colour accuracy |
+|------|--------------------|-----------------|
+| wall ahead (tile 3) | `D5/DP001` | **98.8%** |
+| corridor (tile 0) | none — best `D5/DP035` | 20% (noise) |
+
+The corridor matches **no** single `EGA/**` sprite (best 20% colour / 0.346 ink
+IoU, confirming Round 28) and — new this round — **zero colour-exact
+containment placements** exist across all 51 `D5/DP*` sprites, i.e. no sprite
+fits anywhere in the corridor with every ink pixel the same colour.  (The same
+search finds **hundreds** of 100%-*ink* containment placements, which is why
+Round 28's ink-only reading looked like a composite; the colours never agree.)
+
+### The engine bulk-loads the whole tileset at level entry
+
+`LOF_I21=1` file-open trace: entering the dungeon opens **all 51 `EGA/D5/DP*`
+plus all `EGA/ANIM/AN*`** in one pass (the loader at image `0x1f5c` / wrapper
+`0x236e`), so per-view sprite *selection* is an in-memory pointer choice, never
+a per-frame file open.  The string table at image `0x3b3e8` (`ega\d0\dp000` ..
+`dp069`, `ega\anim\anNN`) is loaded through that wrapper.
+
+### The corridor silhouette is shared art, but the content is per-context
+
+`D0/DP001`, `CHAR1/CH26` and `CHAR2/CH25` all reproduce the corridor *silhouette*
+at 46-58% pixel-exact but never its colours (and CH26/CH25 are byte-identical to
+each other).  So the same drawing routine produces the corridor shape in several
+contexts with different palette content — a **procedural room draw**, not a blit
+of a named image.  This fits the engine's own debug strings `Enter
+dungeon-number?` / `Enter level-number?` / `Enter room-number?` / `Akt. room:
+%d`: a dungeon is drawn **room by room** from the room's tile data.
+
+### Consequence for the drop-in
+
+The model is now: **wall cells blit the pre-scaled sprite (`DP001` at depth 1);
+open/corridor cells are drawn procedurally by the room routine.**  The
+procedural routine is what BLK-A003's residual needs, and it is inside the
+GFA-compiled body (no adjacent lookup table is statically visible near the
+loader), so it still needs the routine-level decompilation.  `dungeon_base_view_index`
+is unchanged (exact for the wall case, documented fallback for the corridor).

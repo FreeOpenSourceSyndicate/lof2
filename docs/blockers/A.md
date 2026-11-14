@@ -158,6 +158,28 @@ geometry composition from `port/dungeon.{h,cpp}` or the decompilation; the
 per-cell base rule is known (Round 26/28), so what remains is the *composition*
 rule for open cells. Detail: `docs/notes-a.md`.
 
+**Log.** 2026-11-08 Agent A (Round 30) — **decompilation consulted (Rule 1); the
+corridor view is procedurally drawn, not a sprite composite.**  Read
+`analysis/lof.asm` + emulator DOS traces:
+
+- Colour-accurate template search: the *wall* view is `D5/DP001` at **98.8%**;
+  the *corridor* view matches **no** `EGA/**` sprite (best 20% = noise) and has
+  **zero colour-exact containment placements** across all 51 `D5/DP*` (hundreds
+  of 100%-*ink* placements exist, which is what misled the Round-28 ink search —
+  the colours never agree).
+- `LOF_I21=1`: entering the dungeon opens **all 51 `D5/DP*` + all `ANIM`** at
+  once (loader image `0x1f5c` / wrapper `0x236e`), so per-view selection is an
+  in-memory pointer, not a file open.  String table at image `0x3b3e8`.
+- `D0/DP001`, `CHAR1/CH26`, `CHAR2/CH25` reproduce the corridor *silhouette* at
+  46-58% but never its colours → the same routine draws the corridor shape with
+  per-context content, i.e. a **procedural room draw**.  This matches the
+  engine's `Enter room-number?` / `Akt. room: %d` debug strings.
+
+Model: **wall cells blit `DP001`; open/corridor cells are drawn by the room
+routine.**  The room routine (inside the GFA-compiled body; no adjacent lookup
+table visible near the loader) is still what the residual needs — same blocker,
+now with the mechanism named.  Detail: `docs/notes-a.md` Round 30.
+
 **Log.** 2026-11-08 Agent A (Round 29) — **the composition is a depth-scaled
 perspective draw, and the feature byte is irrelevant.**  Two follow-ups to
 Round 28, both via DNG05 ahead-cell patches (party (17,3) facing S):
