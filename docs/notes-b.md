@@ -1231,6 +1231,12 @@ The engine's **own messages** fix the meaning of several values:
   (`+0x20`) — **healing**.
 - `30` / `31` → clear the poison state (`if char[+0x1f] == 3 { char[+0x1f] = 0;
   char[+0x57] = 0; char[+0x58] = 0 }` / `== 4`) — **antidote I / II**.
+- `15` (quest jewels, `0x0DF7E`) → a **combine** handler: it takes the item's
+  paired index (`+0x1a`, `f5`), prints "<name> and <name> fits together."
+  (`ds:0x5c3c`/`0x5c42`; or "That doesn't seem to work." `ds:0x5c21` if the pair
+  is absent), removes both items and adds the result.  It special-cases item
+  indices `0x5e`/`0x5f` (Corona/Keystaff), matching the `f5` pair chain
+  Emerald↔Corona↔Keystaff.
 
 So the labels for `1,2,3,8,10,12,19,21,23,24,28,29,30,31,33` are grounded;
 the rest are item-name-grouping descriptions (the engine stores no effect-name
