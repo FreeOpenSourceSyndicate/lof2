@@ -314,9 +314,13 @@ const std::vector<SpellRecord>& spells();
 // 1-based spell lookup (spell indices in items/characters are 1-based).
 const SpellRecord* spell_by_index(int index);
 
-// Spell effect code: byte 8 of a spell's 14 data bytes.  Grouping all 141
-// spells by it yields clean families (healing, light, paralyse, fear, summon,
-// map, …), so it is the id the play loop switches on.  Descriptive label
+// Spell effect code: byte 8 of a spell's 14 data bytes (`es:[spell*0x24 +
+// 0x271A]`, image `0x0F5D8`).  The cast routine subtracts 1 and dispatches
+// through a 63-entry jump table (`cmp ax,0x3e; jbe; add ax,ax; jmp
+// *cs:0x2C1E(bx)`, `0x0F5E2`..`0x0F5ED`), so it is the id the play loop
+// switches on.  Grouping all 141 spells by it yields clean families (healing,
+// light, paralyse, fear, summon, map, …), which is how the labels below were
+// assigned — they are descriptive, not engine symbol names.
 // (non-null for any input; unknown/0 => "damage"); `spells_with_effect()`
 // lists the spells carrying a code.
 constexpr size_t kSpellEffectByte = 8;

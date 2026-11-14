@@ -1229,6 +1229,15 @@ So the labels for `1,2,3,8,10,12,19,21,23,24,28,29,30,31,33` are grounded;
 the rest are item-name-grouping descriptions (the engine stores no effect-name
 table).  The distinction is recorded in `docs/GUESSWORK.md` (G-004).
 
+### The spell effect code (data byte 8) is a real jump-table dispatch
+
+`SpellRecord::data[8]` (`es:[spell*0x24 + 0x271A]`, image `0x0F5D8`) is the id
+the cast routine switches on.  The routine does `sub ax,1`, bounds-checks
+`cmp ax,0x3e; jbe`, then `add ax,ax; jmp *cs:0x2C1E(bx)` (`0x0F5E2`..`0x0F5ED`)
+— a 63-entry (`0x3f`) jump table.  So `spell_effect_name()`'s labels describe a
+code the engine really dispatches on (the labels themselves are descriptive
+family names, not engine symbols).  Same shape as the item effect byte above.
+
 
 ## Blockers (Workstream B) — 2026-11-08
 
