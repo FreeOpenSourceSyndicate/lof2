@@ -72,7 +72,7 @@ def decode(path):
     return out[:HEADER], out[HEADER:]
 
 
-TILE_SYMBOL = {0: '#', 1: '=', 2: '~', 3: '%', 6: '.', 7: '+', 8: 'o', 12: '*'}
+TILE_SYMBOL = {0: '#', 1: '=', 2: '~', 3: '.', 6: '%', 7: '+', 8: 'o', 12: '*', 13: '%'}
 
 
 def tiles(body):
@@ -164,11 +164,12 @@ def cmd_grid(path, layer='tiles', w=LAYER_W):
         print(ln)
 
 
-# Solid (wall) tile codes.  PROVISIONAL: derived from connectivity across the
-# 29 levels (the {3,12} set keeps 24/29 levels fully connected, which a
-# hand-built maze should be) and from the object-feature placement below.  Not
-# yet confirmed against an oracle frame; see docs/notes-a.md.
-SOLID_TILES = {3, 12}
+# Solid (wall) tile codes.  Ground truth (emulator opacity sweep, Round 27):
+# patching the ahead cell to code X and varying the cell *behind* it leaves the
+# view byte-identical only for X in {6,13} — those occlude and render the
+# full-screen wall face DP036.  Everything else is see-through/walkable.  The
+# earlier {3,12} guess is disproved (DNG06 spawns on tile 3).  See docs/notes-a.md.
+SOLID_TILES = {6, 13}
 
 
 def _is_solid(tl, x, y, w=LAYER_W, h=LAYER_W):
