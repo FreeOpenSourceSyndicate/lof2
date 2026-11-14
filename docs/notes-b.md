@@ -1237,6 +1237,9 @@ The engine's **own messages** fix the meaning of several values:
   is absent), removes both items and adds the result.  It special-cases item
   indices `0x5e`/`0x5f` (Corona/Keystaff), matching the `f5` pair chain
   Emerald↔Corona↔Keystaff.
+- `40` (raw materials, `0x0E1BC`) → the same combine shape ("That doesn't seem
+  to work." `ds:0x5c73` if the pair is absent); combines paired index `f5`
+  (Dry clay ↔ Some water).
 
 So the labels for `1,2,3,8,10,12,19,21,23,24,28,29,30,31,33` are grounded;
 the rest are item-name-grouping descriptions (the engine stores no effect-name
