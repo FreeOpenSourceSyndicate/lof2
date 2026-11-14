@@ -1573,3 +1573,76 @@ procedural routine is what BLK-A003's residual needs, and it is inside the
 GFA-compiled body (no adjacent lookup table is statically visible near the
 loader), so it still needs the routine-level decompilation.  `dungeon_base_view_index`
 is unchanged (exact for the wall case, documented fallback for the corridor).
+
+## Round 31 — corrected address map; the view routine and its 6-sprite table (decompilation)
+
+This round fixes the **address map** used in earlier rounds and decodes the view
+routine at the instruction level. All offsets below are *image offsets* into
+`LOF.EXE`'s loaded image.
+
+### Address map (verified)
+
+For the **main program** segment (`cs = 0x119D` at run time):
+
+    image_offset = reloc_seg * 16 + offset - 0x10100
+
+Cross-checks: the view routine `119D:22A2` -> image `0x3B72` (its bytes match the
+routine below); the RLE sprite loader `119D:0A5B` -> image `0x232B` (the decoder
+at `0x22F2`). Earlier rounds used `- 0x2F0E0` / `- 0x1010`, which do **not**
+reproduce these two sites; the `- 0x10100` form does. The GFA helper segments
+(`0x18D`, `0x2F0E`, `0x212F`) are loaded separately and are *not* covered by
+this map, so `lcall 0x18d:0x16a8` cannot be resolved with it.
+
+### The view routine — image `0x3B72` (`lcall 0x18d,0x22a2`)
+
+```
+inc cs:[0xe5e]                     ; view nesting counter
+call 0x30f6 ; call 0x5008          ; save/restore register block
+save cs:[0x1414]/cs:[0x1416]; clear them
+ax,bx,cx,dx,si = 10,11,0x81,0x82,1 ; viewport rect (10,11)-(0x81,0x82)
+lcall 0x18d,0x1fb2                 ; fill that rect (frame)
+ax,bx,cx,dx,si = 5,0x87,0x85,0xbf,1
+lcall 0x18d,0x1fb2                 ; fill a second rect
+cs:[0x376]=10 ; cs:[0x378]=11      ; blit origin (10,11)
+dx = 0x3120 ; ds = dx              ; relative data segment
+ax = mode * 6 ; bx = ax
+dx = [bx + 0x49f3]                 ; *** sprite SEGMENT for this mode ***
+cs:[0x39e]=1 ; cs:[0x1fa0]=1
+lcall 0x18d,0x3a0                  ; blit the sprite into the viewport
+lcall 0x18d,0x1c0
+rect (10,11)-(0x82,0x82) ; call 0x312e ; lcall 0x18d,0x1204 ; call 0x312e
+dec cs:[0xe5e] ; retf
+```
+
+The mode argument is the word pushed at each of the nine `lcall 0x18d,0x22a2`
+call sites (0..4). **Mode 3 is the walk/`E` (enter/continue) view**: the site at
+`119D:7646` pushes `3` before the call, and `119D:74F0`.. handles movement.
+
+### The sprite table `ds:0x49f3` (runtime `4130:49f3`)
+
+Six 6-byte entries: `[sprite_segment word][0x0100][word]`. Runtime dump
+(`LOF_SEGDUMP=4130:49f3:20`):
+
+    entry 0  seg 0x6DCD   entry 1  seg 0x6F8C   entry 2  seg 0x714B
+    entry 3  seg 0x730A   entry 4  seg 0x74C9   entry 5  seg 0x7688
+
+**Entry 0 (`0x6DCD`) is `EGA/D5/DP001`, byte-exact.** Dumping the six contiguous
+segments (`LOF_SEGDUMP=6dcd:0:0xC000`) and reading the first as a raw EGA image
+(magic `0x1234` at offset 0, `w=15` -> 120 px, `h=119`, `size=7150 = 10+4*w*h`)
+reproduces all 7140 plane bytes of `EGA/D5/DP001` (100 %). So **the segments hold
+*uncompressed* EGA images** (header + 4 planes, no RLE) — the loader at image
+`0x232B` is a straight copy, not an RLE decoder, for these. This confirms the
+wall case in `dungeon_base_view_index` (ahead tile 6/13 -> `DP001`, index 1) is
+sourced, not a guess.
+
+Entries 1..5 were not yet re-dumped at the right instant (they are overwritten
+between loads), so their sprite identities remain open; only entry 0 is pinned.
+
+### Corridor view (BLK-A003) — still open, now narrower
+
+The corridor (ahead cell open, tile 0) is **not** entry 0: entry 0 == DP001
+(8715 ink) while the corridor is 4941 ink. It is therefore one of entries 1..5,
+or drawn by the fill routine `0x18d:0x1fb2`. No `EGA/**` file reproduces it
+(best colour match 63 %, best full-size IoU 0.35), consistent with Round 30.
+The open work is to catch the memory image of entry 1..5 while it is live; the
+table, the loader and the routine are now all located.
