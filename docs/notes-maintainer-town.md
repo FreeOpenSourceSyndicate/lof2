@@ -837,3 +837,34 @@ the MSCR light-gray box (no extra fill).
 
 
 
+
+### Bank + House of trades implemented (2026-11-14)
+
+All three buildings share the *same* screen shape as the town menu — `MSCR` +
+one `TWN` viewport tile at (10,11) + `CHR1` text at x=139 — so `port/lof.cpp`
+now has `compose_bank_screen()` (`--bank`, tile `TWN02`) and
+`compose_house_screen()` (`--house`, tile `TWN04`) beside `--emporium`.  All are
+pixel-exact (masked) against the emulator frames (`tests/port_building_test.py`,
+`ref/oracle/{emporium,bank,house}.png`).
+
+- **Bank** (`EGA/TWN/TWN02`), strings the engine's own:
+  greeting `ds:0x631C "Greetings, brave heroes, what can we do for you?"`
+  (rows 92/100, white); options `ds:0x634D "(D)eposit/open account"` (124),
+  `ds:0x6364 "(W)ithdraw/close account"` (132), `ds:0x637D "(E)xamine accounts"`
+  (140), `ds:0x6390 "(J)oint deposit"` (156), `ds:0x63A0 "(C)ontinue"` (172).
+- **House of trades** (`EGA/TWN/TWN04`): `ds:0x6855 "The Grand Board of Trades"`
+  (92), `ds:0x686F "greets you in Thyn."` (100), `ds:0x6883 "Welcome!"` (108),
+  then `ds:0x688C "(T)raining"` (124), `ds:0x6897 "(L)earn magic spells"` (132),
+  `ds:0x68AC "(A)nother language"` (140), `ds:0x68BF "(J)oint deposit"` (156),
+  `ds:0x68CF "(C)ontinue"` (172).
+- The Bank's `(D)eposit/open account` needed the **`/` glyph**: it is `CHR1`
+  band **2**, cell **2** (added to `port/font.cpp` `glyph_cell`).
+
+### G-001 — extra evidence (2026-11-14)
+
+A raw word-search of `LOF.EXE` for the little-endian town-name addresses finds
+`0x5A39` **zero** times and `0x5A40` only as instruction immediates
+(`26 C6 40 5A …` = `mov byte es:[bx+si+0x5a], …`), never as a stored pointer.
+So the name address is not a static pointer at all — it is built from a computed
+base + offset, confirming the selector is data-driven (save/scenario).  Tracing
+it needs a Cyldane save (owner task OT-001); both shipped saves resolve to Thyn.
