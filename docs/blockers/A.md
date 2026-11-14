@@ -159,6 +159,14 @@ ref/oracle/dungeon_slot1_moved.png game/EGA 5 1` reports a window match of only
 so what remains is the *side-piece* selection for the horizon band. Detail:
 `docs/notes-a.md`.
 
+**Log.** 2026-11-08 Agent A (Round 27) — the opacity sweep that fixed the wall
+set (`{6,13}`, `docs/notes-a.md`) also sharpens this blocker: a **wall** cell
+(tile 6/13) renders as the single full-screen face `DP036` (opaque — the cell
+behind is occluded), whereas a **corridor/opening** cell is *see-through* and is
+the one that needs the multi-piece composite (`DP037` + side pieces).  So the
+composite is only ever needed for the non-wall (passable) ahead codes, which is
+exactly the residual tracked here.
+
 **Log.** 2026-11-08 Agent A — decoded the composite *structure* without needing a
 new capture, by re-running the greedy composite over the maintainer's **existing**
 `ref/oracle/dungeon_slot1.png`: it reduces to `DP001` plus the small side pieces
