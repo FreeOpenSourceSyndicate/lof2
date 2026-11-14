@@ -158,6 +158,30 @@ geometry composition from `port/dungeon.{h,cpp}` or the decompilation; the
 per-cell base rule is known (Round 26/28), so what remains is the *composition*
 rule for open cells. Detail: `docs/notes-a.md`.
 
+**Log.** 2026-11-08 Agent A (Round 29) — **the composition is a depth-scaled
+perspective draw, and the feature byte is irrelevant.**  Two follow-ups to
+Round 28, both via DNG05 ahead-cell patches (party (17,3) facing S):
+
+- The ahead cell also carries a non-zero **feature** byte (34).  A new
+  `dngs.py patchcell` (tile + feature) shows the feature has **no effect** on the
+  window: `(tile 0, feat 0/12/132)` all give `e165034f…`; `(tile 3, feat 0/34)`
+  both give `694ac649…`.  Only the tile code matters.
+- Moving the first wall further down an open column gives a **depth-scaled**
+  view: first opaque cell at depth 1 → `DP001` (full-screen wall, IoU 0.917),
+  depth 2 → `58116d1d…` (a composed **trapezoidal wall face**, ink 5111),
+  depth >= 3 → `e165034f…` (the corridor, ink 4941, **saturates**).  So the view
+  is not binary "wall / not wall"; it is the perspective projection of the
+  first opaque cell.
+- The view's opacity set differs from the movement wall set: a **tile-3** cell
+  (passable for movement) placed at depth 2 renders the depth-2 face exactly
+  (`58116d1d…`).  A lateral side-opening (tile 8) beside an open corridor does
+  not change the view.
+
+Net: the residual is a per-depth perspective projection, still engine-drawn (best
+single-sprite IoU 0.36/0.35), so the decompiled view routine (Lane M) is still
+what reproduces it.  `dungeon_base_view_index` stays depth-independent and exact
+when the ahead cell is the first opaque cell; `test_base_view` now pins that.
+
 **Log.** 2026-11-08 Agent A (Round 28) — **the "piece composite" hypothesis is
 disproved, and the blocker is now precisely characterised.**  Swept every
 ahead-cell code for DNG05's spawn (tile layer genuinely patched; see the

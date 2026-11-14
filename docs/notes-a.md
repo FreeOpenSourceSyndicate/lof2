@@ -1464,3 +1464,63 @@ match 170 / mismatch 3048 at *every* offset — the ink overlap the earlier gree
 search found was entirely spurious.  So the corridor image is composed by the
 engine (geometry it draws per depth), and reproducing it needs the decompiled
 view routine (Lane M) — a cross-lane dependency, logged in BLK-A003.
+
+## Round 29 — the view is depth-scaled; the feature byte is irrelevant
+
+Two questions left open by Round 28, both now settled empirically by patching
+DNG05's ahead cell (party at (17,3) facing S, ahead cell (17,4)) and diffing the
+120x119 window at (10,11) of `LOF_EDUMP=`.
+
+### The feature byte does not enter the view
+
+Round 28's sweep only patched the **tile** layer.  The ahead cell (17,4) also
+carries a non-zero **feature** byte (34), so it was unclear whether the window
+was driven by the tile, the feature, or both.  Using a new `dngs.py patchcell`
+(tile + feature) I fixed the tile and varied the feature:
+
+| ahead (tile, feature) | md5 |
+|-----------------------|-----|
+| (0, 0)   | `e165034f…` |
+| (0, 12)  | `e165034f…` |
+| (0, 132) | `e165034f…` |
+| (3, 0)   | `694ac649…` |
+| (3, 34)  | `694ac649…` |
+
+The feature byte has **no effect**; only the tile code matters.  So the Round 28
+map stands and `dungeon_base_view_index` needs no feature input.
+
+### The base view is a function of the distance to the first *view-opaque* cell
+
+Keeping the ahead cell open (tile 0) and moving the first wall further down the
+column shows the window is not binary "wall / not wall" but **depth-scaled**:
+
+| first opaque cell | md5 | shape |
+|-------------------|-----|-------|
+| depth 1 (ahead)   | `694ac649…` | full-screen wall texture = `DP001` (IoU 0.917) |
+| depth 2           | `58116d1d…` | composed perspective wall face (ink 5111) |
+| depth 3           | `e165034f…` | composed corridor (ink 4941) |
+| depth 4           | `e165034f…` | identical to depth 3 — **saturates** |
+
+The depth-2 image is a **trapezoidal wall face** (top of the face at the centre,
+widening downward to the floor) — exactly what a perspective renderer draws for
+a wall one cell further away.  Depth >= 3 saturates: the far wall's projected
+face is small enough that the engine draws the same corridor image.
+
+### `tile 3` is view-opaque but movement-passable
+
+The clean way to reproduce the depth-2 image is to put a **tile-3** cell at
+depth 2 while leaving the ahead cell open: the window becomes `58116d1d…`,
+identical to the depth-2 wall case.  So the set of cells the *view* treats as
+opaque includes tile 3, which `dungeon_is_solid_tile` (the movement test) does
+not.  The two opacity sets differ.  A lateral side-opening (tile 8) beside an
+open corridor does not change the view (`e165034f…`).
+
+### What this means for the drop-in
+
+`dungeon_base_view_index` looks only at the ahead cell, so it is **exact when the
+ahead cell is itself the first opaque cell** (the common case — walls, doors,
+side passages) and a documented approximation otherwise.  The depth-2 and
+depth->=3 images are engine-drawn (best single-sprite IoU 0.36/0.35), so
+reproducing them still needs the decompiled view routine (BLK-A003, Lane M).  I
+extended `test_base_view` to pin that `dungeon_base_view_index` stays
+depth-independent, so it cannot silently drift into a half-correct depth model.

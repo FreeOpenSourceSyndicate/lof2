@@ -60,7 +60,10 @@ How to use each section:
   single sprite (best IoU 0.35 across all 221 120×119 EGA files), no `DPnnn`/
   `ANIM` piece composite (colour-exact search finds zero placements), and not the
   drop-in's ray-caster (IoU 0.17).  So `DP001` is a **chosen** fallback, not a
-  decoded value.
+  decoded value.  Round 29 sharpens it: the engine projects the first
+  *view-opaque* cell at its depth (depth 1 → `DP001`, depth 2 → a trapezoidal
+  wall face, depth >= 3 → the corridor image, saturating); `DP001` is only exact
+  at depth 1.
 - **Why it is a guess:** it is not the engine's image.  It is the closest
   single-sprite approximation for the corridor case until the composition rule is
   decoded (BLK-A003).

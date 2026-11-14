@@ -32,6 +32,7 @@ Usage:
     python3 tools/dngs.py atlas game/EGA D0 out.png  # sheet of a tileset
     python3 tools/dngs.py oracle ref/oracle/dungeon_slot1.png game/EGA 5 1
     python3 tools/dngs.py patch game/DNGS/DNG05 /tmp/p.dng 17 4 12
+    python3 tools/dngs.py patchcell game/DNGS/DNG05 /tmp/p.dng 17 4 0 0
     python3 tools/dngs.py all
 """
 import collections
@@ -632,6 +633,28 @@ def cmd_patch(src, dst, pairs):
     open(dst, 'wb').write(rle_encode(bytes(body), esc))
 
 
+def cmd_patchcell(src, dst, cells):
+    """Write `src` to `dst` overriding a cell's tile *and* feature byte.
+
+    `cells` is a flat list (x, y, tile, feature, ...).  `cmd_patch` only
+    touches the tile layer, so the feature byte of a cell is left at its
+    original value; that made it impossible to isolate the feature's effect on
+    the view (Round 29).  This sets the tile at decoded offset
+    `HEADER + y*36 + x` and the feature (high byte of the 2-byte object record)
+    at `HEADER + LAYER + (y*36 + x)*2 + 1`.
+    """
+    raw = open(src, 'rb').read()
+    esc = raw[0]
+    body = bytearray(rle_decode(raw, esc, 1))
+    for k in range(0, len(cells), 4):
+        x, y, tile, feat = cells[k], cells[k + 1], cells[k + 2], cells[k + 3]
+        body[HEADER + y * LAYER_W + x] = tile
+        i = HEADER + LAYER + (y * LAYER_W + x) * 2
+        body[i] = 0
+        body[i + 1] = feat
+    open(dst, 'wb').write(rle_encode(bytes(body), esc))
+
+
 def main(argv):
     if len(argv) < 2:
         sys.exit(__doc__)
@@ -678,6 +701,9 @@ def main(argv):
     elif cmd == 'patch':
         # dngs.py patch <in.dng> <out.dng> x y val [x y val ...]
         cmd_patch(argv[1], argv[2], [int(a) for a in argv[3:]])
+    elif cmd == 'patchcell':
+        # dngs.py patchcell <in.dng> <out.dng> x y tile feat [x y tile feat ...]
+        cmd_patchcell(argv[1], argv[2], [int(a) for a in argv[3:]])
     elif cmd == 'all':
         for p in sorted(glob.glob('game/DNGS/DNG*')):
             cmd_info(p)

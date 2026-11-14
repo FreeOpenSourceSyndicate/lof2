@@ -544,6 +544,20 @@ static void test_base_view(const std::string& dir) {
     // drop-in falls back to DP001.  Pinned here as the documented approximation.
     for (int nib : {0x0, 0x2, 0x7, 0x8, 0x9})
         assert(view_for(nib) == 1);
+
+    // Depth model (Round 29): the real engine draws the view from the distance
+    // to the first *view-opaque* cell, which is not the movement wall set (tile
+    // 3 is passable but view-opaque).  dungeon_base_view_index only sees the
+    // ahead cell, so it must stay depth-independent: changing the cell behind
+    // the ahead cell must not change its answer.  This pins that it remains the
+    // documented approximation rather than silently becoming depth-aware.
+    p = DungeonPos{5, 5, 0};
+    d.tiles[4 * kDungeonW + 5] = 0;            // ahead open (corridor case)
+    int v_ahead_open = dungeon_base_view_index(d, p);
+    d.tiles[3 * kDungeonW + 5] = 6;            // depth-2 becomes a wall
+    assert(dungeon_base_view_index(d, p) == v_ahead_open);
+    d.tiles[3 * kDungeonW + 5] = 0;
+    assert(dungeon_base_view_index(d, p) == v_ahead_open);
     // Off-map ahead always falls back to the wall view.
     p = DungeonPos{5, 0, 0};
     assert(dungeon_base_view_index(d, p) == 1);

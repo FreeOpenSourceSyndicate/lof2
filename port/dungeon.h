@@ -233,10 +233,26 @@ bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax, int& ay)
 // ANIM piece composite explains it either) — this is BLK-A003.  The drop-in
 // falls back to DP001 for those codes, which is an approximation (G-004).
 //
-// NOTE (Round 28): the view is *not* a pure function of the ahead cell.  With
-// the ahead cell fixed at 0, changing the cell at depth 2 (17,5) changes the
-// window (ink 4941 -> 5111).  `dungeon_base_view_index` therefore only
-// approximates the engine, which ray-marches the whole column.
+// DEPTH MODEL (Round 29).  The view is really a function of the distance to the
+// first cell the *view* treats as opaque, and that set is NOT the movement wall
+// set: tile 0x3 is passable for movement but renders opaque in the view.  With
+// the party at DNG05 (17,3) facing S and an open cell at (17,4), patching the
+// wall distance gives:
+//
+//   first opaque cell at depth 1  ->  DP001   (full-screen wall texture)
+//   first opaque cell at depth 2  ->  composed "wall face"   (md5 58116d1d…)
+//   first opaque cell at depth >=3 -> composed "corridor"    (md5 e165034f…)
+//
+// The depth-2 and depth->=3 images are engine-drawn (best single-sprite IoU
+// 0.36/0.35) and saturate from depth 3 on.  So `dungeon_base_view_index` is
+// exact only when the ahead cell is itself the first opaque cell (the common
+// case: walls, doors, side passages) and an approximation otherwise.
+//
+// NOTE (Round 28): the view is *not* a pure function of the ahead cell alone.
+// With the ahead cell fixed at 0, changing the depth-2 cell changes the window
+// (ink 4941 -> 5111).  `dungeon_base_view_index` therefore only approximates the
+// engine, which marches the whole column.  The feature/object byte of a cell has
+// no effect on the view (Round 29).
 //
 // `index` 0 is never returned: DP000 does not exist on disk.
 int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p);
