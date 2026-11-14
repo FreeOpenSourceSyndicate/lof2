@@ -228,9 +228,13 @@ const ItemRecord* item_by_index(int index);
 //   9,13,15,20,27,40       misc sites  0x14A09 / 0x13AF4 / 0xDF7E /
 //                                        0x14976 / 0xE274 / 0xE1BC
 //
-// The engine's own messages fix some meanings: 1 "growing professionalism.",
-// 2 "feels himself safer.", 3/23 "goes green in the face!" (poison), 10 adds HP
-// (0x0EA90), 30/31 clear the poison state (0xEBE4 / 0xECE2).
+// The engine's own messages fix some meanings: 1 "growing professionalism."
+// (enchant weapon), 2 "feels himself safer." (enchant armour), 3/23 "goes green
+// in the face!" (poison), 10 adds HP (0x0EA90, healing), 15/40 "fits together."
+// (combine paired items), 30/31 clear the poison state (0xEBE4 / 0xECE2,
+// antidotes).  The equip/unequip handler toggles a character-struct byte per
+// effect (2 -> +0x5b, 8 -> +0x5a, 12 -> +0x59, 21 -> +0x52, 24 -> +0x53,
+// 28/29 -> +0x5a, 33 -> +0x56); see docs/notes-b.md.
 //
 // The returned strings are item-name-derived descriptions (effect 5 is the
 // "Crystal ball" item, effect 8 the "Antimagic ring", …), not engine symbols —
