@@ -92,10 +92,14 @@ The original report is kept below for the record.
   layer coherence).
 - Walkable model: `dungeon_passable` / `dungeon_reachable` / `dungeon_can_step`
   / `dungeon_step` / `dungeon_turn` / `dungeon_place`, plus a top-down
-  `render_dungeon_map`.  Wall set `{3,12}` keeps 23/29 levels fully connected
-  (mean largest component 0.993).
-- Object layer identified as **door/feature placement** (most non-zero features
-  sit on wall cells open straight through): DNG01 46/62, DNG17 216/327.
+  `render_dungeon_map`.  **CORRECTED (Round 27, 2026-11-08):** the wall set is
+  **`{6,13}`**, not `{3,12}` — the earlier `{3,12}` guess left DNG06's spawn
+  (tile 3) 0/1201 reachable.  The emulator opacity sweep (`docs/notes-a.md`
+  Round 27) is the ground truth.  Under `{6,13}` only 11/29 levels are one
+  connected region (mean largest component 0.935) — they are genuinely
+  multi-room, not shattered.  See `docs/GUESSWORK.md` G-003.
+- Object layer identified as **door/feature placement**; under `{6,13}` the
+  features sit on walkable cells (DNG01 0/62, DNG17 0/327 on wall tiles).
 - View directory resolved: it is the **ones digit** of the map id
   (`EGA/D<ones-digit>`).  Double-verified from the emulator's own open trace:
   slot 1 loads `DNGS\DNG05` + `ega\d5\dp001..dp069`; slot 2 loads `DNGS\DNG10` +

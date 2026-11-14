@@ -30,6 +30,26 @@ How to use each section:
 
 ## B. Unclear — revisit (watchlist)
 
+### G-003 — dungeon solid-wall set `{6,13}` is oracle-derived, not decompiled (Lane A)
+
+- **What:** `dungeon_is_solid_tile()` in `port/dungeon.cpp` treats tiles 6 and 13
+  as the only walls (everything else, including the void tile 0, is walkable).
+- **Source of truth:** the emulator **opacity sweep** (Round 27,
+  `docs/notes-a.md`): patching the ahead cell to code `X` and varying the cell
+  *behind* it leaves the view byte-identical only for `X in {6,13}`; the render
+  for those is the full-screen wall face `DP036` (== `DP060`, 100% ink).  This is
+  source-of-truth #3 (oracle frames), so it is not a *chosen* value.
+- **Why it is still on the watchlist:** the sweep covered the ahead cell of one
+  DNG05 corridor.  It is direct evidence for 6/13 and for the tested see-through
+  codes (0/1/2/3/7/8/12), but codes that never occur directly ahead of a party
+  were not individually swept, and the *generality* (all 29 levels) is inferred
+  from consistency, not traced in the engine.
+- **To clear it:** confirm the wall test in the decompilation (`analysis/lof.asm`,
+  the move/collision path near image `0xD83`), which is a **Lane M** routine — if
+  it is not removable by Lane A it becomes a blocker (`docs/blockers/A.md`).
+  Cross-checking is also possible with more oracle sweeps (patch the *party
+  cell*, not the ahead cell) at no decompile cost.
+
 ### G-002 — 16×16 patch at the town screen's top-left corner (Lane M)
 
 - **What:** the town screen (`--town`, `compose_town_screen()` in `port/lof.cpp`)

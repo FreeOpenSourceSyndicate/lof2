@@ -1352,3 +1352,44 @@ Implemented `dungeon_base_view_index` as `tile & 0x0f` (was the high-nibble
 `param`-based table) and widened `test_base_view` to assert the invariance across
 all 16 high nibbles for nibbles 4/5/6/13/10 and the wall fallback for the
 corridor nibbles.  `make test` and `make port` green.
+
+## Round 27 — the true solid-wall set is **{6,13}** (opacity sweep, ground truth)
+
+The `{3,12}` wall set was provably wrong: DNG06's spawn cell (17,3) is tile 3,
+so `{3,12}` left the level 0/1201 reachable (DNG00 8/684).  Connectivity alone
+could not pin the set (marking *nothing* solid is trivially connected), so I
+used a **direct occlusion oracle** instead of a global connectivity fit.
+
+**Method (opacity sweep).**  Patch DNG05's ahead cell (17,4) to a chosen code
+`X`, and *separately* vary the cell directly behind it (17,5 / 17,6).  Capture
+the planes with `LOF_EDUMP=` (recipe `LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=100
+--frames 1600`) and compare.  If `X` occludes, changing the cell behind it
+cannot change the view; if `X` is see-through, it does.
+
+| ahead code `X` | behind-cell change visible? | verdict |
+|---|---|---|
+| 0, 1, 2, 3, 7, 8, 12 | yes (diffs 3690..8279) | see-through |
+| **6, 13** | **no (identical dump)** | **opaque → wall** |
+
+So the solid set is exactly **{6,13}**.  This matches the render: 6/13 draw the
+full-screen wall face `DP036`, which is **byte-identical to `DP060`**
+(`md5 55df6376…`) and 100% ink — i.e. the Round-24 label "6/13 → DP060 open
+room" was a mislabel of the same flat wall sprite (DP036 and DP060 are the same
+file).  Tiles 3 and 12 are *not* walls (12 renders as a see-through corridor).
+
+**Consequence for connectivity.**  With walls `{6,13}` only 11/29 levels are a
+single connected region (mean largest component 0.935; worst DNG17 0.351).  That
+is **not** a defect — the levels are genuinely multi-room (DNG17 is four rooms:
+sizes 288/216/201/115).  A wrong wall set shatters a level into hundreds of
+fragments, so the connectivity guard is "no shattering", not "fully connected".
+Object/feature cells all sit on walkable tiles (DNG01 0/62, DNG17 0/327 on
+walls), consistent with features marking squares, not walls.
+
+Implemented in `dungeon_is_solid_tile` (`port/dungeon.cpp`), reclassified
+`tile_colour`/`tile_symbol`, and rewrote `tests/dungeon_test.cpp` to the measured
+model.  `make test` and `make port` green.
+
+**Caveat (Rule 1).**  The sweep covered the ahead cell of one DNG05 corridor; it
+is strong direct evidence for 6/13 and for 0/1/2/3/7/8/12, but codes that never
+occur ahead of a party were not individually swept.  It is an oracle result, not
+a decompiled one — flagged in `docs/GUESSWORK.md` (G-003).
