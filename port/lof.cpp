@@ -264,6 +264,41 @@ static bool compose_emporium_screen(const std::string& dir, Screen& s, std::stri
                                    sizeof(kText) / sizeof(kText[0]), s, err);
 }
 
+// Compose the Bank screen: MSCR + the bank exterior EGA/TWN/TWN02 + the
+// teller's greeting and the account menu.  Strings are the engine's own
+// (LOF.EXE ds:0x631C/0x634D/...); decoded from the emulator's Bank frame.
+static bool compose_bank_screen(const std::string& dir, Screen& s, std::string& err) {
+    static const TownTextRow kText[] = {
+        { 92, "Greetings, brave heroes, what", 15},
+        {100, "can we do for you?", 15},
+        {124, "(D)eposit/open account", 0},
+        {132, "(W)ithdraw/close account", 0},
+        {140, "(E)xamine accounts", 0},
+        {156, "(J)oint deposit", 0},
+        {172, "(C)ontinue", 15},
+    };
+    return compose_building_screen(dir, "TWN02", kText,
+                                   sizeof(kText) / sizeof(kText[0]), s, err);
+}
+
+// Compose the House of trades screen: MSCR + the hall exterior EGA/TWN/TWN04 +
+// the Board's greeting and the training menu.  Strings are the engine's own
+// (LOF.EXE ds:0x6855/0x686F/0x688C/...); decoded from the emulator's frame.
+static bool compose_house_screen(const std::string& dir, Screen& s, std::string& err) {
+    static const TownTextRow kText[] = {
+        { 92, "The Grand Board of Trades", 15},
+        {100, "greets you in Thyn.", 15},
+        {108, "Welcome!", 15},
+        {124, "(T)raining", 0},
+        {132, "(L)earn magic spells", 0},
+        {140, "(A)nother language", 0},
+        {156, "(J)oint deposit", 0},
+        {172, "(C)ontinue", 15},
+    };
+    return compose_building_screen(dir, "TWN04", kText,
+                                   sizeof(kText) / sizeof(kText[0]), s, err);
+}
+
 // --dump-dungeon: decode a few DNGS/DNGxx levels and print the 36x36 floor
 // plan (and object layer) so the recovered map format is visible from the
 // shipped front-end.
@@ -538,16 +573,22 @@ int main(int argc, char** argv) {
     std::string play, save;
     bool town_flag = false;
     bool emporium_flag = false;
+    bool bank_flag = false;
+    bool house_flag = false;
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
         else if (std::string(argv[i]) == "--save" && i + 1 < argc) save = argv[++i];
         else if (std::string(argv[i]) == "--town") town_flag = true;
         else if (std::string(argv[i]) == "--emporium") emporium_flag = true;
+        else if (std::string(argv[i]) == "--bank") bank_flag = true;
+        else if (std::string(argv[i]) == "--house") house_flag = true;
     }
-    if (town_flag || emporium_flag) {
+    if (town_flag || emporium_flag || bank_flag || house_flag) {
         std::string err;
         Screen s;
-        bool ok = emporium_flag ? compose_emporium_screen(dir, s, err)
+        bool ok = house_flag    ? compose_house_screen(dir, s, err)
+                  : bank_flag   ? compose_bank_screen(dir, s, err)
+                  : emporium_flag ? compose_emporium_screen(dir, s, err)
                                 : compose_town_screen(dir, s, err);
         if (!ok) {
             fprintf(stderr, "lof: %s\n", err.c_str());

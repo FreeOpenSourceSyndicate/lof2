@@ -240,18 +240,25 @@ Progress:
       Both are pure image blits, so the port reproduces each *pixel-exactly*
       from the game data. Guarded by `tests/port_vor_test.py` (`make
       golden-port`); no DOSBox capture needed.
-- [x] LOF town + Emporium screens (`--town`, `--emporium`): both are the HUD
-      background `EGA/UP/MSCR` with a town-scene tile blitted into the 120x119
-      viewport at (10,11) plus `CHR1` text at x=139.  The town menu uses the
-      street tile `EGA/TWN/TWN00` and the message/building list; the Emporium
-      uses the shop tile `EGA/TWN/TWN01` and the shopkeeper's greeting
-      ("Well hi, wealthy heroes, what / would you like, huh?", white) with the
-      buy/sell/repair/gather/continue options.  The viewport and text are
-      pixel-exact against the emulator frames; only the engine's 16x16
-      top-left patch and the dynamic party panel differ.  (Bank = TWN02,
-      House of trades = TWN04; the Inn and Temple open first-person `D5`
-      interiors instead of a TWN tile.)  Guarded by `tests/port_town_test.py`
-      and `tests/port_emporium_test.py` (`make golden-port`).
+- [x] LOF town + building screens (`--town`, `--emporium`, `--bank`, `--house`):
+      all share one shape — the HUD background `EGA/UP/MSCR` with a town-scene
+      tile blitted into the 120x119 viewport at (10,11) plus `CHR1` text at
+      x=139 (rows 92..172).  The town menu uses the street tile
+      `EGA/TWN/TWN00`; the buildings use their exterior tile and greeting/menu
+      strings (all the engine's own):
+        * Emporium = `TWN01`: "Well hi, wealthy heroes, what / would you like,
+          huh?" + (B)uy/(S)ell/(R)epair wares, (G)ather gold, (C)ontinue;
+        * Bank = `TWN02`: "Greetings, brave heroes, what can we do for you?" +
+          (D)eposit/open, (W)ithdraw/close, (E)xamine accounts, (J)oint
+          deposit, (C)ontinue;
+        * House of trades = `TWN04`: "The Grand Board of Trades / greets you in
+          Thyn." + "Welcome!" + (T)raining, (L)earn magic spells, (A)nother
+          language, (J)oint deposit, (C)ontinue.
+      The viewport and text are pixel-exact against the emulator frames; only
+      the engine's 16x16 top-left patch and the dynamic party panel differ.
+      (The Inn and Temple open first-person `D5` interiors instead of a TWN
+      tile.)  Guarded by `tests/port_town_test.py` and
+      `tests/port_building_test.py` (`make golden-port`).
 
 ### Font / text rendering (decoded)
 
