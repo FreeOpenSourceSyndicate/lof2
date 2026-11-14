@@ -261,19 +261,19 @@ int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p) {
     int x, y;
     if (!dungeon_ahead_cell(d, p, x, y)) return 1;   // off-map -> wall ahead
     // Only the LOW nibble of the ahead tile code selects the base view; the
-    // high nibble is an object/feature class the base blit ignores.  Ground
-    // truth: swept all 14 low nibbles that occur in DNGS/ (see dungeon.h),
-    // including every high-nibble variant of 0x4 and 0x5.
+    // high nibble is an object/feature class the base blit ignores.  Measured by
+    // sweeping the ahead cell of DNG05's spawn (Round 28; see dungeon.h).
     switch (d.tile(x, y) & 0x0f) {
-        case 0x4: return 58;          // side passage
-        case 0x5: return 59;          // side passage variant
-        case 0x6: case 0xd: return 60;  // open room
-        case 0xa: return 14;          // doorway
-        // 0x0/0x2/0x7/0x8/0x9 are the "corridor/opening straight ahead" case.
-        // The engine builds that view as a composite of a 64x59 wall-at-depth-2
-        // piece (DP037) centred plus smaller side pieces, so no single full-size
-        // sprite reproduces it; fall back to the wall view (see notes-a.md).
-        default: return 1;            // wall directly ahead (DP001)
+        case 0x4: return 58;             // side passage
+        case 0x5: return 59;             // side passage variant
+        case 0x6: case 0xd: return 60;   // looking at a wall -> flat wall face
+        case 0xa: return 14;             // doorway
+        // 0x1/0x3/0xb/0xc render DP001 (a textured wall/room view).
+        case 0x1: case 0x3: case 0xb: case 0xc: return 1;
+        // 0x0/0x2/0x7/0x8/0x9 are open cells whose view the engine composes
+        // (it is not a single sprite and is not explained by any DPnnn/ANIM
+        // piece composite — BLK-A003).  Fall back to the wall view DP001.
+        default: return 1;
     }
 }
 

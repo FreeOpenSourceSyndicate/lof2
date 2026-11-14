@@ -518,10 +518,9 @@ static void test_base_view(const std::string& dir) {
     p.x = 0;                               // W off-map
     assert(!dungeon_ahead_cell(d, p, ax, ay));
 
-    // Measured tile-code -> base view map (D5 Temple tileset).  The base view is
-    // selected by the LOW nibble of the ahead tile code; the high nibble (an
-    // object/feature class) is ignored.  Ground truth: emulator sweep of all 14
-    // low nibbles that occur in DNGS/ (see port/dungeon.h).
+    // Measured tile-code -> base view map (D5 Temple tileset, Round 28).  The
+    // base view is selected by the LOW nibble of the ahead tile code; the high
+    // nibble (an object/feature class) is ignored.
     p = DungeonPos{5, 5, 0};
     auto view_for = [&](int code) {
         d.tiles[4 * kDungeonW + 5] = code;
@@ -529,15 +528,21 @@ static void test_base_view(const std::string& dir) {
     };
     // Every high-nibble variant of a low nibble must give the same view.
     for (int hi = 0; hi <= 0xf0; hi += 0x10) {
-        assert(view_for(hi | 0x4) == 58);
-        assert(view_for(hi | 0x5) == 59);
-        assert(view_for(hi | 0x6) == 60);
-        assert(view_for(hi | 0xd) == 60);
-        assert(view_for(hi | 0xa) == 14);
+        assert(view_for(hi | 0x4) == 58);   // side passage
+        assert(view_for(hi | 0x5) == 59);   // side passage variant
+        assert(view_for(hi | 0x6) == 60);   // wall face (== DP036)
+        assert(view_for(hi | 0xd) == 60);   // wall face variant
+        assert(view_for(hi | 0xa) == 14);   // doorway
+        // 0x1/0x3/0xb/0xc render the textured wall/room view DP001.
+        assert(view_for(hi | 0x1) == 1);
+        assert(view_for(hi | 0x3) == 1);
+        assert(view_for(hi | 0xb) == 1);
+        assert(view_for(hi | 0xc) == 1);
     }
-    // The corridor/opening cases have no single full-size sprite (the engine
-    // composites DP037 + side pieces); the drop-in falls back to the wall view.
-    for (int nib : {0x0, 0x1, 0x2, 0x3, 0x7, 0x8, 0x9, 0xb, 0xc})
+    // The open-cell corridor cases (0x0/0x2/0x7/0x8/0x9) have no single
+    // full-size sprite: the engine composes that view (BLK-A003), so the
+    // drop-in falls back to DP001.  Pinned here as the documented approximation.
+    for (int nib : {0x0, 0x2, 0x7, 0x8, 0x9})
         assert(view_for(nib) == 1);
     // Off-map ahead always falls back to the wall view.
     p = DungeonPos{5, 0, 0};

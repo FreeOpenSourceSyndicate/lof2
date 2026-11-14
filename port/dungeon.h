@@ -205,30 +205,38 @@ bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax, int& ay)
 
 // The DPnnn index of the first-person *base* view sprite the engine blits for
 // the party at `p`.  DECODED for the D5 (Temple) tileset — see notes-a.md
-// Round 26.
+// Rounds 26 and 28.
 //
 // Ground truth: patch DNG05's RLE tile layer (`tools/dngs.py patch`), run the
 // analysis emulator and dump the EGA planes (`LOF_EDUMP=`), then compare the
-// 120x119 view window to every `EGA/D5/DP*` sprite by pixel IoU.  Sweeping the
-// cell directly ahead of the spawn shows:
+// 120x119 view window to every `EGA/D5/DP*` sprite by pixel IoU.  DNG05's party
+// spawns at (17,3) facing 2 (S), so the cell directly ahead is (17,4).
 //
-//   * only the **low nibble** of the ahead tile code selects the base view; the
-//     high nibble is ignored (all seven observed high-nibble variants of 0x4
-//     -> DP058 and of 0x5 -> DP059 give identical windows, IoU 1.000);
-//   * the cells to the sides and at depth >= 2 do not change the base view.
+// Sweeping the ahead cell (the cell behind it held at 0) gives:
 //
-// Measured map (all 14 low nibbles that occur in DNGS/, IoU in parentheses):
+//   ahead code | view                                   | IoU
+//   -----------+----------------------------------------+------
+//   0x4        | DP058  side passage                    | 1.000
+//   0x5        | DP059  side passage variant            | 1.000
+//   0x6, 0xd   | DP060  (= DP036, the wall face)        | 1.000
+//   0xa        | DP014  doorway                         | 0.997
+//   0x1,0x3,   | DP001  textured wall/room              | 0.91
+//   0xb,0xc    |                                        |
+//   0x0,0x2,   | **no single sprite** (a "corridor" view | 0.35
+//   0x7,0x8    |  the engine ray-composes)              |
+//   0x9        | **no single sprite** (corridor variant) | 0.32
 //
-//   0x4                       -> 58   side passage        (1.000)
-//   0x5                       -> 59   side passage var.   (1.000)
-//   0x6, 0xd                  -> 60   open room           (1.000)
-//   0xa                       -> 14   doorway             (0.997)
-//   0x0,0x2,0x7,0x8,0x9,0xb,  -> 1    corridor/opening: the engine composites
-//   0xc,0x1,0x3                      a 64x59 wall-at-depth-2 piece (DP037)
-//                                    centred plus smaller side pieces, so no
-//                                    single full-size sprite reproduces it; the
-//                                    drop-in falls back to the wall view DP001
-//                                    (0.922, matching the plain-wall case)
+// Codes 0x6/0xd are the walls (see dungeon_is_solid_tile): looking *at* a wall
+// shows the flat wall face.  Codes 0x0/0x2/0x7/0x8 are open cells, and looking
+// down an open corridor shows a composed view that no single `DPnnn` reproduces
+// (best full-size IoU 0.35 across all 221 120x119 EGA files, and no sprite or
+// ANIM piece composite explains it either) — this is BLK-A003.  The drop-in
+// falls back to DP001 for those codes, which is an approximation (G-004).
+//
+// NOTE (Round 28): the view is *not* a pure function of the ahead cell.  With
+// the ahead cell fixed at 0, changing the cell at depth 2 (17,5) changes the
+// window (ink 4941 -> 5111).  `dungeon_base_view_index` therefore only
+// approximates the engine, which ray-marches the whole column.
 //
 // `index` 0 is never returned: DP000 does not exist on disk.
 int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p);
