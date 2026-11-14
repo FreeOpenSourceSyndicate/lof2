@@ -545,6 +545,13 @@ static int real_data() {
     assert(heals.size() == 1 && it[heals[0]].name == "Healing potion");
     assert(items_with_effect(10)[0] == 0x2e);
     assert(items_with_effect(200).empty());
+    // The values the engine's own dispatch/messages ground (see notes-b.md).
+    assert(std::string(item_effect_name(1)) == "enchant weapon");
+    assert(std::string(item_effect_name(2)) == "enchant armour");
+    assert(std::string(item_effect_name(3)) == "poison I");
+    assert(std::string(item_effect_name(23)) == "poison II");
+    assert(std::string(item_effect_name(30)) == "antidote I");
+    assert(std::string(item_effect_name(31)) == "antidote II");
 
     // Item use (spell casting).  The engine has no separate item-use table:
     // the use routine takes the item's +0x18 byte as a 1-based *spell* index

@@ -1197,20 +1197,37 @@ case (the defensible default) and the choice is recorded on the guess watchlist
 ### The effect byte (`+0x1f`) is consumed by real dispatchers, not just a label
 
 `ItemRecord::effect` (`es:[bx+0xfdb]`) is **not** only a display label: the
-engine tests it directly.  Two traced consumers:
+engine compares it directly at 33 sites.  The complete set of values it is
+**proven** to test, with a site each:
 
-- the use routine's effect dispatch at `0x0E89D` (`mov al, es:[bx+0xfdb]`, then
-  `cmp`/`jbe` to `0xEA90` (10), `0xEDB0` (else), `0xE95E` (2), `0xE9C2` (3),
-  `0xDF38` (return)); effect **10** at `0xEA90` adds the item's `+0x19` to the
-  target's current HP (`+0x22`) and clamps to max (`+0x20`) — i.e. 10 = *healing*.
-- the "take off / unequip" handler at `0x29984`.., which adjusts character stats
-  by effect byte: 8 → `+0x5a -= 4`, 0x0c → `+0x59 -= 1`, 0x15 → `+0x52 = 0`,
-  0x18 → `+0x53 = 0`, 0x1c → `+0x5a -= 1`, 0x1d → `+0x5a -= 2`.
+- **use-routine effect dispatch** `0x0E89D`: `1` → `0xE8CA`, `2` → `0xE95E`,
+  `3` → `0xE9C2`, `10` → `0xEA90`, `19` → `0xEB32`, `23` → `0xEB4E`,
+  `30` → `0xEBE4`, `31` → `0xECE2` (the `>10` cases via the second dispatch
+  `0x0EDB0`).
+- **equip / unequip handler** `0x2995C` / `0x29FB1`: `2`, `8`, `12`, `21`,
+  `24`, `28`, `29`, `33`.  Unequipping adjusts stats by value: `8` →
+  `+0x5a -= 4`, `12` → `+0x59 -= 1`, `21` → `+0x52 = 0`, `24` → `+0x53 = 0`,
+  `28` → `+0x5a -= 1`, `29` → `+0x5a -= 2`, `33` → `+0x5a += 5`; equipping `2`
+  clears `+0x5b` and `33` sets it.
+- **misc sites:** `9` (`0x14A09`), `13` (`0x13AF4`), `15` (`0x0DF7E`), `20`
+  (`0x14976`), `27` (`0x0E274`), `40` (`0x0E1BC`).
 
-So `item_effect_name()`'s labels (8 = antimagic, 0x15 = dragon armour,
-0x18 = healer staff, 0x1c/0x1d = protecting/shelter ring) are grounded for the
-values the dispatchers test; the rest remain name-grouping heuristics.  The
-distinction is recorded in `docs/GUESSWORK.md` (G-004).
+The engine's **own messages** fix the meaning of several values:
+
+- `1` → " sees no effect." (already professional) / " feels his growing
+  professionalism." — *enchant weapon*.
+- `2` → " feels himself safer." — *enchant armour*.
+- `3` and `23` → " didn't take much to it, and goes green in the face!" —
+  **poison**; the handler subtracts the item's `+0x19` from HP and sets the
+  character's poison field (`+0x1f = 3`, `+0x57 = 4`, `+0x58 = 0x12`).
+- `10` → the `0xEA90` handler adds the item's `+0x19` to HP and clamps to max
+  (`+0x20`) — **healing**.
+- `30` / `31` → clear the poison state (`if char[+0x1f] == 3 { char[+0x1f] = 0;
+  char[+0x57] = 0; char[+0x58] = 0 }` / `== 4`) — **antidote I / II**.
+
+So the labels for `1,2,3,8,10,12,19,21,23,24,28,29,30,31,33` are grounded;
+the rest are item-name-grouping descriptions (the engine stores no effect-name
+table).  The distinction is recorded in `docs/GUESSWORK.md` (G-004).
 
 
 ## Blockers (Workstream B) — 2026-11-08

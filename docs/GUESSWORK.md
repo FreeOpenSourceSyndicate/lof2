@@ -69,16 +69,27 @@ How to use each section:
 ### G-004 — `item_effect_name()` labels beyond the traced dispatcher values (Lane B)
 
 - **What:** `item_effect_name()` gives 41 labels for the item effect byte
-  (`+0x1f`).  Only some are traceable to code that tests that byte.
-- **Source of truth:** the use routine's dispatch at `0x0E89D` (tests 1, 2, 3,
-  10; 10 = healing, proven by the HP add at `0x0EA90`) and the unequip handler at
-  `0x29984` (tests 8, 0x0c, 0x15, 0x18, 0x1c, 0x1d); other sites test 0x0d,
-  0x14, 0x1f.  Labels for these values are grounded; the rest were assigned by
-  grouping the item table by name.
-- **Why unclear:** the remaining effect handlers live in the play loop, so
-  grounding every label may need Lane M to drive those screens (a blocker).
+  (`+0x1f`).  The engine tests the byte at several sites; the returned strings
+  are item-name-derived descriptions, not engine symbol names.
+- **Source of truth:** every read of `es:0xfdb` (`+0x1f`) in the image.  The
+  complete set of values the engine is **proven** to compare against, with a
+  site: `1,2,3,10,19,23,30,31` (use-routine effect dispatch `0x0E89D` /
+  `0x0EDB0`); `2,8,12,21,24,28,29,33` (equip/unequip handler `0x2995C` /
+  `0x29FB1`); `9,13,15,20,27,40` (misc sites `0x14A09`, `0x13AF4`, `0xDF7E`,
+  `0x14976`, `0xE274`, `0xE1BC`).  The engine's own messages fix the meaning of
+  some: 1 "growing professionalism.", 2 "feels himself safer.", 3/23 "goes
+  green in the face!" (poison), 10 adds HP (`0x0EA90`), 30/31 clear the poison
+  state (`0xEBE4`/`0xECE2`).  Effects the engine never compares (5, 7, 34, 35,
+  37, …) keep purely descriptive labels.
+- **Why unclear:** the *labels* are still derived by grouping the item table by
+  effect value (effect 5 = "Crystal ball", effect 8 = "Antimagic ring", …); the
+  engine stores no effect-name table, so the strings can only ever be
+  descriptive.  Some handlers live in the play loop, so fully characterising
+  each effect needs Lane M to drive those screens (a blocker).
 - **To clear it:** trace each effect value's handler to a concrete stat change /
-  message; ground it, or drop the label to a neutral `effect <n>` string.
+  message and align the label; for values the engine never tests, keep the
+  descriptive name (the label is then a naming choice, not a claim about the
+  engine).
 
 ---
 

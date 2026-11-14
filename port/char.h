@@ -219,12 +219,23 @@ const std::vector<ItemRecord>& items();
 const ItemRecord* item_by_index(int index);
 
 // Descriptive label for an item's use-effect index (`ItemRecord::effect`), the
-// value the engine tests when the party "uses" an item.  The engine dispatches
-// on this byte directly (use routine 0x0E89D, unequip handler 0x29984); labels
-// for the values those sites test (1, 2, 3, 10, 8, 0x0c, 0x15, 0x18, 0x1c,
-// 0x1d) are grounded, the rest are descriptive names from grouping the item
-// table by effect value (see G-004 in docs/GUESSWORK.md).  Returns a non-null
-// string for every input (unknown/0 => "none").
+// value the engine tests when the party "uses" an item.  The engine compares
+// this byte directly; the complete set of values it is *proven* to test, with
+// one site each:
+//
+//   1,2,3,10,19,23,30,31   use-routine effect dispatch   0x0E89D / 0x0EDB0
+//   2,8,12,21,24,28,29,33  equip + unequip handlers      0x29FB1 / 0x2995C
+//   9,13,15,20,27,40       misc sites  0x14A09 / 0x13AF4 / 0xDF7E /
+//                                        0x14976 / 0xE274 / 0xE1BC
+//
+// The engine's own messages fix some meanings: 1 "growing professionalism.",
+// 2 "feels himself safer.", 3/23 "goes green in the face!" (poison), 10 adds HP
+// (0x0EA90), 30/31 clear the poison state (0xEBE4 / 0xECE2).
+//
+// The returned strings are item-name-derived descriptions (effect 5 is the
+// "Crystal ball" item, effect 8 the "Antimagic ring", …), not engine symbols —
+// see G-004 in docs/GUESSWORK.md.  Non-null for every input (unknown/0 =>
+// "none").
 const char* item_effect_name(uint8_t effect);
 
 // Item indices (into `items()`) whose use-effect index equals `effect`, in
