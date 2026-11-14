@@ -183,10 +183,10 @@ static void test_file_name(const std::string& dir) {
 
 static void test_render() {
     Dungeon d;
-    d.tiles.assign(kDungeonTiles, 6);
+    d.tiles.assign(kDungeonTiles, 3);       // floor (tile 3 is walkable)
     d.objects.assign(kDungeonTiles, 0);
-    d.tiles[0] = 12;                        // wall at (0,0)
-    d.tiles[5] = 3;                         // wall at (5,0)
+    d.tiles[0] = 6;                         // wall at (0,0)
+    d.tiles[5] = 12;                        // water at (5,0)
     assert(!dungeon_passable(d, 0, 0));
     assert(dungeon_passable(d, 1, 0));
     assert(!dungeon_passable(d, -1, 0));
@@ -195,9 +195,9 @@ static void test_render() {
     // ascii: wall symbol for (0,0), floor for the rest of row 0.
     auto lines = dungeon_ascii(d);
     assert((int)lines.size() == kDungeonH);
-    assert(lines[0][0] == '*');             // 12 -> '*'
-    assert(lines[0][5] == '%');             // 3  -> '%'
-    assert(lines[0][1] == '.');             // 6  -> '.'
+    assert(lines[0][0] == '%');             // 6  -> '%'
+    assert(lines[0][5] == '*');             // 12 -> '*'
+    assert(lines[0][1] == '.');             // 3  -> '.'
 
     Screen scr;
     scr.resize(320, 200);
@@ -211,20 +211,20 @@ static void test_render() {
 
 static void test_reachable() {
     Dungeon d;
-    d.tiles.assign(kDungeonTiles, 6);
+    d.tiles.assign(kDungeonTiles, 3);       // floor
     d.objects.assign(kDungeonTiles, 0);
     // A vertical wall at x=10 splits the level into two rooms.
-    for (int y = 0; y < kDungeonH; y++) d.tiles[y * kDungeonW + 10] = 3;
+    for (int y = 0; y < kDungeonH; y++) d.tiles[y * kDungeonW + 10] = 6;
     assert(dungeon_reachable(d, 1, 1, 9, 30));    // same room
     assert(!dungeon_reachable(d, 1, 1, 11, 1));   // across the wall
     assert(dungeon_reachable(d, 11, 1, 35, 35));  // other room
     // Punch a doorway and the two rooms connect.
-    d.tiles[5 * kDungeonW + 10] = 6;
+    d.tiles[5 * kDungeonW + 10] = 3;
     assert(dungeon_reachable(d, 1, 1, 11, 1));
     // A solid tile is never a valid endpoint.
     assert(!dungeon_reachable(d, 1, 1, 10, 1));
-    assert(dungeon_is_solid_tile(3) && dungeon_is_solid_tile(12));
-    assert(!dungeon_is_solid_tile(0) && !dungeon_is_solid_tile(6));
+    assert(dungeon_is_solid_tile(6) && dungeon_is_solid_tile(13));
+    assert(!dungeon_is_solid_tile(0) && !dungeon_is_solid_tile(3));
 }
 
 // The 2592-byte tail is 1296 two-byte records, NOT three 1296-byte planes.
@@ -258,7 +258,7 @@ static void test_object_layout(const std::string& dir) {
 
 static void test_render_facing() {
     Dungeon d;
-    d.tiles.assign(kDungeonTiles, 6);
+    d.tiles.assign(kDungeonTiles, 3);
     d.objects.assign(kDungeonTiles, 0);
     Screen scr; scr.resize(320, 200);
     DungeonPos p{18, 18, 1};  // facing east
@@ -277,9 +277,9 @@ static void test_render_facing() {
 // the sampled centre pixels carry three different colours.
 static void test_render_layers() {
     Dungeon d;
-    d.tiles.assign(kDungeonTiles, 6);       // floor
+    d.tiles.assign(kDungeonTiles, 3);       // floor
     d.objects.assign(kDungeonTiles, 0);
-    d.tiles[2 * kDungeonW + 3] = 3;         // wall at (3,2)
+    d.tiles[2 * kDungeonW + 3] = 6;         // wall at (3,2)
     d.objects[4 * kDungeonW + 5] = 0x0100;  // door feature at (5,4)
     Screen scr; scr.resize(320, 200); scr.clear(0);
     render_dungeon_map(scr, d, 1, 1, 6);
@@ -289,10 +289,10 @@ static void test_render_layers() {
     };
     uint8_t floor_c = at(1, 1), wall_c = at(3, 2), door_c = at(5, 4);
     assert(floor_c != wall_c && wall_c != door_c && floor_c != door_c);
-    assert(wall_c == 4);                    // code 3 -> red
+    assert(wall_c == 4);                    // code 6 -> red
     assert(door_c == 14);                   // feature marker
-    assert(dungeon_is_solid_tile(3) && dungeon_is_solid_tile(12));
-    assert(!dungeon_is_solid_tile(6) && !dungeon_is_solid_tile(0));
+    assert(dungeon_is_solid_tile(6) && dungeon_is_solid_tile(13));
+    assert(!dungeon_is_solid_tile(3) && !dungeon_is_solid_tile(0));
 }
 
 // First-person viewport.  A solid wall directly ahead fills the window with
@@ -300,7 +300,7 @@ static void test_render_layers() {
 // exposes the dark floor and the side walls, so the column histogram changes.
 static void test_viewport() {
     Dungeon d;
-    d.tiles.assign(kDungeonTiles, 6);       // floor everywhere
+    d.tiles.assign(kDungeonTiles, 3);       // floor everywhere
     d.objects.assign(kDungeonTiles, 0);
     Screen scr; scr.resize(320, 200);
 
@@ -314,7 +314,7 @@ static void test_viewport() {
     };
 
     // Wall one cell north of the party, facing it: the whole window is wall.
-    d.tiles[9 * kDungeonW + 10] = 3;        // wall at (10,9)
+    d.tiles[9 * kDungeonW + 10] = 6;        // wall at (10,9)
     DungeonPos p{10, 10, 0};                // at (10,10), facing N
     scr.clear(15);
     render_dungeon_viewport(scr, d, p);
@@ -333,13 +333,13 @@ static void test_viewport() {
 
     // A wall one cell away fills more of the window than one four cells away.
     Dungeon d2;
-    d2.tiles.assign(kDungeonTiles, 6);
+    d2.tiles.assign(kDungeonTiles, 3);
     d2.objects.assign(kDungeonTiles, 0);
-    d2.tiles[9 * kDungeonW + 10] = 3;
+    d2.tiles[9 * kDungeonW + 10] = 6;
     Screen near; near.resize(320, 200);
     render_dungeon_viewport(near, d2, DungeonPos{10, 10, 0});
-    d2.tiles[9 * kDungeonW + 10] = 6;
-    d2.tiles[6 * kDungeonW + 10] = 3;        // wall at (10,6), 4 cells ahead
+    d2.tiles[9 * kDungeonW + 10] = 3;
+    d2.tiles[6 * kDungeonW + 10] = 6;        // wall at (10,6), 4 cells ahead
     Screen far; far.resize(320, 200);
     render_dungeon_viewport(far, d2, DungeonPos{10, 10, 0});
     auto wallcount = [](const Screen& s) {
@@ -572,10 +572,10 @@ static void test_base_view(const std::string& dir) {
 
 static void test_walk() {
     Dungeon d;
-    d.tiles.assign(kDungeonTiles, 6);
+    d.tiles.assign(kDungeonTiles, 3);       // floor
     d.objects.assign(kDungeonTiles, 0);
     // A wall directly north of (5,5); open everywhere else.
-    d.tiles[4 * kDungeonW + 5] = 3;
+    d.tiles[4 * kDungeonW + 5] = 6;
 
     DungeonPos p{5, 5, 0};  // facing N, wall ahead
     assert(!dungeon_can_step(d, p));
@@ -596,9 +596,9 @@ static void test_walk() {
     assert(!(q.x == 5 && q.y == 4));       // that cell is the wall
 }
 
-// A hand-built maze should be fully connected.  With the {3,12} wall set,
-// 24/29 levels are; DNG01 is one of them, so assert it here as a real-data
-// regression on the wall classification.
+// A hand-built maze should be fully connected.  DNG01 is one connected room
+// under the {6,13} wall set, so assert it here as a real-data regression on the
+// wall classification.
 static void test_level_connected(const std::string& dir) {
     Dungeon d;
     std::string err;
@@ -618,15 +618,16 @@ static void test_level_connected(const std::string& dir) {
                 total++;
                 hit += dungeon_reachable(d, sx, sy, x, y);
             }
-    assert(hit == total);   // DNG01 is fully connected under {3,12}
+    assert(hit == total);   // DNG01 is one connected room under {6,13}
 }
 
-// The {3,12} wall set keeps the levels almost fully connected, which a
-// hand-built maze should be.  This guards the passability model across ALL
-// shipped levels: the mean largest-component fraction must stay high and the
-// vast majority of levels must be one connected region.  If a future change to
-// dungeon_is_solid_tile() wrongly makes floor tiles solid (or walls passable),
-// the levels shear into fragments and this fails.
+// The {6,13} wall set is the emulator-measured opacity ground truth (Round 27):
+// tiles 6/13 occlude the cell behind them, all others are see-through.  Under
+// it many levels are NOT one connected region — they are several rooms (DNG17
+// is four).  The guard is therefore that the model does not SHATTER the levels:
+// the largest component must dominate each level and most levels must still be
+// a single room.  A wrong wall set (e.g. marking the floor tile 0 solid) turns
+// every level into hundreds of fragments and this fails.
 static void test_connectivity_stats(const std::string& dir) {
     int levels = 0, connected = 0, total_open = 0, total_big = 0;
     for (int dg = 0; dg < 7; dg++) {
@@ -670,36 +671,31 @@ static void test_connectivity_stats(const std::string& dir) {
     std::printf("dungeon_test: connectivity %d/%d fully connected, "
                 "mean largest=%.3f\n", connected, levels,
                 total_open ? (double)total_big / total_open : 0.0);
-    assert(connected >= levels - 6);            // >= ~80% fully connected
-    assert(total_big * 100 >= total_open * 98); // mean largest-component >= 0.98
+    assert(connected >= levels - 19);           // >= ~34% fully connected (measured 11/29)
+    assert(total_big * 100 >= total_open * 93); // mean largest-component >= 0.93
 }
 
-// Object-layer semantics: features sit predominantly on WALL cells that are
-// open straight through (classic doorways), not scattered on floor.  Pins the
-// "object layer = doors/features" reading for two structurally different
-// levels (DNG01 corridor-heavy, DNG17 room-heavy).
+// Object-layer semantics: the object/feature layer marks special cells (doors,
+// items, stairs) with a non-zero code.  Under the {6,13} wall set the features
+// sit on PASSABLE cells (they mark a doorway/object on a walkable square), not
+// on the wall tiles.  Pins the "object layer = features on walkable cells"
+// reading for two structurally different levels (DNG01, DNG17).
 static void test_object_doors(const std::string& dir) {
     const char* names[] = {"DNG01", "DNG17"};
     int checked = 0;
     for (const char* nm : names) {
         Dungeon d;
         if (!load_dungeon(dir + "/" + std::string(nm), d)) continue;
-        int feat = 0, door = 0;
+        int feat = 0, on_wall = 0;
         for (int y = 0; y < kDungeonH; y++)
             for (int x = 0; x < kDungeonW; x++) {
                 if (!d.obj_code(x, y)) continue;
                 feat++;
-                if (!dungeon_passable(d, x, y)) {   // feature on a wall cell
-                    bool h = dungeon_passable(d, x - 1, y) &&
-                             dungeon_passable(d, x + 1, y);
-                    bool v = dungeon_passable(d, x, y - 1) &&
-                             dungeon_passable(d, x, y + 1);
-                    if (h || v) door++;
-                }
+                if (!dungeon_passable(d, x, y)) on_wall++;
             }
         assert(feat > 0);
-        // Most wall features are doorways (open through), not blind stubs.
-        assert(door * 2 > feat);
+        // Features mark walkable cells; almost none sit inside a wall tile.
+        assert(on_wall * 10 < feat);
         checked++;
     }
     if (checked) std::printf("dungeon_test: %d levels checked for door features\n", checked);
@@ -736,7 +732,10 @@ static void test_walk_real(const std::string& dir) {
             if (++turns % 4 == 0) break;               // boxed in: stop
         }
     }
-    assert(steps > 50);                                // the level is walkable
+    // A naive straight-then-turn walker gets boxed into a room quickly in a
+    // real maze (it does not backtrack), so only assert it can walk at all —
+    // the value here is the per-step invariants checked above.
+    assert(steps > 15);                                // the level is walkable
     std::printf("dungeon_test: real walk %d steps, %d turns from (%d,%d)\n",
                 steps, turns, p.x, p.y);
 }

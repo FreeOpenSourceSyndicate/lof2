@@ -102,12 +102,14 @@ std::vector<std::string> dungeon_ascii(const Dungeon& d, bool show_objects = fal
 
 // The full tile-code set seen across the 29 files is
 //   0,1,2,3,4,5,6,7,8,9,10,11,12,13,20,21,36,37,52,53,68,69,84,85,101,244
-// with 0/6 dominating (0 = "nothing"/void, 6 = floor) and 3/12 the structural
-// walls.  The four stride-16 groups (20/21, 36/37, 52/53, 68/69, 84/85) are
-// almost certainly wall/orientation variants, but their solid/open status is
-// PROVISIONAL until a real dungeon frame is captured from the oracle.
+// with 0 (void/open) and 6 (wall) dominating.  The structural walls are tiles
+// 6 and 13; every other code is walkable.  Ground truth: the emulator opacity
+// sweep (Round 27, docs/notes-a.md) — patching a tile X directly ahead while
+// varying the cell behind it only leaves the view unchanged for X in {6,13};
+// the rendered sprite for those is the full-screen wall DP036.  The earlier
+// {3,12} guess is disproved (DNG06 spawns on tile 3).
 //
-// A cell is treated as solid iff its tile code is in kSolidTiles.  Everything
+// A cell is treated as solid iff its tile code is a wall (6 or 13).  Everything
 // else (including the void code 0) is walkable; out-of-range cells are solid.
 bool dungeon_is_solid_tile(uint8_t code);
 bool dungeon_passable(const Dungeon& d, int x, int y);

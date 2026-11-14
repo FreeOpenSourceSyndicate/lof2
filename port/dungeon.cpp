@@ -64,8 +64,9 @@ bool decode_dungeon(const std::vector<uint8_t>& raw, Dungeon& out,
 static char tile_symbol(uint8_t v) {
     switch (v) {
         case 0:  return '#';
-        case 6:  return '.';
-        case 3:  return '%';
+        case 6:  return '%';
+        case 13: return '%';
+        case 3:  return '.';
         case 12: return '*';
         case 7:  return '+';
         case 8:  return 'o';
@@ -93,11 +94,16 @@ std::vector<std::string> dungeon_ascii(const Dungeon& d, bool show_objects) {
 }
 
 bool dungeon_is_solid_tile(uint8_t code) {
-    // Structural walls.  PROVISIONAL set (see dungeon.h); refined once a real
-    // dungeon frame is available from the oracle.
+    // Walls: tile 6 and tile 13.  Ground truth (emulator opacity sweep, Round 27):
+    // patch a tile code X directly ahead and vary the cell *behind* it.  For
+    // X in {0,1,2,3,7,8,12} the view changes (the ray passes through); only for
+    // X in {6,13} is the view unchanged (the cell behind is occluded).  The
+    // rendered view for 6/13 is the full-screen wall sprite DP036, matching.
+    // The earlier {3,12} guess is disproved: DNG06's spawn cell is tile 3, and
+    // {3,12} leaves it with 0 of 1201 cells reachable (DNG00: 8/684).
     switch (code) {
-        case 3:
-        case 12:
+        case 6:
+        case 13:
             return true;
         default:
             return false;
@@ -176,10 +182,11 @@ bool dungeon_place_entry(const Dungeon& d, DungeonPos& p) {
 // Colour per tile code (EGA 16-colour indices).
 static uint8_t tile_colour(uint8_t v) {
     switch (v) {
-        case 0:  return 8;    // dark gray  - open floor
-        case 6:  return 7;    // light gray - floor
-        case 3:  return 4;    // red        - wall
-        case 12: return 1;    // blue       - wall/water
+        case 0:  return 8;    // dark gray  - void/open
+        case 6:  return 4;    // red        - wall
+        case 13: return 4;    // red        - wall variant
+        case 3:  return 7;    // light gray - floor/doorway
+        case 12: return 1;    // blue       - water
         case 7:  return 10;   // green
         case 8:  return 6;    // brown
         case 2:  return 13;   // magenta
