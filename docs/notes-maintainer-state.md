@@ -37,6 +37,8 @@ about to stop for the night); no engine/drop-in code changed.
 - **`check.sh` is slow here (~4.5 min per 1600-frame scenario × 11 scenarios ≈
   45–60 min).** `make test` + the `boot` golden hash are the fast checks. Do not
   let a slow `check.sh` block a session; run it once in the background.
+  **Verified this session: `./check.sh` → HEALTHY** (full run in the background),
+  and the `town` and `shop` oracle golden hashes reproduce exactly.
 - **No open owner tasks** at this point (OWNER-TASKS.md empty). Reminder per
   Rule 8: none to re-raise this session. (Rule 5 question raised below.)
 
