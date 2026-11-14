@@ -1448,3 +1448,19 @@ Implemented: corrected `dungeon_base_view_index` (0x1/0x3/0xb/0xc → 1 explicit
 0x0/0x2/0x7/0x8/0x9 fall back to 1 as the documented approximation) and
 `test_base_view` now pins the full map.  `make test` and `make port` green.
 The corridor case stays BLK-A003 (Open); the fallback is recorded as G-004.
+
+### Round 28 addendum — the corridor view is frame-stable (not an animation phase)
+
+Captured the ahead=0 corridor view at frames 1300, 2000 and 2600 (same
+`LOF_KEYAUTO=0x18,0x02` sequence): all three dumps are **md5-identical**
+(`e165034f…`), and identical to the frame-1600 capture.  So the corridor view is
+a fixed composed image, not an animation phase — BLK-A003's alternative
+"animation phase mismatch" hypothesis is ruled out.  It is a deterministic
+function of the map column.
+
+One more disproof of the composite theory: a **colour-exact** placement of
+`DP037` (the earlier "wall-at-depth-2" candidate) over the corridor window has
+match 170 / mismatch 3048 at *every* offset — the ink overlap the earlier greedy
+search found was entirely spurious.  So the corridor image is composed by the
+engine (geometry it draws per depth), and reproducing it needs the decompiled
+view routine (Lane M) — a cross-lane dependency, logged in BLK-A003.

@@ -178,7 +178,9 @@ So the earlier `DP037`+side-pieces reading (`dungeon_slot1_moved.png` → 0.745)
 was an ink-overlap artefact, not the engine's rule.  The view is **ray-composed
 over the whole column**: with the ahead cell fixed at 0, changing the depth-2
 cell changes the window (4941 → 5111).  That column-marching composition is the
-residual.  Positive side result: the emulator's corridor capture matches the
+residual.  The view is **frame-stable**: dumps at frames 1300/2000/2600 are
+md5-identical, so it is not an animation phase either.  Reproducing it needs the
+decompiled view routine (Lane M) — a cross-lane dependency.  Positive side result: the emulator's corridor capture matches the
 moved oracle at symmetric-difference **10 px**, so the emulator *does* reproduce
 the moved frame (BLK-A004's premise is stale).  The drop-in keeps the `DP001`
 fallback meanwhile (G-004).
