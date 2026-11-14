@@ -20,10 +20,17 @@ other document, **this file wins** — say so in your notes and follow this file
 name, or algorithm in code, tests, or docs that is **not traceable to a source
 of truth**. The sources of truth, in order, are:
 
-1. the **decompilation** (`analysis/*.asm`) — the primary source;
+1. the **decompilation** (`analysis/*.asm`) — the primary source of truth;
 2. the **game data files** (`EGA/`, `SYST/`, `DNGS/`, `ROST/`, `*.SAV`, ...);
 3. the **emulator / DOSBox oracle frames** (`ref/oracle/`, golden tests);
 4. **playing the game** (ask the owner — see Rule 5).
+
+**The decompilation is the first source of truth; every other source is
+secondary.** When sources disagree, the decompilation wins — if a lower-ranked
+source (data file, oracle frame, live play) contradicts the disassembly, treat
+the disassembly as authoritative and re-examine the other source for the error
+(e.g. a stale capture or a mis-decoded file); do not silently prefer the
+lower-ranked source.
 
 A number that was *recovered* (template-matched, decoded, traced) is not a
 guess. A number that was *chosen because it looked right* is a guess, even if it
@@ -176,6 +183,16 @@ unremovable guesses** (Rule 3) — never repository mechanics. Detail and comman
 ---
 
 ## Changelog (newest first)
+
+### 2026-11-14 — Decompilation is the primary source (Rule 1 clarification)
+
+- Owner re-stated the source-of-truth ordering: **"the decompilation is the
+  first source of truth for all agents; every other source is secondary."** Per
+  Rule 9 this was reconciled against Rule 1, which already listed the
+  decompilation as the primary source. The owner's phrasing adds an explicit
+  precedence clause, so Rule 1 was **adapted** (not duplicated): the disassembly
+  wins when sources disagree; a lower-ranked source that contradicts it is
+  re-examined rather than preferred.
 
 ### 2026-11-14 — Owner-stated rules + PR ownership
 
