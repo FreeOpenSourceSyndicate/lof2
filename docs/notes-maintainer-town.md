@@ -868,3 +868,57 @@ A raw word-search of `LOF.EXE` for the little-endian town-name addresses finds
 So the name address is not a static pointer at all — it is built from a computed
 base + offset, confirming the selector is data-driven (save/scenario).  Tracing
 it needs a Cyldane save (owner task OT-001); both shipped saves resolve to Thyn.
+
+## BREAKTHROUGH (2026-11-14): arrow keys never worked — emulator delivered the
+## wrong DOS extended-key convention
+
+**Root cause of "Up does nothing / never enters the town".**  The emulator's DOS
+console-input handlers (`INT 21h AH=01/07/08` and the `0Ch` dispatch) returned
+`scancode_ascii(k)` for every key, and `scancode_ascii` returns `0` for any key
+with no ASCII (arrows, PgUp, function keys, ...).  Real DOS returns **AL=0** for
+an extended key and then hands the **scan code** to the *next* console read.
+The emulator only ever produced the `AL=0` half, so the arrow keys (and every
+other extended key) were invisible: LOF's title/menu path reads input with
+`INT 21h AH=07` and keys off the scan code, so Up / Down / Left / Right were all
+dropped.  (This matches the `AGENTS.md` "Fixed bugs" note that described the
+convention but was never implemented.)
+
+Fix (lane M, `src/machine.cpp` + `src/emu.h`): keep an `ext_scan_pending` byte.
+When a read consumes a key whose ASCII is `0`, store its scan code and return
+`AL=0`; the *next* read returns the scan code in `AL` (and clears the pending
+byte).  Applied to `AH=01`, `AH=07`/`08`, and the `0Ch` dispatch; `AH=0Bh`
+reports a pending scan code as "key waiting".  `reset_cpu_state` clears it.
+`make test` still green.
+
+**Effect.**  The owner's documented town-entry path now works end to end:
+
+```
+LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAUTO=0x18,0x03,0x50,0x48 LOF_KEYGAP=50 \
+  ./lof-native --dir game --headless --frames 2000 --shot town_entry.png
+```
+
+`O` (0x18) opens the load menu, `2` (0x03) loads slot 2 (the party spawns on the
+wilderness map **facing away from the town**), `Down` (0x50) turns 180°, `Up`
+(0x48) steps into the town.  Result: the **town main menu** frame with exactly
+the strings the notes predicted:
+
+```
+You enter the proud town of
+Thyn. Which building do you
+want to visit?
+(E)mporium (B)ank (I)nn (H)ouse of trades (T)emple (C)ontinue
+```
+
+Frame `/tmp/lofwork/town_entry.png` (md5 `4e105dada7c50da4734a36caf36aaf2e`)
+matches `ref/oracle/town.png` at 63.0% (the usual emulator-palette ceiling, see
+the palette sections above — not a new bug).
+
+The decompilation agrees: the map command loop is at image `0x75A0`; it reads a
+key, and `cmp 0x57` (`'W'`) calls the town routine at `0xBF82` (the routine that
+prints "town of" / "Which building...").  But the **first** entry from the
+wilderness is the Up-step, not `W` — `W` is the "enter town" command once you
+are already standing on the town's map tile.
+
+**Golden status.**  The recorded golden scenarios (`tests/golden.txt`) never
+press an arrow key (they use letters + digits only), so this fix does not change
+any of them; re-running `make golden` must stay green (verified separately).
