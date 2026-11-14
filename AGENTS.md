@@ -604,6 +604,14 @@ save-location field: slot 1 opens `DNGS\DNG05` + `ega\d5`, slot 2 opens
 - BIOS INT 16h must return the scan code in AH and the ASCII value in AL; games
   key off either byte.  DOS INT 21h AH=01/07/08 return the ASCII value in AL
   (extended keys return AL=0, with the scan code on the following read).
+- The **scan code after an extended key** must actually be delivered: an
+  extended key (arrow / PgUp / function key, i.e. any scancode whose ASCII is 0)
+  returns `AL=0` on the first read and the **scan code in AL on the next read**
+  (`ext_scan_pending` in `src/machine.cpp`).  Without it the arrow keys are
+  invisible to LOF (it reads with `INT 21h AH=07` and keys off the scan code),
+  which is why the party could not turn/step on the wilderness map.  Applied to
+  AH=01/07/08 and the 0Ch dispatch; AH=0Bh reports it as pending.  The town
+  entry (`O,2,Down,Up` -> town menu) is the end-to-end regression check.
 - `scancode_ascii` table: 0x2C is `z` (the row is `zxcvbnm,./`, no leading `\`),
   0x29 is `` ` ``, 0x2B is `\`.  Covered by `make test`.
 - `reset_cpu_state` must clear transient CPU state (`halted`, prefix/repeat

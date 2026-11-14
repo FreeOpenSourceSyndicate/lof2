@@ -61,6 +61,11 @@ run() {
     scenario erase LOF_KEYFRAME=10 --keys 0x12
     LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 scenario temple --frames 1500
     LOF_KEYAUTO=0x18,0x03 LOF_KEYGAP=8 scenario play   --frames 1000
+    # town_entry: O, 2 (load slot 2, spawn facing away from town), Down (turn
+    # 180), Up (step into town).  Exercises the DOS extended-key scan-code
+    # delivery (arrows return AL=0 then the scan code): without it the party
+    # never turns/steps and this frame stays the wilderness.
+    LOF_KEYAUTO=0x18,0x03,0x50,0x48           LOF_KEYGAP=50 scenario town_entry  --frames 600
     LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e           LOF_KEYGAP=250 scenario town        --frames 1600
     LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x12      LOF_KEYGAP=250 scenario shop        --frames 1600
     LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x14      LOF_KEYGAP=250 scenario temple_bldg --frames 1600
