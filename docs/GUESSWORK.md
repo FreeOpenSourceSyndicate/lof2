@@ -71,12 +71,12 @@ How to use each section:
   grouping of the item table by effect (effect 5 = "Crystal ball", effect 8 =
   "Antimagic ring", …) — the engine stores no effect-name table, so those strings
   can only ever be descriptive naming choices, not engine symbols.  The
-  *magnitude* of the tested effects that live in the play loop (the exact stat
-  deltas for 12/19/21/24/28/29/33) still needs Lane M to drive those screens.
-- **To clear it:** trace each remaining effect value's handler to a concrete stat
-  change and align the label; for values the engine never tests, the descriptive
-  name is already the correct answer (a naming choice, not a claim about the
-  engine).
+  equip/unequip stat deltas (effects `2,8,12,21,24,28,29,33`) **are** now
+  derived statically (see `docs/notes-b.md`); the residual is the effect values
+  the engine never tests.
+- **To clear it:** for values the engine never tests, the descriptive name is
+  already the correct answer (a naming choice, not a claim about the engine); no
+  further derivation is possible or needed for them.
 
 ---
 

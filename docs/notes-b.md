@@ -1211,11 +1211,22 @@ engine compares it directly at 33 sites.  The complete set of values it is
   `3` → `0xE9C2`, `10` → `0xEA90`, `19` → `0xEB32`, `23` → `0xEB4E`,
   `30` → `0xEBE4`, `31` → `0xECE2` (the `>10` cases via the second dispatch
   `0x0EDB0`).
-- **equip / unequip handler** `0x2995C` / `0x29FB1`: `2`, `8`, `12`, `21`,
-  `24`, `28`, `29`, `33`.  Unequipping adjusts stats by value: `8` →
-  `+0x5a -= 4`, `12` → `+0x59 -= 1`, `21` → `+0x52 = 0`, `24` → `+0x53 = 0`,
-  `28` → `+0x5a -= 1`, `29` → `+0x5a -= 2`, `33` → `+0x5a += 5`; equipping `2`
-  clears `+0x5b` and `33` sets it.
+- **equip / unequip handler** `0x29FB1` (equip) / `0x2995C` (unequip): `2`, `8`,
+  `12`, `21`, `24`, `28`, `29`, `33`.  Each is a symmetric stat delta on the
+  wearer:
+  | effect | equip (`0x29FB1`) | unequip (`0x2995C`) |
+  |--------|-------------------|---------------------|
+  | 2  | `+0x5b = cl` | `+0x5b = 0` |
+  | 8  | `+0x5a += 4` | `+0x5a -= 4` |
+  | 12 | `+0x59 += 1` | `+0x59 -= 1` |
+  | 21 | `+0x52 = 1`  | `+0x52 = 0` |
+  | 24 | `+0x53 = 1`  | `+0x53 = 0` |
+  | 28 | `+0x5a += 1` | `+0x5a -= 1` |
+  | 29 | `+0x5a += 2` | `+0x5a -= 2` |
+  | 33 | `+0x56 += 1` | `+0x56 -= 1` |
+  (`+0x56` is the sheet's speed byte and `+0x5b` its attribute modifier — both
+  named in `port/char.h`; `+0x52`/`+0x53`/`+0x59`/`+0x5a` are further
+  character-struct bytes this handler toggles, not yet separately named.)
 - **misc sites:** `9` (`0x14A09`), `13` (`0x13AF4`), `15` (`0x0DF7E`), `20`
   (`0x14976`), `27` (`0x0E274`), `40` (`0x0E1BC`).
 
