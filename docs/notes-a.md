@@ -1871,3 +1871,49 @@ code location, which is inside the GFA-compiled body with no adjacent table.
 
 BLK-A003 remains open; the port's `DP001` fallback for open cells (documented
 guess G-004) is unchanged, as any replacement would itself be a guess.
+
+## Round 38 — BLK-A003 UNBLOCKED: the "procedural" corridor is `EGA/CHAR2/CHnn`
+
+**Decisive experiment.** Zeroed `EGA/CHAR2/CH25` on disk (all-zero 120x119 EGA)
+and re-ran the corridor capture: the viewport went from **ink 4941 to ink 0**
+(4941 differing px). Same for depth-2: zeroing `EGA/CHAR2/CH40` took it from
+**5111 to 0**. So the corridor view is *not* procedurally drawn — it is an
+ordinary sprite blit from `EGA/CHAR2/`:
+
+| first opaque cell | sprite file |
+|---|---|
+| depth 1 (wall) | `EGA/D5/DP001` |
+| depth 2 | `EGA/CHAR2/CH40` |
+| depth 3+ | `EGA/CHAR2/CH25` |
+
+Why the earlier searches missed it: Round 30/37 only scanned `EGA/D5/*` and
+`EGA/ANIM/*`. `EGA/CHAR2/` is a third sprite bank (the room/interior art).
+`CHAR2/CH25`'s colour histogram is **byte-identical** to the corridor view's
+(exactly 9339/1567/497/616/164/363/1105/259/196/174 across colours
+0/2/4/6/7/8/10/12/14/15), and a pure-translation alignment of CH25 onto the
+window reaches 4479/4941 = 90.7% colour-exact (best dx=24, dy=-17; the residual
+is the ceiling/floor rect bands the view routine paints around it).
+
+**The selection routine.** The CH25 load is issued from runtime `119D:2AC4`
+(image `0x4394`) via `lcall 0x18d,0x68c` (the sprite loader, image `0x1F5C`).
+The routine starts at image `0x4321` (runtime `119D:2A31`):
+```
+ds = 0x3120; call 0x5008          ; read args
+cmp ax, 0x16
+jl  small                          ; ax < 0x16 -> table A, else table B
+small: dx = cs:[0x7e2 + idx*2]     ; idx = cs:[0x240e]
+       byte [0x5561] = 0x33
+big:   dx = cs:[0x7f2 + idx*2]     ; dx = string pointer into the data segment
+       dx = cs:[0x2a3e + idx*2] + 0x30
+       byte [0x5561] = dl
+cs:[0xa06] = cs:[0x2408]           ; sprite destination segment
+lea dx, [0x5559]                   ; path buffer (holds "ega\char2\ch25")
+cs:[0xa7c] = dx
+push cs:[0xa06]
+lcall 0x18d, 0x68c                 ; load + blit
+```
+So the room routine picks a `ega\char2\chNN` filename from a pointer table
+indexed by `cs:[0x240e]`, writes it to the buffer at `0x5559`, and blits it. The
+remaining sub-task is decoding `cs:[0x240e]` (the room/depth index) and the
+`0x7e2`/`0x7f2` pointer tables — a bounded, non-guessy task now that the files
+are identified. This supersedes the BLK-A003 "procedural room draw" conclusion.
