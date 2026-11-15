@@ -2202,3 +2202,21 @@ opcode pins it exactly, and the path template is now located:
 - **Pointer-table stores** (`cs:[0x7e2]`/`cs:[0x7f2]` -> `cs:[0x2bae]`) are the
   GFA/VB runtime's active-pointer bookkeeping, not a second sprite bank; the
   only bank effect is the path byte at +8.
+
+## Round 44 — location id confirmed at the exact runtime segment
+
+`LOF_TRACE_IP` matches on `cs*16+ip` (linear), so the Round 41 note's `119D:CE8A`
+was really **`1DAF:CE8A`** (linear `0x2A97A`) — the same code, the right segment.
+Tracing there for the Temple corridor gives `es=0x468E`. Dumping that segment:
+
+```
+es:[0x259] = 16          ; the location id the record is indexed by
+es:[0x52]  = 0x42CC      ; the record-table base (matches the earlier dump)
+```
+
+So at the spawn the engine indexes `NSC05` record **16** and reads `+0x48` ->
+**25** -> `ega\char2\ch25`. This closes the loop at the exact runtime state: the
+location id is engine state at the party's current position, not a save byte (it
+was 16 here and is not simply the map id). Wiring `dungeon_room_art_number` into
+the play view therefore needs that id threaded through from the play loop; the
+resolver itself is done and tested.
