@@ -5,6 +5,59 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-15 (thirteenth session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**. HEAD at start `dad2fe5` (main, clean, pushed). This was
+an **incoming-maintainer orientation** session: I surveyed the state, swept the
+PRs, and finished the previous maintainer's interrupted open item.
+
+- **The ROST per-record checksum is DECODED and VERIFIED** (was the previous
+  maintainer's unfinished work). The 4-byte trailer after each 410-byte
+  `ROST/ROST` record is a 32-bit **alternating ADD/XOR fold with a carry**:
+
+  ```
+  acc = 1
+  for i, c in enumerate(rec410):
+      if c == 0: c = 1
+      acc = (acc + c) if i % 2 == 0 else (acc ^ c)
+  trailer = uint32(acc)
+  ```
+
+  Derived from the decompilation: routine asm `0x1BF18` (far-called
+  `0x1BF1:0x0008`; relocated at load). Verified on load at asm `0x2A1E1` —
+  mismatch sets the tamper marker `0xFC` in record byte `0x0C` (asm `0x2A1F6`),
+  acted on at asm `0xB0CB` (prints the "caught ... trying to fraud" message,
+  `ds:0x72CA`). **23/23 records** match across `game/ROST/ROST`, `ROST1`,
+  `ROST2`. Full derivation: **`docs/notes-maintainer-rost.md`**.
+  - **Lane-B follow-up filed as `BLK-B005`** — `port/char.cpp` (Agent B's file)
+    still parses `rec.tail` but does not validate it; the implementation request
+    is in `docs/blockers/B.md`.
+  - The owner-supplied saves are secured as `ref/rost/ROST1.cheat` and
+    `ref/rost/ROST2.banked` (also dropped at the repo root so `bootstrap.sh`
+    restores them after a reset).
+  - **PR #110** (`work/maintainer-rost-checksum`) carries this; `make test` is
+    green. (Golden frames were still running at hand-off time — they are slow,
+    ~2–3 min/scenario, and unaffected by a docs/fixtures-only change.)
+- **No other open PRs** at session start (0 open). No blockers, no open owner
+  tasks (`docs/OWNER-TASKS.md`: OT-001 Done).
+
+**Open / next (unchanged priorities):**
+
+- **G-001 (lane M, queued):** the town name `"Thyn."` is hardcoded in
+  `compose_town_screen()`; the engine selects between `ds:0x5A39` ("Thyn.") and
+  `ds:0x5A40` ("Cyldane."). Trace the callers of the town routine `image 0xC22B`
+  with `GAME4` loaded. Full evidence in `docs/GUESSWORK.md` G-001 and
+  `docs/notes-maintainer-town.md`.
+- **G-002 (lane M, watchlist):** the 16×16 patch at the town screen's top-left
+  corner is engine-drawn (not any `EGA/**` asset); trace the town draw path.
+- **Building screens** (Emporium/Temple/Inn/Bank): the Emporium reads no new
+  files and its ornate panel is engine-drawn — decode the panel's draw routine.
+  Oracle `ref/oracle/shop.png`.
+- **Lane A:** dungeon viewport composite (per-cell sprite composition) — see
+  `docs/notes-a.md`.
+- **Lane B:** `BLK-B004` (combat round resolution) and the new `BLK-B005`
+  (implement the ROST checksum).
+
 ## Session 2026-11-15 (twelfth session) — TL;DR
 
 Environment **HEALTHY** (`./check.sh` green). HEAD at start `0adfdc2`; `main` is
