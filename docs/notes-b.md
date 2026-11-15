@@ -1131,11 +1131,143 @@ Fields this grounds for the character struct (all read here, previously unnamed)
 `+0x0f` action byte (`3` = attack), `+0x0e` target slot, `+0x1a` class/category
 scaling byte, `+0x45` Strength, `+0x55` action-time divisor, `+0x56` SNSC speed, `+0x5e` Strength modifier.
 
-The play-loop **item-use** table is the 36-byte table `es:[bx*0x24 + 0x2712]`
-where `bx` is the item index (image `0x13A82`, `0x1CFD2`, `0x1D156`); its bit 2
-(`test al,4`) is the "usable" flag the use path checks.  It is a **runtime**
-table, not present in the data files, so its full contents are only reachable
-from the main loop (maintainer domain).
+### Item use = the spell table, not a separate "item-use table" (BLK-B003)
+
+The read `es:[bx*0x24 + 0x2712]` (image `0x0E59E`, `0x0F072`, `0x17C6F`,
+`0x1947E`, `0x19690`) is **not** an item-use table.  It is the 141-record spell
+table.  With `DS` base `0x41d10` (verified: e.g. the spell name `"Burning hands"`
+at file `0x44430` is `DS:0x2720`, and `"is not useful in this situation."` at
+file `0x47962` is `DS:0x5c52`), `DS:0x2712` resolves to **file `0x44422`**.  The
+spell table's record base is `DS:0x26FC` = file `0x4440C`; `0x2712 - 0x26FC =
+0x16`, so the read lands on the byte just *past* a record's 14-byte parameter
+block.  A live
+1 MB dump of the town path (`LOF_SEGDUMP`) is byte-identical to the EXE image at
+`0x44422`, so the table is static EXE data (see BLK-B002 resolution).
+
+The use routine at `0x0E562` is the ground truth.  It:
+
+1. `shl bx,5` (`0xE56F`) to reach the character's 32-byte item record; `+0x18`
+   is the item's **spell index** (`mov al, es:[bx+0xfd4]`, `0xE575`).  This is
+   exactly `ItemRecord::spell` (item record `+0x18`).
+2. `imul 0x24` and `mov al, es:[bx + 0x2712]` (`0xE59E`) — reads the spell
+   record's first parameter byte.
+3. `test al,3` / `test al,4`: if **either** is set it clears the "no-use" flag
+   and proceeds to use the item; if both are clear the item is rejected and the
+   routine prints "is not useful in this situation." (image `0xE15D`).
+4. Separately, `es:[bx+0xfda]` (item `+0x1f`, the use *category*) is compared
+   with `9` (`0xE5C5`, `0xE618`): **potions** (`class 9`) also clear the
+   "no-use" flag, i.e. they bypass the spell-parameter gate.
+
+So the engine's own byte is `spells()[spell-1].data[0]`, and the predicate is
+`(data[0] & 0x07) != 0` **or** the item is a potion.  `ItemRecord::spell` and
+`item_use_index()`/`item_use_flags()`/`item_is_usable()` now model this; the
+old `port/char_itemuse.inc` (transcribed from file `0x42712` = `ds:0xa02`, which
+no instruction references) is deleted.
+
+**Item `+0x18` is the spell index, not an "armour sub-type".**  Spot checks:
+Torch → spell 2 "Light"; Healing potion → spell 80 "Healing I"; Healing II →
+spell 92 "Healing II"; Ring of power → 129 "Regeneration I"; Healers' staff →
+116 "Restoration"; Staff of light → 84 "Fear undead".  Every mapping names the
+spell the item is documented to cast.  Item `+0x19` remains weapon damage.
+
+**Usable items** under the full predicate (24): Torch, Lantern, Holy water,
+Healing potion, Poison I/II, Antidote I/II, Healing II/III, Strength potion,
+Heroes' drink, Potion of Kybol/haste, Ring of Kybol, Ring of power, Healers'
+staff, Gain level, Drain level, Ring of shelter, Gunpowder, Magic protect.,
+Talisman, Gnokem Whisky.
+
+### The `spell==0` "not-usable" default is an uninitialised-read quirk (BLK-B003 follow-up)
+
+The gate at image `0x0E562` keeps its verdict in the word `[bp-4]:[bp-2]`
+(0 = usable).  It is written **only** inside the two branches that clear it —
+`0xE588/0xE58D` (spell != 0) and `0xE5CF/0xE5D2` (potion, class 9) — and read at
+`0xE5D5/0xE5D8` (`or [bp-4],[bp-2]; je 0xE5E0`).  In the `spell == 0`,
+non-potion path the branch at `0xE586` jumps straight to `0xE5BA`, so the flag is
+**never written** and the read at `0xE5D5` consumes whatever the previous
+stack frame left there.  The routine prologue (`0xD9FC`..`0xDA0A`) initialises
+`[bp-6]/[bp-8]`, not `[bp-4]/[bp-2]`.
+
+Both callers (`0xF52A`, `0x13EA6`) drive the routine from the item menus.  Caller
+2 only reaches it for **potions** (class 9), where the flag *is* cleared, so the
+uninitialised case is unreachable there.  Caller 1 can offer any carried item, so
+for a `spell == 0` non-potion the engine's verdict is a stack-dependent quirk.
+
+**Resolved by live play (2026-11-14):** the owner used an ordinary item and the
+engine printed "<item> is not useful in this situation." (+ a "(C)ontinue"
+prompt), so the engine treats a `spell == 0` non-potion as **not usable**.
+`item_is_usable()` returns `false`, which matches; the guess is cleared (G-003 →
+section F of `docs/GUESSWORK.md`).  The owner also reported that a **lantern**
+used with a flask of oil and a tinderbox consumes the oil and prints "… make
+light…" — grounding item effect value 34 (the lantern's `+0x18` spell index 7 is
+"Permanent light").
+
+### The effect byte (`+0x1f`) is consumed by real dispatchers, not just a label
+
+`ItemRecord::effect` (`es:[bx+0xfdb]`) is **not** only a display label: the
+engine compares it directly at 33 sites.  The complete set of values it is
+**proven** to test, with a site each:
+
+- **use-routine effect dispatch** `0x0E89D`: `1` → `0xE8CA`, `2` → `0xE95E`,
+  `3` → `0xE9C2`, `10` → `0xEA90`, `19` → `0xEB32`, `23` → `0xEB4E`,
+  `30` → `0xEBE4`, `31` → `0xECE2` (the `>10` cases via the second dispatch
+  `0x0EDB0`).
+- **equip / unequip handler** `0x29FB1` (equip) / `0x2995C` (unequip): `2`, `8`,
+  `12`, `21`, `24`, `28`, `29`, `33`.  Each is a symmetric stat delta on the
+  wearer:
+  | effect | equip (`0x29FB1`) | unequip (`0x2995C`) |
+  |--------|-------------------|---------------------|
+  | 2  | `+0x5b = cl` | `+0x5b = 0` |
+  | 8  | `+0x5a += 4` | `+0x5a -= 4` |
+  | 12 | `+0x59 += 1` | `+0x59 -= 1` |
+  | 21 | `+0x52 = 1`  | `+0x52 = 0` |
+  | 24 | `+0x53 = 1`  | `+0x53 = 0` |
+  | 28 | `+0x5a += 1` | `+0x5a -= 1` |
+  | 29 | `+0x5a += 2` | `+0x5a -= 2` |
+  | 33 | `+0x56 += 1` | `+0x56 -= 1` |
+  (`+0x56` is the sheet's speed byte and `+0x5b` its attribute modifier — both
+  named in `port/char.h`; `+0x52`/`+0x53`/`+0x59`/`+0x5a` are further
+  character-struct bytes this handler toggles, not yet separately named.)
+- **misc sites:** `9` (`0x14A09`), `13` (`0x13AF4`), `15` (`0x0DF7E`), `20`
+  (`0x14976`), `27` (`0x0E274`), `40` (`0x0E1BC`).
+
+The engine's **own messages** fix the meaning of several values:
+
+- `1` → " sees no effect." (already professional) / " feels his growing
+  professionalism." — *enchant weapon*.
+- `2` → " feels himself safer." — *enchant armour*.
+- `3` and `23` → " didn't take much to it, and goes green in the face!" —
+  **poison**; the handler subtracts the item's `+0x19` from HP and sets the
+  character's poison field (`+0x1f = 3`, `+0x57 = 4`, `+0x58 = 0x12`).
+- `10` → the `0xEA90` handler adds the item's `+0x19` to HP and clamps to max
+  (`+0x20`) — **healing**.
+- `30` / `31` → clear the poison state (`if char[+0x1f] == 3 { char[+0x1f] = 0;
+  char[+0x57] = 0; char[+0x58] = 0 }` / `== 4`) — **antidote I / II**.
+- `15` (quest jewels, `0x0DF7E`) → a **combine** handler: it takes the item's
+  paired index (`+0x1a`, `f5`), prints "<name> and <name> fits together."
+  (`ds:0x5c3c`/`0x5c42`; or "That doesn't seem to work." `ds:0x5c21` if the pair
+  is absent), removes both items and adds the result.  It special-cases item
+  indices `0x5e`/`0x5f` (Corona/Keystaff), matching the `f5` pair chain
+  Emerald↔Corona↔Keystaff.
+- `40` (raw materials, `0x0E1BC`) → the same combine shape ("That doesn't seem
+  to work." `ds:0x5c73` if the pair is absent); combines paired index `f5`
+  (Dry clay ↔ Some water).
+
+So the labels for `1,2,3,8,10,12,19,21,23,24,28,29,30,31,33` are grounded;
+the rest are item-name-grouping descriptions (the engine stores no effect-name
+table).  **Live play grounds one more:** using a **lantern** (effect 34) with a
+flask of oil and a tinderbox consumes the oil and prints "… make light…", so 34
+is a light source (the lantern's `+0x18` spell index 7 is "Permanent light").
+The distinction is recorded in `docs/GUESSWORK.md` (G-004).
+
+### The spell effect code (data byte 8) is a real jump-table dispatch
+
+`SpellRecord::data[8]` (`es:[spell*0x24 + 0x271A]`, image `0x0F5D8`) is the id
+the cast routine switches on.  The routine does `sub ax,1`, bounds-checks
+`cmp ax,0x3e; jbe`, then `add ax,ax; jmp *cs:0x2C1E(bx)` (`0x0F5E2`..`0x0F5ED`)
+— a 63-entry (`0x3f`) jump table.  So `spell_effect_name()`'s labels describe a
+code the engine really dispatches on (the labels themselves are descriptive
+family names, not engine symbols).  Same shape as the item effect byte above.
+
 
 ## Blockers (Workstream B) — 2026-11-08
 
@@ -1144,15 +1276,6 @@ image (`LOF.EXE` disassembly + the data files) is already done; the items below
 need runtime state or another lane.
 
 ### Needs the maintainer (play loop / oracle)
-- **HIGH — reach combat/shop/item-use in the oracle.** The oracle currently
-  stops at `town` (`--keys 0x18,0x1c`). A scripted path into a combat encounter
-  (and the shop / item-use screens) would let B ground the last runtime tables
-  against real reads (`LOF_I21`/`LOF_READ`), exactly as SPEC/ROST were grounded.
-- **MEDIUM — expose the runtime item-use table.** The 36-byte item-use table
-  `es:[item*0x24 + 0x2712]` (bit 2 = "usable", read at `0x13A82`, `0x1CFD2`,
-  `0x1D156`) lives in a runtime segment that is not in any data file, so its
-  contents can only be captured from a running engine (a debug dump like
-  `LOF_EDUMP` but for that segment).
 - **MEDIUM — wire B's grounded model into `lof.cpp`.** `defense_from_items()`,
   the slot semantics (`equipped`/`charges`/`condition`) and the combat-damage
   model (above) are ready to use; consuming them is `lof.cpp` (SERIAL) work.

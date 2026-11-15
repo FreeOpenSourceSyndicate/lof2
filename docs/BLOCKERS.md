@@ -110,7 +110,7 @@ mark a `Dependencies` entry, the dependency's priority may have to rise (a
 | Lane | File | Open | In progress | Resolved |
 |------|------|------|-------------|----------|
 | A (dungeons) | [`blockers/A.md`](blockers/A.md) | BLK-A001 | BLK-A002 | — |
-| B (characters/items) | [`blockers/B.md`](blockers/B.md) | BLK-B003 | — | BLK-B001, BLK-B002 |
+| B (characters/items) | [`blockers/B.md`](blockers/B.md) | — | — | BLK-B001, BLK-B002, BLK-B003 |
 | M (maintainer) | [`blockers/M.md`](blockers/M.md) | BLK-M001 | — | — |
 
 *(Update your lane's row here only when its status changes; this is the one table

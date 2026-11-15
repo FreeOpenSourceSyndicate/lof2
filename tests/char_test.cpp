@@ -545,18 +545,40 @@ static int real_data() {
     assert(heals.size() == 1 && it[heals[0]].name == "Healing potion");
     assert(items_with_effect(10)[0] == 0x2e);
     assert(items_with_effect(200).empty());
+    // The values the engine's own dispatch/messages ground (see notes-b.md).
+    assert(std::string(item_effect_name(1)) == "enchant weapon");
+    assert(std::string(item_effect_name(2)) == "enchant armour");
+    assert(std::string(item_effect_name(3)) == "poison I");
+    assert(std::string(item_effect_name(23)) == "poison II");
+    assert(std::string(item_effect_name(30)) == "antidote I");
+    assert(std::string(item_effect_name(31)) == "antidote II");
 
-    // Item-use table (transcribed from LOF.EXE image 0x42712; the play loop
-    // indexes it as `es:[item*0x24 + 0x2712]`).  41 records, 36 bytes each;
-    // record 0 is the null "no item" row and items are 1-based after it.
-    assert(kItemUseCount == 41 && kItemUseRec == 36);
-    assert(item_use_flags(0) == 0);       // null row
-    assert(item_use_flags(1) == 1);       // Club
-    assert(item_use_flags(11) == 220);    // Battle flail (0xdc)
-    assert(item_use_flags(41) == 0 && item_use_flags(-1) == 0);  // out of range
-    // "usable" = low two bits clear and bit 2 set; only Battle flail qualifies.
-    assert(item_is_usable(11));
-    assert(!item_is_usable(0) && !item_is_usable(1) && !item_is_usable(41));
+    // Item use (spell casting).  The engine has no separate item-use table:
+    // the use routine takes the item's +0x18 byte as a 1-based *spell* index
+    // and reads the spell record's first parameter byte, which is
+    // `spells()[spell-1].data[0]` (see port/char.h).  Item indices here are the
+    // 1-based `item_by_index` indices, so 37 = "Torch" (items()[36]).
+    assert(item_use_index(1) == 0);        // Club casts nothing
+    assert(item_use_index(37) == 2);       // Torch -> spell 2 ("Light")
+    assert(item_use_index(47) == 80);      // Healing potion -> spell 80
+    assert(item_use_index(0) == 0 && item_use_index(186) == 0);
+    // The gate byte is the spell record's data[0].
+    assert(item_use_flags(37) == 0x02);    // Torch -> "Light" data[0]
+    assert(item_use_flags(47) == 0x04);    // Healing potion -> "Healing I"
+    assert(item_use_flags(1) == 0);        // Club: no spell
+    assert(item_use_flags(0) == 0 && item_use_flags(186) == 0);
+    // "usable" = a potion (class 9) or the spell's data[0] has bits 0/1/2 set.
+    assert(item_is_usable(37) && item_is_usable(47) && item_is_usable(58));
+    assert(!item_is_usable(1));            // Club
+    assert(!item_is_usable(70));           // Rod of fear: staff, data[0]==0x10
+    assert(item_is_usable(57));            // Heroes' drink: potion -> usable
+    assert(!item_is_usable(0) && !item_is_usable(186));
+    assert(item_spell(47) && item_spell(47)->name == "Healing I");
+    assert(item_spell(1) == nullptr);
+    int usable_items = 0;
+    for (int i = 1; i <= (int)kItemCount; i++)
+        if (item_is_usable(i)) usable_items++;
+    assert(usable_items == 24);            // see docs/notes-b.md
 
     // Spell table (141 x 36 bytes, also transcribed from LOF.EXE).
     const auto& sp = spells();

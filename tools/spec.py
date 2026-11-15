@@ -188,37 +188,20 @@ def emit_items(exe_path, out_path):
     print(f"wrote {out_path} ({ITEM_COUNT} items)")
 
 
-# The item-use table also lives only inside LOF.EXE, immediately before the
-# item table (image 0x42712 / data segment 0x2712): 41 records of 36 bytes.
-# The play loop indexes it as `es:[item_index * 0x24 + 0x2712]` where
-# item_index is 1-based into the item table (index 0 is a null "no item" row).
-# Byte 0 is a bitfield the use/attack handlers test; the remaining bytes are
-# handler parameters (unnamed).  Read at image 0x13a82, 0x1cfd2, 0x1d156.
-ITEMUSE_EXE_OFF = 0x42712
-ITEMUSE_COUNT = 41
-ITEMUSE_REC = 36
-
-
-def emit_itemuse(exe_path, out_path):
-    d = open(exe_path, "rb").read()
-    with open(out_path, "w") as f:
-        f.write("// Legend of Faerghail item-use table — transcribed from the DOS "
-                "release.\n")
-        f.write("// It lives only inside LOF.EXE (image offset 0x42712 / data "
-                "segment 0x2712);\n")
-        f.write("// no data file carries it.  The play loop indexes it as "
-                "`es:[item*0x24 + 0x2712]`\n")
-        f.write("// with a 1-based item index (record 0 is a null 'no item' row); "
-                "the use\n")
-        f.write("// handlers at image 0x13a82/0x1cfd2/0x1d156 test byte 0's low "
-                "bits.\n")
-        f.write("// Regenerate with `tools/spec.py --emit-itemuse`.\n\n")
-        f.write("static const uint8_t kItemUse[kItemUseCount][kItemUseRec] = {\n")
-        for i in range(ITEMUSE_COUNT):
-            r = d[ITEMUSE_EXE_OFF + i * ITEMUSE_REC:ITEMUSE_EXE_OFF + (i + 1) * ITEMUSE_REC]
-            f.write("    {%s},\n" % ",".join(str(b) for b in r))
-        f.write("};\n")
-    print(f"wrote {out_path} ({ITEMUSE_COUNT} records)")
+# The "item-use table" is not a separate table: the engine reads the *spell*
+# table.  The read `es:[idx*0x24 + 0x2712]` (image 0x0e59e/0x0f072/0x17c6f/
+# 0x1947e/0x19690) indexes the same 141-record, 36-byte spell table that
+# `char_spells.inc` already holds (record base DS:0x26fc = file 0x4440c, so
+# DS:0x2712 = file 0x44422 is that base + 0x16, i.e. the byte just past a
+# record's 14-byte parameter block).  `idx` is the item's `+0x18` field, a
+# 1-based spell index.  A previous revision transcribed 41x36 bytes from file
+# 0x42712 (= DS:0xa02) as an "item-use table"; no instruction references that
+# offset, so it is dead data and the emit was removed.
+#
+# Verified against the raw image: DS:0x2712 resolves to file 0x44422
+# (DS base 0x41d10 + 0x2712), and a live 1 MB dump of the town path is
+# byte-identical to the EXE image there.  Record `n` (1-based) has its name at
+# file 0x44430 + (n-1)*0x24, matching `spells()[n-1]`.
 
 
 # The spell table also lives only inside LOF.EXE (image offset 0x44430, data
@@ -464,8 +447,6 @@ def main():
                     help="dump a GAMES/GAMEn saved game (e.g. GAME1)")
     ap.add_argument("--emit-items", action="store_true",
                     help="regenerate port/char_items.inc from LOF.EXE")
-    ap.add_argument("--emit-itemuse", action="store_true",
-                    help="regenerate port/char_itemuse.inc from LOF.EXE")
     ap.add_argument("--emit-spells", action="store_true",
                     help="regenerate port/char_spells.inc from LOF.EXE")
     ap.add_argument("--emit-mp", action="store_true",
@@ -485,8 +466,6 @@ def main():
 
     if args.emit_items:
         emit_items(os.path.join(args.dir, "LOF.EXE"), "port/char_items.inc")
-    elif args.emit_itemuse:
-        emit_itemuse(os.path.join(args.dir, "LOF.EXE"), "port/char_itemuse.inc")
     elif args.emit_spells:
         emit_spells(os.path.join(args.dir, "LOF.EXE"), "port/char_spells.inc")
     elif args.emit_mp:

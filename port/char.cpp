@@ -8,7 +8,6 @@
 namespace lofport {
 
 #include "char_items.inc"
-#include "char_itemuse.inc"
 #include "char_spells.inc"
 #include "char_magic.inc"
 #include "char_names.inc"
@@ -222,6 +221,7 @@ const std::vector<ItemRecord>& items() {
             r.f3 = kItemFields[i][3];
             r.charges = static_cast<uint8_t>((kItemFields[i][3] >> 8) & 0xff);
             r.f4 = kItemFields[i][4];
+            r.spell = static_cast<uint8_t>(kItemFields[i][4] & 0xff);
             r.damage = static_cast<uint8_t>((kItemFields[i][4] >> 8) & 0xff);
             r.f5 = kItemFields[i][5];
             r.f6 = kItemFields[i][6];
@@ -251,21 +251,52 @@ bool item_usable_by_class(int index, int prof) {
     return (it->f6 & (1 << prof)) != 0;
 }
 
-uint8_t item_use_flags(int item_index) {
-    if (item_index < 0 || (size_t)item_index >= kItemUseCount) return 0;
-    return kItemUse[item_index][0];
+uint8_t item_use_index(int item_index) {
+    const ItemRecord* it = item_by_index(item_index);
+    return it ? it->spell : 0;
 }
 
+// The use routine (image 0x0E59E) takes the item's spell index, looks the spell
+// up as `es:[spell*0x24 + 0x2712]` and reads its first parameter byte, which is
+// `spells()[spell-1].data[0]` (see the note in char.h).
+uint8_t item_use_flags(int item_index) {
+    const ItemRecord* it = item_by_index(item_index);
+    if (!it || it->spell == 0) return 0;
+    const SpellRecord* sp = spell_by_index(it->spell);
+    return sp ? sp->data[0] : 0;
+}
+
+// The handler at 0x0E59E takes the "cast" path only when the spell's first
+// parameter byte has one of bits 0/1/2 set (it tests `test al,3` then
+// `test al,4`); otherwise it prints "is not useful in this situation." (string
+// ds:0x5C52, loaded at image 0x0E1A9).  The routine separately clears that
+// verdict for **potions** (item class 9, tested at image 0x0E5C5/0x0E618), so a
+// potion is always usable regardless of its spell's parameter byte.
+//
+// A `spell == 0` non-potion reaches neither branch, so the engine's verdict
+// word is never written and the test at 0x0E5D5 reads uninitialised stack.  But
+// live play settles the outcome: using an ordinary item prints "is not useful
+// in this situation.", i.e. the engine treats it as not usable.  We return false
+// to match (see docs/notes-b.md; the G-003 watchlist item is resolved).
 bool item_is_usable(int item_index) {
-    uint8_t f = item_use_flags(item_index);
-    return (f & 3) == 0 && (f & 4) != 0;
+    const ItemRecord* it = item_by_index(item_index);
+    if (!it) return false;
+    if (it->item_class == 9) return true;  // potions bypass the gate
+    return (item_use_flags(item_index) & 0x07) != 0;
+}
+
+const SpellRecord* item_spell(int item_index) {
+    const ItemRecord* it = item_by_index(item_index);
+    if (!it || it->spell == 0) return nullptr;
+    return spell_by_index(it->spell);
 }
 
 void dump_item_use(FILE* out) {
-    for (size_t i = 0; i < kItemUseCount; i++) {
-        const ItemRecord* it = (i == 0) ? nullptr : item_by_index((int)i);
-        std::fprintf(out, "  %3zu %-18s flags=0x%02x%s\n", i,
-                     it ? it->name.c_str() : "(none)", kItemUse[i][0],
+    for (size_t i = 1; i <= kItemCount; i++) {
+        const ItemRecord* it = item_by_index((int)i);
+        if (!it) break;
+        std::fprintf(out, "  %3zu %-18s spell=%-3u gate=0x%02x%s\n", i,
+                     it->name.c_str(), it->spell, item_use_flags((int)i),
                      item_is_usable((int)i) ? "  [usable]" : "");
     }
 }
