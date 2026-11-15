@@ -182,6 +182,39 @@ void Machine::port_write_byte(uint16_t p, uint8_t b) {
     }
 }
 
+// ------------------------------------------------------- px watchpoint -----
+// LOF_PXWATCH=X,Y logs the cs:ip that writes the EGA byte(s) covering viewport
+// pixel (X,Y), with the pre-write plane bytes.  This is the fastest way to find
+// "which code draws this pixel" without a zero-file trick.
+void Machine::pxwatch(uint32_t off, uint8_t v) {
+    static long wx = -1, wy = -1, limit = -1;
+    static long hits = 0;
+    if (wx < 0 && wy < 0) {
+        const char* e = getenv("LOF_PXWATCH");
+        if (!e) { wx = wy = -2; return; }          // disabled sentinel
+        long a = 0, b = 0;
+        if (sscanf(e, "%li,%li", &a, &b) != 2) { wx = wy = -2; return; }
+        wx = a; wy = b;
+        const char* l = getenv("LOF_PXWATCH_N");
+        limit = l ? atol(l) : 8;
+        fprintf(stderr, "[pxwatch] watching viewport pixel (%ld,%ld), limit=%ld\n", wx, wy, limit);
+    }
+    if (wx < 0 || hits >= limit) return;
+    // EGA 320x200: 40 bytes/row, 8 pixels/byte, MSB leftmost.
+    int w = ega.width();
+    if (!ega.graphics() || wx >= w || wy >= ega.height()) return;
+    int bytecol = (int)wx >> 3;
+    if (wy < 0) return;
+    if (off != (uint32_t)((int)wy * 40 + bytecol)) return;
+    int bit = 7 - ((int)wx & 7);
+    fprintf(stderr, "[pxwatch] #%ld px(%ld,%ld) off=%04X bit=%d <- %02X by %04X:%04X @%llu"
+                    " planes=%02X %02X %02X %02X\n",
+            hits, wx, wy, off, bit, v, cpu.cs, cpu.ip,
+            (unsigned long long)instr_count,
+            ega.plane[0][off], ega.plane[1][off], ega.plane[2][off], ega.plane[3][off]);
+    hits++;
+}
+
 // --------------------------------------------------------------- stack -----
 void Machine::push16(uint16_t v) { cpu.sp -= 2; ww(((uint32_t)cpu.ss << 4) + cpu.sp, v); }
 uint16_t Machine::pop16() { uint16_t v = rw(((uint32_t)cpu.ss << 4) + cpu.sp); cpu.sp += 2; return v; }
