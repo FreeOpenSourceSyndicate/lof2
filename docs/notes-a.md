@@ -1791,3 +1791,42 @@ this is the composed corridor (BLK-A003), where `DP067` is only a partial fit.
 The port falls back to `DP001` there; a better fallback would be `DP067`, but it
 still would not be pixel-exact. No change made (it would be a guess, not
 decompilation-grounded).
+
+## Round 35 — view routine fully decoded; loader identified
+
+Decoded the remaining helpers the view routine (img 0x3B72) calls, closing the
+"is there a hidden second draw path?" question for the *viewport sprite*:
+
+- `lcall 0x18d,0x1c0` (img 0x1A90) is a **CRTC/status retrace wait** (`in al,0x3da`
+  / `in al,0x3ba` polling) — no drawing.
+- `call 0x30f6` / `call 0x312e` (img 0x30F6/0x312E) are **register save/restore**
+  (AX,BX,CX,DX,BP,ES,DS,SS,SI,DI,FLAGS to `cs:[0x180e..0x1824]`).
+- `lcall 0x18d,0x1204` (img 0x2AD4) is a **rectangle plane-copy** (a `rep movsb`
+  loop over 4 planes) — it moves the just-blitted window, it does not draw the
+  corridor.
+
+So the viewport draw is exactly: fill ceiling rect `(0x0a,0x0b)-(0x81,0x82)`,
+fill floor rect `(0x05,0x87)-(0x85,0xbf)`, blit `table[mode]`, plane-copy. The
+corridor (BLK-A003) is therefore **not** produced by this routine at all — it
+must come from the tile-renderer path the view routine drives indirectly, not
+from a sprite blit. (This confirms Round 30/32/33 from the other direction.)
+
+### The sprite loader (img 0x1F87, reached via `call 0x06a8`-style call)
+
+```
+call 0x226c              ; open file -> handle
+cs:[0x688] = handle
+ah=42 al=02 int21        ; seek END -> DX:AX = size; cs:[0xa1c] = size (low word)
+ds = cs:[0x35a2]         ; source segment (set by caller)
+ah=42 al=00 int21        ; seek START
+ah=3f cx=0x80e8 dx=0     ; read 33000 bytes into ds:0
+ah=3e int21              ; close
+call 0x22f2              ; RLE-decode the 33000-byte buffer
+cs:[0x68a]++             ; file index counter (preload order)
+```
+
+The preloader opens the `ega\d5\dpNNN` files in **table order** (observed:
+dp001, dp014, dp015, ... dp060, dp067, dp068, dp069), one per frame, so each of
+the 6 cache segments ends up holding its table entry. This explains why the
+cache segments are in flux across frames and why a single-frame dump can catch
+one mid-load (header not yet written).
