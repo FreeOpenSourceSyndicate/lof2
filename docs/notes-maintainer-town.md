@@ -1009,3 +1009,34 @@ the pointer passed to the string drawer — and that pointer is computed (no
 the image).  Remaining lane-M task: trace the callers of the town routine
 (`image 0xC22B`) with GAME4 loaded and find where `0x5A39 + idx*7` is formed.
 `port/lof.cpp compose_town_screen()` still hardcodes `"Thyn."`.
+
+### G-001 recon for the next session (2026-11-15, incoming maintainer)
+
+Static groundwork done before the live trace, to save time tomorrow:
+
+- **The string drawer is `image 0x2F78`** (far-called `lcall 0x18d,0x16a8`;
+  segment `0x18d` is the loader's). Its prologue (`push cx; push bx; pop es;
+  push si; mov si,ax`) shows it takes the **string offset in AX** (-> SI), a
+  segment via BX -> ES, and a further argument pushed deepest-first (`push ax`
+  = arg, then `push ds`, then `push off`, then `lcall`).
+- The stub at **`0xC22B`** draws the fragments `0x5A31` ("town of") then
+  `0x5A4C` ("ich building do you want to visit?"), then `jmp 0xC02C`. The
+  preceding bytes `0xC02C…` draw `0x59BA` (" visit the ") and `0x590F` (the
+  Count's-audience text) — so `0xC22B` is a branch inside a larger routine, not
+  a standalone one.
+- **The name (`0x5A39` "Thyn." / `0x5A40` "Cyldane.") is NOT among these
+  pushes**, and no `mov ax,0x5a39/0x5a40` exists; the word `0x5A39` appears zero
+  times in the image. So the name is drawn by a *different* call whose offset is
+  computed. The two names are 7 and 10 bytes long (`"Thyn. \0"` vs
+  `"Cyldane. \0"`), so a fixed `base + idx*7` stride is unlikely — prefer a
+  pointer selected by the town index. (The `push ax` at `0xC22B` is a *shared*
+  argument used by all the fragment calls, most likely a screen/attribute
+  argument, so the name is not simply AX-on-entry to that stub.)
+- **Do the live trace next:** `LOF_CMDLEN=3 LOF_NO_TIMER=1
+  LOF_KEYAUTO=0x18,0x05,0x48 LOF_KEYGAP=50 ./lof-native --dir game --headless
+  --frames 1200` (slot 4 = Cyldane) and the slot-2 variant (`0x18,0x03,0x48`,
+  Thyn). Watch for the draw call whose **AX** equals `0x5A39` (Thyn) vs `0x5A40`
+  (Cyldane); the routine that forms that AX is the selector. The new
+  `LOF_DUMP=path,seg:off:len` hook can dump the code segment around the suspect
+  call, and a conditional pixel watch (`LOF_PXWATCH`) can catch the draw. Then
+  pass the selected name into `compose_town_screen()` instead of the hardcode.
