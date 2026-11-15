@@ -15,6 +15,38 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 | BLK-A002 | A (dungeons) | Maintainer | Medium | **Resolved** (2026-11-12) | — |
 | BLK-A003 | A (dungeons) | Agent A | Medium | **Resolved** (2026-11-08) | — |
 | BLK-A004 | A (dungeons) | Maintainer | Medium | Open | — |
+| BLK-A005 | A (dungeons) | Agent A | Medium | Open | — |
+
+---
+
+## BLK-A005 — encounter id (`es:[0x259]`) producer rule not yet derived
+
+- **Blocked lane:** A (dungeons)
+- **Responsible:** Agent A
+- **Priority:** Medium
+- **Status:** Open
+- **Dependencies:** —
+
+**Description & unblock action.** The consumer half of the encounter-sprite
+mechanism is fully decoded and delivered (`dungeon_encounter_sprite`): given the
+party's encounter id, `NSC<dd>[id].+0x48` -> `ega\char<B>\ch<NN>`. What is *not*
+yet pinned is the **producer** that sets `es:[0x259]` at map entry (id 16 for the
+Temple spawn). The routine at `img 0x276CA` is a strong candidate — it reads the
+party map cell (`es:[0x4612]`/`es:[0x4613]`), walks the `NSC<dd>` records
+(stride `0x11a`) testing `+0x39` (present) and `+0x2c`, and writes `es:[0x259]`
+(`img 0x27A6A`) — but a boot capture shows it does **not** run (`LOF_TRACE_IP`
+0x377CA: 0 hits), so either it is a different (combat) path or it runs under a CS
+the trace does not match. Note also that id 16 is *not* a plain "record whose
+placement byte `+0x44` == the party cell 125" lookup (that would be records 60-62,
+Priests), so the id depends on state the producer builds. Unblock by tracing and
+decoding the producer's `+0x39`/`+0x2c` selection (and the `es:[0x54]` level
+table) so the drop-in can pick the sprite for an arbitrary walk move without the
+emulator. Until then the play view keeps the `DP001` fallback. Detail:
+`docs/notes-a.md` Rounds 45-46.
+
+**Log.** 2026-11-08 Agent A (Rounds 45-46) — consumer traced end to end
+(id 16 -> NSC05[16].+0x48=25 -> CHAR2/CH25 == spawn viewport); the producer is
+unlocated.
 
 ---
 
