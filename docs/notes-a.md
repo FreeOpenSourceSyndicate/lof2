@@ -1963,3 +1963,31 @@ no procedural composite and no side-piece selection to reverse; the view is one
 `CHAR2/CHnn` (or `DPnnn`) blit. Port work remaining is a small table
 `(room-index -> CHnn)` plus the existing `render_dungeon_view` blit, which is a
 lane-A code change, not a reverse-engineering task.
+
+## Round 40 — the room-art view composition (partial)
+
+Re-captured the corridor (DNG05 ahead cell (17,4)=0) and depth-2 ((17,5)=6)
+frames and aligned `CHAR2/CH25`/`CH40` onto them.
+
+**Fixed blit offset.** `CHAR2/CH25` (120x119) lands on the screen at (-14,28),
+i.e. viewport (-24,17); the top CH25 rows (0-3) and left columns fall off the
+screen. At that offset 4480/4941 = 90.7% of CH25's ink is colour-exact.
+
+**Row structure of the residual.** Per-CH25-row match:
+- rows 4-36 and row 100: **100%** colour-exact.
+- rows 38-98: a **horizontal band of mismatch that widens to the left as y
+  grows** (the `XXXXX` wedge in the diff map) — i.e. the engine overwrites that
+  region with its own draw, leaving CH25 visible only to the right.
+- rows 104-106: the engine draws over CH25 (the diff shows a solid band).
+
+So the engine's open-cell view = **blit `CHAR2/CHnn` at a fixed offset, then
+paint a wedge/band** (the side-wall + far-wall geometry) over part of it. This is
+the same `render_dungeon_view` rect-fill structure decoded in Round 35; the
+"middle image" it paints is not yet identified.
+
+**Data quirk:** `EGA/CHAR2/CH25` and `EGA/CHAR1/CH26` are **byte-identical**
+(same 4039-byte file). So the CH number alone does not pin the bank; the engine's
+room routine always reads `CHAR2` (Round 38-39), so `CHAR1` is a duplicate/alias.
+
+Status: the blit offset and the band-occlusion structure are known; the exact
+occlusion polygon (and whether the far-wall art is a second sprite) remains open.
