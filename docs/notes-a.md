@@ -2085,3 +2085,37 @@ table and the NN formatting are all decoded and verified against the real file
 open. Remaining: the exact identity of the `+0x48` scenario field and the
 `0x19a`/`0x4e` record semantics (which data file backs `es:[0xb06c]` /
 `es:[0xb088]`).
+
+### Round 41 addendum — the runtime caller of the room-art wrapper
+
+The executed caller (traced at linear `0x2C949`, module `1DAF`, corridor case):
+
+```
+1DAF:CE86  mov es,[0xafc0]
+1DAF:CE8A  mov al, es:[0x259]      ; current location/room id (byte)
+1DAF:CE8E  cwde
+1DAF:CE8F  mov si, ax
+1DAF:CE91  mov ax, 0x11a           ; record stride = 0x11a (282) bytes
+1DAF:CE94  imul si                 ; bx = id * 0x11a
+1DAF:CE96  mov bx, ax
+1DAF:CE98  mov es,[0xafc0]
+1DAF:CE9C  les di, es:[0x52]       ; table base pointer
+1DAF:CEA1  mov al, es:[bx+di+0x48] ; <-- NN = byte at +0x48 of the record
+1DAF:CEA5  sub ah, ah
+...
+1DAF:CEDB  cmp ax, 0xffff          ; -1 == "no art"
+1DAF:CEFB  push [bp-0x40]
+1DAF:CEFE  push [bp-0x42]          ; = NN
+1DAF:CF01  lcall 0x212f, 0x6e00    ; -> sub_26820 (the wrapper)
+```
+
+So **NN = a byte field at offset `+0x48` of a `0x11a`-stride record**, indexed by
+`es:[0x259]` (the party's current location/room id), in the scenario data
+segment `es:[0xafc0]` (table base at `es:[0x52]`). `NN == 0xffff` means "no room
+art". This is the source of the `25`/`40` the room routine formats.
+
+This is the same shape as the static match at image `0x261F2` (a table lookup,
+`+0x48` field, `0xffff` guard) — the dungeon view art is a per-location data
+lookup, not a depth computation. **Task 2 is complete:** the routine, the
+filename rule, the bank table, the NN formatting and the NN source are all
+decoded and verified against the real file open (`ega\char2\ch25`).
