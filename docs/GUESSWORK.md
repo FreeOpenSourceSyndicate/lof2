@@ -149,15 +149,29 @@ How to use each section:
 
 ## E. Known non-determinism (not a guess)
 
-### RNG seeded from the BIOS tick counter (Lane B / combat)
+### RNG seeded once from `INT 1Ah` — fully decoded, and the oracle is deterministic
 
-- **Fact:** the engine seeds its generator from `INT 1Ah` (TIME): `analysis/lof.asm`
-  image `0x47A6` does `int 0x1a` then `add cx,dx` as the seed. Enemy
-  placement/movement is therefore non-reproducible **by design**.
-- **Consequence:** combat cannot be pinned to a bit-exact golden frame; any
-  combat oracle must inject a fixed seed. This is **not** a guess — the algorithm
-  is in the decompilation — it is listed so no agent mistakes the randomness for
-  underived behaviour.
+- **Fact (decoded from the decompilation, 2026-11-16):** the engine's generator
+  is the **classic MSVC `rand()` LCG**: `state = state*0x343FD + 0x269EC3` and
+  `rand()` returns `(state >> 16) & 0x7FFF` (`analysis/lof.asm` image `0x30ECC`
+  is `rand`, `0x30EBA` is `srand` = store the seed in `state`, `0x2D73A` is a
+  `rand_range(lo,hi)` wrapper). It is seeded **exactly once**, at startup:
+  image `0x3E` (`lcall 0x18d,0x2ed1`) reads the BIOS clock (`0x47A6`: `int 0x1a`
+  then `add cx,dx`) and passes the sum to `srand` (`lcall 0x2f0e,0x1dda`). There
+  is **one** `srand` call site and **one** `rand()` call site in the image.
+- **Consequence:** enemy placement/movement is a pure function of that single
+  seed — it is *not* irreducible per-frame randomness. With the seed pinned, a
+  combat frame is bit-exact and reproducible.
+- **Emulator status:** the old `INT 1Ah` handler left `CX:DX` as whatever the
+  caller held, so the seed was an accidental (but reproducible) `0x000B`. The
+  handler now returns that value **explicitly** and honours `LOF_TICK=<n>` to
+  choose a different seed. Verified: 6/6 runs identical, with and without
+  `LOF_NO_TIMER`, across clock hours; `tests/golden_test.sh` stays green.
+- This is **not** a guess — the algorithm is in the decompilation — it is listed
+  so no agent mistakes the randomness for underived behaviour. (An earlier
+  version of this entry claimed combat "cannot be pinned to a bit-exact golden
+  frame"; that was wrong — it was a measurement artefact of running emulators
+  concurrently, not the game.)
 
 ---
 
