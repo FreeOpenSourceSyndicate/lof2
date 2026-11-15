@@ -596,10 +596,16 @@ static void test_base_view(const std::string& dir) {
 // path helper and that the sprite loads and renders at the viewport.
 static void test_room_art(const std::string& dir) {
     std::string root = dir + "/..";
+    // The routine branches on the number: < 0x16 selects CHAR3 (which is the
+    // bank that actually holds CH00..CH21), >= 0x16 takes the runtime bank
+    // (CHAR2 for the DNG05 spawn, CH22..CH74).  Verified: NN=5 opens
+    // ega\char3\ch05; NN=25 opens ega\char2\ch25.
     assert(dungeon_room_art_path(root, 25) == root + "/EGA/CHAR2/CH25");
     assert(dungeon_room_art_path(root, 40) == root + "/EGA/CHAR2/CH40");
-    assert(dungeon_room_art_path(root, 1) == root + "/EGA/CHAR2/CH01");
-    assert(dungeon_room_art_path(root, 7) == root + "/EGA/CHAR2/CH07");
+    assert(dungeon_room_art_path(root, 1) == root + "/EGA/CHAR3/CH01");
+    assert(dungeon_room_art_path(root, 7) == root + "/EGA/CHAR3/CH07");
+    assert(dungeon_room_art_path(root, 21) == root + "/EGA/CHAR3/CH21");
+    assert(dungeon_room_art_path(root, 22) == root + "/EGA/CHAR2/CH22");
 
     // The measured DNG05 room-art numbers must load and render, and the render
     // must be non-empty (the blit put pixels down) and stable (re-rendering the

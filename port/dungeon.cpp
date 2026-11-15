@@ -286,8 +286,15 @@ std::string dungeon_view_path(const std::string& dir, int dungeon, int index) {
 }
 
 std::string dungeon_room_art_path(const std::string& dir, int ch) {
+    // The room routine branches on the number: `cmp ax, 0x16 / jge big`, so a
+    // number below 22 always selects the CHAR3 bank (verified: NN=5 opens
+    // ega\char3\ch05).  Numbers >= 22 take the bank digit from the runtime table
+    // cs:[0x2a3e] indexed by cs:[0x240e]; that index is context-supplied and is
+    // 5 (-> '2', CHAR2) for the DNG05 spawn, so 2 is used here as the measured
+    // value.  See docs/notes-a.md Rounds 42-43.
+    const int bank = (ch < kRoomArtSmallThreshold) ? 3 : 2;
     char buf[32];
-    std::snprintf(buf, sizeof(buf), "/EGA/CHAR2/CH%02d", ch);
+    std::snprintf(buf, sizeof(buf), "/EGA/CHAR%d/CH%02d", bank, ch);
     return dir + buf;
 }
 

@@ -192,6 +192,11 @@ constexpr int kRoomArtDiskStride = 78;
 constexpr int kRoomArtRecordStride = 0x11A;
 constexpr int kRoomArtField = 0x48;
 
+// The room routine branches on the room-art number: a number below this selects
+// the CHAR3 bank, otherwise the bank comes from the runtime table (CHAR2 for the
+// DNG05 spawn).  The threshold is the routine's `cmp ax, 0x16` literal.
+constexpr int kRoomArtSmallThreshold = 0x16;
+
 // Blit the dungeon view sprite at `sprite_path` into `scr` at (vx,vy).  Returns
 // false (leaving `scr` untouched) if the image cannot be loaded.  This is the
 // engine's real model: a full-colour sprite blit, not a projection.

@@ -2167,3 +2167,38 @@ number. `tests/dungeon_test.cpp::test_room_art` asserts the measured values
 the final blit (the room routine's `ax < 0x16` branch and the two pointer tables
 `cs:[0x7e2]`/`cs:[0x7f2]`), and the meaning of the remaining ~200 bytes of the
 in-memory 282-byte record.
+
+## Round 43 — the room routine's branch and bank rule, verified
+
+Round 41 gave the routine's shape; reading `img 0x431E` (`119D:2A4E`) opcode by
+opcode pins it exactly, and the path template is now located:
+
+- **Template.** `ega\char0\ch00` is a literal in the image at **img `0x36759`**
+  (`"...ook\0ega\char0\ch00\0\xff\xff"`). The routine writes the bank digit into
+  the buffer's offset +8 and the two NN digits into +12/+13 (via the `itoa`
+  helper `call 0x4fbb`, which fills `cs:[0x36de]`/`cs:[0x36df]`).
+- **Branch on NN** (`call 0x5008` returns the arg = NN):
+  ```
+  cmp ax, 0x16
+  jge big
+  ; NN < 22:  bank digit byte [0x5561] = 0x33 ('3')  -> ega\char3\chNN
+  big:
+  ; NN >= 22: bx = cs:[0x240e]<<1
+  ;           byte [0x5561] = cs:[bx+0x2a3e] + 0x30  (bank digit from table)
+  ```
+  The bank table `cs:[0x2a3e]` (img `0x430E`) is `[0,1,1,1,1,2,2,2,...]`, so
+  with the measured index `cs:[0x240e] = 5` the digit is `'2'` -> `ega\char2`.
+- **Verified causally.** Patched `NSC05` rec16 `+0x48` (NN) to **5** and re-ran:
+  the emulator opened **`ega\char3\ch05`**. NN=25 gives `ega\char2\ch25`. So the
+  `NN < 0x16` branch is real and selects the `CHAR3` bank.
+- **The bank index is independent of NN.** `cs:[0x240e]` is *written* by a
+  setter at img `0x3CE0` (`call 0x5008; mov cs:[0x240e],ax`) from its own
+  argument (and reset to 0 at img `0x3DD0`), and read by the room routine (img
+  `0x432E`/`0x4346`) and several other sites. So the full selection is
+  `(bank_index, NN) -> ega\char<B>\ch<NN>`, with NN from `SYST/NSC<dd> +0x48`
+  and the bank index supplied separately. `dungeon_room_art_path` currently
+  fixes the bank at `CHAR2` (the value observed for the DNG05 spawn); threading
+  the bank index through is the remaining lane-A step.
+- **Pointer-table stores** (`cs:[0x7e2]`/`cs:[0x7f2]` -> `cs:[0x2bae]`) are the
+  GFA/VB runtime's active-pointer bookkeeping, not a second sprite bank; the
+  only bank effect is the path byte at +8.
