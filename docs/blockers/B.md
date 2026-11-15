@@ -14,6 +14,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
 | BLK-B001 | B (characters/items) | Maintainer | High | Resolved | — |
 | BLK-B002 | B (characters/items) | Maintainer | Medium | Resolved | BLK-B001 |
 | BLK-B003 | B (characters/items) | Agent B | Medium | Resolved | — |
+| BLK-B004 | B (characters/items) | Maintainer | Medium | Open | — |
 
 ---
 
@@ -118,3 +119,34 @@ ordinary item prints "is not useful in this situation.", so `item_is_usable()`'s
 `false` default matches the engine. The same report grounded item effect 34
 (lantern: consumes oil, "make light"). G-004 narrowed to the effect values the
 engine never tests.
+
+## BLK-B004 — Ground the combat action dispatcher (round resolution)
+
+- **Blocked lane:** B (characters/items)
+- **Responsible:** Maintainer
+- **Priority:** Medium
+- **Status:** Open (2026-11-08)
+- **Dependencies:** —
+
+**Description & unblock action.** The encounter *screen* is now grounded (see
+`docs/notes-b.md`, "Encounter / combat screen"): the intro variants, the four
+`(A)ttack`/`(G)reet`/`(T)alk`/`(W)ithdraw` choices, the group count/rank line
+(`combat_group_line`) and the melee/withdraw round-table headers all match the
+first wilderness encounter (`ref/oracle/combat.png`, pixel-identical). The
+enemy source is `SYST/NSC00` (`monster_roster`).
+
+What remains is the action **dispatcher** and round resolution: which handler
+each menu choice runs, how a round resolves, and how the round-result table is
+filled. Those routines live in the image's code segment and reach their strings
+through segment-relative pointers, so a plain immediate scan of
+`analysis/lof.asm` finds the strings but not the branching. Unblock by exposing
+a combat-round debug dump from the emulator — e.g. dump the resolved
+per-character action/target bytes (char struct `+0x0e`/`+0x0f`) and the round
+table rows after a scripted round — the same way `LOF_I21`/`LOF_EDUMP` grounded
+SPEC/ROST. Then B can pin the dispatcher against real state.
+
+Note (repo owner): combat is not reproducible from a save alone — enemies are
+generated on load and move randomly — so the dump must pin the RNG seed (see
+`docs/GUESSWORK.md` "RNG seeded from the BIOS tick counter"). The deterministic
+`LOF_NO_TIMER=1` + `LOF_KEYAUTO=...` path reaches the encounter but does not yet
+drive a round.
