@@ -642,6 +642,14 @@ static void test_room_art(const std::string& dir) {
     assert(dungeon_room_art_number(root, 5, -1) == -1);
     // A missing scenario file is reported, not guessed.
     assert(dungeon_room_art_number(root, 99, 0) == -1);
+
+    // The convenience resolver maps (scenario, location) straight to the sprite
+    // path the play view blits, applying the bank rule.
+    assert(dungeon_encounter_sprite(root, 5, 16) == root + "/EGA/CHAR2/CH25");
+    assert(dungeon_encounter_sprite(root, 5, 0) == root + "/EGA/CHAR2/CH26");
+    assert(dungeon_encounter_sprite(root, 5, 18) == root + "/EGA/CHAR3/CH05");
+    assert(dungeon_encounter_sprite(root, 99, 0).empty());
+    assert(dungeon_encounter_sprite(root, 5, 9999).empty());
     std::printf("dungeon_test: room-art number from SYST/NSC05 verified\n");
 }
 

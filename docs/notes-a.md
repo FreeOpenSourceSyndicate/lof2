@@ -2258,3 +2258,40 @@ and still correct. What was wrong was the *interpretation* (room vs creature).
 `img 0x27780` (the `+0x2c` level test and the map-cell lookup through
 `es:[0x54]`), which is what a drop-in needs to pick the sprite for a walk move
 without the emulator. Until then the play view keeps the `DP001` fallback.
+
+## Round 46 — the id->sprite mechanism, end to end (and what is left)
+
+Full chain, now traced in both directions:
+
+1. **Producer** (`img 0x276CA`, the routine R): reads the party's map cell
+   (`es:[0x4612]`/`es:[0x4613]`, segment `ds:[0xb08a]`), walks the `NSC<dd>`
+   records (stride `0x11a`), tests `+0x39` (present flag) and `+0x2c` (an
+   ordering/level key) against the current context, and writes the selected
+   record's id into the party's `es:[0x259]` (`img 0x27A6A`) together with
+   `es:[0x25a]` (from the record's `+0x4c`) and `es:[0x25d]`.
+2. **Consumer** (`img 0x1A876`): `al = es:[0x259]`; `si = al * 0x11a`;
+   `al = es:[di + si + 0x48]` where `di = es:[0x52]` (the record table base).
+   That byte is the sprite number. It caches it in `[bp-0x42]` and, when it
+   changes, calls the loader (`lcall 0x212f:0x6e00`).
+3. **Sprite**: the loader formats `ega\char<B>\ch<NN>`; `B` is 3 for `NN < 0x16`
+   and the runtime bank (2 at the DNG05 spawn) otherwise. So `NSC05[16].+0x48 =
+   25` -> `ega\char2\ch25`, exactly the file the emulator opens and the sprite
+   whose 4941 ink pixels equal the Temple-spawn viewport.
+
+Records are named creatures, so `+0x48` is a per-record **creature sprite**
+(NSC05: Lizard warrior -> 25, Lizard priest -> 26, Priest -> 5, Orc -> 41, ...).
+
+**Still open (lane A).** The producer's `position -> record id` rule is not yet
+pinned: at the Temple spawn `es:[0x259] = 16` and `NSC05[16]` is a Lizard warrior
+(`+0x2c=3`, `+0x44=65`), while the only records whose placement byte `+0x44`
+equals the spawn cell 125 are 60-62 (Priest, `+0x2c=5`, sprite 5). So the id is
+*not* a plain "record whose placement cell == party cell" lookup — it depends on
+the runtime record array R builds (with the `+0x39`/`+0x2c` tests), which needs
+the encounter state. Until that rule is derived the play view cannot pick the
+sprite for an arbitrary walk move without the emulator, so it keeps the `DP001`
+fallback.
+
+**Delivered for the drop-in.** `dungeon_encounter_sprite(dir, scenario, location)`
+returns the exact sprite path for a known id (test covers 16->CHAR2/CH25,
+0->CHAR2/CH26, 18->CHAR3/CH05, and the error cases). The play view needs only the
+id; the mechanism it feeds is complete.

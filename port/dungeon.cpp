@@ -299,6 +299,13 @@ std::string dungeon_room_art_path(const std::string& dir, int ch) {
     return dir + buf;
 }
 
+std::string dungeon_encounter_sprite(const std::string& dir, int scenario,
+                                     int location) {
+    int ch = dungeon_room_art_number(dir, scenario, location);
+    if (ch < 0) return {};
+    return dungeon_room_art_path(dir, ch);
+}
+
 int dungeon_room_art_number(const std::string& dir, int scenario, int location) {
     if (location < 0) return -1;
     char buf[32];

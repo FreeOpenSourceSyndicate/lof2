@@ -242,6 +242,17 @@ std::string dungeon_room_art_path(const std::string& dir, int ch);
 // room-art number (0..255), or -1 if the file or record is unavailable.
 int dungeon_room_art_number(const std::string& dir, int scenario, int location);
 
+// The first-person sprite for the party's current position on a scenario.
+// The engine resolves this as `NSC<dd>[location].+0x48` -> `ega\char<B>\ch<NN>`
+// (Rounds 38-45): `scenario` is the map id digits (`NSC05` pairs with `DNG05`)
+// and `location` is the party's encounter/location id (`es:[0x259]` in the
+// engine; 16 at the Temple spawn).  Returns the sprite path, or an empty string
+// if the scenario file or record is unavailable.  Deriving `location` from a
+// save without the emulator is the open lane-A question (docs/notes-a.md
+// Round 45); callers that already have the id use this directly.
+std::string dungeon_encounter_sprite(const std::string& dir, int scenario,
+                                     int location);
+
 // The view directory name for a map id: `D<ones-digit>` (see dungeon_view_path).
 std::string dungeon_view_dir(int dungeon);
 
