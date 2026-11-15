@@ -303,6 +303,15 @@ FACING_OFF, FACING_N, FACING_REC = 0x422F0, 4, 22   # compass heading line
 TIMEOFDAY_OFF, TIMEOFDAY_N, TIMEOFDAY_REC = 0x42348, 8, 22  # clock line
 NAME_REC = 12
 
+# Combat / encounter strings.  All are packed (NUL-terminated, no fixed stride)
+# in the image's data segment; the encounter screen and the round-result table
+# index them directly.  Grounded by the emulator's own read of `SYST/NSC00`
+# during the first wandering-monster encounter (see docs/notes-b.md).
+COMBAT_INTRO_OFF, COMBAT_INTRO_N = 0x490BD, 4     # how the enemy is met
+COMBAT_ACTIONS_OFF, COMBAT_ACTIONS_N = 0x49143, 4  # the four menu choices
+COMBAT_ROUND_HDR_OFF, COMBAT_ROUND_HDR_N = 0x48D2D, 3   # melee round table
+COMBAT_WITHDRAW_HDR_OFF, COMBAT_WITHDRAW_HDR_N = 0x49048, 3  # withdraw table
+
 
 def _fixed_names(d, off, n, rec=NAME_REC):
     return [d[off + i * rec:off + i * rec + rec]
@@ -346,6 +355,14 @@ def emit_names(exe_path, out_path):
          _fixed_names(d, FACING_OFF, FACING_N, FACING_REC)),
         ("kTimeOfDayNames",
          _fixed_names(d, TIMEOFDAY_OFF, TIMEOFDAY_N, TIMEOFDAY_REC)),
+        ("kCombatIntroNames",
+         _packed_names(d, COMBAT_INTRO_OFF, COMBAT_INTRO_N)),
+        ("kCombatActionNames",
+         _packed_names(d, COMBAT_ACTIONS_OFF, COMBAT_ACTIONS_N)),
+        ("kCombatRoundHeader",
+         _packed_names(d, COMBAT_ROUND_HDR_OFF, COMBAT_ROUND_HDR_N)),
+        ("kCombatWithdrawHeader",
+         _packed_names(d, COMBAT_WITHDRAW_HDR_OFF, COMBAT_WITHDRAW_HDR_N)),
     ]
     with open(out_path, "w") as f:
         f.write("// Legend of Faerghail character-generation name tables — "

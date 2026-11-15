@@ -87,6 +87,15 @@ if [ -f GAME4 ]; then
     say "[bootstrap] installed root GAME4 as save slot 4 (Cyldane)"
 fi
 
+# A GAME5 dropped at the repo root is the owner-supplied *dungeon* save (a full
+# six-character party standing in a dungeon where wandering monsters spawn, so
+# it is the reliable way to trigger combat).  It is not in the archive, so it
+# must be installed here or it is lost on a workspace reset.
+if [ -f GAME5 ]; then
+    cp -f GAME5 game/GAMES/GAME5
+    say "[bootstrap] installed root GAME5 as save slot 5 (dungeon, monsters spawn)"
+fi
+
 # --- 2. tooling -------------------------------------------------------------
 # The verification tests (`make golden-port`, `check.sh`) need Python numpy +
 # Pillow; the interactive front-end builds an SDL2 window when libsdl2-dev is

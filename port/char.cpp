@@ -519,6 +519,30 @@ std::vector<std::string> time_of_day_names() {
     return to_vec(kTimeOfDayNames, kTimeOfDayCount);
 }
 
+std::vector<std::string> combat_intro_names() {
+    return to_vec(kCombatIntroNames, kCombatIntroCount);
+}
+
+std::vector<std::string> combat_action_names() {
+    return to_vec(kCombatActionNames, kCombatActionCount);
+}
+
+std::vector<std::string> combat_round_header() {
+    return to_vec(kCombatRoundHeader, kCombatRoundHeaderCount);
+}
+
+std::vector<std::string> combat_withdraw_header() {
+    return to_vec(kCombatWithdrawHeader, kCombatWithdrawHeaderCount);
+}
+
+std::string combat_group_line(uint32_t count, const std::string& plural,
+                              uint32_t rank) {
+    char buf[128];
+    std::snprintf(buf, sizeof(buf), "%lu %s (Rnk %lu)",
+                  (unsigned long)count, plural.c_str(), (unsigned long)rank);
+    return buf;
+}
+
 std::vector<std::string> monster_names(const std::string& dir, int scenario) {
     std::vector<std::string> out;
     if (scenario < 0 || scenario >= kMonsterScenarioCount) return out;
@@ -526,6 +550,13 @@ std::vector<std::string> monster_names(const std::string& dir, int scenario) {
     std::snprintf(path, sizeof(path), "%s/SYST/NSC0%d", dir.c_str(), scenario);
     for (const SnsRecord& r : load_nsc(path)) out.push_back(r.singular);
     return out;
+}
+
+std::vector<SnsRecord> monster_roster(const std::string& dir, int scenario) {
+    if (scenario < 0 || scenario >= kMonsterScenarioCount) return {};
+    char path[64];
+    std::snprintf(path, sizeof(path), "%s/SYST/NSC0%d", dir.c_str(), scenario);
+    return load_nsc(path);
 }
 
 CharSeed sns_char_seed(const SnsRecord& rec) {
