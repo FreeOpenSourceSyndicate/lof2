@@ -2296,9 +2296,14 @@ fallback.
 verified against a known-executed IP (`img 0x208C` -> `0x13A5C`, 3 hits). With
 that, **neither** R (`img 0x276CA` -> `0x377CA`) **nor** the consumer above
 (`img 0x1A876` -> `0x2A976`) runs in the boot-to-Temple recipe — both are
-**walk/combat-path** code. So the boot entry draws the viewport through a
-different path; the mapping is established by the disassembly plus the sprite-ink
-match (viewport 4941 px == CH25), not by observing the consumer run.
+**walk/combat-path** code. The boot entry's viewport is drawn by a different
+routine in the same function: `img 0x1A3BF` pushes the constant `0x11` to the
+sprite loader (`lcall 0x212f:0x6e00`) and `img 0x1A37A` loops a 0..6 sprite
+set, i.e. **fixed art**, not the NSC lookup. (`SYST\NSC05` *is* opened at boot —
+`LOF_I21=1` shows `[3D open] 'SYST\NSC05'` at instr ~7.1M — but the id-driven
+sprite load is not on that path.) So the mapping stands on the disassembly of
+the consumer plus the sprite-ink match (viewport 4941 px == CH25), not on
+observing the consumer run.
 
 **Delivered for the drop-in.** `dungeon_encounter_sprite(dir, scenario, location)`
 returns the exact sprite path for a known id (test covers 16->CHAR2/CH25,
