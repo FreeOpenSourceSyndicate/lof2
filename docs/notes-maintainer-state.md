@@ -35,19 +35,31 @@ PRs, and finished the previous maintainer's interrupted open item.
   - The owner-supplied saves are secured as `ref/rost/ROST1.cheat` and
     `ref/rost/ROST2.banked` (also dropped at the repo root so `bootstrap.sh`
     restores them after a reset).
-  - **PR #110** (`work/maintainer-rost-checksum`) carries this; `make test` is
-    green. (Golden frames were still running at hand-off time — they are slow,
-    ~2–3 min/scenario, and unaffected by a docs/fixtures-only change.)
+  - **PR #110 MERGED** (lane M, `work/maintainer-rost-checksum`); `make test`
+    green and the port golden screens pass.
 - **No other open PRs** at session start (0 open). No blockers, no open owner
   tasks (`docs/OWNER-TASKS.md`: OT-001 Done).
+- **PR #111 MERGED** (lane M, `work/maintainer-g001-recon`): static groundwork
+  for the queued G-001 (the hardcoded town name). Established that the string
+  drawer is image `0x2F78`, that the `0xC22B` stub draws only the message
+  fragments, and that the town name (`0x5A39`/`0x5A40`) is drawn by a *computed*
+  call elsewhere. The next step is the Thyn-vs-Cyldane live trace; the concrete
+  recipe is in `docs/notes-maintainer-town.md` ("G-001 recon for the next
+  session"). No port code changed.
+- **`check.sh` is fully green** once `numpy`/`Pillow` are present (they are
+  installed by `bootstrap.sh`; the only failure this session was their absence
+  in the freshly-reset workspace — I installed them and re-ran `make golden-port`
+  and every port golden screen passed). **Run `./bootstrap.sh` first, every
+  session.**
 
 **Open / next (unchanged priorities):**
 
 - **G-001 (lane M, queued):** the town name `"Thyn."` is hardcoded in
   `compose_town_screen()`; the engine selects between `ds:0x5A39` ("Thyn.") and
-  `ds:0x5A40` ("Cyldane."). Trace the callers of the town routine `image 0xC22B`
-  with `GAME4` loaded. Full evidence in `docs/GUESSWORK.md` G-001 and
-  `docs/notes-maintainer-town.md`.
+  `ds:0x5A40` ("Cyldane."). The static recon is done (PR #111); the remaining
+  step is the Thyn-vs-Cyldane live trace — recipe in
+  `docs/notes-maintainer-town.md` ("G-001 recon for the next session") and
+  `docs/GUESSWORK.md` G-001.
 - **G-002 (lane M, watchlist):** the 16×16 patch at the town screen's top-left
   corner is engine-drawn (not any `EGA/**` asset); trace the town draw path.
 - **Building screens** (Emporium/Temple/Inn/Bank): the Emporium reads no new
