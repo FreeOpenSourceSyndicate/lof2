@@ -15,6 +15,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
 | BLK-B002 | B (characters/items) | Maintainer | Medium | Resolved | BLK-B001 |
 | BLK-B003 | B (characters/items) | Agent B | Medium | Resolved | — |
 | BLK-B004 | B (characters/items) | Maintainer | Medium | Open | — |
+| BLK-B005 | B (characters/items) | Agent B | Medium | Open | — |
 
 ---
 
@@ -150,3 +151,43 @@ generated on load and move randomly — so the dump must pin the RNG seed (see
 `docs/GUESSWORK.md` "RNG seeded from the BIOS tick counter"). The deterministic
 `LOF_NO_TIMER=1` + `LOF_KEYAUTO=...` path reaches the encounter but does not yet
 drive a round.
+
+## BLK-B005 — Implement the ROST per-record checksum in `port/char.cpp`
+
+- **Blocked lane:** B (characters/items)
+- **Responsible:** Agent B
+- **Priority:** Medium
+- **Status:** Open (2026-11-10)
+- **Dependencies:** —
+
+**Description & unblock action.** The previous maintainer's open item — the
+"integrity/checksum word" at record offset `0x19A` (410) — is now **decoded and
+verified** by lane M (the algorithm is *not* a guess; it is traceable to the
+decompilation and reproduces the stored trailer on 23/23 records). See
+`docs/notes-maintainer-rost.md` for the full derivation and disassembly.
+
+Summary: the 4-byte little-endian trailer after each 410-byte record is
+`checksum(rec[0..409])`, an alternating ADD/XOR fold with a carry:
+
+```
+acc = 1
+for i, c in enumerate(rec410):
+    if c == 0: c = 1
+    acc = (acc + c) if i % 2 == 0 else (acc ^ c)
+trailer = uint32(acc)     # routine asm 0x1BF18, far-called 0x1BF1:0x0008
+```
+
+The engine verifies it on load (asm `0x2A1E1`) and, on mismatch, writes the
+tamper marker `0xFC` into record byte `0x0C` (asm `0x2A1F6`); a later routine
+(asm `0xB0CB`) prints the "caught ... trying to fraud" message when it sees
+`0x0C == 0xFC`.
+
+`port/char.cpp::load_rost()` already parses `rec.tail` but never checks it.
+This is a lane-B task (the file is owned by Agent B), so it is filed here rather
+than implemented by lane M. Requested:
+
+1. Add `uint32_t rost_record_checksum(const uint8_t* rec410)` (algorithm above).
+2. In `load_rost()`, set an `intact` flag (`tail == checksum(raw)`) on the
+   record (and expose the `0x0C` byte if the tamper marker should be surfaced).
+3. Add a `tests/char_test.cpp` case against the committed fixtures
+   `ref/rost/ROST1.cheat`, `ref/rost/ROST2.banked` and `game/ROST/ROST`.
