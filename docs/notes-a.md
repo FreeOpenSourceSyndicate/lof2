@@ -2309,3 +2309,29 @@ observing the consumer run.
 returns the exact sprite path for a known id (test covers 16->CHAR2/CH25,
 0->CHAR2/CH26, 18->CHAR3/CH05, and the error cases). The play view needs only the
 id; the mechanism it feeds is complete.
+
+### Round 46b — what routine R actually computes (walk-path producer)
+
+Disassembly of R (`img 0x276CA`..`0x27A90`) shows it is a **proximity/encounter
+scan**, not a per-cell lookup:
+
+1. It clears an 18-entry list at `[bp-0x32]` (init `0xff`).
+2. It switches on the view mode `es:[0x4615]` (segment `ds:[0xb08a]`):
+   `2` -> window rows/cols `[0xc,6]`, `1` -> `[0,0x12]`, `3` -> `[6,6]`, and sets
+   the "home" row/col `[bp-0x13c]`.
+3. It reads the party cell bytes `es:[0x4612]`/`es:[0x4613]`, indexes the
+   `NSC<dd>` record table (`es:[0x52]`, stride `0x11a`) and tests each candidate
+   record's `+0x39` (present) and `+0x2c` (an ordering key) against the current
+   cell's record.
+4. The loop at `img 0x278B0` walks a window of cells around the party, keeps the
+   ones whose record passes `+0x39` and whose 32-bit field at `+0x52`/`+0x54`
+   exceeds the running step counter, and stores `(cellx,celly)` pairs into the
+   18-entry list.
+5. The epilogue writes the selected record id to `es:[0x259]` (`img 0x27A6D`),
+   plus `es:[0x25a]` from `+0x4c` and `es:[0x25d]`.
+
+So the id is the index of the **nearest qualifying creature record** to the
+party, which is why it is not derivable from a single static byte of the DNG or
+the save: it depends on the party cell, the view mode, and the record flags.
+Porting it faithfully is a self-contained job once a walk capture is available
+(BLK-A004); it is not a data-format question. The consumer it feeds is delivered.
