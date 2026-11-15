@@ -191,15 +191,17 @@ screen, and `make test` still passes.
       (nonzero → Thyn; `--save` chooses).  Guarded by `tests/port_town_test.py`
       (oracles `ref/oracle/town.png` + `ref/oracle/town_cyldane.png`).  G-001
       resolved.
-- [ ] Building screens (Emporium/Temple/Inn/Bank/…): the `shop`/`temple_bldg`
-      golden scenarios capture the Emporium/Temple; they are **fully drawn** at
-      the golden `--frames 1600` (the earlier "incomplete" note was wrong — it
-      inspected a 60-frame partial).  Same video mode as the town screen (EGA
-      `0Dh`; `LOF_DEBUG`'s `mode=13` is decimal).  The Emporium reads **no new
-      files** — it redraws from `ROST/ROST`+`ROST/SHOP`+built-in art, and the
-      ornate panel is **engine-drawn** (matches no `EGA/**` asset).  Next: decode
-      the panel's draw routine from the decompilation and implement it.  Oracle
-      `ref/oracle/shop.png`.  See `docs/notes-maintainer-town.md`.
+- [~] Building screens.  **Emporium (`--emporium`, `TWN01`), Bank (`--bank`,
+      `TWN02`) and House of trades (`--house`, `TWN04`) are DONE** and guarded by
+      `tests/port_building_test.py` (viewport + every text row pixel-exact vs
+      `ref/oracle/{emporium,bank,house}.png`).  They are the **same screen shape
+      as the town** — `MSCR` + the building's `TWN` tile at (10,11) + `CHR1` text
+      at x=139; there is **no ornate engine-drawn panel** (the earlier "ornate
+      panel" note was wrong — see `docs/notes-maintainer-town.md`, "Correction
+      2026-11-14").  **Remaining: the Inn and Temple**, which are *not* `TWN`
+      tiles but first-person **`D5` interiors** (walkable scenes; the intro even
+      ends inside the Inn) — so they belong with Lane A's viewport composite.
+      Golden scenarios `shop`/`temple_bldg` exist (`ref/oracle/shop.png`).
 - [ ] Dungeon subsystem (`DNGS/`) — workstream A.
 - [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — workstream B. **Unblocked:**
       the SPEC/ROST reads now happen in the oracle (`town` scenario), so B can
