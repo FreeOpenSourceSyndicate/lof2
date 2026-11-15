@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <ctime>
 #include <functional>
 #include <map>
@@ -179,6 +180,39 @@ void Machine::port_write_byte(uint16_t p, uint8_t b) {
         case 0x40: case 0x41: case 0x42: case 0x43: break;
         default: break;
     }
+}
+
+// ------------------------------------------------------- px watchpoint -----
+// LOF_PXWATCH=X,Y logs the cs:ip that writes the EGA byte(s) covering viewport
+// pixel (X,Y), with the pre-write plane bytes.  This is the fastest way to find
+// "which code draws this pixel" without a zero-file trick.
+void Machine::pxwatch(uint32_t off, uint8_t v) {
+    static long wx = -1, wy = -1, limit = -1;
+    static long hits = 0;
+    if (wx < 0 && wy < 0) {
+        const char* e = getenv("LOF_PXWATCH");
+        if (!e) { wx = wy = -2; return; }          // disabled sentinel
+        long a = 0, b = 0;
+        if (sscanf(e, "%li,%li", &a, &b) != 2) { wx = wy = -2; return; }
+        wx = a; wy = b;
+        const char* l = getenv("LOF_PXWATCH_N");
+        limit = l ? atol(l) : 8;
+        fprintf(stderr, "[pxwatch] watching viewport pixel (%ld,%ld), limit=%ld\n", wx, wy, limit);
+    }
+    if (wx < 0 || hits >= limit) return;
+    // EGA 320x200: 40 bytes/row, 8 pixels/byte, MSB leftmost.
+    int w = ega.width();
+    if (!ega.graphics() || wx >= w || wy >= ega.height()) return;
+    int bytecol = (int)wx >> 3;
+    if (wy < 0) return;
+    if (off != (uint32_t)((int)wy * 40 + bytecol)) return;
+    int bit = 7 - ((int)wx & 7);
+    fprintf(stderr, "[pxwatch] #%ld px(%ld,%ld) off=%04X bit=%d <- %02X by %04X:%04X @%llu"
+                    " planes=%02X %02X %02X %02X\n",
+            hits, wx, wy, off, bit, v, cpu.cs, cpu.ip,
+            (unsigned long long)instr_count,
+            ega.plane[0][off], ega.plane[1][off], ega.plane[2][off], ega.plane[3][off]);
+    hits++;
 }
 
 // --------------------------------------------------------------- stack -----
@@ -714,7 +748,25 @@ void Machine::do_int(uint8_t n) {
         case 0x21: dos_int(n); break;
         case 0x20: running = false; break;
         case 0x33: mouse_int(*this, n); break;
-        case 0x1A: cpu.ax = (uint16_t)((cpu.ax & 0xFF00) | 0); break;   // time (BIOS)
+        case 0x1A: {  // BIOS time
+            // AH=00 reads the system clock: CX:DX = ticks since midnight, AL =
+            // the midnight flag.  LOF seeds its RNG exactly once, at startup
+            // (image 0x3E -> 0x47A1): `int 0x1a` then `add cx,dx` -> srand().
+            // The previous handler returned CX:DX untouched, so the seed was
+            // whatever the caller happened to hold (a deterministic but
+            // accidental 0x000B) — combat was reproducible only by luck.
+            // Return an explicit, defined seed instead (still 0x000B so the
+            // recorded oracle goldens are unchanged); LOF_TICK overrides it.
+            if ((cpu.ax >> 8) == 0x00) {
+                uint32_t t = 0x000B;
+                if (const char* e = getenv("LOF_TICK")) t = (uint32_t)strtoul(e, nullptr, 0);
+                if (getenv("LOF_I1A")) fprintf(stderr, "[i1a] cs:ip=%04X:%04X ticks=%u seed=%u\n",
+                    cpu.cs, (uint16_t)(cpu.ip - 2), t, (uint16_t)((t >> 16) + (t & 0xFFFF)));
+                cpu.cx = (uint16_t)(t >> 16);
+                cpu.dx = (uint16_t)(t & 0xFFFF);
+                cpu.ax = (uint16_t)((cpu.ax & 0xFF00) | 0);   // midnight flag clear
+            }
+            break; }
         case 0x11: case 0x12: cpu.ax = 0; break;                        // equipment
         case 0x08: break;                                               // timer IRQ (should not be SW)
         case 0x24: break;                                               // critical error handler

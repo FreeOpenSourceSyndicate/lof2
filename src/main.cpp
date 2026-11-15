@@ -329,12 +329,42 @@ int main(int argc, char** argv) {
                     trace_left--;
                 }
                 if (const char* tip = getenv("LOF_TRACE_IP")) {
-                    static long match = -1, left = 0;
-                    if (match < 0) { match = strtol(tip, nullptr, 16); char* l = getenv("LOF_TRACE_N"); left = l ? atol(l) : 200; }
-                    if ((long)(m.cpu.cs * 16u + m.cpu.ip) == match && left > 0) {
+                    // LOF_TRACE_IP=addr  (exact)  or  lo:hi  (range, hex, half-open)
+                    static long lo = -2, hi = 0, left = 0;
+                    static bool bt = false;
+                    if (lo == -2) {
+                        lo = strtol(tip, nullptr, 16);
+                        const char* c = strchr(tip, ':');
+                        hi = c ? strtol(c + 1, nullptr, 16) : lo + 1;
+                        char* l = getenv("LOF_TRACE_N"); left = l ? atol(l) : 200;
+                        bt = getenv("LOF_TRACE_BT") != nullptr;
+                    }
+                    long pc = (long)(m.cpu.cs * 16u + m.cpu.ip);
+                    if (pc >= lo && pc < hi && left > 0) {
                         fprintf(stderr, "T %08u %04X:%04X | ax=%04X bx=%04X cx=%04X dx=%04X si=%04X di=%04X bp=%04X sp=%04X ds=%04X es=%04X ss=%04X fl=%04X\n",
                             m.instr_count, m.cpu.cs, m.cpu.ip, m.cpu.ax, m.cpu.bx, m.cpu.cx, m.cpu.dx,
                             m.cpu.si, m.cpu.di, m.cpu.bp, m.cpu.sp, m.cpu.ds, m.cpu.es, m.cpu.ss, m.cpu.flags);
+                        if (bt) {
+                            // Raw stack words first, so a routine with no valid
+                            // frame pointer (e.g. the EGA blitter) can still be
+                            // hand-walked without a second run.
+                            uint32_t sb = (uint32_t)m.cpu.ss << 4;
+                            fprintf(stderr, "    stack ss:sp=%04X:", m.cpu.sp);
+                            for (int i = 0; i < 12; i++)
+                                fprintf(stderr, " %04X", m.rw(sb + (uint16_t)(m.cpu.sp + i * 2)));
+                            fprintf(stderr, "\n");
+                            // Turbo C frame chain: `push bp; mov bp,sp`.  [bp]=old
+                            // bp, [bp+2]=return IP, [bp+4]=return CS (far calls).
+                            uint16_t fp = m.cpu.bp, sp = m.cpu.sp;
+                            for (int d = 0; d < 16 && fp >= sp && fp < 0xFFFE; d++) {
+                                uint16_t ret = m.rw(sb + (uint16_t)(fp + 2));
+                                uint16_t up  = m.rw(sb + (uint16_t)(fp + 4));
+                                fprintf(stderr, "    bt[%d] ret=%04X next=%04X ss:bp=%04X\n", d, ret, up, fp);
+                                uint16_t nxt = m.rw(sb + fp);
+                                if (nxt <= fp) break;
+                                fp = nxt;
+                            }
+                        }
                         left--;
                     }
                 }
