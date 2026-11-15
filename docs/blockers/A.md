@@ -31,22 +31,26 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 mechanism is fully decoded and delivered (`dungeon_encounter_sprite`): given the
 party's encounter id, `NSC<dd>[id].+0x48` -> `ega\char<B>\ch<NN>`. What is *not*
 yet pinned is the **producer** that sets `es:[0x259]` at map entry (id 16 for the
-Temple spawn). The routine at `img 0x276CA` is a strong candidate — it reads the
-party map cell (`es:[0x4612]`/`es:[0x4613]`), walks the `NSC<dd>` records
+Temple spawn). The routine at `img 0x276CA` is the strongest candidate — it reads
+the party map cell (`es:[0x4612]`/`es:[0x4613]`), walks the `NSC<dd>` records
 (stride `0x11a`) testing `+0x39` (present) and `+0x2c`, and writes `es:[0x259]`
-(`img 0x27A6A`) — but a boot capture shows it does **not** run (`LOF_TRACE_IP`
-0x377CA: 0 hits), so either it is a different (combat) path or it runs under a CS
-the trace does not match. Note also that id 16 is *not* a plain "record whose
+(`img 0x27A6A`; it is the *only* writer of that byte in the image) — but it does
+**not** run in the boot-to-Temple recipe (`LOF_TRACE_IP` 0x377CA: 0 hits), and
+neither does the consumer (`img 0x1A876` -> 0x2A976).  The trace hook is
+validated (module base `0x10100`; `img 0x208C` -> 0x13A5C hits), so both are
+walk/combat-path code.  Note also that id 16 is *not* a plain "record whose
 placement byte `+0x44` == the party cell 125" lookup (that would be records 60-62,
-Priests), so the id depends on state the producer builds. Unblock by tracing and
-decoding the producer's `+0x39`/`+0x2c` selection (and the `es:[0x54]` level
-table) so the drop-in can pick the sprite for an arbitrary walk move without the
-emulator. Until then the play view keeps the `DP001` fallback. Detail:
-`docs/notes-a.md` Rounds 45-46.
+Priests), so the id depends on state the producer builds.  Unblock by driving a
+walk move in the emulator (needs the maintainer's extended-key fix, BLK-A004) or
+by tracing the boot viewport path, then decoding the `+0x39`/`+0x2c` selection
+(and the `es:[0x54]` level table) so the drop-in can pick the sprite for an
+arbitrary walk move without the emulator.  Until then the play view keeps the
+`DP001` fallback.  Detail: `docs/notes-a.md` Rounds 45-46.
 
-**Log.** 2026-11-08 Agent A (Rounds 45-46) — consumer traced end to end
-(id 16 -> NSC05[16].+0x48=25 -> CHAR2/CH25 == spawn viewport); the producer is
-unlocated.
+**Log.** 2026-11-08 Agent A (Rounds 45-46) — consumer established end to end by
+disassembly + sprite-ink match (id 16 -> NSC05[16].+0x48=25 -> CHAR2/CH25 == spawn
+viewport, 4941 px); trace hook calibrated (base `0x10100`); producer not yet run
+in any captured session.
 
 ---
 

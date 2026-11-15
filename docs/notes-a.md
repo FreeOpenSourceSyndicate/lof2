@@ -2291,6 +2291,15 @@ the encounter state. Until that rule is derived the play view cannot pick the
 sprite for an arbitrary walk move without the emulator, so it keeps the `DP001`
 fallback.
 
+**Trace note (validated).** The module base is `0x10100` (CS 0x119D, delta
+0x18D0), so `LOF_TRACE_IP` needs `linear = img_offset + 0x10100`; the hook was
+verified against a known-executed IP (`img 0x208C` -> `0x13A5C`, 3 hits). With
+that, **neither** R (`img 0x276CA` -> `0x377CA`) **nor** the consumer above
+(`img 0x1A876` -> `0x2A976`) runs in the boot-to-Temple recipe — both are
+**walk/combat-path** code. So the boot entry draws the viewport through a
+different path; the mapping is established by the disassembly plus the sprite-ink
+match (viewport 4941 px == CH25), not by observing the consumer run.
+
 **Delivered for the drop-in.** `dungeon_encounter_sprite(dir, scenario, location)`
 returns the exact sprite path for a known id (test covers 16->CHAR2/CH25,
 0->CHAR2/CH26, 18->CHAR3/CH05, and the error cases). The play view needs only the
