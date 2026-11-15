@@ -171,6 +171,35 @@ The owner's role in the workflow is therefore only to **state rules** (Rule 9),
 unremovable guesses** (Rule 3) — never repository mechanics. Detail and commands:
 `docs/HANDOFF.md` "Merging your PR".
 
+## Rule 11 — Who handles open PRs: the author owns it; the Maintainer is the backstop.
+
+The repository owner does **not** handle pull requests (Rule 10). Agents must be
+able to tell, from the repo alone, who is responsible for any open PR. The
+answer is always one of two:
+
+1. **The author owns its own PR** — create, check, push, squash-merge (Rule 10).
+   The author is the branch's creator; the branch name (`work/<name>`, see
+   `docs/WORKSTREAMS.md`) names the owner.
+2. **The Maintainer (lane M) is the backstop for orphaned PRs** — any PR whose
+   author is gone, or that is stale, DRAFT, or abandoned, is handled by the
+   Maintainer: review it, and either push it to green and merge it, or close it
+   with a one-line reason on the PR. A PR from another lane is **not** out of
+   the Maintainer's lane for this purpose — triage is a Maintainer duty even
+   though the underlying code is owned by that lane (Rule 8 governs *editing*
+   the code, not handling the PR).
+
+Rules of engagement:
+
+- An agent does **not** merge another lane's open PR; it either leaves it for
+  the author, or (if it is clearly abandoned) asks the Maintainer. Do not
+  merge or close a peer's PR unilaterally.
+- The Maintainer **sweeps open PRs every session** (the session checklist step
+  7) and records the outcome: merged, or closed with a reason.
+- A DRAFT PR is the author saying "not ready"; the Maintainer only takes it over
+  once the author is inactive (no push for a full session) or the owner says so.
+
+Detail and commands: `docs/HANDOFF.md` "Merging your PR".
+
 ---
 
 ## Session checklist (do this at the start of every session)
@@ -182,14 +211,28 @@ unremovable guesses** (Rule 3) — never repository mechanics. Detail and comman
 4. Read `docs/HANDOFF.md`, `docs/RISKS.md`, `docs/WORKSTREAMS.md`.
 5. Stay in your lane (Rule 8); if work is unowned, add it to a lane first.
 6. Run `./bootstrap.sh` and `./check.sh` if the workspace may have reset.
-7. If the owner stated any rule (this session or in the prompt), reconcile it
+7. **Sweep open PRs** (Rule 11): `gh pr list --state open`. The author owns its
+   own PR; the **Maintainer handles anything orphaned, stale, DRAFT, or
+   abandoned** — review it, then push it green and merge, or close it with a
+   reason. Do not merge a peer's PR otherwise.
+8. If the owner stated any rule (this session or in the prompt), reconcile it
    via Rule 9 — check whether it is already here; add only if absent, adapt if the
    phrasing changes the meaning; never duplicate.
-8. Only then start work. If you would have to guess, stop and apply Rules 2–6.
+9. Only then start work. If you would have to guess, stop and apply Rules 2–6.
 
 ---
 
 ## Changelog (newest first)
+
+### 2026-11-15 — Open-PR ownership made explicit (Rule 11)
+
+- Owner: *"make sure it is clear to all agents who handles open PRs."* Added
+  **Rule 11**: the author owns its own PR end to end (Rule 10); the **Maintainer
+  (lane M) is the backstop** for any orphaned / stale / DRAFT / abandoned PR —
+  it reviews, pushes green and merges, or closes with a reason. Added a
+  "sweep open PRs" step to the session checklist. (Rule 9: this is new, not a
+  restatement of Rule 10 — Rule 10 covers the author's duties, Rule 11 covers
+  the hand-off for PRs whose author is gone.)
 
 ### 2026-11-14 — Reading the decompilation is never out of lane (Rule 1)
 

@@ -974,3 +974,38 @@ Oracle frames captured with the emulator (`ref/oracle/`):
 | `charsheet.png`  | character sheet (after digit `1`) | `5af0e7d4d51cf6559571981cd9271e32` |
 
 (The town main menu itself is the golden `town_entry` scenario, `--frames 600`.)
+
+## The other town: Cyldane (owner-supplied save GAME4)
+
+OT-001 (owner task) was **resolved 2026-11-15**: the owner supplied `GAME4`, a
+save in which the party stands **in front of Cyldane** (not Thyn).  It is kept
+at the repo root (`GAME4`, installed to slot 4 by `bootstrap.sh`; the archive
+ships only slots 1/2/3/5, so this save is *not* otherwise restorable).
+
+Reproduce the Cyldane town screen:
+
+```
+LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAUTO=0x18,0x05,0x48 LOF_KEYGAP=50 \
+  ./lof-native --dir game --headless --frames 1200 --shot ref/oracle/town_cyldane.png
+```
+
+(O = 0x18 opens the load dialog, digit `4` = 0x05 picks slot 4, `Up` = 0x48 steps
+into the town.)  The frame reads:
+
+```
+You enter the proud town of
+Cyldane. Which building do you
+want to visit?
+```
+
+captured as `ref/oracle/town_cyldane.png` (png md5 `bc1fd8201372584ede69ba2d613b08da`).
+
+**What this settles for G-001.**  A 1 MB RAM dump at the town screen (LOF_DUMP)
+shows **both** `ds:0x5A39 "Thyn."` and `ds:0x5A40 "Cyldane."` present, byte-identical,
+in *both* the Thyn and the Cyldane runs.  So the engine does **not** rewrite the
+name string; it **selects between the two addresses**.  The selector therefore is
+the pointer passed to the string drawer — and that pointer is computed (no
+`mov ax,0x5a39/0x5a40` immediate exists; the word `0x5A39` appears zero times in
+the image).  Remaining lane-M task: trace the callers of the town routine
+(`image 0xC22B`) with GAME4 loaded and find where `0x5A39 + idx*7` is formed.
+`port/lof.cpp compose_town_screen()` still hardcodes `"Thyn."`.

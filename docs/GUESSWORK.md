@@ -92,13 +92,28 @@ How to use each section:
   See `docs/notes-maintainer-town.md` for the corrected mapping.
 - **Fix:** take the name as a parameter of `compose_town_screen()`; select it from
   the save/scenario. The selector is discoverable by tracing the call site of the
-  routine that prints `ds:0x5A1D`/`0x5A31`. Both currently-available save slots
-  resolve to Thyn, which is why the current frame still matches — a save standing
-  in Cyldane is needed to observe the other branch (owner can supply one; Rule 5).
-- **Status:** derivable → normal Lane M task (not a blocker). Blocked on
-  observing the other branch: tracked as owner task **OT-001** in
-  `docs/OWNER-TASKS.md` (a Cyldane save is needed to see the selector; both
-  shipped saves resolve to Thyn).
+  routine that prints `ds:0x5A1D`/`0x5A31`.
+- **New evidence (2026-11-15, owner-supplied Cyldane save).** OT-001 is resolved:
+  `game/GAMES/GAME4` stands the party in front of **Cyldane**; `O`,`4`,`Up`
+  enters the town and the frame reads *"You enter the proud town of Cyldane."*
+  (oracle `ref/oracle/town_cyldane.png`). So the selector **can now be traced**.
+  - **Both town names are static and identical in both RAM dumps** (`ds:0x5A39`
+    "Thyn." and `ds:0x5A40` "Cyldane." are present verbatim at the same addresses
+    in the Thyn and Cyldane town screens): the engine does not rewrite the string,
+    it **selects between the two addresses**. So the selector is the address of
+    the name passed to the print routine.
+  - Neither address appears as a literal anywhere (confirmed: no `B8 39 5A` /
+    `B8 40 5A` immediate; word `0x5A39` occurs **zero** times in the image;
+    word `0x5A40` only as instruction bytes). The address is computed (base +
+    `0x5A39` + `idx*7`), consistent with the two names being `7` bytes apart
+    (`"Thyn. \0"`). The town-index byte that drives it is not yet pinned; the
+    town routine is `image 0xC22B` (prints `0x5A31`/`0x5A4C`/`0x5A69`), so the
+    selector is upstream of it. Next: trace the callers of `0xC22B` with the
+    Cyldane save loaded and find where the name pointer is formed.
+- **Status:** derivable → normal Lane M task (not a blocker). OT-001 (owner task)
+  is **resolved** (Cyldane save delivered); the hardcode removal is the remaining
+  Lane M work. Both `GAME2` (Thyn) and `GAME4` (Cyldane) now reproduce in the
+  oracle for side-by-side tracing.
 
 ---
 
