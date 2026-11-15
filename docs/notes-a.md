@@ -1830,3 +1830,15 @@ dp001, dp014, dp015, ... dp060, dp067, dp068, dp069), one per frame, so each of
 the 6 cache segments ends up holding its table entry. This explains why the
 cache segments are in flux across frames and why a single-frame dump can catch
 one mid-load (header not yet written).
+
+## Round 36 — negative result: the 6-slot table is not the depth selector
+
+Tested the hypothesis that the view routine's 6-slot table index (`mode`,
+`mul cl` at img 0x3C3A / runtime `119D:236A`) encodes the wall depth, which would
+explain the Round-29 depth-scaled views. Built three DNG05 variants with the
+first opaque cell at depth 1/2/3 and traced `119D:236A`: **ax = 3 in all three**
+(same table slot → same sprite segment 0x730A). So the table index is *not* the
+depth. The index appears fixed (=3, "dungeon view") for the walk screen; the
+depth-dependent content must be applied by another routine, or the slot segment
+is reloaded per cell by the preloader before the blit. This is the same open
+question as BLK-A003 — no further progress from static disassembly alone.
