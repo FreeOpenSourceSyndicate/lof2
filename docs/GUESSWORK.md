@@ -51,9 +51,23 @@ How to use each section:
   firmly at an engine-drawn sprite/algorithm (→ trace the routine).
 - **Why unclear:** it may be removable by tracing the routine that draws the town
   screen (a small sprite blit / arrow) in `analysis/lof.asm`; not yet attempted.
-- **To clear it:** trace the town-screen draw path in the decompilation. If the
-  sprite/algorithm is found → move to **D** (or a blocker if another lane owns
-  the routine). If it cannot be derived → move to **A**.
+- **Progress (2026-11-15, fourteenth session) — the draw site is found.**  A
+  `LOF_PXWATCH=5,5 LOF_PXWATCH_N=40` run of the `town` scenario (and of the boot
+  menu) shows the patch pixel is written by a **masked EGA sprite blitter** whose
+  store is `mov word es:[bx+di],dx` at runtime `119D:0463` (image ~`0x1D30`; the
+  surrounding code at image `0x1CF2..0x1D38` does the per-byte read-modify-write:
+  it builds a run mask in AX from `ds:[bp]`, a shift `cl`, and the sprite byte
+  `[si+0xa]`, then `and dx,ax; or dx,cs:[0x37e]; mov es:[bx+di],dx`).  The
+  **same pixel is redrawn by two more stores** in the same segment
+  (`119D:0B95`, `119D:0FC8`) — i.e. the patch is blitted more than once (layers).
+  Next step: break at the blit entry (image `0x1CF2`) and capture the caller-set
+  `si` (sprite source), `bx` (plane base), `cx` (width/height) to recover the
+  sprite bytes, then reproduce the blit in `port/lof.cpp`.  The patch is
+  **cosmetic** (88 px, 0.14% of the screen); it is the *only* residue besides the
+  dynamic party panel, so it is not urgent.
+- **To clear it:** capture the sprite + dest at the blit entry and reproduce it.
+  If the source turns out to be a data-table sprite → move to **D**. If it is
+  computed with no recoverable source → move to **A**.
 
 ### G-004 — `item_effect_name()` labels beyond the traced dispatcher values (Lane B)
 
