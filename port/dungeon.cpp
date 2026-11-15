@@ -291,6 +291,23 @@ std::string dungeon_room_art_path(const std::string& dir, int ch) {
     return dir + buf;
 }
 
+int dungeon_room_art_number(const std::string& dir, int scenario, int location) {
+    if (location < 0) return -1;
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "/SYST/NSC%02d", scenario);
+    FILE* f = std::fopen((dir + buf).c_str(), "rb");
+    if (!f) return -1;
+    uint8_t count = 0;
+    if (std::fread(&count, 1, 1, f) != 1) { std::fclose(f); return -1; }
+    if (location >= count) { std::fclose(f); return -1; }
+    long off = 1L + (long)location * kRoomArtDiskStride + kRoomArtField;
+    if (std::fseek(f, off, SEEK_SET) != 0) { std::fclose(f); return -1; }
+    uint8_t v = 0;
+    if (std::fread(&v, 1, 1, f) != 1) { std::fclose(f); return -1; }
+    std::fclose(f);
+    return v;
+}
+
 bool render_dungeon_default_view(Screen& scr, const std::string& dir,
                                  int dungeon) {
     return render_dungeon_view(scr, dungeon_view_path(dir, dungeon, 1));

@@ -184,6 +184,14 @@ constexpr int kViewportY = 11;
 constexpr int kViewportW = 120;
 constexpr int kViewportH = 119;
 
+// Scenario NPC/monster table (`SYST/NSC<dd>`) record geometry.  On disk each
+// record is `kRoomArtDiskStride` bytes after a one-byte record count; the engine
+// expands them to `kRoomArtRecordStride` bytes in memory, and the room-art
+// number is the byte at `kRoomArtField` (0x48) of the selected record.
+constexpr int kRoomArtDiskStride = 78;
+constexpr int kRoomArtRecordStride = 0x11A;
+constexpr int kRoomArtField = 0x48;
+
 // Blit the dungeon view sprite at `sprite_path` into `scr` at (vx,vy).  Returns
 // false (leaving `scr` untouched) if the image cannot be loaded.  This is the
 // engine's real model: a full-colour sprite blit, not a projection.
@@ -205,11 +213,24 @@ std::string dungeon_view_path(const std::string& dir, int dungeon, int index = 1
 
 // Path of a room-art sprite from the `EGA/CHAR2/CHnn` bank, which the engine
 // blits for the first-person view of an open cell (Round 38).  `ch` is the room
-// number the engine's room routine (image 0x4321, `ip 0x2A4E`) formats into
-// `ega\char2\chNN` and then hands to the sprite loader.  The caller supplies it
-// because the room-index -> CHnn table is not decoded yet; for the DNG05 Temple
+// number the engine's room routine (image 0x431E, `ip 0x2A4E`) formats into
+// `ega\char2\chNN` and then hands to the sprite loader.  For the DNG05 Temple
 // spawn the measured numbers are 40 (depth 2) and 25 (depth >= 3).
 std::string dungeon_room_art_path(const std::string& dir, int ch);
+
+// Read the room-art number from the scenario's NPC/monster table
+// `SYST/NSC<dd>` (Round 41, Task 2b).  The engine's view code reads a byte at
+// offset +0x48 of the record selected by the party's current location id, and
+// that byte is the `NN` the room routine formats into `ega\char2\chNN`.
+// Records are `kRoomArtRecordStride` (0x11A = 282) bytes in memory; on disk the
+// same records are stored packed at `kRoomArtDiskStride` (78) bytes after a
+// one-byte count, so this helper reads the disk layout directly.
+//
+// `scenario` is the level number (the same two digits as `DNGS/DNG<dd>` and
+// `SYST/NSC<dd>`; NSC05 pairs with DNG05).  `location` is the party's location
+// id (`es:[0x259]` in the engine; for the Temple spawn this is 16).  Returns the
+// room-art number (0..255), or -1 if the file or record is unavailable.
+int dungeon_room_art_number(const std::string& dir, int scenario, int location);
 
 // The view directory name for a map id: `D<ones-digit>` (see dungeon_view_path).
 std::string dungeon_view_dir(int dungeon);

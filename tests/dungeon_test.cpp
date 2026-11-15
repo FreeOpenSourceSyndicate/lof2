@@ -617,6 +617,23 @@ static void test_room_art(const std::string& dir) {
         assert(a.pixels == b.pixels);
         std::printf("dungeon_test: room-art view verified (CHAR2/CH25)\n");
     }
+
+    // Round 41 (Task 2b): the room-art number is read from the scenario's
+    // NPC/monster table SYST/NSC<dd>, at +0x48 of the record selected by the
+    // party's location id.  The Temple spawn (scenario 05, location 16) must
+    // resolve to 25, and its record's neighbours to the values verified against
+    // the emulator's open trace (records 0..9 -> 26, records 10..17 -> 25).
+    assert(dungeon_room_art_number(root, 5, 16) == 25);
+    assert(dungeon_room_art_number(root, 5, 0) == 26);
+    assert(dungeon_room_art_number(root, 5, 10) == 25);
+    assert(dungeon_room_art_number(root, 5, 35) == 40);   // Ogre
+    // Out-of-range indices are rejected, not read past the record table.
+    assert(dungeon_room_art_number(root, 5, 68) == -1);
+    assert(dungeon_room_art_number(root, 5, 9999) == -1);
+    assert(dungeon_room_art_number(root, 5, -1) == -1);
+    // A missing scenario file is reported, not guessed.
+    assert(dungeon_room_art_number(root, 99, 0) == -1);
+    std::printf("dungeon_test: room-art number from SYST/NSC05 verified\n");
 }
 
 static void test_walk() {

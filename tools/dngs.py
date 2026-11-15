@@ -33,6 +33,7 @@ Usage:
     python3 tools/dngs.py oracle ref/oracle/dungeon_slot1.png game/EGA 5 1
     python3 tools/dngs.py patch game/DNGS/DNG05 /tmp/p.dng 17 4 12
     python3 tools/dngs.py patchcell game/DNGS/DNG05 /tmp/p.dng 17 4 0 0
+    python3 tools/dngs.py nsc  game/SYST/NSC05 [location]
     python3 tools/dngs.py all
 """
 import collections
@@ -146,6 +147,52 @@ def cmd_info(path):
         nz, adj = coherence(blk)
         print('  %s:   nz=%4d adj=%4d (adj/nz=%.2f)' %
               (name, nz, adj, adj / nz if nz else 0.0))
+
+
+# --- scenario NPC/monster table (SYST/NSC<dd>) ---------------------------
+#
+# The engine's view code selects a record from `SYST/NSC<dd>` by the party's
+# location id (`es:[0x259]`) and reads a byte at record +0x48; that byte is the
+# `NN` the room routine formats into `ega\char2\chNN` (Round 41, Task 2b).
+#
+# On disk the file is: one count byte, then `count` records of 78 bytes each
+# (verified for every NSC file: size == 1 + count*78).  In memory the engine
+# expands each record to 282 (0x11A) bytes, but the first 78 bytes are bytewise
+# identical, so the room-art byte is at 1 + i*78 + 0x48 on disk too.
+NSC_DISK_STRIDE = 78
+NSC_RECORD_STRIDE = 0x11A
+NSC_ROOMART_FIELD = 0x48
+
+
+def nsc_records(path):
+    """Yield (index, name, roomart) for each record in an NSC file."""
+    d = open(path, 'rb').read()
+    if not d:
+        return
+    count = d[0]
+    for i in range(count):
+        off = 1 + i * NSC_DISK_STRIDE
+        rec = d[off:off + NSC_DISK_STRIDE]
+        if len(rec) <= NSC_ROOMART_FIELD:
+            break
+        name = rec.split(b'\x00', 1)[0].decode('latin-1', 'replace')
+        yield i, name, rec[NSC_ROOMART_FIELD]
+
+
+def cmd_nsc(path, location=None):
+    recs = list(nsc_records(path))
+    print('%s: %d records (disk stride %d, room-art field +0x%02x)' %
+          (os.path.basename(path), len(recs), NSC_DISK_STRIDE,
+           NSC_ROOMART_FIELD))
+    for i, name, nn in recs:
+        if location is not None and i != location:
+            continue
+        print('  rec %3d  room-art=%3d  ega\\char2\\ch%02d  %s' %
+              (i, nn, nn, name))
+    if location is not None:
+        hit = [r for r in recs if r[0] == location]
+        if not hit:
+            sys.exit('location %d out of range (count=%d)' % (location, len(recs)))
 
 
 def cmd_grid(path, layer='tiles', w=LAYER_W):
@@ -667,6 +714,9 @@ def main(argv):
     elif cmd == 'header':
         for p in argv[1:]:
             cmd_header(p)
+    elif cmd == 'nsc':
+        # dngs.py nsc <SYST/NSC05> [location]
+        cmd_nsc(argv[1], int(argv[2]) if len(argv) > 2 else None)
     elif cmd == 'grid':
         cmd_grid(argv[1], argv[2] if len(argv) > 2 else 'tiles',
                  int(argv[3]) if len(argv) > 3 else LAYER_W)

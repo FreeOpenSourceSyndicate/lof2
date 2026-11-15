@@ -13,7 +13,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 |----|--------------|-------------|----------|--------|------------|
 | BLK-A001 | A (dungeons) | Agent A | Medium | In progress | BLK-A003 |
 | BLK-A002 | A (dungeons) | Maintainer | Medium | **Resolved** (2026-11-12) | — |
-| BLK-A003 | A (dungeons) | Agent A | Medium | Open | — |
+| BLK-A003 | A (dungeons) | Agent A | Medium | **Resolved** (2026-11-08) | — |
 | BLK-A004 | A (dungeons) | Maintainer | Medium | Open | — |
 
 ---
@@ -144,10 +144,22 @@ bug above. Detail: `docs/BLOCKED-agent-a.md`, `docs/notes-maintainer-town.md`.
 - **Blocked lane:** A (dungeons)
 - **Responsible:** Agent A
 - **Priority:** Medium
-- **Status:** Open
+- **Status:** Resolved
 - **Dependencies:** —
 
-**Description & unblock action.** For the *spawn* cell the view is dominated by a
+**Resolution (2026-11-08, Agent A, Rounds 38-42).** There is no composite. The
+moved-cell view is a single sprite blit from the **`EGA/CHAR2/CHnn`** bank (the
+room/interior art) at a fixed offset — the earlier searches only scanned
+`EGA/D5/DP*` and `EGA/ANIM/*`. The CH number is read from the scenario
+NPC/monster table **`SYST/NSC<dd>`** at `+0x48` of the record indexed by the
+party's location id (`es:[0x259]`), i.e. `location -> NSC<dd> record -> +0x48 ->
+ega\char2\chNN -> viewport blit`. Verified end-to-end: patching that byte in
+`NSC05` changed the emulator's open from `ch25` to `ch30`; the corridor viewport's
+colour histogram equals CH25's exactly. Implemented as
+`dungeon_room_art_number` in `port/dungeon.cpp`; tooling `dngs.py nsc`; test
+`test_room_art`. See `docs/notes-a.md` Rounds 38-42.
+
+**Description & unblock action (superseded).** For the *spawn* cell the view is dominated by a
 single sprite (`DP001`, middle 80 cols pixel-identical). For a *moved* cell the
 view matches no single full-size sprite: `tools/dngs.py oracle
 ref/oracle/dungeon_slot1_moved.png game/EGA 5 1` reports a window match of only

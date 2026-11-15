@@ -2119,3 +2119,51 @@ This is the same shape as the static match at image `0x261F2` (a table lookup,
 lookup, not a depth computation. **Task 2 is complete:** the routine, the
 filename rule, the bank table, the NN formatting and the NN source are all
 decoded and verified against the real file open (`ega\char2\ch25`).
+
+## Round 42 — Task 2b solved: the NN table is `SYST/NSC<dd>` (verified)
+
+Round 41 ended with the NN read pinned to a `0x11a`-stride record in segment
+`es:[0xafc0]`, field `+0x48`, indexed by `es:[0x259]`. Task 2b asked *which data
+file backs that segment*. Answer: **`SYST/NSC<dd>`, the scenario NPC/monster
+table**, where `<dd>` is the same scenario number as `DNGS/DNG<dd>`.
+
+**Method.** Dumped 16 KiB of segment `0x5C92` at the corridor spawn
+(`LOF_SEGDUMP`), located the record base, and matched the record bytes against
+every `SYST/*` file. The record's first 19 bytes are the singular creature name;
+`NSC05` rec0 is `"Lizard priest"`, and the anchor string at `0x42CC+...` matches
+`game/SYST/NSC05` byte-for-byte.
+
+**Disk vs memory layout.** On disk an NSC file is `count` (one byte) followed by
+`count` records of **78** bytes; in memory the engine expands each record to
+**282 (0x11A)** bytes, but the first 78 bytes are bytewise identical. Verified
+for every NSC file: `size == 1 + count*78` (NSC00..NSC07 all conform). So the
+room-art byte is at disk offset `1 + i*78 + 0x48` for record `i`.
+
+**Causal proof (decisive).** Patched `NSC05` record 16's `+0x48` byte from `25`
+to `30`, re-ran the corridor capture, and the emulator's open trace changed from
+`ega\char2\ch25` to **`ega\char2\ch30`** (and read 3958 bytes). Reverting the
+patch restores `ch25`. So the NN the room routine formats is exactly this byte.
+
+**What the numbers mean.** `NSC05`'s `+0x48` is a *per-NPC* value: 26 = Lizard
+priest, 25 = Lizard warrior, 40 = Ogre, 5/7/8/23/32/34/41/44/45/51 = other
+creatures. The Temple spawn's location id (`es:[0x259] = 16`) selects a Lizard
+warrior record, whose NN is 25 -> `ega\char2\ch25`.
+
+**Corroboration.** The corridor viewport's colour histogram is *exactly* CH25's
+(`{0:9339, 2:1567, 4:497, 6:616, 7:164, 8:363, 10:1105, 12:259, 14:196,
+15:174}`), i.e. the viewport contains precisely CH25's 4941 ink pixels. Round 38
+already showed zeroing `CHAR2/CH25` empties the viewport; together with the
+causal NSC patch this closes the chain end to end: **location id -> NSC<dd>
+record -> +0x48 -> `ega\char2\chNN` -> viewport blit.**
+
+**Port + tooling.** `port/dungeon.cpp` now exposes
+`dungeon_room_art_number(dir, scenario, location)`, which reads the disk record
+directly (validating the count and rejecting out-of-range locations with `-1`).
+`tools/dngs.py nsc <file> [location]` dumps the records and their room-art
+number. `tests/dungeon_test.cpp::test_room_art` asserts the measured values
+(location 16 -> 25, 0 -> 26, 10 -> 25, 35 -> 40) and the error paths.
+
+**Open (out of scope for 2b):** how the engine *uses* the resolved NN to pick
+the final blit (the room routine's `ax < 0x16` branch and the two pointer tables
+`cs:[0x7e2]`/`cs:[0x7f2]`), and the meaning of the remaining ~200 bytes of the
+in-memory 282-byte record.
