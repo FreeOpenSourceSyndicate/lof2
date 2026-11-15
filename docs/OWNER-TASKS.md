@@ -29,8 +29,8 @@ Rules for this file:
   Reproduced with
   `LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAUTO=0x18,0x05,0x48 LOF_KEYGAP=50`
   (O, digit `4`, Up) — captured as `ref/oracle/town_cyldane.png`.
-- **Unblocks G-001** (town-name selector).  The name is **still hardcoded** in the
-  port (`compose_town_screen()`, `port/lof.cpp`); with a Cyldane save the selector
-  can now be traced and the hardcode removed without guessing.  See
-  `docs/GUESSWORK.md` G-001 for the remaining decode task.
+- **Unblocked G-001** (town-name selector).  **Resolved 2026-11-15** (PR #113):
+  the selector is the 16-bit word at save offset `0x9a4` (`es:[0x460e]`;
+  nonzero → "Thyn.", zero → "Cyldane."), and `compose_town_screen()` now takes
+  the name from the save instead of hardcoding it.  See `docs/GUESSWORK.md` G-001.
 - **Kept:** the save is preserved at `game/GAMES/GAME4` (and `game/GAMES-owner/`).
