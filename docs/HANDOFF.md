@@ -161,6 +161,11 @@ screen, and `make test` still passes.
 - [x] Oracle golden-frame regression test — `tests/golden_test.sh` (`make golden`,
       also run by `check.sh`). Guards the emulator output every drop-in screen is
       verified against.
+- [x] RNG is decoded and the seed is explicit — `INT 1Ah` now returns the seed
+      deliberately (`LOF_TICK=<n>` overrides it); the generator is the classic
+      MSVC `rand()` LCG seeded once from the BIOS clock, so combat frames are
+      bit-exact. New emulator diagnostics `LOF_PXWATCH=x,y` and a ranged
+      `LOF_TRACE_IP=lo:hi` (+`LOF_TRACE_BT=1`) are documented in `AGENTS.md`.
 - [x] EGA image format decoded (11-byte header) — `tools/ega.py`, `port/gfx.cpp`.
 - [x] Font strip decoded + menu text — `port/font.cpp`.
 - [x] Intro sequence (TITL -> CRED -> menu) in the drop-in.

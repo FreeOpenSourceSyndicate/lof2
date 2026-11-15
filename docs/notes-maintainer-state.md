@@ -5,6 +5,60 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-15 (twelfth session) — TL;DR
+
+Environment **HEALTHY** (`./check.sh` green). HEAD at start `0adfdc2`; `main` is
+now **`d8e35f7`**. This was an **incoming-maintainer orientation** session: I
+surveyed the whole state of affairs, swept the PRs, pulled the lane-M items that
+were queued, and left a clean handover. No blockers.
+
+- **PR #109 MERGED** (lane M, `work/maintainer-rng-determinism`): the queued
+  lane-M work from the previous session's branch.
+  - **RNG seed is now explicit** — `INT 1Ah` previously returned whatever
+    `CX:DX` the caller held, so the seed was an accidental-but-reproducible
+    `0x000B`. It is now returned explicitly and honours `LOF_TICK=<n>`. The
+    generator is decoded from the decompilation (classic MSVC `rand()` LCG,
+    seeded once at startup from the BIOS clock), so combat is **fully
+    deterministic** (6/6 identical runs, with and without `LOF_NO_TIMER`,
+    across clock hours). See `docs/GUESSWORK.md` section E.
+  - **New emulator diagnostics** (lane-A request): `LOF_PXWATCH=x,y` logs the
+    `cs:ip` that writes the viewport byte covering pixel `(x,y)` (with the
+    pre-write plane bytes and a hit cap `LOF_PXWATCH_N`); `LOF_TRACE_IP=lo:hi`
+    now accepts a half-open range and `LOF_TRACE_BT=1` dumps the raw `ss:sp`
+    words + Turbo C frame chain. Both documented in `AGENTS.md`.
+- **PR sweep (Rule 11):** closed **#89** (lane A, stale/orphaned — author gone,
+  last push 2026-11-12). It was *regressive*: it rewrote `docs/BLOCKERS.md` back
+  to the single-file registry, undoing the per-lane split `main` adopted. Its one
+  salvageable piece (the DNG-header **entry-cell + facing** decode) is **not** on
+  `main`; the branch is left in place so a current lane-A agent can redo it on the
+  current base. Reason posted on the PR. **#99 was already merged** (squash, via
+  #99's own author path). **Zero open PRs** after this session.
+- **BLK-A004 verified resolved** (lane A's "party cannot be moved in the
+  emulator" blocker). The extended-key delivery fix (#102, PR `02663f1`) makes
+  the arrows visible to LOF: in the Temple (slot 1), the spawn frame and the
+  frame after two `Up` presses now **differ** (dumps `2bd6ae7d…` vs `b550897f…`),
+  i.e. the party turns/steps. (BLK-A004 itself lives only on the closed #89
+  branch; `main`'s `docs/blockers/A.md` carries A001/A002 only — there is nothing
+  to mark resolved on `main`.)
+- **Owner tasks:** none open (`docs/OWNER-TASKS.md`: OT-001 Done).
+
+**Open / next (unchanged priorities for the next session):**
+
+- **G-001 (lane M, queued):** the town name `"Thyn."` is hardcoded in
+  `compose_town_screen()`. Both names are static in RAM; the engine **selects
+  between** `ds:0x5A39` ("Thyn.") and `ds:0x5A40` ("Cyldane."). Next step: trace
+  the **callers of the town routine `image 0xC22B`** with `GAME4` (Cyldane) loaded
+  and find where the name pointer is formed. Full evidence in `docs/GUESSWORK.md`
+  G-001 and `docs/notes-maintainer-town.md`.
+- **G-002 (lane M, watchlist):** the 16×16 patch at the town screen's top-left
+  corner is engine-drawn (not any `EGA/**` asset). Clear it by tracing the
+  town-screen draw path.
+- **Next lane-M screens:** the Inn (`TWN03`) and Temple (`TWN05`) town buildings;
+  then the play-loop viewport foreground sprite.
+- **Lane A:** the dungeon viewport composite (base-sprite rule is a low-nibble
+  table; the corridor/opening multi-piece composite is still open) — see
+  `docs/notes-a.md`.
+
 ## Session 2026-11-15 (eleventh session) — TL;DR
 
 Environment HEALTHY. HEAD at start `755fd27`, `main` clean and pushed. Session
