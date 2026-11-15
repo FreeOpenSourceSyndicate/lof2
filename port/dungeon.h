@@ -163,15 +163,22 @@ void render_dungeon_map(Screen& scr, const Dungeon& d, const DungeonPos& p,
 
 // --- First-person viewport ------------------------------------------------
 
-// The engine draws the 3D window from **pre-rendered sprites**
-// `EGA/D<dungeon>/DPnnn`, blitted at (10,11) over the `EGA/UP/MSCR` frame — it
-// does not ray-cast.  Verified against the DOSBox oracle: `EGA/D5/DP001`
-// reproduces the slot-1 Temple spawn window at 95.2% (the residue is a thin
-// horizon band the engine overlays from map data).  The full 120x119 views are
-// DP001/DP014/DP036/DP058/DP059/DP060/DP067; the smaller `DPnnn` (64x59, 32x59,
-// 16x29, ...) are the side-wall pieces composited near map edges.  The index the
-// engine selects is not yet decoded (see docs/notes-a.md), so the caller names
-// the sprite.
+// The engine draws the 3D window from **pre-rendered sprites**, blitted over the
+// `EGA/UP/MSCR` frame — it does not ray-cast.  Two banks are used:
+//   * `EGA/D<dungeon>/DPnnn` — the door / wall art.  Verified against the DOSBox
+//     oracle: `EGA/D5/DP001` reproduces the slot-1 Temple spawn window at 95.2%.
+//     The full 120x119 views are DP001/DP014/DP036/DP058/DP059/DP060/DP067; the
+//     smaller `DPnnn` (64x59, 32x59, 16x29, ...) are side-wall pieces.
+//   * `EGA/CHAR2/CHnn` — the **room / interior art** (Round 38).  Looking down
+//     an open corridor loads a `CHAR2/CHnn` sprite, NOT a procedural composite:
+//     zeroing `CHAR2/CH25` on disk turns the corridor window black (ink 4941 ->
+//     0), and zeroing `CHAR2/CH40` turns the depth-2 window black (5111 -> 0).
+//     The earlier "the engine ray-composes the corridor" reading was wrong — it
+//     only ever searched the `DPnnn`/`ANIM` banks, not `CHAR2`.
+// The room routine at image 0x4321 (`ip 0x2A4E`) takes a CH number, formats
+// `ega\char2\chNN` into its buffer and calls the sprite loader; the CH number is
+// chosen by a room index that is a function of the party's position (see
+// `dungeon_room_art_path` and docs/notes-a.md Rounds 38-39).
 constexpr int kViewportX = 10;
 constexpr int kViewportY = 11;
 constexpr int kViewportW = 120;
@@ -195,6 +202,14 @@ bool render_dungeon_view(Screen& scr, const std::string& sprite_path,
 // at run time).  Index 1 (`DP001`) is the canonical entry view, pixel-verified
 // against the Temple spawn oracle.
 std::string dungeon_view_path(const std::string& dir, int dungeon, int index = 1);
+
+// Path of a room-art sprite from the `EGA/CHAR2/CHnn` bank, which the engine
+// blits for the first-person view of an open cell (Round 38).  `ch` is the room
+// number the engine's room routine (image 0x4321, `ip 0x2A4E`) formats into
+// `ega\char2\chNN` and then hands to the sprite loader.  The caller supplies it
+// because the room-index -> CHnn table is not decoded yet; for the DNG05 Temple
+// spawn the measured numbers are 40 (depth 2) and 25 (depth >= 3).
+std::string dungeon_room_art_path(const std::string& dir, int ch);
 
 // The view directory name for a map id: `D<ones-digit>` (see dungeon_view_path).
 std::string dungeon_view_dir(int dungeon);
@@ -227,25 +242,27 @@ bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax, int& ay)
 //   0x9        | **no single sprite** (corridor variant) | 0.32
 //
 // Codes 0x6/0xd are the walls (see dungeon_is_solid_tile): looking *at* a wall
-// shows the flat wall face.  Codes 0x0/0x2/0x7/0x8 are open cells, and looking
-// down an open corridor shows a composed view that no single `DPnnn` reproduces
-// (best full-size IoU 0.35 across all 221 120x119 EGA files, and no sprite or
-// ANIM piece composite explains it either) — this is BLK-A003.  The drop-in
-// falls back to DP001 for those codes, which is an approximation (G-004).
+// shows the flat wall face.  Codes 0x0/0x2/0x7/0x8 are open cells; looking down
+// an open corridor shows a `EGA/CHAR2/CHnn` room sprite (Round 38), not a
+// composed view.  The drop-in still falls back to DP001 for those codes because
+// the room-index -> CHnn table is not yet decoded, but that is a *data* gap, not
+// a missing algorithm (BLK-A003 / G-004).
 //
-// DEPTH MODEL (Round 29).  The view is really a function of the distance to the
-// first cell the *view* treats as opaque, and that set is NOT the movement wall
-// set: tile 0x3 is passable for movement but renders opaque in the view.  With
-// the party at DNG05 (17,3) facing S and an open cell at (17,4), patching the
-// wall distance gives:
+// DEPTH MODEL (Round 29, corrected Round 38).  The view is a function of the
+// distance to the first cell the *view* treats as opaque, and that set is NOT
+// the movement wall set: tile 0x3 is passable for movement but renders opaque in
+// the view.  With the party at DNG05 (17,3) facing S and an open cell at (17,4),
+// patching the wall distance gives:
 //
-//   first opaque cell at depth 1  ->  DP001   (full-screen wall texture)
-//   first opaque cell at depth 2  ->  composed "wall face"   (md5 58116d1d…)
-//   first opaque cell at depth >=3 -> composed "corridor"    (md5 e165034f…)
+//   first opaque cell at depth 1  ->  EGA/D5/DP001   (full-screen wall texture)
+//   first opaque cell at depth 2  ->  EGA/CHAR2/CH40 (zeroing it blacks the
+//                                      depth-2 window, 5111 -> 0)
+//   first opaque cell at depth >=3 ->  EGA/CHAR2/CH25 (zeroing it blacks the
+//                                      depth-3 window, 4941 -> 0)
 //
-// The depth-2 and depth->=3 images are engine-drawn (best single-sprite IoU
-// 0.36/0.35) and saturate from depth 3 on.  So `dungeon_base_view_index` is
-// exact only when the ahead cell is itself the first opaque cell (the common
+// The depth-2 and depth->=3 images are `CHAR2/CHnn` blits (not engine-drawn as
+// previously thought) and saturate from depth 3 on.  So `dungeon_base_view_index`
+// is exact only when the ahead cell is itself the first opaque cell (the common
 // case: walls, doors, side passages) and an approximation otherwise.
 //
 // NOTE (Round 28): the view is *not* a pure function of the ahead cell alone.

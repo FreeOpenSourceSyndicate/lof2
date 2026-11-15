@@ -270,9 +270,10 @@ int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p) {
         case 0xa: return 14;             // doorway
         // 0x1/0x3/0xb/0xc render DP001 (a textured wall/room view).
         case 0x1: case 0x3: case 0xb: case 0xc: return 1;
-        // 0x0/0x2/0x7/0x8/0x9 are open cells whose view the engine composes
-        // (it is not a single sprite and is not explained by any DPnnn/ANIM
-        // piece composite — BLK-A003).  Fall back to the wall view DP001.
+        // 0x0/0x2/0x7/0x8/0x9 are open cells whose view the engine draws from
+        // the `EGA/CHAR2/CHnn` room bank (Round 38), not a composed DPnnn view.
+        // The room-index -> CHnn table is not decoded yet, so fall back to the
+        // wall view DP001 (G-004).
         default: return 1;
     }
 }
@@ -281,6 +282,12 @@ std::string dungeon_view_path(const std::string& dir, int dungeon, int index) {
     char buf[32];
     std::snprintf(buf, sizeof(buf), "/EGA/%s/DP%03d",
                   dungeon_view_dir(dungeon).c_str(), index);
+    return dir + buf;
+}
+
+std::string dungeon_room_art_path(const std::string& dir, int ch) {
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "/EGA/CHAR2/CH%02d", ch);
     return dir + buf;
 }
 

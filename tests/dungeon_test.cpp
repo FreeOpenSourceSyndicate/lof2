@@ -539,9 +539,9 @@ static void test_base_view(const std::string& dir) {
         assert(view_for(hi | 0xb) == 1);
         assert(view_for(hi | 0xc) == 1);
     }
-    // The open-cell corridor cases (0x0/0x2/0x7/0x8/0x9) have no single
-    // full-size sprite: the engine composes that view (BLK-A003), so the
-    // drop-in falls back to DP001.  Pinned here as the documented approximation.
+    // The open-cell corridor cases (0x0/0x2/0x7/0x8/0x9) are drawn from the
+    // `EGA/CHAR2/CHnn` room bank (Round 38); the room-index -> CHnn table is not
+    // decoded yet, so the drop-in falls back to DP001.  Pinned as documented.
     for (int nib : {0x0, 0x2, 0x7, 0x8, 0x9})
         assert(view_for(nib) == 1);
 
@@ -586,6 +586,36 @@ static void test_base_view(const std::string& dir) {
     if (render_dungeon_play(a, root, 5, d, q)) {
         assert(render_dungeon_screen(b, root, 5, 60));
         assert(a.pixels == b.pixels);
+    }
+}
+
+// The room-art bank `EGA/CHAR2/CHnn` is the engine's first-person art for open
+// cells (Round 38): zeroing `CHAR2/CH25` on disk turns the corridor window black
+// and zeroing `CHAR2/CH40` turns the depth-2 window black, so the view for an
+// open cell is a `CHAR2/CHnn` blit, not a procedural composite.  This pins the
+// path helper and that the sprite loads and renders at the viewport.
+static void test_room_art(const std::string& dir) {
+    std::string root = dir + "/..";
+    assert(dungeon_room_art_path(root, 25) == root + "/EGA/CHAR2/CH25");
+    assert(dungeon_room_art_path(root, 40) == root + "/EGA/CHAR2/CH40");
+    assert(dungeon_room_art_path(root, 1) == root + "/EGA/CHAR2/CH01");
+    assert(dungeon_room_art_path(root, 7) == root + "/EGA/CHAR2/CH07");
+
+    // The measured DNG05 room-art numbers must load and render, and the render
+    // must be non-empty (the blit put pixels down) and stable (re-rendering the
+    // same sprite gives the same pixels).  CH25 is the depth>=3 corridor view.
+    Screen a, b;
+    a.resize(320, 200); a.clear(0);
+    if (render_dungeon_view(a, dungeon_room_art_path(root, 25),
+                            kViewportX, kViewportY)) {
+        int ink = 0;
+        for (uint8_t v : a.pixels) ink += (v != 0);
+        assert(ink > 1000);                 // the corridor art is dense
+        b.resize(320, 200); b.clear(0);
+        assert(render_dungeon_view(b, dungeon_room_art_path(root, 25),
+                                   kViewportX, kViewportY));
+        assert(a.pixels == b.pixels);
+        std::printf("dungeon_test: room-art view verified (CHAR2/CH25)\n");
     }
 }
 
@@ -781,6 +811,7 @@ int main(int argc, char** argv) {
     test_view_themes(dir);
     test_dungeon_screen(dir);
     test_base_view(dir);
+    test_room_art(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }
