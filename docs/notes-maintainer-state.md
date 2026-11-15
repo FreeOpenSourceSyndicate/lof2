@@ -5,6 +5,203 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-15 (eleventh session) — TL;DR
+
+Environment HEALTHY. HEAD at start `755fd27`, `main` clean and pushed. Session
+goal was to assess state and advance the post-town flow; the owner also supplied
+the Cyldane save and asked for an explicit open-PR ownership rule.
+
+- **Rule 11 added** (`docs/RULES.md`, **PR #105**): *the author owns its own PR
+  (Rule 10); the **Maintainer (lane M) is the backstop** for any orphaned /
+  stale / DRAFT / abandoned PR* — review it, push it green and merge, or close
+  with a reason. Added a "sweep open PRs" step to the session checklist and a
+  changelog entry.
+- **OT-001 RESOLVED** (owner task). The owner supplied `GAME4` — a save standing
+  **in front of Cyldane** (not Thyn). `O`, `4`, `Up` enters the town and the
+  frame reads *"You enter the proud town of Cyldane."* Captured as
+  `ref/oracle/town_cyldane.png` (md5 `bc1fd8201372584ede69ba2d613b08da`).
+  Because the archive ships only save slots 1/2/3/5, `GAME4` is **committed at
+  the repo root** and `bootstrap.sh` now installs it to slot 4 (else it is lost
+  on a workspace reset).
+- **G-001 advanced** (town-name selector). 1 MB RAM dumps at both town screens
+  show `ds:0x5A39 "Thyn."` **and** `ds:0x5A40 "Cyldane."` present and
+  byte-identical in *both* runs: the engine does **not** rewrite the name, it
+  **selects between the two addresses**. The selector is a computed pointer (no
+  `mov ax,0x5a39/0x5a40` immediate exists; the word `0x5A39` appears zero times
+  in the image). Remaining lane-M task: trace the callers of the town routine
+  (`image 0xC22B`) with `GAME4` loaded. `compose_town_screen()` still hardcodes
+  `"Thyn."`.
+- **Rule-11 PR sweep:** #105 merged. Left **#89** (lane A, open) and **#99**
+  (lane B, DRAFT) untouched — both are live lanes' own PRs. **#99** resolves
+  BLK-B003 and its author (lane B) is now *inactive* (B has nothing unblocked),
+  so it is a backstop candidate: the Maintainer may take it over in a later
+  session (push green + merge, or close with a reason) if it stays orphaned.
+- **No open owner tasks** (`docs/OWNER-TASKS.md`: OT-001 moved to *Done*).
+- `check.sh` **HEALTHY**; `main` clean and pushed at `5e0e1f8`.
+
+**Open / next:**
+
+- **G-001 decode** (lane M): trace the town-name selector with `GAME4` loaded
+  and de-hardcode `"Thyn."` in `compose_town_screen()`.
+- **Next lane-M screens:** the Inn (`TWN03`) and Temple (`TWN05`) town buildings;
+  then the play-loop viewport foreground sprite.
+- The amulet prompt's first line is still *not* decoded (font ambiguity) — do
+  not hard-code it.
+
+## Session 2026-11-15 (tenth session) — TL;DR
+
+Environment HEALTHY. HEAD at start `f70b55f`, `main` clean and pushed. This
+session picked up the interrupted "Up-arrow does nothing" investigation and
+**closed it**: the root cause was an emulator keyboard bug, not the game.
+
+- **Fixed the DOS extended-key convention** (lane M, `src/machine.cpp` +
+  `src/emu.h`): a key whose ASCII is 0 (arrows, PgUp, function keys) must return
+  `AL=0` and then the **scan code** on the *next* console read. The emulator only
+  ever produced the `AL=0` half, so every arrow was invisible to LOF (which reads
+  with `INT 21h AH=07` and keys off the scan code). This is why the party could
+  not turn/step on the map and why "Up" never entered the town. **Merged as
+  PR #102** (commit `46a5fda`).
+- **Town entry now works end to end**: `O`, `2` (load slot 2 = party on the
+  wilderness map facing *away* from town), `Down` (turn 180°), `Up` (step into
+  town) -> the town main menu. Added a permanent `town_entry` golden scenario
+  (`tests/golden_test.sh`, hash in `tests/golden.txt`) so an arrow regression
+  fails loudly. Re-ran `make golden` — green.
+- **Mapped the post-town flow** (docs + oracle frames, **PR #103**): from the
+  town menu a single `(C)ontinue` leaves town (no time gate) -> wilderness ->
+  amulet prompt -> idle time -> wandering-monster combat (~frame 700, no input).
+  Four new emulator oracle frames in `ref/oracle/` (`wilderness`, `amulet`,
+  `combat`, `charsheet`).
+- **`check.sh` HEALTHY** at session end; `main` clean and pushed at `e1811b9`.
+
+**Open / next:**
+
+- **OT-001 (owner task, re-reminded):** provide a save standing in a town other
+  than Thyn (e.g. Cyldane) so the town-name selector (G-001) can be traced and
+  the hardcoded `"Thyn."` removed. No agent can do this (needs playing).
+- **Next lane-M work:** the Inn/Temple first-person `D5` interiors (the two
+  remaining town buildings), and the play-loop viewport foreground sprite.
+- The amulet prompt's first line is *not* decoded (font ambiguity) — do not
+  hard-code it (see `docs/notes-maintainer-town.md`).
+
+
+## Session 2026-11-15 (ninth session) — TL;DR
+
+Environment HEALTHY. HEAD at start `f564a6f`, `main` clean and pushed. This
+session: **state assessment + all three town building screens + two rule
+clarifications**; ends with `main` at the PR-#101 squash-merge and `check.sh`
+HEALTHY.
+
+- **Merged PR #100** (`docs(rules): Rule 9 + Rule 10`) after verifying its
+  `check.sh` FAIL was **false**: it was contention from the previous session's
+  concurrent emulator runs starving the golden scenario's `timeout 300`. Re-ran
+  `tests/golden_test.sh` alone → **ok**. Lesson: never run `golden_test.sh` /
+  `check.sh` while other `lof-native` runs are in flight.
+- **Implemented all three town building screens** (`lof --emporium/--bank/--house`,
+  lane M's top items) and **merged them as PR #101**. They share the town menu's
+  shape (MSCR + a `TWN` viewport tile at (10,11) + `CHR1` text at x=139); each is
+  pixel-exact (masked) against the emulator frame:
+    * Emporium = `TWN01`, Bank = `TWN02`, House of trades = `TWN04`;
+    * Inn/Temple open first-person `D5` interiors (no TWN tile) — still to do.
+  `compose_town_screen` refactored into a shared `compose_building_screen`; added
+  the `/` glyph (`CHR1` band 2 cell 2). `tests/port_building_test.py` (replaces
+  the single Emporium test) + `ref/oracle/{emporium,bank,house}.png`, wired into
+  `make golden-port`.
+- **Two Rule-1 clarifications** (owner re-stated the source-of-truth rule twice;
+  reconciled via Rule 9, changelog entries added): the decompilation is the
+  **first** source of truth and wins when sources disagree; and **reading the
+  decompilation is never out of lane** (Rule 8 cross-referenced).
+- **G-001 advanced (not resolved):** a raw word-search of `LOF.EXE` finds the
+  town-name addresses `0x5A39`/`0x5A40` stored as a **pointer nowhere** (`0x5A39`
+  zero hits; `0x5A40` only as `mov byte es:[bx+si+0x5a],…` immediates) — the
+  name address is computed from a data-driven base. Still needs a **Cyldane
+  save** to observe the branch: **owner task OT-001, re-reminded below**.
+- **G-002 (16×16 corner patch)** unchanged (engine-drawn residue).
+- **`ref/oracle/shop.png` (DOSBox) does NOT match the emulator's Emporium**
+  (~69%); it is not used by any test. `ref/oracle/town.png` *is* exact vs the
+  emulator. Do not treat `shop.png` as an oracle.
+- **check.sh timings:** `make test` + `tests/golden_test.sh` are the fast checks;
+  `./check.sh` end-to-end is ~15–20 min here (11 golden scenarios) — run it alone
+  in the background. Verified this session: `./check.sh` → **HEALTHY**.
+
+## Session 2026-11-14 (eighth session) — TL;DR
+
+Environment HEALTHY. HEAD at start `3fc53c8`, `main` clean and pushed. This
+session was **state assessment + documentation corrections** (the owner was
+about to stop for the night); no engine/drop-in code changed.
+
+- **Address mapping corrected and pinned.** The rule is **`file = ds_offset +
+  0x40000`** (the engine runs with `ds = 0x4AC1`; physical `= 0x4AC10 + off`).
+  Verified against the live 1 MB RAM dump (`LOF_DUMP`) **and** the raw EXE:
+  `ds:0x5A31 "town of"` -> file `0x45A31` -> physical `0x50641`. The town notes
+  previously recorded the wrong name offsets (`ds=0x5A56`/`0x5A5E`, "Cyldane at
+  file `0x7C41`"); both are wrong and now fixed. See
+  `docs/notes-maintainer-town.md` and `docs/GUESSWORK.md` G-001.
+- **G-001 (town name) advanced, not resolved.** The only two town names are
+  `ds:0x5A39 "Thyn. "` / `ds:0x5A40 "Cyldane. "` (plus a second "Thyn" at
+  `ds:0x687D`). **Neither is loaded by a plain `mov ax, imm`** anywhere in the
+  image (searched `B8 39 5A` / `B8 40 5A`), so the selector is computed. The
+  town routine at image `0xC22B` loads the message *fragments* `0x5A31`
+  ("town of"), `0x5A4C`, `0x5A69` and calls the string drawer
+  (`lcall 0x18d:0x16a8`). Next: trace the **caller** of `image 0xC22B` to find
+  where the `0x5A39`/`0x5A40` choice is made. Both shipped saves resolve to Thyn;
+  a Cyldane save (owner can supply) would expose the other branch (Rule 5).
+- **G-002 (16×16 corner patch)** unchanged: still on the watchlist (shared by the
+  menu and town frames, no `EGA/**` match, engine-drawn).
+- **PR queue (unchanged; not mine to merge):** #99 (Agent B,
+  `work/agent-b-itemuse-fix`, draft, **mergeable**) and #89 (Agent A,
+  `work/agent-a-blockers`, **mergeable** now — the `docs/BLOCKERS.md` conflict
+  was resolved by the lane-split registry). #91 was **closed**. Both open PRs are
+  other lanes' work; their authors own merging them.
+- **`check.sh` is slow here (~4.5 min per 1600-frame scenario × 11 scenarios ≈
+  45–60 min).** `make test` + the `boot` golden hash are the fast checks. Do not
+  let a slow `check.sh` block a session; run it once in the background.
+  **Verified this session: `./check.sh` → HEALTHY** (full run in the background),
+  and the `town` and `shop` oracle golden hashes reproduce exactly.
+- **No open owner tasks** at this point (OWNER-TASKS.md empty). Reminder per
+  Rule 8: none to re-raise this session. (Rule 5 question raised below.)
+- **Added Rule 9 + Rule 10 to `docs/RULES.md`** (owner instruction, 2026-11-14;
+  changelog entry added). Rule 9: when the owner states a rule, reconcile it
+  against the book — add only if absent, adapt only if the phrasing changes the
+  meaning, never duplicate. Rule 10: **agents create, check, push, and merge
+  their own PRs; the owner never does repository mechanics.** `docs/HANDOFF.md`
+  "Merging your PR" now points at Rule 10 as canonical.
+
+### Open question for the owner (Rule 5)
+
+- **A save that stands the party in `Cyldane`** (or any town other than Thyn)
+  would let lane M observe the town-name selection branch and close G-001
+  without guessing. If the owner can produce one (play to Cyldane, save, and drop
+  the file in `game/GAMES/`), that unblocks it. Until then G-001 stays queued and
+  the drop-in keeps the Thyn string (both available saves resolve to Thyn, so the
+  current `--town` frame is still correct).
+
+## Session 2026-11-13 (seventh session) — TL;DR
+
+Environment HEALTHY. HEAD `4ee2159`, `main` clean and pushed.
+
+- **Rule 8 added** (`docs/RULES.md`): agents stay in their lane; unowned work must
+  be **added to a lane** first; work only the owner can do is an **owner task**
+  (`docs/OWNER-TASKS.md`), and lane M re-reminds the owner every session. Wired
+  into README/AGENTS/HANDOFF/WORKSTREAMS + `check.sh` + the prompt addendum.
+- **Building screens are NOT incomplete.** The old note was wrong: at the golden
+  `--frames 1600` the Emporium is fully drawn and its EGA-plane md5 reproduces the
+  recorded golden exactly (`shop c9781d20…`). `LOF_DEBUG`'s `mode=13` is
+  **decimal** = `0x0D` (EGA 320x200x16); there is **no VGA mode-13h path**.
+  `ref/oracle/shop.png` saved. The Emporium reads **no new files** (redraws from
+  `ROST/ROST`+`ROST/SHOP`+built-in art).
+- **G-001 (town-name "Thyn")**: not a plain string reference — the routine loads
+  `0x5a31` / `0x5a4c` / `0x5a69` (plural-form / `(C)ontinue` / etc.) into AX and
+  calls the string drawer; the singular "Thyn" is selected further up (not yet
+  traced). Kept queued; needs a focused decompilation pass.
+- **G-002 (16x16 corner patch)**: shared by the *menu* and *town* frames (so not
+  a town-specific sprite), matches no `EGA/**` asset at any offset, and differs
+  from `MSCR` in both DOSBox and the emulator → engine-drawn residue. Kept on the
+  watchlist.
+- No open owner tasks (nothing only the owner can do right now).
+- **Next (lane M):** implement the Emporium/Temple screen in the drop-in
+  (`--shop` / `--building`), decoding the ornate panel from `ref/oracle/shop.png`;
+  and finish G-001 by tracing the singular town-name selection.
+
 ## Session 2026-11-12 (sixth session) — TL;DR
 
 Environment HEALTHY. HEAD `97c9167`, `main` clean, 0 ahead / 0 behind.

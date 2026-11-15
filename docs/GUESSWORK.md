@@ -42,6 +42,13 @@ How to use each section:
   asset, and not a shifted/wrapped copy of either (best match ≈0% on that patch;
   the oracle patch is a diagonal arrow shape). See
   `docs/notes-maintainer-town.md`.
+- **New evidence (2026-11-13):** the *same* patch appears in both the town frame
+  and the main-menu frame (the two frames are identical in rows 0..10 of the
+  corner), so it is **not** a town-specific sprite. It also differs from `MSCR`
+  in **both** DOSBox and the emulator, so it is not a decode artefact — it is
+  something the engine draws over `MSCR`. Template-matching every `EGA/**` asset
+  at every 4-px offset found **no** match (<25 mean-abs threshold). This points
+  firmly at an engine-drawn sprite/algorithm (→ trace the routine).
 - **Why unclear:** it may be removable by tracing the routine that draws the town
   screen (a small sprite blit / arrow) in `analysis/lof.asm`; not yet attempted.
 - **To clear it:** trace the town-screen draw path in the decompilation. If the
@@ -92,15 +99,51 @@ How to use each section:
 
 - **What:** `compose_town_screen()` hardcodes the string `"Thyn. Which building
   do you"`. The town name is **variable**.
-- **Source of truth:** `LOF.EXE` string table at file `0x45A1D`
-  (`"You enter the proud town of"`, then NUL-separated `"Thyn. "` and
-  `"Cyldane. "`), `0x45A4A` (`"Which building do you want to visit?"`), then the
-  building labels.
+- **Source of truth:** `LOF.EXE` string table. Verified offsets (2026-11-14;
+  `file = ds_offset + 0x40000`):
+  - `ds:0x5A1D` = `"You enter the proud town of"` (file `0x45A1D`);
+  - `ds:0x5A39` = `"Thyn. "` (file `0x45A39`), `ds:0x5A40` = `"Cyldane. "`
+    (file `0x45A40`) — the **only** two town names, NUL-separated;
+  - `ds:0x5A4A` = `"Which building do you want to visit?"` (file `0x45A4A`);
+  - a *second* `"Thyn"` at `ds:0x687D` ("The Grand Board of Trades greets you in
+    Thyn.", file `0x4687D`).
+  - **Neither `0x5A39` nor `0x5A40` is loaded by a plain `mov ax, imm`** anywhere
+    in the image (searched for `B8 39 5A` / `B8 40 5A`): the selector is computed,
+    not a fixed pointer. **Nor is either address stored as data anywhere**: a
+    search for the little-endian word `0x5A39` finds it **zero** times, and
+    `0x5A40` only as instruction immediates (e.g. `26 C6 40 5A …` =
+    `mov byte es:[bx+si+0x5a], …`), never as a pointer. So the name address is
+    built entirely from a computed base + offset. The town routine
+    (`image 0xC22B`) loads the *fragments* `0x5A31` ("town of"), `0x5A4C`
+    ("ich building…"), `0x5A69` ("isit?") into AX and calls the string drawer
+    (`lcall 0x18d:0x16a8`), so the name is chosen upstream of it.
+- **Superseded (wrong):** the earlier entry claimed the names are at
+  `ds:0x5A56`/`0x5A5E`; those are the *middle* of the "Which building…" string.
+  See `docs/notes-maintainer-town.md` for the corrected mapping.
 - **Fix:** take the name as a parameter of `compose_town_screen()`; select it from
-  the save/scenario. The selector is discoverable by tracing the call to the
-  routine that prints `ds:0x52D`. Both currently-available save slots resolve to
-  Thyn, which is why the current frame still matches.
-- **Status:** derivable → normal Lane M task (not a blocker).
+  the save/scenario. The selector is discoverable by tracing the call site of the
+  routine that prints `ds:0x5A1D`/`0x5A31`.
+- **New evidence (2026-11-15, owner-supplied Cyldane save).** OT-001 is resolved:
+  `game/GAMES/GAME4` stands the party in front of **Cyldane**; `O`,`4`,`Up`
+  enters the town and the frame reads *"You enter the proud town of Cyldane."*
+  (oracle `ref/oracle/town_cyldane.png`). So the selector **can now be traced**.
+  - **Both town names are static and identical in both RAM dumps** (`ds:0x5A39`
+    "Thyn." and `ds:0x5A40` "Cyldane." are present verbatim at the same addresses
+    in the Thyn and Cyldane town screens): the engine does not rewrite the string,
+    it **selects between the two addresses**. So the selector is the address of
+    the name passed to the print routine.
+  - Neither address appears as a literal anywhere (confirmed: no `B8 39 5A` /
+    `B8 40 5A` immediate; word `0x5A39` occurs **zero** times in the image;
+    word `0x5A40` only as instruction bytes). The address is computed (base +
+    `0x5A39` + `idx*7`), consistent with the two names being `7` bytes apart
+    (`"Thyn. \0"`). The town-index byte that drives it is not yet pinned; the
+    town routine is `image 0xC22B` (prints `0x5A31`/`0x5A4C`/`0x5A69`), so the
+    selector is upstream of it. Next: trace the callers of `0xC22B` with the
+    Cyldane save loaded and find where the name pointer is formed.
+- **Status:** derivable → normal Lane M task (not a blocker). OT-001 (owner task)
+  is **resolved** (Cyldane save delivered); the hardcode removal is the remaining
+  Lane M work. Both `GAME2` (Thyn) and `GAME4` (Cyldane) now reproduce in the
+  oracle for side-by-side tracing.
 
 ---
 

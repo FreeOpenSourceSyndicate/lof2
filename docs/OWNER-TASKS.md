@@ -17,9 +17,20 @@ Rules for this file:
 
 ## Open
 
-*(none currently — if you are reading this and it is empty, there is nothing to
-remind the owner about)*
+*(none)*
 
 ## Done
 
-*(none yet)*
+### OT-001 — Provide a save that stands the party in a town other than Thyn (e.g. Cyldane)
+
+- **Delivered:** the owner supplied `GAME4` (party standing in front of **Cyldane**).
+- **Outcome (2026-11-15):** loaded via the Open dialog (slot `4`), one `Up` steps
+  into town and the message reads **"You enter the proud town of Cyldane."**
+  Reproduced with
+  `LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAUTO=0x18,0x05,0x48 LOF_KEYGAP=50`
+  (O, digit `4`, Up) — captured as `ref/oracle/town_cyldane.png`.
+- **Unblocks G-001** (town-name selector).  The name is **still hardcoded** in the
+  port (`compose_town_screen()`, `port/lof.cpp`); with a Cyldane save the selector
+  can now be traced and the hardcode removed without guessing.  See
+  `docs/GUESSWORK.md` G-001 for the remaining decode task.
+- **Kept:** the save is preserved at `game/GAMES/GAME4` (and `game/GAMES-owner/`).

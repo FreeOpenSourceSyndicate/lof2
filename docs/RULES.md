@@ -20,10 +20,23 @@ other document, **this file wins** — say so in your notes and follow this file
 name, or algorithm in code, tests, or docs that is **not traceable to a source
 of truth**. The sources of truth, in order, are:
 
-1. the **decompilation** (`analysis/*.asm`) — the primary source;
+1. the **decompilation** (`analysis/*.asm`) — the primary source of truth;
 2. the **game data files** (`EGA/`, `SYST/`, `DNGS/`, `ROST/`, `*.SAV`, ...);
 3. the **emulator / DOSBox oracle frames** (`ref/oracle/`, golden tests);
 4. **playing the game** (ask the owner — see Rule 5).
+
+**The decompilation is the first source of truth; every other source is
+secondary.** When sources disagree, the decompilation wins — if a lower-ranked
+source (data file, oracle frame, live play) contradicts the disassembly, treat
+the disassembly as authoritative and re-examine the other source for the error
+(e.g. a stale capture or a mis-decoded file); do not silently prefer the
+lower-ranked source.
+
+**Reading the decompilation is never out of lane.** Although `analysis/*.asm`
+and the decompiler are Maintainer-owned (Rule 8), any agent — in any lane — may
+(and should) read the disassembly to find the source of truth for its own work.
+"Stay in your lane" restricts *editing* other lanes' files, never *reading* the
+decompilation.
 
 A number that was *recovered* (template-matched, decoded, traced) is not a
 guess. A number that was *chosen because it looked right* is a guess, even if it
@@ -103,7 +116,8 @@ point; other documents may summarise but MUST point here.
 
 Every agent **stays in its own lane** and works only on the files it owns (the
 map in `docs/WORKSTREAMS.md`). Do not edit another lane's files, and do not pick
-up unowned work ad hoc.
+up unowned work ad hoc. *Reading* files you do not own is always allowed — in
+particular, **reading the decompilation is never out of lane** (Rule 1).
 
 - **Work that belongs to no lane yet MUST be added to a lane** — either give it
   to an existing lane whose remit fits, or create a new lane and register it in
@@ -120,6 +134,72 @@ Owner tasks include (non-exhaustive): deciding the fate of an unremovable guess
 (Rule 3), playing the game to answer a question (Rule 5), authorising a guess
 (Rule 6), and any blocker whose `Responsible` is `External (repo owner)`.
 
+## Rule 9 — When the owner states a rule, reconcile it against this book (never duplicate).
+
+The owner may state a rule at any time — in chat, an issue, or a PR comment. The
+owner may have **forgotten that a rule was already stated**, or be unsure whether
+it arrived correctly, so re-stating a rule is **not** an instruction to duplicate
+it. On receiving one, an agent MUST:
+
+1. **Check whether it is already documented here** (and in the docs this file
+   points to, e.g. `docs/HANDOFF.md`, `docs/WORKSTREAMS.md`).
+2. **Already present with the same meaning → change nothing.** Do not re-add it
+   and do not reword it.
+3. **Absent → add it** as a new rule, with a dated changelog entry (Rule 7).
+4. **Present but the owner's new phrasing changes the meaning → adapt the rule**
+   to the owner's intended meaning, and note the rephrasing in the changelog.
+
+The rule text lives **only** in this file, so there is a single source of truth;
+other docs may summarise but MUST point here. Reconciling owner-stated rules is
+the Maintainer's (lane M) job; any agent that notices a mismatch may also fix it.
+
+## Rule 10 — Agents create, check, and merge their own PRs; the owner does not.
+
+Pull-request mechanics are **entirely agent work**. The repository owner does
+**not** create, review, check, or push PRs (or branches), and MUST NOT be asked
+to. The agent that did the work owns its PR **end to end**:
+
+- **Create** — the agent opens the PR against `main` from its own branch
+  (`work/<name>`, see `docs/WORKSTREAMS.md`).
+- **Check** — the same agent verifies it: `make check` must be green (see
+  `docs/HANDOFF.md`), plus a read-through of its own diff.
+- **Push / merge** — the same agent pushes the branch and **squash-merges** the
+  PR once `make check` is green. No coordinator or owner approval is required.
+
+The owner's role in the workflow is therefore only to **state rules** (Rule 9),
+**answer questions** (Rule 5), **authorise guesses** (Rule 6), and **decide
+unremovable guesses** (Rule 3) — never repository mechanics. Detail and commands:
+`docs/HANDOFF.md` "Merging your PR".
+
+## Rule 11 — Who handles open PRs: the author owns it; the Maintainer is the backstop.
+
+The repository owner does **not** handle pull requests (Rule 10). Agents must be
+able to tell, from the repo alone, who is responsible for any open PR. The
+answer is always one of two:
+
+1. **The author owns its own PR** — create, check, push, squash-merge (Rule 10).
+   The author is the branch's creator; the branch name (`work/<name>`, see
+   `docs/WORKSTREAMS.md`) names the owner.
+2. **The Maintainer (lane M) is the backstop for orphaned PRs** — any PR whose
+   author is gone, or that is stale, DRAFT, or abandoned, is handled by the
+   Maintainer: review it, and either push it to green and merge it, or close it
+   with a one-line reason on the PR. A PR from another lane is **not** out of
+   the Maintainer's lane for this purpose — triage is a Maintainer duty even
+   though the underlying code is owned by that lane (Rule 8 governs *editing*
+   the code, not handling the PR).
+
+Rules of engagement:
+
+- An agent does **not** merge another lane's open PR; it either leaves it for
+  the author, or (if it is clearly abandoned) asks the Maintainer. Do not
+  merge or close a peer's PR unilaterally.
+- The Maintainer **sweeps open PRs every session** (the session checklist step
+  7) and records the outcome: merged, or closed with a reason.
+- A DRAFT PR is the author saying "not ready"; the Maintainer only takes it over
+  once the author is inactive (no push for a full session) or the owner says so.
+
+Detail and commands: `docs/HANDOFF.md` "Merging your PR".
+
 ---
 
 ## Session checklist (do this at the start of every session)
@@ -131,11 +211,58 @@ Owner tasks include (non-exhaustive): deciding the fate of an unremovable guess
 4. Read `docs/HANDOFF.md`, `docs/RISKS.md`, `docs/WORKSTREAMS.md`.
 5. Stay in your lane (Rule 8); if work is unowned, add it to a lane first.
 6. Run `./bootstrap.sh` and `./check.sh` if the workspace may have reset.
-7. Only then start work. If you would have to guess, stop and apply Rules 2–6.
+7. **Sweep open PRs** (Rule 11): `gh pr list --state open`. The author owns its
+   own PR; the **Maintainer handles anything orphaned, stale, DRAFT, or
+   abandoned** — review it, then push it green and merge, or close it with a
+   reason. Do not merge a peer's PR otherwise.
+8. If the owner stated any rule (this session or in the prompt), reconcile it
+   via Rule 9 — check whether it is already here; add only if absent, adapt if the
+   phrasing changes the meaning; never duplicate.
+9. Only then start work. If you would have to guess, stop and apply Rules 2–6.
 
 ---
 
 ## Changelog (newest first)
+
+### 2026-11-15 — Open-PR ownership made explicit (Rule 11)
+
+- Owner: *"make sure it is clear to all agents who handles open PRs."* Added
+  **Rule 11**: the author owns its own PR end to end (Rule 10); the **Maintainer
+  (lane M) is the backstop** for any orphaned / stale / DRAFT / abandoned PR —
+  it reviews, pushes green and merges, or closes with a reason. Added a
+  "sweep open PRs" step to the session checklist. (Rule 9: this is new, not a
+  restatement of Rule 10 — Rule 10 covers the author's duties, Rule 11 covers
+  the hand-off for PRs whose author is gone.)
+
+### 2026-11-14 — Reading the decompilation is never out of lane (Rule 1)
+
+- Owner re-stated the rule with an added clause: **"Reading the decompilation is
+  never out of lane."** The primary-source half was already covered by the Rule 1
+  clarification below (Rule 9 step 2 → unchanged); the lane clause is **new**
+  (Rule 9 step 3 → added). Rule 1 now states explicitly that any agent in any
+  lane may read `analysis/*.asm` — "stay in your lane" restricts *editing* other
+  lanes' files, not *reading* the disassembly.
+
+### 2026-11-14 — Decompilation is the primary source (Rule 1 clarification)
+
+- Owner re-stated the source-of-truth ordering: **"the decompilation is the
+  first source of truth for all agents; every other source is secondary."** Per
+  Rule 9 this was reconciled against Rule 1, which already listed the
+  decompilation as the primary source. The owner's phrasing adds an explicit
+  precedence clause, so Rule 1 was **adapted** (not duplicated): the disassembly
+  wins when sources disagree; a lower-ranked source that contradicts it is
+  re-examined rather than preferred.
+
+### 2026-11-14 — Owner-stated rules + PR ownership
+
+- Rule 9: when the owner states a rule, **reconcile it against this book** —
+  check whether it is already documented, and only add it if absent (same meaning
+  → leave it; changed meaning → adapt it). Prevents duplicate/conflicting rules
+  when the owner re-states something already recorded.
+- Rule 10: **agents create, check, push, and merge their own PRs**; the owner
+  never does repository mechanics and must not be asked to.
+- Added the session checklist item to re-read this file and reconcile any
+  owner-stated rule via Rule 9.
 
 ### 2026-11-13 — Lane discipline + owner-task reminders
 

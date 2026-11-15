@@ -48,6 +48,7 @@ void Machine::reset_cpu_state(bool /*wipe*/) {
     cpu.halted = false;
     cpu.has_ovr = false;
     cpu.rep = 0;
+    ext_scan_pending = -1;
     psp_seg = kPspSeg;
     alloc_top = 0xA000;
     // BIOS data area basics
@@ -321,9 +322,15 @@ void Machine::dos_int(uint8_t n) {
             if (getenv("LOF_EXITDBG")) fprintf(stderr, "[exit] AH=%02X al=%02X cs:ip=%04X:%04X instr=%lu\n", ah, al, c.cs, (uint16_t)(c.ip-2), (unsigned long)instr_count);
             running = false; break; }
         case 0x01: {   // read char with echo
-            if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+            if (ext_scan_pending >= 0) {   // extended key: second half is the scan code
+                uint8_t k = (uint8_t)ext_scan_pending; ext_scan_pending = -1;
+                klog("21/01sc", k);
+                c.ax = (uint16_t)((c.ax & 0xFF00) | k);
+            } else if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
                 klog("21/01", k);
-                c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k)); }
+                uint8_t a = scancode_ascii(k);
+                if (a == 0) ext_scan_pending = k;   // AL=0 first, scan code next
+                c.ax = (uint16_t)((c.ax & 0xFF00) | a); }
             else c.ax = (uint16_t)((c.ax & 0xFF00) | 0);
             break; }
         case 0x02: fputc((char)(c.dx & 0xFF), stdout); fflush(stdout); break;
@@ -336,9 +343,15 @@ void Machine::dos_int(uint8_t n) {
             } else { fputc((char)(c.dx & 0xFF), stdout); fflush(stdout); }
             break; }
         case 0x07: case 0x08: {
-            if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
+            if (ext_scan_pending >= 0) {   // extended key: second half is the scan code
+                uint8_t k = (uint8_t)ext_scan_pending; ext_scan_pending = -1;
+                klog2("21/07sc", k, instr_count);
+                c.ax = (uint16_t)((c.ax & 0xFF00) | k);
+            } else if (!key_queue.empty()) { uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
                 klog2("21/07", k, instr_count);
-                c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k)); }
+                uint8_t a = scancode_ascii(k);
+                if (a == 0) ext_scan_pending = k;   // AL=0 first, scan code next
+                c.ax = (uint16_t)((c.ax & 0xFF00) | a); }
             else c.ax = (uint16_t)((c.ax & 0xFF00));
             break; }
         case 0x09: {
@@ -358,20 +371,27 @@ void Machine::dos_int(uint8_t n) {
             }
             wb(p + 1, cnt);
             break; }
-        case 0x0B: { c.ax = (uint16_t)((c.ax & 0xFF00) | (key_queue.empty() ? 0x00 : 0xFF));
+        case 0x0B: { c.ax = (uint16_t)((c.ax & 0xFF00) | ((key_queue.empty() && ext_scan_pending < 0) ? 0x00 : 0xFF));
             static int nb=0; if (getenv("LOF_KDBG") && !key_queue.empty() && nb<20){ fprintf(stderr,"[0B] key pending, returns FF\n"); nb++; }
             break; }
         case 0x0C: {
             // DOS 0Ch: flush the type-ahead buffer, then invoke the console
             // input function named in AL (01/06/07/08/0A).  Games poll AH=0Bh
             // first and then call 0Ch to read the key that is waiting, so the
-            // read must actually return it.
+            // read must actually return it.  A pending scan code (the second
+            // half of an extended key) is NOT flushed — it is still owed.
             uint8_t fn = al;
             if (fn == 0x01 || fn == 0x06 || fn == 0x07 || fn == 0x08) {
-                if (!key_queue.empty()) {
+                if (ext_scan_pending >= 0) {
+                    uint8_t k = (uint8_t)ext_scan_pending; ext_scan_pending = -1;
+                    klog("21/0Csc", k);
+                    c.ax = (uint16_t)((c.ax & 0xFF00) | k);
+                } else if (!key_queue.empty()) {
                     uint8_t k = key_queue.front(); key_queue.erase(key_queue.begin());
                     klog("21/0C", k);
-                    c.ax = (uint16_t)((c.ax & 0xFF00) | scancode_ascii(k));
+                    uint8_t a = scancode_ascii(k);
+                    if (a == 0) ext_scan_pending = k;   // AL=0 first, scan code next
+                    c.ax = (uint16_t)((c.ax & 0xFF00) | a);
                 } else {
                     c.ax = (uint16_t)((c.ax & 0xFF00) | 0);
                 }

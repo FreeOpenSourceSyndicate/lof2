@@ -123,6 +123,8 @@ struct Machine {
     // keyboard
     std::vector<uint8_t> key_queue;    // scancodes
     uint8_t kbd_shift = 0;
+    int ext_scan_pending = -1;         // scan code owed to the next DOS read
+                                       // after an extended key returned AL=0
 
     // mouse
     int mouse_x = 320, mouse_y = 175;

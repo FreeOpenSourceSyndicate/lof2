@@ -81,9 +81,32 @@ Which building do you want to visit?
 (E)mporium (B)ank (I)nn (H)ouse of trades (T)emple (C)ontinue
 ```
 
-The main town screen is **menu-only** — no free movement (confirmed).  The town
-name is `Thyn` / `Cyldane` (`ds=0x5A56` / `0x5A5E`; `Cyldane` is referenced at
-file `0x7C41`).  `(C)ontinue` at `ds=0x5AA2` is referenced at file `0x9A37`.
+The main town screen is **menu-only** — no free movement (confirmed).
+
+**Address mapping (verified 2026-11-14).** The `ds` offsets in this file are
+data-segment offsets; the engine runs with `ds = 0x4AC1`, so for a data offset
+`off`:
+
+    file offset = 0x40000 + off      (verified empirically, below)
+    physical    = 0x4AC10 + off      (ds*16 = 0x4AC10)
+
+Both are confirmed against the live 1 MB RAM dump (`LOF_DUMP`) and the raw EXE:
+`ds:0x5A31 "town of"` -> file `0x45A31` -> physical `0x50641`; the bytes match in
+both. **Rule of thumb: `file = ds_offset + 0x40000`.** (The `ds:off` form is what
+the disassembly shows, e.g. `mov ax, 0x5a31` at image `0xC22C`.)
+
+**Town-name strings.** The file holds exactly two town names, NUL-separated at
+`ds:0x5A39` (`"Thyn. "`) and `ds:0x5A40` (`"Cyldane. "`) — file `0x45A39` /
+`0x45A40`. There is a *second* `"Thyn"` at `ds:0x687D` ("The Grand Board of
+Trades greets you in Thyn."), file `0x4687D`. `(C)ontinue` is at `ds:0x5AA2`
+(file `0x45AA2`).
+
+> **Superseded claim (wrong):** an earlier revision said the names live at
+> `ds=0x5A56` / `0x5A5E` and that `Cyldane` is "referenced at file `0x7C41`".
+> Both are wrong: `ds:0x5A56` is the middle of `"Which building do you want to
+> visit?"`, and file `0x7C41` is code (`5E 5A 59 5B ...`), not a name. The
+> `0x5A56`/`0x5A5E` values were the file offsets `0x45A56`/`0x45A5E` minus
+> `0x40000` computed wrongly. See G-001 for the selection question.
 
 ## Internal clock (NOT the wall clock)
 
@@ -710,12 +733,279 @@ wraps the leftmost ~10 columns with the right end of `TWN00`'s top rows (the sam
 wrap the menu's `MENU` frame shows), so a naive `TWN00[0:119,0:120]` still lands
 the interior pixels correctly; only the corner differs.
 
-## Building screens (Emporium/Temple) — capture is incomplete (2026-11-12)
+## Building screens (Emporium/Temple) — captured; no new files (2026-11-13)
 
-`tests/golden_test.sh` reaches the Emporium with
-`LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x12` and the Temple with `...,0x14`, but a
-1700-frame capture with `LOF_KEYGAP=250` produced a **partially drawn** frame
-(the viewport is still mid-composite; text is garbled).  The screen is a
-different, denser layout than the town menu (a bordered list panel on the left,
-a status area on the right).  Next session: capture with a larger `--frames`
-(≥3000) and/or a larger `LOF_KEYGAP`, then decode.  Do not guess the layout.
+The earlier note ("capture is incomplete") was **wrong**: the Emporium *is* fully
+drawn. The confusion came from a 1700-frame run under `golden_test.sh`, which
+uses `FRAMES=60` per scenario (so a partial frame was inspected); at the golden
+`--frames 1600` the screen is complete and the EGA-plane md5 matches the recorded
+golden (`shop c9781d20…`). Confirmed this session by re-running the scenario and
+reproducing the golden hash exactly.
+
+**It is the same video mode as the town screen: EGA mode 0Dh.** `LOF_DEBUG`
+prints `mode=13`, but that field is **decimal** — 13 = 0x0D, i.e. EGA 320x200x16
+(see `src/machine.cpp:set_video_mode`, which the game calls with `0D`). There is
+**no VGA mode-13h path**; do not be misled by the decimal `13`.
+
+**Grounding for the drop-in:** the Emporium reads **no new files** — it redraws
+from `ROST/ROST` + `ROST/SHOP` and built-in art (`LOF_I21=1` shows the last opens
+are `ROST/ROST` then `ROST/SHOP`; nothing after). The oracle frame is saved at
+`ref/oracle/shop.png`. Reproduce with:
+
+```
+LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x12 LOF_KEYGAP=250 LOF_CMDLEN=3 LOF_NO_TIMER=1 \
+  ./lof-native --dir game --headless --frames 1600 --shot out.png
+```
+
+Temple: same with `...,0x14`.
+
+**Correction (2026-11-14) — the Emporium is NOT an ornate engine-drawn panel.**
+An earlier note called the layout "a large ornate-framed panel … denser, more
+decorative than the town menu"; that is **wrong**. Decoding the golden frame
+plane-by-plane (`LOF_EDUMP`, index 0..15) shows the Emporium is the **same
+screen as the town**, only with a different viewport tile and a different text
+block:
+
+- background `EGA/UP/MSCR` at (0,0) — its right side already contains the
+  light-gray (7) menu box the text sits in, so **no panel art is drawn**;
+- town scene tile blitted into the 120x119 viewport at (10,11);
+- the engine's message + option text in `CHR1`, 6-px advance, x=139.
+
+Verified by composition: `MSCR + TWN01@(10,11)` differs from the golden frame
+`c9781d20…` by only **2257 px**, and those are exactly the text + the dark-gray
+message box (below). The per-building viewport tile (exact match at (10,11)):
+
+| building | viewport tile | source |
+|----------|---------------|--------|
+| (E)mporium | `EGA/TWN/TWN01` | exact (L1=39 over 120x119) |
+| (B)ank     | `EGA/TWN/TWN02` | exact (L1=21) |
+| (H)ouse of trades | `EGA/TWN/TWN04` | exact (L1=55) |
+| (I)nn      | *first-person D5 interior*, not a TWN tile | D5 scene (L1≥44833) |
+| (T)emple   | *first-person D5 interior*, not a TWN tile | D5 scene (L1≥63350) |
+
+`TWN00` is the **streets/town-menu** viewport; the Emporium/Bank/House use
+`TWN01`/`TWN02`/`TWN04`; the **Inn and Temple switch to a first-person `D5`
+scene** (they are walkable interiors — the intro even ends inside the Inn).
+`TWN03` and `TWN05` were not reached by any building key tried (may be exterior
+views or other towns; unknown).
+
+### Emporium text (decoded 2026-11-14)
+
+Two text blocks, both `CHR1`, x=139, 6-px advance, 8-px line pitch:
+
+- **Greeting** (white, index 15) inside a **dark-gray (index 8) box** the
+  engine draws over the light-gray MSCR box — rows y=92 and y=100:
+  `"Well hi, wealthy heroes, "` / `"what would you like, huh?"`
+  (EXE: `ds:0x5B71` + `ds:0x5B8B`; both NUL-terminated and split across two rows
+  at the space after "heroes,").
+- **Options** (black, index 0) on the light-gray MSCR box:
+  `(B)uy wares` y=116, `(S)ell wares` y=124, `(R)epair wares` y=140,
+  `(G)ather gold` y=156 (EXE: `ds:0x5BA5`, `0x5BB1`, `0x5BBE`, `0x5BCD`).
+  A 5th option is expected (`ds:0x5BDB "(C)ontinue"`); it is **not visible in
+  the captured frame** — do not guess its row (see GUESSWORK/notes).
+
+The dark-gray greeting box is engine-drawn (`sh==8` where `MSCR` differs) and
+the white greeting text is drawn into it; the black option text sits directly on
+the MSCR light-gray box (no extra fill).
+
+### Leads for the next session (do not re-derive)
+
+- ~~The Emporium panel is **not** any `EGA/UP/*` asset … must be traced in
+  `analysis/lof.asm`~~ **SUPERSEDED 2026-11-14:** there is no panel art — the
+  Emporium is `MSCR` + a `TWN` viewport tile + `CHR1` text (see the correction
+  above). The "engine-drawn panel" idea came from mistaking `MSCR`'s own
+  light-gray menu box (already present in the background) for a drawn frame.
+- **G-001 (town name):** the file holds **two** names only — `ds 0x5A39 "Thyn. "`
+  and `ds 0x5A40 "Cyldane. "` (adjacent, NUL-separated). Neither is referenced by
+  a plain pointer, so the selector is computed. The surrounding code loads
+  `0x5A31 "town of"`, `0x5A4C "ich building do you want to visit?"`,
+  `0x5A69 "isit?"` into AX and calls the string drawer (`lcall 0x18d:0x16a8`) —
+  these are the *tails* of the three lines, so the full strings are assembled
+  from fragments and the name is chosen upstream. Trace the routine around image
+  `0x0C055..0x0C24D` and find where the `0x5A39`/`0x5A40` choice is made.
+  Both available saves (`GAME1`/`GAME2`, town scenario 5) resolve to Thyn, so a
+  save that stands in Cyldane is needed to observe the other branch.
+
+- **Emporium menu strings (found 2026-11-14, `file = ds+0x40000`):** the
+  Emporium options live at `ds:0x5BA5` `"(B)uy wares"`, `ds:0x5BB1`
+  `"(S)ell wares"`, `ds:0x5BBE` `"(R)epair wares"`, `ds:0x5BCD`
+  `"(G)ather gold"`, `ds:0x5BDB` `"(C)ontinue"` (file `0x45BA5`…). Greeting:
+  `ds:0x5B71` `"Well hi, wealthy heroes, "` + `ds:0x5B8B` `"what would you
+  like, huh?"` (these two wrap the greeting onto two rows). See the "Emporium
+  text" section above for the exact rows/colours (greeting white in an
+  engine-drawn dark-gray box; options black on MSCR's light-gray box).
+
+
+
+
+### Bank + House of trades implemented (2026-11-14)
+
+All three buildings share the *same* screen shape as the town menu — `MSCR` +
+one `TWN` viewport tile at (10,11) + `CHR1` text at x=139 — so `port/lof.cpp`
+now has `compose_bank_screen()` (`--bank`, tile `TWN02`) and
+`compose_house_screen()` (`--house`, tile `TWN04`) beside `--emporium`.  All are
+pixel-exact (masked) against the emulator frames (`tests/port_building_test.py`,
+`ref/oracle/{emporium,bank,house}.png`).
+
+- **Bank** (`EGA/TWN/TWN02`), strings the engine's own:
+  greeting `ds:0x631C "Greetings, brave heroes, what can we do for you?"`
+  (rows 92/100, white); options `ds:0x634D "(D)eposit/open account"` (124),
+  `ds:0x6364 "(W)ithdraw/close account"` (132), `ds:0x637D "(E)xamine accounts"`
+  (140), `ds:0x6390 "(J)oint deposit"` (156), `ds:0x63A0 "(C)ontinue"` (172).
+- **House of trades** (`EGA/TWN/TWN04`): `ds:0x6855 "The Grand Board of Trades"`
+  (92), `ds:0x686F "greets you in Thyn."` (100), `ds:0x6883 "Welcome!"` (108),
+  then `ds:0x688C "(T)raining"` (124), `ds:0x6897 "(L)earn magic spells"` (132),
+  `ds:0x68AC "(A)nother language"` (140), `ds:0x68BF "(J)oint deposit"` (156),
+  `ds:0x68CF "(C)ontinue"` (172).
+- The Bank's `(D)eposit/open account` needed the **`/` glyph**: it is `CHR1`
+  band **2**, cell **2** (added to `port/font.cpp` `glyph_cell`).
+
+### G-001 — extra evidence (2026-11-14)
+
+A raw word-search of `LOF.EXE` for the little-endian town-name addresses finds
+`0x5A39` **zero** times and `0x5A40` only as instruction immediates
+(`26 C6 40 5A …` = `mov byte es:[bx+si+0x5a], …`), never as a stored pointer.
+So the name address is not a static pointer at all — it is built from a computed
+base + offset, confirming the selector is data-driven (save/scenario).  Tracing
+it needs a Cyldane save (owner task OT-001); both shipped saves resolve to Thyn.
+
+## BREAKTHROUGH (2026-11-14): arrow keys never worked — emulator delivered the
+## wrong DOS extended-key convention
+
+**Root cause of "Up does nothing / never enters the town".**  The emulator's DOS
+console-input handlers (`INT 21h AH=01/07/08` and the `0Ch` dispatch) returned
+`scancode_ascii(k)` for every key, and `scancode_ascii` returns `0` for any key
+with no ASCII (arrows, PgUp, function keys, ...).  Real DOS returns **AL=0** for
+an extended key and then hands the **scan code** to the *next* console read.
+The emulator only ever produced the `AL=0` half, so the arrow keys (and every
+other extended key) were invisible: LOF's title/menu path reads input with
+`INT 21h AH=07` and keys off the scan code, so Up / Down / Left / Right were all
+dropped.  (This matches the `AGENTS.md` "Fixed bugs" note that described the
+convention but was never implemented.)
+
+Fix (lane M, `src/machine.cpp` + `src/emu.h`): keep an `ext_scan_pending` byte.
+When a read consumes a key whose ASCII is `0`, store its scan code and return
+`AL=0`; the *next* read returns the scan code in `AL` (and clears the pending
+byte).  Applied to `AH=01`, `AH=07`/`08`, and the `0Ch` dispatch; `AH=0Bh`
+reports a pending scan code as "key waiting".  `reset_cpu_state` clears it.
+`make test` still green.
+
+**Effect.**  The owner's documented town-entry path now works end to end:
+
+```
+LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAUTO=0x18,0x03,0x50,0x48 LOF_KEYGAP=50 \
+  ./lof-native --dir game --headless --frames 2000 --shot town_entry.png
+```
+
+`O` (0x18) opens the load menu, `2` (0x03) loads slot 2 (the party spawns on the
+wilderness map **facing away from the town**), `Down` (0x50) turns 180°, `Up`
+(0x48) steps into the town.  Result: the **town main menu** frame with exactly
+the strings the notes predicted:
+
+```
+You enter the proud town of
+Thyn. Which building do you
+want to visit?
+(E)mporium (B)ank (I)nn (H)ouse of trades (T)emple (C)ontinue
+```
+
+Frame `/tmp/lofwork/town_entry.png` (md5 `4e105dada7c50da4734a36caf36aaf2e`)
+matches `ref/oracle/town.png` at 63.0% (the usual emulator-palette ceiling, see
+the palette sections above — not a new bug).
+
+The decompilation agrees: the map command loop is at image `0x75A0`; it reads a
+key, and `cmp 0x57` (`'W'`) calls the town routine at `0xBF82` (the routine that
+prints "town of" / "Which building...").  But the **first** entry from the
+wilderness is the Up-step, not `W` — `W` is the "enter town" command once you
+are already standing on the town's map tile.
+
+**Golden status.**  The recorded golden scenarios (`tests/golden.txt`) never
+press an arrow key (they use letters + digits only), so this fix does not change
+any of them; re-running `make golden` must stay green (verified separately).
+
+## Leaving town -> wilderness -> amulet -> combat (2026-11-14, later)
+
+With the arrow fix in place the whole post-town flow is now reachable and
+**deterministic** (same key sequence + same frame count -> same plane md5;
+`LOF_NO_TIMER=1` pins the clock hook, which is the only variability).
+
+Reproduction (from the town menu reached by `O,2,Down,Up`):
+
+```
+LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAUTO=0x18,0x03,0x50,0x48,0x2e LOF_KEYGAP=50 \
+  ./lof-native --dir game --headless --frames <F> --shot out.png
+```
+
+Sequence observed (all via `LOF_EDUMP` plane dumps, decoded with `CHR1`):
+
+| frames | state |
+|--------|-------|
+| ~260 | town menu (`C` consumed) |
+| 300 | **wilderness map** (bright viewport, right panel empty) |
+| 400 | amulet prompt: `Who should receive that (1-6)?` + `(L)eave it` |
+| 500+ | *idle on the map* — no text, viewport drifting |
+| ~700 | **combat**: `You unknowingly meet` / `4 Mercenaries (Rnk 2)` / `6 Mercenaries (Rnk 1)` / `What will you do?` / `(A)ttack` `(G)reet your opponents` `(T)alk to them` `(W)ithdraw at once` |
+| + digit `1` | **character sheet** (Decker: `Human-Paladin`, `Rnk 01 Hitpoint 0010/0010 Mana 0000/0000 Str 19 Con 14 State Good Dex 14 Experience 000000379 Int 12 Wis 15 Weight 0029/00530`, options `(E)xchange gold/rations`, `(S)how next page`, `(C)ontinue`) |
+
+Key facts:
+
+* **Leaving town is just `(C)ontinue`** on the town menu — no phase-of-day gate
+  on the loaded-save path (the "gates closed 'till early morning" text is a
+  different branch).  A single `C` goes straight to the wilderness.
+* **First leave grants an amulet.**  Prompt `Who should receive that (1-6)?` +
+  `(L)eave it` (EXE `0x48fa0`); grant text `On starting your journey, you
+  receive an amulet from a town guard. A gift from the Count.` (EXE `0x42457`).
+  NB: the prompt's **first line renders in a face our `CHR1` 6-px decoder cannot
+  read cleanly** (the `(1-6)?` / `(L)eave it` line decodes fine), so its exact
+  wording is *not* claimed — do not hard-code it in the port without re-decoding.
+* **Time advances on the map** even while idle, and **wandering monsters attack**
+  (~frame 700 here, no input).  This is the save-load warning in action; a
+  headless capture must not linger after leaving town.
+* Enemies are generated on load (not stored in the save), consistent with the
+  existing note.
+
+Oracle frames captured with the emulator (`ref/oracle/`):
+
+| file | state | png md5 |
+|------|-------|---------|
+| `wilderness.png` | wilderness map | `f37fc751e17c46510931a78db0061fda` |
+| `amulet.png`     | amulet prompt | `94ced1aeb7aff1de5e6d7d6af2e071ad` |
+| `combat.png`     | first combat  | `70e1f5789545df7ad87236085f79cbef` |
+| `charsheet.png`  | character sheet (after digit `1`) | `5af0e7d4d51cf6559571981cd9271e32` |
+
+(The town main menu itself is the golden `town_entry` scenario, `--frames 600`.)
+
+## The other town: Cyldane (owner-supplied save GAME4)
+
+OT-001 (owner task) was **resolved 2026-11-15**: the owner supplied `GAME4`, a
+save in which the party stands **in front of Cyldane** (not Thyn).  It is kept
+at the repo root (`GAME4`, installed to slot 4 by `bootstrap.sh`; the archive
+ships only slots 1/2/3/5, so this save is *not* otherwise restorable).
+
+Reproduce the Cyldane town screen:
+
+```
+LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAUTO=0x18,0x05,0x48 LOF_KEYGAP=50 \
+  ./lof-native --dir game --headless --frames 1200 --shot ref/oracle/town_cyldane.png
+```
+
+(O = 0x18 opens the load dialog, digit `4` = 0x05 picks slot 4, `Up` = 0x48 steps
+into the town.)  The frame reads:
+
+```
+You enter the proud town of
+Cyldane. Which building do you
+want to visit?
+```
+
+captured as `ref/oracle/town_cyldane.png` (png md5 `bc1fd8201372584ede69ba2d613b08da`).
+
+**What this settles for G-001.**  A 1 MB RAM dump at the town screen (LOF_DUMP)
+shows **both** `ds:0x5A39 "Thyn."` and `ds:0x5A40 "Cyldane."` present, byte-identical,
+in *both* the Thyn and the Cyldane runs.  So the engine does **not** rewrite the
+name string; it **selects between the two addresses**.  The selector therefore is
+the pointer passed to the string drawer — and that pointer is computed (no
+`mov ax,0x5a39/0x5a40` immediate exists; the word `0x5A39` appears zero times in
+the image).  Remaining lane-M task: trace the callers of the town routine
+(`image 0xC22B`) with GAME4 loaded and find where `0x5A39 + idx*7` is formed.
+`port/lof.cpp compose_town_screen()` still hardcodes `"Thyn."`.

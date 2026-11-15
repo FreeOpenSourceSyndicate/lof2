@@ -78,6 +78,15 @@ if [ -f GAME1 ]; then
     say "[bootstrap] installed root GAME1 as save slot 1"
 fi
 
+# A GAME4 dropped at the repo root is the owner-supplied *Cyldane* save (the
+# party stands in front of Cyldane, not Thyn).  It is not in the archive, so it
+# must be installed here or it is lost on a workspace reset.  It is what lets
+# lane M trace the town-name selector (G-001/OT-001).
+if [ -f GAME4 ]; then
+    cp -f GAME4 game/GAMES/GAME4
+    say "[bootstrap] installed root GAME4 as save slot 4 (Cyldane)"
+fi
+
 # --- 2. tooling -------------------------------------------------------------
 # The verification tests (`make golden-port`, `check.sh`) need Python numpy +
 # Pillow; the interactive front-end builds an SDL2 window when libsdl2-dev is
