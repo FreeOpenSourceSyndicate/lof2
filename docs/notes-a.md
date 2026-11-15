@@ -1991,3 +1991,97 @@ room routine always reads `CHAR2` (Round 38-39), so `CHAR1` is a duplicate/alias
 
 Status: the blit offset and the band-occlusion structure are known; the exact
 occlusion polygon (and whether the far-wall art is a second sprite) remains open.
+
+## Round 41 — the room-art routine, fully decoded (Task 2)
+
+**The routine** is at image `0x431E` (`119D:2A4E`). Disassembly (image offsets;
+runtime offset = image − 0x18D0):
+
+```
+431E  call 0x30f6            ; save regs
+4321  mov dx,0x3120
+4324  mov ds,dx
+4326  call 0x5008            ; -> ax = [bp+8] = the room number (NN)
+4329  cmp ax,0x16            ; NN < 22 ?
+432C  jge 4346
+432E  mov bx,cs:[0x240e]     ; room-art INDEX (separate from NN)
+4333  shl bx,1
+4335  mov dx,cs:[bx+0x7e2]   ; art segment (NN<22 table)
+433A  mov cs:[0x2bae],dx
+433F  mov byte [0x5561],0x33 ; bank digit '3'
+4344  jmp 4363
+4346  mov bx,cs:[0x240e]
+434B  shl bx,1
+434D  mov dx,cs:[bx+0x7f2]   ; art segment (NN>=22 table)
+4352  mov cs:[0x2bae],dx
+4357  mov dx,cs:[bx+0x2a3e]   ; bank digit table
+435C  add dx,0x30            ; -> ASCII '0'..'5'
+435F  mov [0x5561],dl        ; overwrite the bank digit in "ega\char_\ch__"
+4363  mov dx,cs:[0x2408]
+4368  mov cs:[0xa06],dx
+436D  call 0x5008            ; -> ax = [bp+8] = NN again
+4370  mov bx,1
+4373  call 0x4fbb            ; itoa(NN): writes ASCII digits to cs:[0x36de/df]
+4376  mov al,cs:[0x36de]
+437A  mov ah,cs:[0x36df]
+437F  mov [0x5565],al        ; 10s digit of NN
+4382  mov [0x5566],ah        ; 1s digit of NN
+4386  lea dx,[0x5559]        ; the filename buffer
+438A  mov cs:[0xa7c],dx
+438F  push cs:[0xa06]
+4394  lcall 0x18d,0x68c      ; sprite loader (reads the buffer)
+4399.. retf (returns 1 if the cached room changed)
+```
+
+**The filename** is assembled in the buffer at `0x5559` as
+`ega\char<B>\ch<NN>` where:
+- **`<NN>` = the routine's argument** `[bp+8]`, formatted by the itoa helper at
+  image `0x4FBB` (divisors `cs:[0x36e1]` = {10000,1000,100,10}) into
+  `cs:[0x36de]`/`cs:[0x36df]`, then copied to buffer offsets `+0xC`/`+0xD`.
+  Measured: corridor **NN=25**, depth-2 **NN=40**.
+- **`<B>` = the bank digit** = `cs:[0x2a3e + cs:[0x240e]*2] + 0x30`. The table
+  `cs:[0x2a3e]` is `[0,1,1,1,1,2,2,2,…]`; with the measured `cs:[0x240e]=5`
+  this gives `'2'`, i.e. `ega\char2\ch25` — matching the `LOF_I21=1` open trace
+  exactly. (For `NN>=22` the routine instead hardcodes bank `'3'`.)
+
+**Callers** of the wrapper `sub_26820` (image `0x280F0`), each pushing NN then
+`call sub_26820`:
+- image `0x252A5` → NN `0x13` (19)
+- image `0x25AF7` → NN `0x13` (19)
+- image `0x29040` → NN `0x12` (18)
+- image `0x261F2` → NN **computed** (not a constant)
+
+The measured NNs (25, 40) match none of the constants, so the dungeon-view art
+is drawn by the **computed caller at image `0x261F2`**, which derives NN from a
+per-scenario record:
+
+```
+261AD  mov ax,0x19a
+261B0  imul word ptr [bp+6]        ; * (some index)
+261B3  mov di,ax
+261B5  mov es,[0xb06c]
+261B9  les bx,es:[0x30]
+261BE  mov si,es:[bx+di+0x10]
+261C2  cmp si,0x7c5 / 0xffff      ; guard: empty slot
+261CD  mov ax,0x4e
+261D0  imul si
+261D2  mov bx,ax
+261D4  mov es,[0xb088]
+261D8  les di,es:[0x37b0]
+261DD  mov al,es:[bx+di+0x48]      ; <-- NN = this scenario-record byte
+261E1  sub ah,ah
+261E3  mov [bp-8],ax
+261EE  push [bp-8]                 ; NN
+261F2  call sub_26820
+```
+
+So NN is a byte field at `+0x48` of a `0x4e`-stride record in the scenario data
+(`es:[0xb088]` segment, table at `es:[0x37b0]`), selected by an index that
+itself comes from a `0x19a`-stride record in the `es:[0xb06c]` segment (field
+`+0x10`).
+
+**Status:** the routine, the filename rule (`ega\char<B>\ch<NN>`), the bank
+table and the NN formatting are all decoded and verified against the real file
+open. Remaining: the exact identity of the `+0x48` scenario field and the
+`0x19a`/`0x4e` record semantics (which data file backs `es:[0xb06c]` /
+`es:[0xb088]`).
