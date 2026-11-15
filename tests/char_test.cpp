@@ -659,6 +659,38 @@ static int real_data() {
     assert(m0.size() == 25 && m0[0] == "Ape");
     assert(monster_names(dir, kMonsterScenarioCount).empty());
     assert(monster_names(dir, -1).empty());
+    // The encounter prints the record's *plural* name; scenario-0 record 12 is
+    // Mercenary/Mercenaries, which the first combat met as "Mercenaries".
+    auto r0 = monster_roster(dir, 0);
+    assert(r0.size() == 25 && r0[12].singular == "Mercenary" &&
+           r0[12].plural == "Mercenaries");
+    assert(monster_roster(dir, kMonsterScenarioCount).empty());
+
+    // Combat / encounter strings (LOF.EXE only; compiled in via char_names.inc).
+    // The first wandering-monster encounter in the wilderness met four
+    // Mercenaries drawn from NSC00, and the screen's text matches these
+    // verbatim (ref/oracle/combat.png).
+    auto ci = combat_intro_names();
+    assert(ci.size() == kCombatIntroCount &&
+           ci[0] == "You unknowingly meet" &&
+           ci[1] == "Without warning you meet" &&
+           ci[2] == "You are surprised by:" &&
+           ci[3] == "You still see in front of you:");
+    auto can = combat_action_names();
+    assert(can.size() == kCombatActionCount &&
+           can[0] == "(A)ttack" && can[1] == "(G)reet your opponents" &&
+           can[2] == "(T)alk to them" && can[3] == "(W)ithdraw at once");
+    auto crh = combat_round_header();
+    assert(crh.size() == kCombatRoundHeaderCount &&
+           crh[0] == "The result of this round:" &&
+           crh[1] == "Name       HP   W P B Attack");
+    auto cwh = combat_withdraw_header();
+    assert(cwh.size() == kCombatWithdrawHeaderCount &&
+           cwh[0] == "The result of this round:" &&
+           cwh[1] == "Name       Gld. Rt Exp. HP   ");
+    // The count/rank line the encounter prints for an enemy group.
+    assert(combat_group_line(3, "Ogres", 1) == "3 Ogres (Rnk 1)");
+    assert(combat_group_line(4, "Mercenaries", 2) == "4 Mercenaries (Rnk 2)");
 
     // SNSC statistics block -> character-struct seed (analysis/lof.asm
     // 1DA8E..1DCBB).  Verified byte-for-byte against the shipped save: SNSC

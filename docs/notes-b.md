@@ -1294,3 +1294,108 @@ The remaining SNSC/NSC 40-byte stat-block names (`rec[0x28]`, `0x29`, `0x2b`,
 `0x30`..`0x33`, `0x44`..`0x4e`) are consumed by the monster **runtime record**
 builder (`0x2CF0E`) and the combat routine (`0x1904B`), i.e. play-loop state, so
 naming them statically would be guesswork. Left as a documented follow-up.
+
+## Encounter / combat screen (2026-11-08)
+
+### Reproduction (deterministic)
+
+The first wandering-monster encounter is reachable from the *wilderness* (not
+from the GAME5 dungeon save, which sits in a static, monster-free dungeon room).
+The maintainer's post-town path reproduces it exactly:
+
+```
+cp GAME4 game/GAMES/GAME4        # slot 4 = the Cyldane save (also installs via bootstrap.sh)
+LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_I21=1 \
+  LOF_KEYAUTO=0x18,0x03,0x50,0x48,0x2e LOF_KEYGAP=50 \
+  ./lof-native --dir game --headless --frames 760 --shot combat.png
+```
+
+The shot is **pixel-identical** to `ref/oracle/combat.png` (mean abs diff
+`0.00`). The whole path is deterministic because `LOF_NO_TIMER=1` pins the only
+source of variability (the BIOS clock hook that drives wandering-monster
+spawns). GAME5 (dungeon slot 5) was *not* needed for combat: dungeon rooms have
+no wandering monsters in this build.
+
+### Where the enemies come from
+
+During the encounter the engine opens exactly one roster: **`SYST/NSC00`** —
+the scenario-0 (`Valley of Faerghail`) monster table — reading its 1-byte count
+(25) then all 25 78-byte records (`LOF_I21=1` trace). It also reads
+`DNGS/DNG10` and `SYST/SPEC0`, but the *names* printed on the encounter screen
+come from `NSC00`. Enemies are generated on load/encounter, never stored in the
+save.
+
+`SYST/NSC0n` layout is identical to `SYST/SNSC` (see `port/data.h`): a count
+byte, then N records of `19-byte singular name | 19-byte plural name | 40-byte
+statistics block`. The encounter prints the **plural** name. Scenario 0 record
+12 is `Mercenary`/`Mercenaries`; the first combat met four of them:
+
+```
+You unknowingly meet
+4 Mercenaries (Rnk 2)
+6 Mercenaries (Rnk 1)
+What will you do ?
+(A)ttack
+(G)reet your opponents
+(T)alk to them
+(W)ithdraw at once
+```
+
+New API: `monster_roster(dir, scenario)` returns the full `SnsRecord` vector
+(plural names + stats), and `combat_group_line(count, plural, rank)` formats one
+group's line, e.g. `combat_group_line(3, "Ogres", 1) == "3 Ogres (Rnk 1)"`.
+
+### Combat strings (LOF.EXE only — no data file carries them)
+
+All the encounter / round-result text lives in `LOF.EXE`'s data segment as
+packed NUL-terminated strings. Offsets are **image offsets** (add the MZ load
+base to get the runtime `ds` offset); they are transcribed into
+`port/char_names.inc` by `tools/spec.py --emit-names` and exposed via
+`port/char.h`.
+
+| image off | string | use |
+|-----------|--------|-----|
+| `0x490BD` | `You unknowingly meet`      | intro variant 0 |
+| `0x490D2` | `Without warning you meet`  | intro variant 1 |
+| `0x490EB` | `You are surprised by:`     | intro variant 2 |
+| `0x49101` | `You still see in front of you:` | intro variant 3 |
+| `0x49120` | `%ld `                      | count field of a group line |
+| `0x49125` | ` (Rnk %ld)`                | rank field of a group line |
+| `0x49130` | `What will you do ?`        | menu prompt |
+| `0x49143` | `(A)ttack`                  | action 0 |
+| `0x4914C` | `(G)reet your opponents`    | action 1 |
+| `0x49163` | `(T)alk to them`            | action 2 |
+| `0x49172` | `(W)ithdraw at once`        | action 3 |
+| `0x48D2D` | `The result of this round:` | melee round table title |
+| `0x48D47` | `Name       HP   W P B Attack` | melee column header |
+| `0x48D64` | `---------- ---- - - - -------` | melee rule |
+| `0x49048` | `The result of this round:` | withdraw table title |
+| `0x49062` | `Name       Gld. Rt Exp. HP   ` | withdraw column header |
+| `0x49080` | `---------- ---- -- ---- -----` | withdraw rule |
+
+The `(W)ithdraw` round table (`0x49048`) lists per-character `Gld.` (gold), `Rt`
+(rating?), `Exp.` and `HP`; the melee round table (`0x48D2D`) lists `HP`, the
+four rank flags `W P B` (weapon / protection / bow?) and the chosen `Attack`.
+The per-character row formats follow at `0x4909E` (`%-10s ` name), `0x490A5`
+(`%3ld$ ` gold), `0x490AC` (`%2ld `), `0x490B2` (`%4ld `), `0x490B8` (`%5ld`).
+These column semantics are *read off the header text* and are not yet confirmed
+against a live withdraw screen — treat the per-column meaning as unverified
+while the strings themselves are exact.
+
+Also present in the same block: the pre-combat action menu `(A)ttack!` /
+`(Q)uick combat` (`0x48D14`/`0x48D1E`), the per-character order menu
+`(D)efend` / `(A)ttack` / `(S)neak` / `(U)se object` / `(P)erform magic` /
+`(1)Enter Kill-Rank` / `(2)Enter Attack-Rank` / `(3)Enter Defence-Rank` /
+`(4)Enter Retreat-Rank` / `(C)ontinue` (`0x48E15`..`0x48EA0`), the aim prompt
+`Who has ` + ` aimed at  (1-6) ?` (`0x48EAB`/`0x48EB4`), and the loot lines
+`You find ` + `an artefact:`/`a weapon:`/`armour:`/`a shield:`/… (`0x48EE3`..).
+
+### Status of the combat *logic* (still open)
+
+The encounter **screen** (text + menu + monster picture) is now grounded. The
+action *dispatcher* and the damage routine remain play-loop work: they live in
+the image's code segment and their data references are not reachable by a plain
+immediate scan (the engine addresses its strings via segment-relative pointers,
+so `b8 <lo> <hi>` searches do not hit them). Grounding the dispatcher needs the
+maintainer to expose a combat-round debug dump (cf. the item-use table request
+above) — the static image alone gives the strings, not the branching.

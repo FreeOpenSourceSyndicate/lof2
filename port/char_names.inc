@@ -195,3 +195,29 @@ static const char* const kTimeOfDayNames[] = {
     "       Evening",
 };
 
+static const char* const kCombatIntroNames[] = {
+    "You unknowingly meet",
+    "Without warning you meet",
+    "You are surprised by:",
+    "You still see in front of you:",
+};
+
+static const char* const kCombatActionNames[] = {
+    "(A)ttack",
+    "(G)reet your opponents",
+    "(T)alk to them",
+    "(W)ithdraw at once",
+};
+
+static const char* const kCombatRoundHeader[] = {
+    "The result of this round:",
+    "Name       HP   W P B Attack",
+    "---------- ---- - - - -------",
+};
+
+static const char* const kCombatWithdrawHeader[] = {
+    "The result of this round:",
+    "Name       Gld. Rt Exp. HP   ",
+    "---------- ---- -- ---- -----",
+};
+

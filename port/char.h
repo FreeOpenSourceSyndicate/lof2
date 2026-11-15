@@ -418,6 +418,45 @@ constexpr int kMonsterScenarioCount = 8;
 // the file is missing).  `dir` is the game data directory.
 std::vector<std::string> monster_names(const std::string& dir, int scenario);
 
+// The full scenario-`scenario` roster — singular + plural names and the 40-byte
+// statistics block — in table order.  The encounter screen picks a record,
+// prints its *plural* name, and builds the monster's live character struct from
+// the statistics block with `sns_char_seed`.  Empty when the file is missing.
+std::vector<SnsRecord> monster_roster(const std::string& dir, int scenario);
+
+// --- Combat / encounter strings -------------------------------------------
+//
+// The wandering-monster encounter screen and the round-result table draw
+// engine strings that live only in LOF.EXE (no data file carries them); the
+// drop-in compiles them in via port/char_names.inc.  Grounded by the
+// emulator's own read of SYST/NSC00 during the first encounter
+// (`LOF_I21=1`, ref/oracle/combat.png); see docs/notes-b.md.
+
+// How the encounter opened, in engine order (image 0x490BD):
+//   0 "You unknowingly meet"      2 "You are surprised by:"
+//   1 "Without warning you meet"  3 "You still see in front of you:"
+constexpr size_t kCombatIntroCount = 4;
+// The four menu choices drawn under "What will you do ?" (image 0x49143):
+// (A)ttack, (G)reet your opponents, (T)alk to them, (W)ithdraw at once.
+constexpr size_t kCombatActionCount = 4;
+// Round-result table rows: title, column header, underline rule.
+constexpr size_t kCombatRoundHeaderCount = 3;
+constexpr size_t kCombatWithdrawHeaderCount = 3;
+
+std::vector<std::string> combat_intro_names();
+std::vector<std::string> combat_action_names();
+// Round-result table: {title, column header, underline rule}.  The melee table
+// (0x48D2D) lists HP / W / P / B / Attack; the withdraw table (0x49048) lists
+// Gld. / Rt / Exp. / HP.
+std::vector<std::string> combat_round_header();
+std::vector<std::string> combat_withdraw_header();
+
+// The count/rank line an encounter prints for one enemy group, e.g.
+// "3 Ogres (Rnk 1)": `count`, a space, the plural name, then the rank in
+// parentheses (image formats `%ld ` at 0x49120 + ` (Rnk %ld)` at 0x49125).
+std::string combat_group_line(uint32_t count, const std::string& plural,
+                              uint32_t rank);
+
 // --- SNSC / NSC statistics block (character seed) -------------------------
 //
 // An SNSC/NSC record is 78 bytes: a singular and a plural NUL-padded name (19
