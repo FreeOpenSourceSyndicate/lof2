@@ -222,15 +222,36 @@ static bool compose_building_screen(const std::string& dir, const char* tile,
     return true;
 }
 
+// The town name shown on entering a town is selected by the engine from the
+// loaded save, not hardcoded.  The town routine (image 0x53E0) tests the 32-bit
+// cell es:[0x460e] (via [ds:0xaf48]) and prints "Thyn." when it is nonzero and
+// "Cyldane." when it is zero -- the only two names in the EXE (ds:0x5A39 /
+// ds:0x5A40).  The save loader (image 0x1C952) fills that cell with the
+// sign-extended 16-bit word at save offset 0x9a4, so the selector is exactly
+// "is the word at 0x9a4 nonzero".  With no readable save the boot initialiser
+// (image 0x179) leaves the cell at 1, i.e. "Thyn.".
+static const char* town_name_from_save(const std::string& save_path) {
+    FILE* f = save_path.empty() ? nullptr : fopen(save_path.c_str(), "rb");
+    if (!f) return "Thyn";
+    uint8_t b[2] = {0, 0};
+    bool got = fseek(f, 0x9a4, SEEK_SET) == 0 && fread(b, 1, 2, f) == 2;
+    fclose(f);
+    if (!got) return "Thyn";
+    return (b[0] | (b[1] << 8)) ? "Thyn" : "Cyldane";
+}
+
 // Compose the in-game town screen (the building menu you get on entering a
 // town): MSCR + the street viewport EGA/TWN/TWN00 + the message and building
 // list.  Recovered by template-matching the decoded assets and font glyphs
 // against the emulator's town frame (tests/golden_test.sh scenario `town`):
-// every glyph matches a CHR1 cell exactly.
-static bool compose_town_screen(const std::string& dir, Screen& town, std::string& err) {
-    static const TownTextRow kText[] = {
+// every glyph matches a CHR1 cell exactly.  `name` is the town name the engine
+// selects from the save (see town_name_from_save).
+static bool compose_town_screen(const std::string& dir, const char* name,
+                                Screen& town, std::string& err) {
+    std::string row = std::string(name) + ". Which building do you";
+    TownTextRow kText[] = {
         { 92, "You enter the proud town of", 15},
-        {100, "Thyn. Which building do you", 15},
+        {100, row.c_str(), 15},
         {108, "want to visit?", 15},
         {132, "(E)mporium", 0},
         {140, "(B)ank", 0},
@@ -589,7 +610,7 @@ int main(int argc, char** argv) {
         bool ok = house_flag    ? compose_house_screen(dir, s, err)
                   : bank_flag   ? compose_bank_screen(dir, s, err)
                   : emporium_flag ? compose_emporium_screen(dir, s, err)
-                                : compose_town_screen(dir, s, err);
+                                : compose_town_screen(dir, town_name_from_save(save), s, err);
         if (!ok) {
             fprintf(stderr, "lof: %s\n", err.c_str());
             return 1;

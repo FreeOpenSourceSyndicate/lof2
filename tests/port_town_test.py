@@ -12,6 +12,11 @@ pins the layout recovered from that frame:
     menu ((E)mporium, (B)ank, ... (C)ontinue) are drawn in CHR1's full face at
     x=139, rows 92..188.
 
+The town *name* is not hardcoded: the engine (image 0x53E0) selects "Thyn." or
+"Cyldane." from the 16-bit word at save offset 0x9a4 (nonzero -> Thyn), so the
+test also pins that selector using the owner-supplied Cyldane save (GAME4) and
+its oracle frame (ref/oracle/town_cyldane.png).
+
 The static screen is pixel-exact except for a 16x16 top-left patch and the
 dynamic party panel the engine draws from the loaded save; both are excluded.
 
@@ -27,7 +32,24 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME = os.path.join(ROOT, "game")
 ORACLE = os.path.join(ROOT, "ref", "oracle", "town.png")
+CYLDANE_SAVE = os.path.join(GAME, "GAMES", "GAME4")
+CYLDANE_ORACLE = os.path.join(ROOT, "ref", "oracle", "town_cyldane.png")
 SHOT = "/tmp/port_town_test.png"
+SHOT_CYLDANE = "/tmp/port_town_test_cyldane.png"
+
+# The message block (rows 92..115) holds the "You enter the proud town of /
+# <name>. Which building ..." text.  The Cyldane oracle uses a faded palette
+# (it was captured on a different entry route), so that check compares ink
+# masks, which are palette-independent.
+MSG = (slice(92, 116), slice(139, 300))
+
+
+def ink_mask(a: np.ndarray) -> np.ndarray:
+    """Palette-independent "is this pixel ink" mask (vs the modal background)."""
+    flat = a.reshape(-1, 3)
+    vals, counts = np.unique(flat, axis=0, return_counts=True)
+    bg = vals[counts.argmax()]
+    return (np.abs(a - bg).sum(2) > 30)
 
 # The viewport (MSCR + TWN00 at (10,11)) and every text row are pixel-exact; the
 # residue is a 16x16 top-left patch (88 px) and the dynamic party panel.  Fail
@@ -75,6 +97,26 @@ def main() -> int:
     if match < MIN_MATCH:
         print("port_town_test: FAIL (match=%.2f%% < %.0f%%)" % (100 * match, 100 * MIN_MATCH))
         return 1
+
+    # The town-name selector: GAME4 sits in front of Cyldane, so the port must
+    # print "Cyldane." there, and the message block must match the Cyldane oracle
+    # (ink masks, since that oracle uses a faded palette).
+    if os.path.exists(CYLDANE_SAVE) and os.path.exists(CYLDANE_ORACLE):
+        subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--town", "--save", CYLDANE_SAVE, "--shot", SHOT_CYLDANE],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cyl = np.asarray(Image.open(SHOT_CYLDANE).convert("RGB")).astype(int)
+        if (cyl[MSG] == port[MSG]).all():
+            print("port_town_test: FAIL (Cyldane save renders the Thyn message)")
+            return 1
+        cyl_oracle = np.asarray(Image.open(CYLDANE_ORACLE).convert("RGB")).astype(int)
+        if not (ink_mask(cyl)[MSG] == ink_mask(cyl_oracle)[MSG]).all():
+            print("port_town_test: FAIL (Cyldane message block != oracle)")
+            return 1
+        print("port_town_test: ok (match=%.1f%%, viewport + text exact; Cyldane "
+              "selector exact)" % (100 * match))
+        return 0
+
     print("port_town_test: ok (match=%.1f%%, viewport + text exact)" % (100 * match))
     return 0
 
