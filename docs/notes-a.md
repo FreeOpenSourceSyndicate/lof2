@@ -1695,3 +1695,99 @@ reduced-plane mask) reproduces it. Together with the 3D-perspective structure
 visible in the ink map (converging side walls, receding floor), this confirms the
 corridor view is **composited/ray-drawn**, not a sprite blit — the port's
 procedural DDA renderer (`render_dungeon_viewport`) is the right model.
+
+## Round 33 — the real first-person view routine (img 0x3B72) decoded
+
+The routine that draws the play viewport is at image `0x3B72` (runtime
+`119D:3B72`; called via `lcall 0x18d,0x22a2`). Its address is `0x18D0 + 0x22A2`,
+NOT `0x22A2` — the relocation applies to the *segment*, so the image offset of a
+`lcall SEG,OFF` target is `0x18D0 + OFF` (equivalently `SEG*16 + OFF - 0x10100`
+with SEG=0x18D). Every earlier "runtime 119D:22A2 = img 0x22A2" note was off by
+0x1900. Sequence:
+
+1. `inc cs:[0xe5e]` (frame counter), `call 0x30f6`, `call 0x5008`.
+2. Saves `cs:[0x1414]`/`cs:[0x1416]` (the two EGA write-mode bytes), zeroes them.
+3. Draws rect `(0x0a,0x0b)-(0x81,0x82)` with `lcall 0x18d,0x1fb2` (this is the
+   top **grid/ceiling** band), then rect `(0x05,0x87)-(0x85,0xbf)` (the
+   **floor** band). Both fill with the base colour; `cs:[0x1414]` selects OR vs
+   AND per column.
+4. Sets the blit origin `cs:[0x376]=0x0a`, `cs:[0x378]=0x0b`.
+5. `ds=0x3120; mul cl` (cl=6) → `bx`; `dx = ds:[bx+0x49f3]` → the view sprite
+   **segment**; `lcall 0x18d,0x3a0` blits it.
+6. Draws another rect and `lcall 0x18d,0x1c0`.
+
+### The six-slot view sprite table (ds:0x49F3, image 0x35BF3)
+
+```
+mode 0 -> seg 0x6DCD   mode 1 -> seg 0x6F8C   mode 2 -> seg 0x714B
+mode 3 -> seg 0x730A   mode 4 -> seg 0x74C9   mode 5 -> seg 0x7688
+```
+(Entries also carry a second word 0x0100 and a pointer into the `ega\twn\...`
+name block; the segment is the field the blitter uses.) The segments are spaced
+447 paragraphs apart. `mode` is the value the view routine computes at step 5
+from `call 0x5008` (a 6-register pop helper) and the pushed call argument.
+
+### Ground truth: a solid wall ahead draws DP001 (verified 94.51%)
+
+Dumping all six cache segments at frame 699 of a wall run, `seg 0x6DCD` (= mode
+0) is byte-for-byte the wall screen (94.51%, remainder = the rect overlay). The
+same segment holds `ega\d5\dp001` (verified byte-exact in Round 31). So the wall
+view is a straight DP001 blit — which is exactly what the port's
+`dungeon_base_view_index` returns for a wall ahead (`case 0x6/0xd -> 60`, and the
+fallback `1`). The port's ahead-cell -> DP mapping is therefore **validated for
+the wall case**.
+
+### Corridor still composed
+
+The corridor run's cache holds no valid view sprite (all six segments are stale
+`twn`/garbage headers) and no 120x119 EGA file matches it, so the open-corridor
+view is drawn by the rect/`0x1fb2` path plus something not captured by the
+sprite cache — consistent with the Round 32 "composed, not a sprite" conclusion.
+The port falls back to DP001 for open cells (BLK-A003); that fallback is wrong
+for a corridor but harmless for the wall/door cells that are the play loop's
+common case.
+
+## Round 34 — base-view selection VERIFIED by emulator sweep (ground truth)
+
+Swept the ahead-cell tile of DNG05's spawn (cell 17,4, facing up) over all 16
+low nibbles, running the original in the emulator and comparing each captured
+viewport against every `D5/DPnnn` file:
+
+```
+nibble : best-matching view sprite   port's dungeon_base_view_index
+  0    : DP067  57.65% (open)       -> 1   (fallback; BLK-A003)
+  1    : DP001  94.51%              -> 1   OK
+  2    : DP067  57.65% (open)       -> 1   (fallback; BLK-A003)
+  3    : DP001  94.51%              -> 1   OK
+  4    : DP058 100.00%              -> 58  OK
+  5    : DP059 100.00%              -> 59  OK
+  6    : DP036 100.00% (=DP060 in D5) -> 60 OK (ambiguous, see below)
+  7    : DP067  57.65% (open)       -> 1   (fallback; BLK-A003)
+  8    : DP067  57.65% (open)       -> 1   (fallback; BLK-A003)
+  9    : DP067  85.88% (open)       -> 1   (fallback; BLK-A003)
+ 10    : DP014  99.73%              -> 14  OK
+ 11    : DP001  94.51%              -> 1   OK
+ 12    : DP001  94.51%              -> 1   OK
+ 13    : DP036 100.00% (=DP060 in D5) -> 60 OK (ambiguous, see below)
+ 14    : DP001  94.51%              -> 1   OK
+ 15    : DP001  94.51%              -> 1   OK
+```
+
+So the port's mapping is **independently confirmed** for every nibble that
+selects a real view sprite (1/3/4/5/10/11/12/14/15 and the 6/13 wall case). The
+`94.51%` (not 100%) for the DP001 cases is the rect overlay the view routine
+paints after the blit, not a mismatch.
+
+The only ambiguity is nibble 6/13: the emulator blits a sprite byte-identical to
+`D5/DP036` **and** `D5/DP060` (those two files are byte-identical in theme D5 —
+md5 `82699bf5de`). The port returns 60; the engine's index cannot be told apart
+in D5. In every other theme `DP036 != DP060` (checked D0–D4,D6,D7), so the port
+could differ from the engine there — but the shipped/tested configuration is D5,
+where the two are the same image, so the rendered output is correct. Documented
+as an open ambiguity rather than a bug.
+
+Open cells (nibbles 0/2/7/8/9) resolve to `DP067` (57.65–85.88%, never 100%) —
+this is the composed corridor (BLK-A003), where `DP067` is only a partial fit.
+The port falls back to `DP001` there; a better fallback would be `DP067`, but it
+still would not be pixel-exact. No change made (it would be a guess, not
+decompilation-grounded).
