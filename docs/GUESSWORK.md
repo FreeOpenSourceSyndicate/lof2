@@ -95,55 +95,7 @@ How to use each section:
 
 ## D. Can be removed — queued (normal task)
 
-### G-001 — town name "Thyn." is hardcoded (Lane M)
-
-- **What:** `compose_town_screen()` hardcodes the string `"Thyn. Which building
-  do you"`. The town name is **variable**.
-- **Source of truth:** `LOF.EXE` string table. Verified offsets (2026-11-14;
-  `file = ds_offset + 0x40000`):
-  - `ds:0x5A1D` = `"You enter the proud town of"` (file `0x45A1D`);
-  - `ds:0x5A39` = `"Thyn. "` (file `0x45A39`), `ds:0x5A40` = `"Cyldane. "`
-    (file `0x45A40`) — the **only** two town names, NUL-separated;
-  - `ds:0x5A4A` = `"Which building do you want to visit?"` (file `0x45A4A`);
-  - a *second* `"Thyn"` at `ds:0x687D` ("The Grand Board of Trades greets you in
-    Thyn.", file `0x4687D`).
-  - **Neither `0x5A39` nor `0x5A40` is loaded by a plain `mov ax, imm`** anywhere
-    in the image (searched for `B8 39 5A` / `B8 40 5A`): the selector is computed,
-    not a fixed pointer. **Nor is either address stored as data anywhere**: a
-    search for the little-endian word `0x5A39` finds it **zero** times, and
-    `0x5A40` only as instruction immediates (e.g. `26 C6 40 5A …` =
-    `mov byte es:[bx+si+0x5a], …`), never as a pointer. So the name address is
-    built entirely from a computed base + offset. The town routine
-    (`image 0xC22B`) loads the *fragments* `0x5A31` ("town of"), `0x5A4C`
-    ("ich building…"), `0x5A69` ("isit?") into AX and calls the string drawer
-    (`lcall 0x18d:0x16a8`), so the name is chosen upstream of it.
-- **Superseded (wrong):** the earlier entry claimed the names are at
-  `ds:0x5A56`/`0x5A5E`; those are the *middle* of the "Which building…" string.
-  See `docs/notes-maintainer-town.md` for the corrected mapping.
-- **Fix:** take the name as a parameter of `compose_town_screen()`; select it from
-  the save/scenario. The selector is discoverable by tracing the call site of the
-  routine that prints `ds:0x5A1D`/`0x5A31`.
-- **New evidence (2026-11-15, owner-supplied Cyldane save).** OT-001 is resolved:
-  `game/GAMES/GAME4` stands the party in front of **Cyldane**; `O`,`4`,`Up`
-  enters the town and the frame reads *"You enter the proud town of Cyldane."*
-  (oracle `ref/oracle/town_cyldane.png`). So the selector **can now be traced**.
-  - **Both town names are static and identical in both RAM dumps** (`ds:0x5A39`
-    "Thyn." and `ds:0x5A40` "Cyldane." are present verbatim at the same addresses
-    in the Thyn and Cyldane town screens): the engine does not rewrite the string,
-    it **selects between the two addresses**. So the selector is the address of
-    the name passed to the print routine.
-  - Neither address appears as a literal anywhere (confirmed: no `B8 39 5A` /
-    `B8 40 5A` immediate; word `0x5A39` occurs **zero** times in the image;
-    word `0x5A40` only as instruction bytes). The address is computed (base +
-    `0x5A39` + `idx*7`), consistent with the two names being `7` bytes apart
-    (`"Thyn. \0"`). The town-index byte that drives it is not yet pinned; the
-    town routine is `image 0xC22B` (prints `0x5A31`/`0x5A4C`/`0x5A69`), so the
-    selector is upstream of it. Next: trace the callers of `0xC22B` with the
-    Cyldane save loaded and find where the name pointer is formed.
-- **Status:** derivable → normal Lane M task (not a blocker). OT-001 (owner task)
-  is **resolved** (Cyldane save delivered); the hardcode removal is the remaining
-  Lane M work. Both `GAME2` (Thyn) and `GAME4` (Cyldane) now reproduce in the
-  oracle for side-by-side tracing.
+*(none)*
 
 ---
 
@@ -176,6 +128,36 @@ How to use each section:
 ---
 
 ## F. Resolved / removed
+
+### G-001 — town name "Thyn." hardcoded (Lane M)
+
+**Resolved 2026-11-15 (fourteenth session) from the decompilation.**  The town
+name is selected by the engine, not hardcoded, and the selector is fully decoded:
+
+- The town routine (image `0x53E0`) prints `"You enter the proud town of"`
+  (`ds:0x5A1D`), then tests the 32-bit cell `es:[0x460e]` (loaded via
+  `[ds:0xaf48]`): `mov ax,es:[0x460e]; or ax,es:[0x4610]; je .cyldane;
+  mov ax,0x3D29 ("Thyn. "); … .cyldane: mov ax,0x3D30 ("Cyldane. ")`, then
+  `lcall 0x18d:0x16a8` (the string drawer).  So **nonzero → "Thyn.", zero →
+  "Cyldane."** — the only two names in the EXE (`ds:0x5A39`/`ds:0x5A40`).
+- The cell is filled by the save loader (image `0x1C952`):
+  `mov ax,es:[bx+0x9a4]; cdq; mov es,[0xb00a]; mov es:[0x460e],ax;
+  mov es:[0x4610],dx`.  So the selector is exactly **the 16-bit word at save
+  offset `0x9a4`** (sign-extended into a dword).  Confirmed by watchpoints: the
+  boot initialiser (image `0x179`) writes `1` (→ Thyn, no save), and the loader
+  overwrites it with the save word (Thyn save → `1`, Cyldane save → `0`).
+- The second `"Thyn"` (`ds:0x687D`, "The Grand Board of Trades greets you in
+  Thyn.") is a **fixed immediate** (`mov ax,0x4B5F`, image `0x876D`), not a
+  selector: the House of Trades greeting always says "Thyn" in the engine.
+
+**Fix (this session):** `compose_town_screen()` now takes the name as a
+parameter, chosen by `town_name_from_save()` from the word at `0x9a4`
+(`port/lof.cpp`).  `port_town_test` pins both names: the Thyn frame must stay
+pixel-exact against `ref/oracle/town.png`, and GAME4 (Cyldane) must render
+"Cyldane." and match `ref/oracle/town_cyldane.png` in the message block (ink
+mask, because that oracle uses a faded entry-route palette).  The predecessor's
+"computed base + idx*7" hypothesis is superseded: the name is a plain
+address-select on one save word, no table indexing.
 
 ### G-003 — `item_is_usable()` default for `spell == 0` non-potions (Lane B)
 

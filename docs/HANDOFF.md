@@ -185,8 +185,12 @@ screen, and `make test` still passes.
       `EGA/UP/MSCR` + `EGA/TWN/TWN00` at (10,11) + the engine's message and
       building menu drawn in `CHR1` at x=139 (rows 92..188).  Static match
       99.2% vs the emulator frame (viewport + every text row pixel-exact; the
-      residue is a 16x16 top-left patch and the dynamic party panel).  Guarded
-      by `tests/port_town_test.py` (oracle `ref/oracle/town.png`).
+      residue is a 16x16 top-left patch and the dynamic party panel).  The town
+      **name** is now selected from the save, not hardcoded: the engine (image
+      `0x53E0`) picks "Thyn." / "Cyldane." from the word at save offset `0x9a4`
+      (nonzero → Thyn; `--save` chooses).  Guarded by `tests/port_town_test.py`
+      (oracles `ref/oracle/town.png` + `ref/oracle/town_cyldane.png`).  G-001
+      resolved.
 - [ ] Building screens (Emporium/Temple/Inn/Bank/…): the `shop`/`temple_bldg`
       golden scenarios capture the Emporium/Temple; they are **fully drawn** at
       the golden `--frames 1600` (the earlier "incomplete" note was wrong — it

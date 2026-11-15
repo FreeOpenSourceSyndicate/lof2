@@ -1040,3 +1040,73 @@ Static groundwork done before the live trace, to save time tomorrow:
   `LOF_DUMP=path,seg:off:len` hook can dump the code segment around the suspect
   call, and a conditional pixel watch (`LOF_PXWATCH`) can catch the draw. Then
   pass the selected name into `compose_town_screen()` instead of the hardcode.
+
+## G-001 SOLVED — the town-name selector (2026-11-15, fourteenth session)
+
+The predecessor's "computed base + idx*7 pointer" hypothesis was **wrong**.  The
+name is a plain two-way select on **one save word**, and both addresses *are*
+plain `mov ax, imm` immediates — they were just searched for at the wrong file
+offsets.  The predecessor searched for `B8 39 5A` / `B8 40 5A` (ds offsets
+`0x5A39`/`0x5A40`), but the *file* offsets are `+0x41D10`, so the immediates are
+`B8 29 3D` ("Thyn. ") and `B8 30 3D` ("Cyldane. ").
+
+### The routine (image `0x53E0`, runtime `119D:…`)
+
+```
+53FE: lcall 0x18d,0x2f39              ; clear / begin the message box
+5403: sub ax,ax ; push ax
+5406: mov ax,0x3D0D ; push ds ; push ax ; lcall 0x18d,0x16a8  ; "You enter the proud town of"
+5413: mov es,[0xaf48]                 ; es = seg 0x468E
+5417: mov ax,es:[0x460e]
+541B: or  ax,es:[0x4610]              ; test the 32-bit cell
+5420: je  0x542a                      ; zero -> Cyldane
+5422: sub ax,ax ; push ax
+5425: mov ax,0x3D29 ; jmp 0x5430      ; "Thyn. "
+542A: sub ax,ax ; push ax
+542D: mov ax,0x3D30                   ; "Cyldane. "
+5430: push ds ; push ax ; lcall 0x18d,0x16a8   ; draw the name
+```
+
+So: **`es:[0x460e]` (dword, read through `[ds:0xaf48]`) nonzero → "Thyn.",
+zero → "Cyldane."**  Verified against the RAM dumps: Thyn run
+`(seg=0x468E, dword=1)`, Cyldane run `(seg=0x468E, dword=0)`; every other
+segment pointer (`0xaf1c/20/22/24/48`, `0xb0c2/cc/d6/dc/fc`, `0xb116`) is
+identical in both dumps, so the *only* difference is the cell value.
+
+### What fills the cell: the save loader (image `0x1C952`)
+
+```
+1C952: mov ax,es:[bx+0x9a4]   ; es = the save record base ([bp-2])
+1C957: cdq                    ; sign-extend AX into DX:AX
+1C958: mov es,[0xb00a]        ; es = seg 0x468E
+1C95C: mov es:[0x460e],ax
+1C960: mov es:[0x4610],dx
+```
+
+So the selector is **the 16-bit word at save offset `0x9a4`** (sign-extended).
+That is the same word the port already decodes as `SaveGame::loc_tens` (its low
+byte) plus its high byte.  Confirmed with `LOF_WATCH=4aeee:4aef2` (the linear
+address of `es:[0x460e]`, `0x468E*16+0x460E = 0x4AEEE`):
+
+- **Thyn** (`O`,`2`,`Up`; slot 2): writes only `4AEEE<-0001` by `1010:0180`
+  (the boot initialiser at image `0x179`, `mov word es:[0x460e],1`) and
+  `4AEF0<-0000`.  Slot 2's word `0x9a4` = `1`, so the loader writes `1` again —
+  no visible change.
+- **Cyldane** (`O`,`4`,`Up`; slot 4): after the initialiser, the loader's
+  `1010:02EF` writes `4AEEE<-0000` (the value that matters), and two later
+  clears (`2C76:0300`, `313F:0275`) keep it `0`.
+
+### The House of Trades greeting is NOT a selector
+
+`ds:0x687D` "greets you in Thyn." is drawn as a **fixed immediate**
+(`mov ax,0x4B5F`, image `0x876D`), so the House always says "Thyn" in the
+engine.  Do not make the port vary it.
+
+### Fix
+
+`port/lof.cpp`: `compose_town_screen(dir, name, …)` now builds
+`"<name>. Which building do you"` from `town_name_from_save(save)`, which reads
+the word at file offset `0x9a4` (nonzero → "Thyn", else "Cyldane"; unreadable →
+"Thyn", matching the boot initialiser).  `tests/port_town_test.py` pins both
+names (Thyn pixel-exact vs `ref/oracle/town.png`; Cyldane ink-mask-exact vs
+`ref/oracle/town_cyldane.png`).

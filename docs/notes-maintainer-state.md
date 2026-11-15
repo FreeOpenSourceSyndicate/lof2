@@ -5,6 +5,48 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-15 (fourteenth session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**. HEAD at start `556fd71` (main, clean, pushed). This was
+an **incoming-maintainer orientation** session; I picked up the queued lane-M
+item and finished it.
+
+- **G-001 RESOLVED — the town name is decoded and no longer hardcoded.**  The
+  predecessor's "computed base + idx*7" hypothesis was wrong.  The town routine
+  (image `0x53E0`) is a plain two-way select: it tests the 32-bit cell
+  `es:[0x460e]` (read via `[ds:0xaf48]`) and draws `ds:0x5A39` "Thyn. " when it
+  is nonzero, else `ds:0x5A40` "Cyldane. ".  The save loader (image `0x1C952`)
+  fills that cell from the **16-bit word at save offset `0x9a4`** (sign-extended
+  into AX:DX), so the selector is exactly that save word.  The two name
+  immediates *are* plain `mov ax,imm` (`0x3D29`/`0x3D30`) — the predecessor
+  searched for the ds offsets (`0x5A39`/`0x5A40`) instead of the file offsets
+  (`+0x41D10`).  Verified by RAM dumps (Thyn dword=1, Cyldane dword=0; every
+  other segment pointer identical) and by a `LOF_WATCH` write watchpoint.
+- **Fix:** `compose_town_screen()` now takes the name; `town_name_from_save()`
+  reads the word at `0x9a4` (nonzero → "Thyn", else "Cyldane"; unreadable →
+  "Thyn", matching the boot initialiser at image `0x179`).  `--save` selects.
+  `tests/port_town_test.py` pins both names (Thyn pixel-exact vs
+  `ref/oracle/town.png`; Cyldane ink-mask-exact vs `ref/oracle/town_cyldane.png`,
+  which uses a faded entry-route palette).  The House-of-Trades greeting
+  ("greets you in Thyn.") is a **fixed immediate** in the engine — deliberately
+  left un-varying.
+- **PR pending** (lane M, `work/maintainer-g001`); `make test` green and every
+  port golden screen passes (menu/play/town/building/ui/walk/vor/noexe).
+- Note: `make check` runs the slow emulator golden suite (~5+ min) — run the port
+  tests directly (`python3 tests/port_*_test.py`) for a quick loop.
+
+**Open / next (unchanged priorities):**
+
+- **G-002 (lane M, watchlist):** the 16×16 patch at the town screen's top-left
+  corner is engine-drawn (not any `EGA/**` asset); trace the town draw path.
+- **Building screens** (Emporium/Temple/Inn/Bank): the Emporium reads no new
+  files and its ornate panel is engine-drawn — decode the panel's draw routine.
+  Oracle `ref/oracle/shop.png`.
+- **Lane A:** dungeon viewport composite (per-cell sprite composition) — see
+  `docs/notes-a.md`.
+- **Lane B:** `BLK-B004` (combat round resolution) and `BLK-B005` (implement the
+  ROST checksum).
+
 ## Session 2026-11-15 (thirteenth session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. HEAD at start `dad2fe5` (main, clean, pushed). This was

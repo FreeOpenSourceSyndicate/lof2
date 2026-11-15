@@ -330,6 +330,16 @@ Menu text is drawn at x=139, rows at y=124+8*n (colour 0). `port/font.{h,cpp}` l
 strip at run time (no font data is embedded) and draws text; `tests/font_test.cpp`
 covers the mapping, the advance and the draw path.
 
+**Town name is save-selected, not hardcoded.** The town routine (image `0x53E0`)
+tests the 32-bit cell `es:[0x460e]` (via `[ds:0xaf48]`) and draws `ds:0x5A39`
+"Thyn. " when it is nonzero, else `ds:0x5A40` "Cyldane. ". The save loader
+(image `0x1C952`) fills that cell from the **16-bit word at save offset
+`0x9a4`** (sign-extended into AX:DX). So `--save` selects the name: nonzero →
+Thyn, zero → Cyldane (the boot initialiser at image `0x179` leaves it at 1, i.e.
+Thyn, with no save). The House-of-Trades greeting ("greets you in Thyn.") is a
+**fixed immediate** in the engine (`mov ax,0x4B5F`, image `0x876D`) — the House
+always says Thyn; do not make it vary. Guarded by `tests/port_town_test.py`.
+
 **Font rendering (resolved — no transform).** The engine's menu/town/panel text
 is the `EGA/UP/CHR1`/`CHR2` cell bitmaps blitted **directly**, left 6 columns at a
 6-px advance; there is no bold/double-struck weighting step. This was confirmed
