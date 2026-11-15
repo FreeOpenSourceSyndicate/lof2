@@ -1917,3 +1917,49 @@ indexed by `cs:[0x240e]`, writes it to the buffer at `0x5559`, and blits it. The
 remaining sub-task is decoding `cs:[0x240e]` (the room/depth index) and the
 `0x7e2`/`0x7f2` pointer tables — a bounded, non-guessy task now that the files
 are identified. This supersedes the BLK-A003 "procedural room draw" conclusion.
+
+## Round 39 — the full room-art selection chain (BLK-A003 closed)
+
+Traced the CH-number argument through the whole call graph. Runtime addresses
+(image offset = runtime_linear - 0x10100; segment 0x18D, offset as noted):
+
+1. **Caller** `ip 0x2685B` (img 0x2812B) pushes the CH number (`[bp+6]`) and calls
+   `lcall 0x18d, 0x2a4e` — the **room routine** (img 0x431E).
+2. **Room routine** `ip 0x2A4E`: reads the arg into `ax` (`call 0xce2` ->
+   `mov ax,[bp+8]`), then
+   - `cmp ax, 0x16` -> `jl` picks table `cs:[0x7e2]`, else `cs:[0x7f2]`;
+   - formats the string `ega\char2\chNN` into the buffer at `0x5559` (the `NN`
+     digits come from `cs:[bx+0x2a3e]`, i.e. `ax % 10` / `ax / 10`; the literal
+     `ega\char2\ch` prefix is at `0x5559`), then
+   - `lcall 0x18d, 0x68c` (sprite loader img 0x1F5C) loads + blits it.
+3. **Wrappers** `sub_26820` (ip 0x26820): if a cached room differs, push
+   `[bp+8]` (=1), `lcall 0x18d,0x19a6` (store the room id in `ds:[0x9540]`),
+   `call sub_2680F` (clear) and the room routine.
+4. **Room-art callers** (each pushes the CH number then `call sub_26820`):
+   - `ip 0x239CE` -> `ax=0x13` (19)
+   - `ip 0x24220` -> `ax=0x13` (19)
+   - `ip 0x2491B` -> `ax=[bp-8]` — computed from a 0x19a-stride record at
+     `es:[bx+di+0x10]`, `imul si,0x4e`, then `es:[bx+di+0x48]` (a per-scenario
+     room-art table)
+   - `ip 0x27769` -> `ax=0x12` (18)
+
+**Measured CH number vs. dungeon geometry** (DNG05 spawn (17,3) facing S, ahead
+cell patched):
+
+| ahead opaque cell | CH number | sprite |
+|---|---|---|
+| depth 1 (wall, tile 6) | (DP path) | `EGA/D5/DP001` |
+| depth 2 | 40 (0x28) | `EGA/CHAR2/CH40` |
+| depth 3 | 25 (0x19) | `EGA/CHAR2/CH25` |
+| depth 4 | 25 (0x19) | `EGA/CHAR2/CH25` |
+
+So the dungeon-view room art is chosen by a room-index that is a function of the
+party's *position* in the level (the same CH is reused across depth 3/4, and the
+caller at 0x2491B derives it from a per-scenario record), not purely by depth.
+The `CHAR2/CHNN` bank is the interior/room art; `D5/DPnnn` is the door/wall art.
+
+**Status:** BLK-A003 (the "corridor composite" blocker) is **closed** — there is
+no procedural composite and no side-piece selection to reverse; the view is one
+`CHAR2/CHnn` (or `DPnnn`) blit. Port work remaining is a small table
+`(room-index -> CHnn)` plus the existing `render_dungeon_view` blit, which is a
+lane-A code change, not a reverse-engineering task.
