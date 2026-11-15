@@ -291,7 +291,8 @@ std::string dungeon_room_art_path(const std::string& dir, int ch) {
     // ega\char3\ch05).  Numbers >= 22 take the bank digit from the runtime table
     // cs:[0x2a3e] indexed by cs:[0x240e]; that index is context-supplied and is
     // 5 (-> '2', CHAR2) for the DNG05 spawn, so 2 is used here as the measured
-    // value.  See docs/notes-a.md Rounds 42-43.
+    // value.  `ch` is the encounter/area sprite number, `NSC<dd>[id].+0x48` for
+    // the position-selected record.  See docs/notes-a.md Rounds 42-45.
     const int bank = (ch < kRoomArtSmallThreshold) ? 3 : 2;
     char buf[32];
     std::snprintf(buf, sizeof(buf), "/EGA/CHAR%d/CH%02d", bank, ch);

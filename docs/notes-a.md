@@ -2220,3 +2220,41 @@ location id is engine state at the party's current position, not a save byte (it
 was 16 here and is not simply the map id). Wiring `dungeon_room_art_number` into
 the play view therefore needs that id threaded through from the play loop; the
 resolver itself is done and tested.
+
+## Round 45 — CORRECTION: `NSC<dd> +0x48` is the position-selected **encounter/area sprite**, not corridor art
+
+Rounds 38-44 established the chain `position -> SYST/NSC<dd> record -> +0x48 ->
+ega\char<B>\ch<NN> -> viewport`. Rounds 38/42 read that as "the corridor room
+art". Decoding the routine that *sets* the id (`img 0x27780`, segment `0x3788`,
+linear `0x37880`) and re-reading the NSC records shows a sharper picture:
+
+- **`+0x48` is a per-record sprite number, and the records are named creatures.**
+  `dngs.py nsc game/SYST/NSC05`: records 0-9 are "Lizard priest" (`+0x48`=26),
+  10-17 "Lizard warrior" (`+0x48`=25), 18 "Priest" (`+0x48`=5). So the number is
+  *the creature/encounter sprite*, one per NPC/monster record.
+- **The id is chosen from the party's map position**, not from a room structure.
+  The routine reads the party's map cell (`es:[0x4612]`/`es:[0x4613]`), indexes
+  the `NSC<dd>` records (stride `0x11a`), compares each record's `+0x2c` (the
+  level/floor field) against the current level, and writes the winning record's
+  creature id into the party's `es:[0x259]` (`img 0x27A6A`, `mov es:[si+0x259],
+  al`, where `al` came from the record). The room routine then reads that id and
+  resolves `NSC05[id].+0x48` -> the CH sprite to display.
+- **The captured corridor viewport *is* the selected sprite.** The frame's
+  viewport ink is exactly 4941 px == CH25's ink, and Round 38's zeroing test
+  (zero `CHAR2/CH25` -> viewport ink 0) plus the NSC05 patch test (patch `+0x48`
+  -> both the loaded file *and* the viewport change) confirm it end to end.
+- **So the Temple spawn's "dungeon view" is CH25** — the sprite the engine
+  associates with the Lizard-warrior encounter at that position. The earlier
+  "corridor room art" label was wrong: there is no separate corridor bitmap; the
+  engine blits the position-selected NPC/area sprite.
+
+**What this changes:** the mechanism (`NSC<dd> +0x48` -> `ega\char<B>\ch<NN>`)
+and its code (`dungeon_room_art_number`, `dungeon_room_art_path`) are unchanged
+and still correct. What was wrong was the *interpretation* (room vs creature).
+`port/dungeon.{h,cpp}` comments and the test wording are updated to say
+"position-selected encounter/area sprite".
+
+**Still open (lane A, next):** the exact `position -> record index` rule inside
+`img 0x27780` (the `+0x2c` level test and the map-cell lookup through
+`es:[0x54]`), which is what a drop-in needs to pick the sprite for a walk move
+without the emulator. Until then the play view keeps the `DP001` fallback.

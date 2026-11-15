@@ -589,11 +589,12 @@ static void test_base_view(const std::string& dir) {
     }
 }
 
-// The room-art bank `EGA/CHAR2/CHnn` is the engine's first-person art for open
-// cells (Round 38): zeroing `CHAR2/CH25` on disk turns the corridor window black
-// and zeroing `CHAR2/CH40` turns the depth-2 window black, so the view for an
-// open cell is a `CHAR2/CHnn` blit, not a procedural composite.  This pins the
-// path helper and that the sprite loads and renders at the viewport.
+// `EGA/CHAR<B>/CHnn` is the engine's position-selected encounter/area sprite
+// for the first-person window (Rounds 38-45): the engine picks an `SYST/NSC<dd>`
+// record from the party's map cell and blits `NSC<dd>[id].+0x48` ->
+// `ega\char<B>\ch<NN>`.  Zeroing `CHAR2/CH25` on disk turns the window black, so
+// the view is a `CHAR<B>/CHnn` blit, not a procedural composite.  This pins the
+// path helper, the number resolver, and that the sprite loads at the viewport.
 static void test_room_art(const std::string& dir) {
     std::string root = dir + "/..";
     // The routine branches on the number: < 0x16 selects CHAR3 (which is the
@@ -607,9 +608,10 @@ static void test_room_art(const std::string& dir) {
     assert(dungeon_room_art_path(root, 21) == root + "/EGA/CHAR3/CH21");
     assert(dungeon_room_art_path(root, 22) == root + "/EGA/CHAR2/CH22");
 
-    // The measured DNG05 room-art numbers must load and render, and the render
+    // The measured DNG05 sprite numbers must load and render, and the render
     // must be non-empty (the blit put pixels down) and stable (re-rendering the
-    // same sprite gives the same pixels).  CH25 is the depth>=3 corridor view.
+    // same sprite gives the same pixels).  CH25 is the Temple spawn's sprite
+    // (NSC05 Lizard-warrior record).
     Screen a, b;
     a.resize(320, 200); a.clear(0);
     if (render_dungeon_view(a, dungeon_room_art_path(root, 25),
@@ -624,11 +626,12 @@ static void test_room_art(const std::string& dir) {
         std::printf("dungeon_test: room-art view verified (CHAR2/CH25)\n");
     }
 
-    // Round 41 (Task 2b): the room-art number is read from the scenario's
+    // Round 41 (Task 2b): the sprite number is read from the scenario's
     // NPC/monster table SYST/NSC<dd>, at +0x48 of the record selected by the
     // party's location id.  The Temple spawn (scenario 05, location 16) must
     // resolve to 25, and its record's neighbours to the values verified against
-    // the emulator's open trace (records 0..9 -> 26, records 10..17 -> 25).
+    // the emulator's open trace (records 0..9 Lizard priest -> 26, records
+    // 10..17 Lizard warrior -> 25).
     assert(dungeon_room_art_number(root, 5, 16) == 25);
     assert(dungeon_room_art_number(root, 5, 0) == 26);
     assert(dungeon_room_art_number(root, 5, 10) == 25);

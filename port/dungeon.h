@@ -169,15 +169,17 @@ void render_dungeon_map(Screen& scr, const Dungeon& d, const DungeonPos& p,
 //     oracle: `EGA/D5/DP001` reproduces the slot-1 Temple spawn window at 95.2%.
 //     The full 120x119 views are DP001/DP014/DP036/DP058/DP059/DP060/DP067; the
 //     smaller `DPnnn` (64x59, 32x59, 16x29, ...) are side-wall pieces.
-//   * `EGA/CHAR2/CHnn` — the **room / interior art** (Round 38).  Looking down
-//     an open corridor loads a `CHAR2/CHnn` sprite, NOT a procedural composite:
-//     zeroing `CHAR2/CH25` on disk turns the corridor window black (ink 4941 ->
-//     0), and zeroing `CHAR2/CH40` turns the depth-2 window black (5111 -> 0).
+//   * `EGA/CHAR<B>/CHnn` — the **position-selected encounter/area sprite**
+//     (Rounds 38-45).  The engine picks an `SYST/NSC<dd>` record from the
+//     party's map cell and level, stores that record's id in `es:[0x259]`, and
+//     the room routine blits `NSC<dd>[id].+0x48` -> `ega\char<B>\ch<NN>`.  So
+//     the window shows the NPC/area sprite for that spot, NOT a procedural
+//     composite: zeroing `CHAR2/CH25` turns the window black (ink 4941 -> 0).
 //     The earlier "the engine ray-composes the corridor" reading was wrong — it
-//     only ever searched the `DPnnn`/`ANIM` banks, not `CHAR2`.
-// The room routine at image 0x4321 (`ip 0x2A4E`) takes a CH number, formats
-// `ega\char2\chNN` into its buffer and calls the sprite loader; the CH number is
-// chosen by a room index that is a function of the party's position (see
+//     only ever searched the `DPnnn`/`ANIM` banks, not `CHAR`.
+// The room routine at image 0x431E (`ip 0x2A4E`) takes a CH number, formats
+// `ega\char<B>\chNN` into its buffer and calls the sprite loader; the CH number
+// is `NSC<dd>[id].+0x48` for the id chosen from the party's position (see
 // `dungeon_room_art_path` and docs/notes-a.md Rounds 38-39).
 constexpr int kViewportX = 10;
 constexpr int kViewportY = 11;
@@ -216,17 +218,20 @@ bool render_dungeon_view(Screen& scr, const std::string& sprite_path,
 // against the Temple spawn oracle.
 std::string dungeon_view_path(const std::string& dir, int dungeon, int index = 1);
 
-// Path of a room-art sprite from the `EGA/CHAR2/CHnn` bank, which the engine
-// blits for the first-person view of an open cell (Round 38).  `ch` is the room
-// number the engine's room routine (image 0x431E, `ip 0x2A4E`) formats into
-// `ega\char2\chNN` and then hands to the sprite loader.  For the DNG05 Temple
-// spawn the measured numbers are 40 (depth 2) and 25 (depth >= 3).
+// Path of a `CHAR<B>/CHnn` sprite.  This is the *position-selected encounter/
+// area sprite* the engine blits into the first-person window: the routine at
+// image 0x27780 picks an `SYST/NSC<dd>` record from the party's map cell and
+// level, stores that record's id in `es:[0x259]`, and the room routine (image
+// 0x431E, `ip 0x2A4E`) resolves `NSC<dd>[id].+0x48` -> `ega\char<B>\ch<NN>`.
+// The numbers are per-record creature sprites (NSC05: Lizard warrior -> 25,
+// Lizard priest -> 26, Priest -> 5), so the Temple spawn's view is CH25.  The
+// function name keeps `room_art` for history; see docs/notes-a.md Rounds 38-45.
 std::string dungeon_room_art_path(const std::string& dir, int ch);
 
-// Read the room-art number from the scenario's NPC/monster table
+// Read the encounter/area sprite number from the scenario's NPC/monster table
 // `SYST/NSC<dd>` (Round 41, Task 2b).  The engine's view code reads a byte at
 // offset +0x48 of the record selected by the party's current location id, and
-// that byte is the `NN` the room routine formats into `ega\char2\chNN`.
+// that byte is the `NN` the room routine formats into `ega\char<B>\ch<NN>`.
 // Records are `kRoomArtRecordStride` (0x11A = 282) bytes in memory; on disk the
 // same records are stored packed at `kRoomArtDiskStride` (78) bytes after a
 // one-byte count, so this helper reads the disk layout directly.
