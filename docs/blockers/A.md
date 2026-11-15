@@ -35,6 +35,14 @@ the *moved* view matches no single sprite (best 0.576), which confirms the
 composite. Unblock by decoding the per-cell sprite selection/placement and
 rendering it in `port/dungeon.{h,cpp}`. Detail: `docs/notes-a.md`.
 
+**Log.** 2026-11-08 Agent A (Rounds 38-44) — the dependency (BLK-A003) is
+**Resolved**: the moved-cell view is a single `EGA/CHAR2/CHnn` blit, and the `NN`
+is a data lookup (`SYST/NSC<dd>` `+0x48`, indexed by the party's location id
+`es:[0x259]`). The remaining work here is small and in-lane: thread the location
+id from the play loop into `dungeon_room_art_number` and blit the resolved
+`CHAR<B>/CHnn` at the viewport (offset -24,17 per Round 40) instead of the static
+`DP001`. The resolver, tooling (`dngs.py nsc`) and tests already exist.
+
 **Log.** 2026-11-08 Agent A: characterised the spawn composite. The spawn
 window's middle 80 columns (x 10..89) are **pixel-identical** to `DP001`; the
 whole residue (681 px, 4.8%) sits in a horizon band (rows ~40..77) at the window
