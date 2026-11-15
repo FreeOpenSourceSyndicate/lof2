@@ -5,6 +5,49 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-15 (eleventh session) — TL;DR
+
+Environment HEALTHY. HEAD at start `755fd27`, `main` clean and pushed. Session
+goal was to assess state and advance the post-town flow; the owner also supplied
+the Cyldane save and asked for an explicit open-PR ownership rule.
+
+- **Rule 11 added** (`docs/RULES.md`, **PR #105**): *the author owns its own PR
+  (Rule 10); the **Maintainer (lane M) is the backstop** for any orphaned /
+  stale / DRAFT / abandoned PR* — review it, push it green and merge, or close
+  with a reason. Added a "sweep open PRs" step to the session checklist and a
+  changelog entry.
+- **OT-001 RESOLVED** (owner task). The owner supplied `GAME4` — a save standing
+  **in front of Cyldane** (not Thyn). `O`, `4`, `Up` enters the town and the
+  frame reads *"You enter the proud town of Cyldane."* Captured as
+  `ref/oracle/town_cyldane.png` (md5 `bc1fd8201372584ede69ba2d613b08da`).
+  Because the archive ships only save slots 1/2/3/5, `GAME4` is **committed at
+  the repo root** and `bootstrap.sh` now installs it to slot 4 (else it is lost
+  on a workspace reset).
+- **G-001 advanced** (town-name selector). 1 MB RAM dumps at both town screens
+  show `ds:0x5A39 "Thyn."` **and** `ds:0x5A40 "Cyldane."` present and
+  byte-identical in *both* runs: the engine does **not** rewrite the name, it
+  **selects between the two addresses**. The selector is a computed pointer (no
+  `mov ax,0x5a39/0x5a40` immediate exists; the word `0x5A39` appears zero times
+  in the image). Remaining lane-M task: trace the callers of the town routine
+  (`image 0xC22B`) with `GAME4` loaded. `compose_town_screen()` still hardcodes
+  `"Thyn."`.
+- **Rule-11 PR sweep:** #105 merged. Left **#89** (lane A, open) and **#99**
+  (lane B, DRAFT) untouched — both are live lanes' own PRs. **#99** resolves
+  BLK-B003 and its author (lane B) is now *inactive* (B has nothing unblocked),
+  so it is a backstop candidate: the Maintainer may take it over in a later
+  session (push green + merge, or close with a reason) if it stays orphaned.
+- **No open owner tasks** (`docs/OWNER-TASKS.md`: OT-001 moved to *Done*).
+- `check.sh` **HEALTHY**; `main` clean and pushed at `5e0e1f8`.
+
+**Open / next:**
+
+- **G-001 decode** (lane M): trace the town-name selector with `GAME4` loaded
+  and de-hardcode `"Thyn."` in `compose_town_screen()`.
+- **Next lane-M screens:** the Inn (`TWN03`) and Temple (`TWN05`) town buildings;
+  then the play-loop viewport foreground sprite.
+- The amulet prompt's first line is still *not* decoded (font ambiguity) — do
+  not hard-code it.
+
 ## Session 2026-11-15 (tenth session) — TL;DR
 
 Environment HEALTHY. HEAD at start `f70b55f`, `main` clean and pushed. This
