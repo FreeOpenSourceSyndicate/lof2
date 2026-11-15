@@ -1842,3 +1842,32 @@ depth. The index appears fixed (=3, "dungeon view") for the walk screen; the
 depth-dependent content must be applied by another routine, or the slot segment
 is reloaded per cell by the preloader before the blit. This is the same open
 question as BLK-A003 — no further progress from static disassembly alone.
+
+## Round 37 — BLK-A003 corridor: definitively procedural, geometry measured
+
+Captured the depth-scaled views (ahead cell at depth 1/2/3/4, DNG05 spawn
+(17,3) facing S) via `LOF_EDUMP=` and measured the viewport:
+
+| first opaque cell | ink px | first row | shape |
+|---|---|---|---|
+| depth 1 | 14280 | 0 | full-screen flat wall face |
+| depth 2 | 5111 | 9 | small **trapezoid** in the centre, widening downward |
+| depth 3 | 4941 | 18 | corridor, **saturates** |
+| depth 4 | 4941 | 18 | identical to depth 3 (byte-for-byte) |
+
+Depth-2 row extents run `(44,55)` at y=12 widening to `(4,115)` at y=114 — a
+perspective tunnel: the far wall is a small centred rectangle whose edges
+diverge toward the viewer. Depth ≥3 saturates because the far wall is beyond the
+horizon.
+
+**Decisive test:** slid every `D5/DP*` + every `ANIM/*` sprite (75 files, any
+size ≤ window) over the depth-2 and depth-3 windows at every offset and counted
+**colour-exact** coincident ink pixels — best = **0**. So no sprite (full-size or
+piece), at any position, shares a single colour-exact pixel with the corridor
+view. Combined with Round 30 (template search), this **conclusively rules out a
+sprite composite** for the corridor: it is drawn procedurally, per-pixel, by the
+room routine. No further static analysis is possible without the room routine's
+code location, which is inside the GFA-compiled body with no adjacent table.
+
+BLK-A003 remains open; the port's `DP001` fallback for open cells (documented
+guess G-004) is unchanged, as any replacement would itself be a guess.
