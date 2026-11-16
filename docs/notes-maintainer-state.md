@@ -8,11 +8,18 @@ this first, then `docs/HANDOFF.md` (the technical reference) and
 ## Session 2026-11-16 (seventeenth session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. HEAD at start `cc2d406` (main, clean, pushed). This was
-a **restructure** session requested by the owner.
+a **restructure** session requested by the owner; ended at `cfe3ba8`.
 
-- **The three-lane structure is RETIRED — there is now ONE lane (the Maintainer
-  lane).** Owner decision: the split mostly produced hand-offs, not parallelism
-  (only lane M had unblocked work), and items whose nominal owner was idle
+- **Backstop (Rule 11):** the stale lane-A DRAFT **PR #117** (encounter-sprite
+  consumer, author inactive for several sessions) was adopted: merged `main`
+  cleanly, renumbered its two new guesses to avoid a collision with lane B's
+  `G-003`/`G-004` (→ `G-005` wall set, `G-006` corridor fallback), and **merged**.
+  Green: `make test` + all port golden screens. `BLK-A005` (encounter-id producer)
+  stays open and is on the queue. No open PRs remain.
+- **Restructure:** the three-lane structure is RETIRED — there is now ONE lane
+  (the Maintainer lane). Owner decision: the split mostly produced hand-offs,
+  not parallelism (only lane M had unblocked work), and items whose nominal owner
+  was idle
   (`BLK-A001`, `BLK-B005`) had nobody feeling responsible. The owner asked for a
   restructure where every active line always has unblocked work — a single lane
   is fine — with the old lane definitions **preserved in the docs**.
