@@ -1348,13 +1348,16 @@ group's line, e.g. `combat_group_line(3, "Ogres", 1) == "3 Ogres (Rnk 1)"`.
 ### Combat strings (LOF.EXE only — no data file carries them)
 
 All the encounter / round-result text lives in `LOF.EXE`'s data segment as
-packed NUL-terminated strings. Offsets are **image offsets** (add the MZ load
-base to get the runtime `ds` offset); they are transcribed into
-`port/char_names.inc` by `tools/spec.py --emit-names` and exposed via
-`port/char.h`.
+packed NUL-terminated strings. The offsets in the table below are **file
+offsets** into `LOF.EXE` (verified against the raw EXE, 2026-11-10); the
+*image* offset is `file - 0x54F0` (the MZ header is `0x54F0` bytes = 1359
+paragraphs), and the runtime `ds` offset is the image offset. They are
+transcribed into `port/char_names.inc` by `tools/spec.py --emit-names` and
+exposed via `port/char.h`. (An earlier note called these "image offsets" — they
+are file offsets.)
 
-| image off | string | use |
-|-----------|--------|-----|
+| file off | string | use |
+|----------|--------|-----|
 | `0x490BD` | `You unknowingly meet`      | intro variant 0 |
 | `0x490D2` | `Without warning you meet`  | intro variant 1 |
 | `0x490EB` | `You are surprised by:`     | intro variant 2 |
@@ -1399,3 +1402,95 @@ immediate scan (the engine addresses its strings via segment-relative pointers,
 so `b8 <lo> <hi>` searches do not hit them). Grounding the dispatcher needs the
 maintainer to expose a combat-round debug dump (cf. the item-use table request
 above) — the static image alone gives the strings, not the branching.
+
+---
+
+## Combat action dispatcher — grounded (2026-11-10, unblocks BLK-B004)
+
+This closes the "still open" note above: the action *dispatcher* and the round
+*state* are now grounded against real in-game state, not guessed.
+
+### 1. Where the live party struct is (the key that unblocked it)
+
+The combat routines address each character through a far pointer, so the struct
+is **not** at the save-file's own buffer. Resolve it exactly as the code does
+(ds = `0x4C92` when LOF is resident):
+
+```
+es  = word [ds:0xafa6]        ; = 0x468E
+bx  = word es:[0x30]          ; offset part  -> 0x3794
+seg = word es:[0x32]          ; segment part -> 0x5C92
+base = 0x5C92*16 + 0x3794     ; = 0x600B4
+```
+
+The same far pointer is loaded via `[ds:0xb036]`. Character `i`'s 410-byte
+record is at `0x600B4 + i*0x19A`, name at `+1` (14 bytes, NUL-padded) — matching
+the 410-byte record layout. A *second* copy lives at `0x468E:0x908` (= linear
+`0x471E8`); the two carry the same values, but the combat routines write the
+`0x600B4` copy (verified with `LOF_WATCH`).
+
+Reproduce: `LOF_WATCH=600B0:60A00` shows the writes; `LOF_SEGDUMP=…,5C92:3794:9C4`
+dumps the whole party.
+
+### 2. Per-character combat fields (grounded by watchpoints)
+
+| off | field | evidence |
+|-----|-------|----------|
+| `+0x0f` | **action byte** | `(D)efend` set char0 `1 -> 0` (writer `1DAF:B853`); default is `1` |
+| `+0x0d` | **selected flag** | `0x00` normally, becomes `0xff` when the character is configured |
+| `+0x0e` | **target** | the `Who has … aimed at (1-6) ?` prompt fills it |
+| `+0x70` | *not* the action | a per-character byte the round setup fills from `rand(5)+1` (image `0x1DB78`); independent of `+0x0f` |
+
+The action **enum** is the already-derived `kActionNames` table
+(`port/char_names.inc`): `0=Defends, 1=Attacks, 2=Stalks, 3=Use object,
+4=Cast Spell`. Live confirmation: the default action is `1` (Attacks); `(D)efend`
+sets `0`. (Note: the disassembly listing shows `cmp byte ptr es:[bx+si+0xf],N`
+at image `0x13BA2`/`0x13E53`, i.e. the executor reads `+0xf` — consistent.)
+
+### 3. The config menu and its keys (from the play flow)
+
+After `(A)ttack` at the encounter the engine shows the per-character config
+screen (strings image `0x48E15`..): `(D)efend (A)ttack (S)neak (U)se object
+(P)erform magic` / `(1)Enter Kill-Rank (2)Enter Attack-Rank (3)Enter
+Defence-Rank (4)Enter Retreat-Rank` / `(C)ontinue`, plus the aim prompt
+`Who has ` + ` aimed at  (1-6) ?`. The menu is **keyboard driven**: a digit
+`1`..`6` selects the character, then an action letter sets that character's
+action; `(C)ontinue` commits and runs the round. Confirmed end-to-end in the
+emulator:
+
+```
+# encounter (A) -> config (A) -> pick char 1 -> (D)efend -> (C)ontinue
+LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_DUMP=/tmp/round.mem \
+  LOF_KEYAT="50:0x18,100:0x03,150:0x50,200:0x48,250:0x2e,650:0x1e,780:0x02,900:0x20,1020:0x2e" \
+  ./lof-native --dir game --headless --frames 1200 --shot /tmp/round.png
+```
+
+`LOF_KEYAT` is required: the walk consumes keys before the encounter appears
+(~frame 450–650), so `LOF_KEYAUTO` lands them too early.
+
+### 4. The round-result table
+
+After the round the engine draws `The result of this round:` + the melee table
+`Name       HP   W P B Attack` (title/header/rule at image `0x48D2D`/
+`0x48D47`/`0x48D64`) and fills one row per party member (names verified present
+in the frame: `Decker`…`Cassandra`). The withdraw table (`0x49048`) lists
+`Gld. Rt Exp. HP` instead. This is the same table the strings were read from;
+the per-column *semantics* (HP / the `W P B` flags / `Attack`) are still only
+read off the header text and remain unverified — see the open item below.
+
+### 5. Reproduce / verify
+
+Deterministic: the whole path is md5-stable (`LOF_DUMP` identical across runs)
+with `LOF_NO_TIMER=1`. Screens: `ref/oracle/combat.png` (encounter, pixel-exact),
+and the config / round frames render reproducibly. The party-struct dumps used
+here are `/tmp/round*.mem` (ephemeral) — regenerate with the command above.
+
+### Still open after this
+
+- The `+0x70` byte's meaning (it is randomised at round setup; may be the
+  `Attack` column value). Not needed to dispatch.
+- The `(S)neak`/`(U)se object`/`(P)erform magic` paths did **not** change `+0xf`
+  in my runs (they likely open a sub-prompt first) — a live-play confirmation
+  would settle their enum values (they are already in the derived table as
+  2/3/4).
+- The per-column semantics of the round table (`W P B`, `Attack`).
