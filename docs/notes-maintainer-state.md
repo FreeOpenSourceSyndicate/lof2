@@ -5,6 +5,41 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-16 (eighteenth session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**. HEAD at start `3525171` (main, clean, pushed). Repo
+**cleanup** session: the owner deleted the poisoned sibling repo and asked me to
+(1) drop every obsolete warning/check about it, (2) triage and clean up the ~70
+stale `work/*` branches, then (3) keep advancing the project.
+
+- **Poisoned-sibling-repo guards retired.** The owner deleted
+  `FreeOpenSourceSyndicate/lof`, so its warnings are obsolete:
+  - `check.sh`: the "poison guard" remote check is gone (repo identity still
+    verified); `Makefile` comment updated.
+  - `docs/RISKS.md`: **Risk 1 (sibling-repo poisoning) deleted**; the rest
+    renumbered (1 workspace reset, 2 the red tree, 3 running the original
+    binaries). README says "three risks" now.
+  - "never look at the sibling repo" clauses removed from `README.md`,
+    `AGENTS.md`, `docs/HANDOFF.md`, `docs/notes-maintainer-state.md`. The
+    "two hard constraints" is now "the hard constraint" (only: never run the
+    original EXEs).
+  - `docs/RULES.md`: changelog entry.
+- **Branch cleanup.** All **70 `work/*` remote branches** and 14 stale local
+  branches deleted; only `main` remains. Every deleted branch had a **MERGED**
+  PR (content already on `main` via squash-merge); the three without a merged PR
+  (`work/agent-a-blockers`, `work/agent-b-itemuse-static`,
+  `work/merge-maintainer-town`) were **verified content-superseded** by main
+  (spot-checked: agent-a-blockers' Round-22 DNG-header code, the D5 sprite
+  inventory, `dngs.py composite` and BLK-006/007 notes are all on main;
+  itemuse-static's inverted gate was superseded by PR #99; merge-maintainer-town's
+  play-loop/0Ch/palette deliverables are on main). Tip SHAs recorded in
+  `docs/branch-audit.txt` (restore recipe in the header) for full recoverability.
+
+**Open / next:** the queue (`docs/HANDOFF.md` §4) is unchanged and is the single
+source of "what is left": #1 G-002 (area M), #2 BLK-B005 (B), #3 BLK-A001 (A),
+#4 play loop (M), #5 Inn/Temple (M/A), #6 BLK-B004 (B, needs M), #7 regression
+tests (M). I continued with the top item (G-002) after the cleanup.
+
 ## Session 2026-11-16 (seventeenth session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. HEAD at start `cc2d406` (main, clean, pushed). This was
