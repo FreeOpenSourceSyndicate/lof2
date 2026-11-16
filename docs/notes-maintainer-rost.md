@@ -141,6 +141,11 @@ fold is *position-dependent* (parity of the index), which none of those cover.
 
 ## Consequence for the port (lane B task — not this lane)
 
+**DONE (2026-11-16, eighteenth session).** The three requested follow-ups are
+implemented: `port/char.{h,cpp}` has `rost_record_checksum()`, `load_rost()`
+sets `RostRecord::intact`, and `tests/char_test.cpp` covers the algorithm plus
+the fixtures. See `docs/blockers/B.md` (BLK-B005, Resolved).
+
 `port/char.cpp::load_rost()` already reads `rec.tail` but does **not** validate
 it. Implementing this algorithm belongs to **Workstream B** (`port/char.{h,cpp}`,
 `tests/char_test.cpp`). Requested follow-up:
