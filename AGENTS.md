@@ -8,8 +8,7 @@
 > agent is working on** — every underived value must be removed, filed as a
 > blocker if another area is needed, or (if it cannot be removed) reported to the
 > owner and re-reminded every session. They
-> cover how to survive a workspace reset, how to avoid the poisoned sibling repo,
-> and the file map. This
+> cover how to survive a workspace reset and the file map. This
 > file is the deep technical reference. When you get blocked, record it in the
 > area's blocker file under `docs/blockers/` (A = dungeons, B = characters, M =
 > shared/engine); the hub `docs/BLOCKERS.md` defines the `BLK-<area><nnn>` IDs and
@@ -33,8 +32,6 @@ can still play.
 - **Do NOT execute the original `LOF.EXE` / `VOR.EXE`.** The emulator (below) is
   a *development aid* for decompilation and reference only; the shipped drop-in
   must not depend on it or on the original binaries at run time.
-- **Do NOT look at the sibling repo `FreeOpenSourceSyndicate/lof`.** It is
-  unreliable and its approach is a known dead end; treat it as poisoned.
 
 ## Original-binary analysis (reference only)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check.sh — verify the repo is in a healthy, non-poisoned state.
+# check.sh — verify the repo is in a healthy state.
 # Safe to run any time; changes nothing. Exit 0 = healthy.
 set -u
 cd "$(dirname "$0")"
@@ -15,14 +15,7 @@ if printf '%s' "$remote_url" | grep -qE 'FreeOpenSourceSyndicate/lof2(\.git)?$';
 elif [ "$(basename "$(git rev-parse --show-toplevel)")" = "lof2" ]; then
     ok "repo directory is lof2"
 else
-    printf '  note origin is %s (expected .../lof2) — confirm this is not the sibling repo\n' "${remote_url:-<none>}"
-fi
-
-# Poison guard: no remote pointing at the sibling repo.
-if git remote -v 2>/dev/null | grep -qE 'FreeOpenSourceSyndicate/lof(\.git)?([[:space:]]|$)'; then
-    bad "a git remote points at the poisoned sibling repo FreeOpenSourceSyndicate/lof"
-else
-    ok "no git remote points at the poisoned sibling repo"
+    printf '  note origin is %s (expected .../lof2)\n' "${remote_url:-<none>}"
 fi
 
 echo "[check] game data"

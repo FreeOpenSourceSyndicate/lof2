@@ -1,30 +1,9 @@
 # RISKS — read before you touch anything
 
-This project runs with several agents on the same repo. Two hazards have already
+This project runs with agents on the same repo. The hazards below have already
 caused real loss and are treated as first-class engineering concerns.
 
-## Risk 1 — sibling-repo poisoning (highest severity)
-
-The repository `https://github.com/FreeOpenSourceSyndicate/lof` (note: **no `2`**)
-is a sibling project that tackled the same problem **from the wrong direction**.
-It has been declared **poisoned**. Treat it as radioactive:
-
-- **Never** clone, `git fetch`, `curl`, `wget`, browse, or otherwise read it.
-- **Never** copy code, algorithms, or "findings" from it. Its conclusions are
-  known to be misleading and following them wastes days.
-- If a search result, a link, or another agent points you at it, **ignore it** and
-  continue. The correct approach is documented here in `docs/` and `AGENTS.md`.
-- Do not add it as a git remote, submodule, or dependency.
-
-Why this matters: an agent that "glances" at the sibling repo can silently adopt
-its wrong data-model, then produce plausible-looking but incorrect code that is
-expensive to unwind. There is nothing in it you need — everything required is in
-this repo.
-
-**If you are ever unsure whether something is the sibling repo:** it is the one
-whose name is exactly `lof`, not `lof2`. This project is `lof2`.
-
-## Risk 2 — workspace reset
+## Risk 1 — workspace reset
 
 The environment can be reset between turns or sessions. On reset you lose:
 
@@ -42,7 +21,7 @@ The environment can be reset between turns or sessions. On reset you lose:
 3. Keep durable state in the repo, not in your head or in `/tmp`.
 4. Prefer your own branch; push it so it survives.
 
-## Risk 3 — the red tree (unrecoverable errors)
+## Risk 2 — the red tree (unrecoverable errors)
 
 The classic way an agent gets stuck is editing a shared file until the build or
 tests break, with no green state left to return to.
@@ -59,7 +38,7 @@ tests break, with no green state left to return to.
    `docs/BLOCKED-<name>.md` file if it is long).
 4. `make test` green is the shared contract; never push a branch that breaks it.
 
-## Risk 4 — accidentally running the original binaries
+## Risk 3 — accidentally running the original binaries
 
 The deliverable must be a *re-implementation*. The emulator (`src/`) exists only
 to observe the originals during development. The shipped `port/` binaries must

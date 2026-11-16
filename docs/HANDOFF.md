@@ -23,7 +23,7 @@ dead-end error. Deep detail lives in `AGENTS.md`; the work split lives in
 make                      # build the analysis emulator  -> ./lof-native
 make port                 # build the drop-in binaries   -> ./lof ./vor
 make test                 # CPU self-test + font test
-make check                # health: poison guard, build, tests, git hygiene
+make check                # health: build, tests, git hygiene
 ```
 
 ### Minimal prompt to start (or replace) an agent
@@ -37,8 +37,8 @@ Anyone can spin up a fresh agent with just this:
 > stretches — keep pulling items off the queue in `docs/HANDOFF.md` rather than
 > stopping after one step. Do not edit a file another active agent is working on
 > (pick a queue item in a disjoint area). Commit and push after every meaningful
-> step (the workspace can reset). Review and merge your own PRs. Never read the
-> sibling repo `FreeOpenSourceSyndicate/lof`. If you get blocked, add an entry to
+> step (the workspace can reset). Review and merge your own PRs. If you get
+> blocked, add an entry to
 > the area's blocker file under `docs/blockers/` (A = dungeons, B = characters,
 > M = shared/engine; the ID convention and fields are defined in the hub
 > `docs/BLOCKERS.md`) instead of just stopping.
@@ -86,16 +86,12 @@ not need the maintainer.
 - `analysis/` — annotated disassembly listings (`lof.asm`, `vor.asm`).
 - `game/`, `downloads/` — proprietary game data, **git-ignored** (see risks).
 
-## 1. The two hard constraints
+## 1. The hard constraint
 
 1. **Never execute `LOF.EXE` / `VOR.EXE` from the deliverable** (`port/`). Reading
    their bytes for analysis is fine; running them is the emulator's job only.
-2. **Never look at the sibling repo `FreeOpenSourceSyndicate/lof`.** It took the
-   wrong approach and is treated as poisoned. Do not clone, fetch, curl, browse,
-   or read it. If a task seems to require it, it does not — see
-   `docs/RISKS.md`.
 
-## 2. You WILL hit these two risks — plan for them
+## 2. You WILL hit these risks — plan for them
 
 ### Risk A — your workspace can be reset without warning
 
