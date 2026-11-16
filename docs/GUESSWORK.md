@@ -68,6 +68,36 @@ How to use each section:
 - **To clear it:** capture the sprite + dest at the blit entry and reproduce it.
   If the source turns out to be a data-table sprite → move to **D**. If it is
   computed with no recoverable source → move to **A**.
+- **Progress (2026-11-16, fifteenth session) — the sprite is recovered; the
+  remaining gap is the *selector* that chooses its source.**
+  - The `119D:0463` blitter is the **generic EGA-image blitter** (image
+    `0x1C70`, the one AGENTS.md calls "the blitter that consumes the decoded
+    buffer"): it does `mov ds,dx; cmp [si],0x1234` and reads a 4-word header at
+    `si` (magic, width-bytes, height, stride), so `si` points at a **decoded,
+    11-byte-header-less EGA image** in memory.  At the patch blit `si` starts at
+    `0x0A` (right past the 10-byte header) and steps `+0x20` per plane
+    (`bp` = plane, 4 passes) → the sprite is a **16×16, 4-plane, 0x20 bytes/plane
+    image at `ds:0`** with header `[0]=0x1234 [1]=2 [3]=0x10 [5]=0x8a`.
+  - A `LOF_PXDUMP` snapshot at the blit (`ds` scratch buffer) reproduces the
+    oracle patch exactly (ink-mask), so the blit is understood.  The sprite is
+    **not** in any `EGA/**` asset, **not** in `LOF.EXE`/`VOR.EXE`, and **not** in
+    any game data file — it is produced at runtime.
+  - `LOF_WATCH=<linear of ds:0>` shows the scratch buffer is filled by the
+    **general EGA-image RLE decoder** at image `0x22F2` (it reads
+    `ds = cs:[0x35a2]` and writes to `es = cs:[0xa06]`).  So the patch is a
+    **compressed EGA image decoded at run time** into the scratch buffer, then
+    blitted — not a `EGA/**` file (a different, in-memory loader feeds it).
+  - **Remaining task:** the decoder's source pointer `cs:[0x35a2]` is set once
+    early to segment `0x4130`, which at run time holds the 120×119 view image
+    (`[esc]34 12 [w=15][h=119][size=0x1bee]`), so the patch's own source is
+    selected elsewhere; find the routine that stages the 16×16 image (watch the
+    decoder's other state, `cs:[0xa1c]` length and `cs:[0xa06]` dest) and dump
+    its source bytes.  That yields the exact sprite to bake into `port/lof.cpp`.
+    The image is drawn identically (ink) in menu/town/buildings/dungeon, so a
+    single fixed overlay clears G-002 for every explore screen.  Cosmetic: 88 px.
+  - New emulator diagnostics added this session: `LOF_PXWATCH` now also prints
+    `si/di/bx/bp/ds`, and `LOF_PXDUMP=<file>` (`LOF_PXDUMP_AT=<hit>`) snapshots
+    the DS segment at a watch hit.
 
 ### G-004 — `item_effect_name()` labels beyond the traced dispatcher values (Lane B)
 

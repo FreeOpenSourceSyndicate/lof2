@@ -208,10 +208,27 @@ void Machine::pxwatch(uint32_t off, uint8_t v) {
     if (off != (uint32_t)((int)wy * 40 + bytecol)) return;
     int bit = 7 - ((int)wx & 7);
     fprintf(stderr, "[pxwatch] #%ld px(%ld,%ld) off=%04X bit=%d <- %02X by %04X:%04X @%llu"
-                    " planes=%02X %02X %02X %02X\n",
+                    " planes=%02X %02X %02X %02X"
+                    " si=%04X di=%04X bx=%04X bp=%04X ds=%04X\n",
             hits, wx, wy, off, bit, v, cpu.cs, cpu.ip,
             (unsigned long long)instr_count,
-            ega.plane[0][off], ega.plane[1][off], ega.plane[2][off], ega.plane[3][off]);
+            ega.plane[0][off], ega.plane[1][off], ega.plane[2][off], ega.plane[3][off],
+            cpu.si, cpu.di, cpu.bx, cpu.bp, cpu.ds);
+    // LOF_PXDUMP=<file> snapshots the DS segment (a scratch buffer the engine
+    // may compose a sprite into before blitting it); LOF_PXDUMP_AT=N picks the
+    // hit index (default 0).
+    if (const char* pd = getenv("LOF_PXDUMP")) {
+        long at = getenv("LOF_PXDUMP_AT") ? atol(getenv("LOF_PXDUMP_AT")) : 0;
+        if (hits == at) {
+            FILE* f = fopen(pd, "wb");
+            if (f) {
+                uint32_t base = (uint32_t)cpu.ds << 4;
+                for (uint32_t a = 0; a < 0x200; a++) fputc(rb(base + a), f);
+                fclose(f);
+                fprintf(stderr, "[pxwatch] dumped ds=%04X:0000..01FF to %s\n", cpu.ds, pd);
+            }
+        }
+    }
     hits++;
 }
 
