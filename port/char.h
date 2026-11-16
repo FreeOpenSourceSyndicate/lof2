@@ -126,7 +126,16 @@ struct RostRecord {
     std::string name;      // 0x01  NUL-terminated name (<= 14 bytes)
     uint32_t tail = 0;     // 410..413  trailing 32-bit value (split from the
                            //           410-byte struct by the loader)
+    bool intact = false;   // true iff `tail == rost_record_checksum(raw[0..409])`
 };
+
+// The engine's per-record integrity check (cheat protection): the 4-byte
+// little-endian trailer after each 410-byte record is this alternating
+// ADD/XOR fold.  The engine verifies it on load (asm 0x2A1E1) and, on
+// mismatch, writes the tamper marker 0xFC into record byte 0x0C (asm 0x2A1F6).
+// Fully derived in docs/notes-maintainer-rost.md (asm 0x1BF18); reproduces the
+// stored trailer on every record of the shipped saves.
+uint32_t rost_record_checksum(const uint8_t* rec410);
 
 // Load ROST/ROST (count byte + N x 414-byte records).
 std::vector<RostRecord> load_rost(const std::string& path);

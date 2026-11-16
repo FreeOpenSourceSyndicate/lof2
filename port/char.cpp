@@ -83,6 +83,17 @@ SpecTable load_spec(const std::string& path) {
     return t;
 }
 
+uint32_t rost_record_checksum(const uint8_t* rec410) {
+    // Alternating ADD (even index) / XOR (odd index) fold seeded with 1; NUL
+    // bytes count as 1.  See docs/notes-maintainer-rost.md (asm 0x1BF18).
+    uint32_t acc = 1;
+    for (size_t i = 0; i < 410; i++) {
+        uint32_t c = rec410[i] ? rec410[i] : 1;
+        acc = (i % 2 == 0) ? (acc + c) : (acc ^ c);
+    }
+    return acc;
+}
+
 std::vector<RostRecord> load_rost(const std::string& path) {
     std::vector<RostRecord> out;
     std::vector<uint8_t> d = read_file(path);
@@ -98,6 +109,7 @@ std::vector<RostRecord> load_rost(const std::string& path) {
         rec.name = cstr(r + 0x01, 14);
         rec.tail = (uint32_t)r[410] | ((uint32_t)r[411] << 8) |
                    ((uint32_t)r[412] << 16) | ((uint32_t)r[413] << 24);
+        rec.intact = (rec.tail == rost_record_checksum(rec.raw.data()));
         out.push_back(std::move(rec));
     }
     return out;

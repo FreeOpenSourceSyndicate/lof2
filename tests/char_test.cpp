@@ -25,6 +25,57 @@ static void putstr(std::vector<uint8_t>& v, size_t off, const char* s, size_t li
     v[off + n] = 0;
 }
 
+// The ROST per-record integrity fold (asm 0x1BF18): alternating ADD/XOR with a
+// seed of 1, NUL bytes counted as 1.  Hand-computed cases pin the algorithm.
+static void synthetic_rost_checksum() {
+    std::vector<uint8_t> rec(410, 0);
+    // All-zero record: every byte becomes 1.  Even indices (205 of them) ADD 1,
+    // odd indices (205) XOR 1; the alternating fold lands on 411 (0x19b).
+    assert(rost_record_checksum(rec.data()) == 411u);
+
+    // rec[0] is an even index: 0 -> 1, then 5, so the fold adds 4 -> 415.
+    rec[0] = 5;
+    assert(rost_record_checksum(rec.data()) == 415u);
+
+    // rec[1] is an odd index: the byte XORs 3 instead of 1, shifting the fold
+    // by -2 -> 413.
+    rec[1] = 3;
+    assert(rost_record_checksum(rec.data()) == 413u);
+
+    // The high word stays 0 for these inputs, so the trailer is a 16-bit value.
+    assert((rost_record_checksum(rec.data()) >> 16) == 0);
+}
+
+// load_rost() must surface the trailer check through `intact`.  Round-trip a
+// synthetic one-record file: a correct trailer is intact; flipping a payload
+// byte (leaving the trailer) must clear it.
+static void synthetic_rost_load() {
+    std::vector<uint8_t> img(1 + kRostRecordSize, 0);
+    img[0] = 1;                      // one record
+    uint8_t* rec = img.data() + 1;
+    rec[0x00] = 1;                   // present flag
+    std::memcpy(rec + 0x01, "Tester", 6);
+    uint32_t ck = rost_record_checksum(rec);
+    for (int b = 0; b < 4; b++) rec[410 + b] = (uint8_t)(ck >> (8 * b));
+
+    const char* path = "char_test_rost.tmp";
+    auto write = [&] {
+        FILE* f = fopen(path, "wb");
+        assert(f);
+        fwrite(img.data(), 1, img.size(), f);
+        fclose(f);
+    };
+    write();
+    auto a = load_rost(path);
+    assert(a.size() == 1 && a[0].name == "Tester" && a[0].intact);
+
+    img[1 + 5] ^= 0xff;              // tamper a payload byte, keep the trailer
+    write();
+    auto b = load_rost(path);
+    assert(b.size() == 1 && !b[0].intact);
+    std::remove(path);
+}
+
 // Build a one-record SPEC image with recognisable field values and confirm the
 // parser recovers every field.
 static void synthetic_spec() {
@@ -333,6 +384,19 @@ static int real_data() {
     assert(roster[10].tail == 0x592);
     for (size_t i = 0; i < roster.size(); i++)
         assert(roster[i].present == 1);  // all 11 slots hold a character
+    // Every shipped record carries a valid integrity trailer (BLK-B005).
+    for (size_t i = 0; i < roster.size(); i++)
+        assert(roster[i].intact);
+    // The two owner-supplied saves (secured as fixtures) are also intact — the
+    // engine rewrites the trailer on every save, so both verify clean.
+    {
+        auto r1 = load_rost("ref/rost/ROST1.cheat");
+        assert(r1.size() == 6);
+        for (size_t i = 0; i < r1.size(); i++) assert(r1[i].intact);
+        auto r2 = load_rost("ref/rost/ROST2.banked");
+        assert(r2.size() == 6);
+        for (size_t i = 0; i < r2.size(); i++) assert(r2[i].intact);
+    }
 
     // Carried-weight pair (see kCharWeight64): the saved total (+0x66) is the
     // sum of the inventory items' weights (item +0x14) plus the per-character
@@ -900,6 +964,8 @@ static void print_char(FILE* out, const CharSheet& c, size_t i) {
 
 int main(int argc, char** argv) {
     synthetic_spec();
+    synthetic_rost_checksum();
+    synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).
     if (argc > 1 && std::string(argv[1]) == "--dump-spec") {

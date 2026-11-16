@@ -19,7 +19,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
 | BLK-B002 | B (characters/items) | Maintainer | Medium | Resolved | BLK-B001 |
 | BLK-B003 | B (characters/items) | Agent B | Medium | Resolved | — |
 | BLK-B004 | B (characters/items) | Maintainer | Medium | Open | — |
-| BLK-B005 | B (characters/items) | Agent B | Medium | Open | — |
+| BLK-B005 | B (characters/items) | Agent B | Medium | Resolved | — |
 
 ---
 
@@ -161,10 +161,20 @@ drive a round.
 - **Blocked lane:** B (characters/items)
 - **Responsible:** Agent B
 - **Priority:** Medium
-- **Status:** Open (2026-11-10)
+- **Status:** Resolved (2026-11-16, eighteenth session)
 - **Dependencies:** —
 
-**Description & unblock action.** The previous maintainer's open item — the
+**Resolution.** `port/char.{h,cpp}` now exposes
+`uint32_t rost_record_checksum(const uint8_t* rec410)` (the alternating
+ADD/XOR fold from asm `0x1BF18`) and `load_rost()` sets a `bool intact` flag on
+every `RostRecord` (`tail == checksum(raw[0..409])`). `tests/char_test.cpp` adds
+`synthetic_rost_checksum()` (hand-computed cases 411/415/413), a
+`synthetic_rost_load()` round-trip (valid trailer → `intact`; a flipped payload
+byte → not `intact`), and asserts every record of `game/ROST/ROST`,
+`ref/rost/ROST1.cheat` and `ref/rost/ROST2.banked` is `intact`. `make test`
+green.
+
+**Original request (for the record).** The previous maintainer's open item — the
 "integrity/checksum word" at record offset `0x19A` (410) — is now **decoded and
 verified** by lane M (the algorithm is *not* a guess; it is traceable to the
 decompilation and reproduces the stored trailer on 23/23 records). See
