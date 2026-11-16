@@ -5,6 +5,47 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-10 (twentieth session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**; `main` green (HEAD at start `6e3fbcc`, clean, pushed).
+Short end-of-day session (owner shutting down). Picked up the interrupted
+BLK-B004 combat work and **landed it** (PR #128, squash-merged).
+
+- **BLK-B004 — combat action dispatcher — grounded (PR #128).** Took the
+  previous session's combat-dump work and closed the analysis:
+  - The **live party struct** is at linear `0x600B4` (= `0x5C92:0x3794`, via
+    `es=[ds:0xafa6]=0x468E`, `les bx,es:[0x30]`); 410 B/record, name at `+1`.
+    A second copy sits at `0x471E8`; combat writes the `0x600B4` copy
+    (watchpoint-verified).
+  - The per-character **action byte is `+0x0f`** (default `1` = Attacks);
+    `(D)efend` sets it to `0`. `+0x0d` is the selected flag (`0x00`→`0xff`),
+    `+0x0e` the target. The enum is the derived `kActionNames`. `+0x70` is a
+    *separate* randomised byte, **not** the action (settles the earlier
+    `+0xf`-vs-`+0x70` confusion).
+  - The config menu is keyboard-driven: digit `1`..`6` picks a character, then
+    `D/A/S/U/P` sets the action, `C`=Continue commits. The round-result table
+    (`The result of this round:` + `Name       HP   W P B Attack`) renders.
+  - Driving it needs `LOF_KEYAT` (the walk eats earlier keys):
+    `LOF_KEYAT="50:0x18,100:0x03,150:0x50,200:0x48,250:0x2e,650:0x1e,780:0x02,900:0x20,1020:0x2e"`
+    with `LOF_CMDLEN=3 LOF_NO_TIMER=1`; deterministic (md5-stable).
+  - Deliverables: `docs/notes-b.md` (full write-up), `docs/blockers/B.md`
+    (status → partly resolved), the config-menu strings transcribed into
+    `char_names.inc` and exposed from `port/char` (`combat_config_action_names()`,
+    `combat_config_rank_names()`, `combat_continue_names()`, `combat_aim_names()`),
+    and `tests/char_test.cpp` pins. Also corrected the notes-b combat-string
+    offsets: they are **file** offsets, not image offsets (MZ header `0x54F0`).
+- **Still open on BLK-B004** (needs a short **owner live-play** check, Rule 5):
+  the round table's per-column semantics (`W P B`, `Attack`), and the
+  `Sneak`/`Use object`/`Perform magic` enum values (they open a sub-prompt first
+  and did not change `+0xf` in scripted runs). Both are filed in
+  `docs/blockers/B.md`.
+
+**Open / next:** the queue (`docs/HANDOFF.md` §4) is the single source of "what
+is left": #1 G-002 (M), #3 BLK-A001/A005 (A), #4 play loop (M), #5 Inn/Temple
+(M/A), #6 BLK-B004 (B, partly done). #2/#7/#8/#9 are done. **Owner tasks:** a
+short live-play confirmation of the BLK-B004 round-table columns + the
+Sneak/Use/Magic actions would close the last B item.
+
 ## Session 2026-11-16 (nineteenth session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**; `main` green. This session found and fixed a **red
