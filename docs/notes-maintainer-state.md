@@ -5,6 +5,47 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-16 (seventeenth session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**. HEAD at start `cc2d406` (main, clean, pushed). This was
+a **restructure** session requested by the owner.
+
+- **The three-lane structure is RETIRED — there is now ONE lane (the Maintainer
+  lane).** Owner decision: the split mostly produced hand-offs, not parallelism
+  (only lane M had unblocked work), and items whose nominal owner was idle
+  (`BLK-A001`, `BLK-B005`) had nobody feeling responsible. The owner asked for a
+  restructure where every active line always has unblocked work — a single lane
+  is fine — with the old lane definitions **preserved in the docs**.
+- **What changed:**
+  - `docs/WORKSTREAMS.md` rewritten: one lane, three **areas** (A/B/M kept as
+    domain labels + the file map for fan-out). Explains working-alone vs
+    fanning-out (0–2 extra agents pick disjoint-area items off the one queue).
+  - `docs/HANDOFF.md` §4 is now the **single prioritized work queue** (7 items,
+    each tagged with its area) — the authoritative "what is left". The old
+    "done" checklist is kept below it as history.
+  - `docs/RULES.md` **Rule 8 adapted** (Rule 9 — not duplicated): "stay in your
+    lane" → "do not start an item that touches the same area/file as an item
+    another active agent is working on". Changelog entry added (2026-11-16).
+    Rules 1/2/4/5/11 and the session checklist had their lane wording neutralised.
+  - `docs/BLOCKERS.md` hub relabelled lane→area; the three area files
+    (`docs/blockers/{A,B,M}.md`) and the `BLK-<area><nnn>` IDs are **kept
+    unchanged** (history/audit trail). Area index refreshed (B now shows
+    BLK-B004/BLK-B005 open; A shows BLK-A001 open, BLK-A002 resolved).
+  - `README.md`, `AGENTS.md`, `docs/RISKS.md`, `docs/AGENT-PROMPT-ADDENDUM.md`
+    updated to the single-lane wording.
+- **New canonical prompt** (in `docs/HANDOFF.md` §0 and
+  `docs/AGENT-PROMPT-ADDENDUM.md`): an agent now picks an **item from the queue**
+  (not a "workstream"); when >1 agent runs, pick a disjoint-area item.
+- `make test` green. Docs-only change (no code touched).
+
+**Open / next:**
+
+- The queue (`docs/HANDOFF.md` §4) is the single source of "what is left": #1
+  G-002 (area M), #2 BLK-B005 (B), #3 BLK-A001 (A), #4 play loop (M), #5
+  Inn/Temple (M/A), #6 BLK-B004 (B, needs M), #7 regression tests (M).
+- **Owner can now start 1–3 agents**: each reads the queue and self-assigns the
+  top unclaimed item; two agents must pick different areas.
+
 ## Session 2026-11-16 (sixteenth session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. HEAD at start `ec6fda3` (main, clean, pushed). This was

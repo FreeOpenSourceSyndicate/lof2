@@ -1,15 +1,19 @@
-# BLOCKERS — lane M (maintainer)
+# BLOCKERS — area M (shared / engine)
 
-Owned by **Maintainer**. Add new entries here. The **mutable fields — `Status`,
+> **Area M is the old "lane M"** (domain label). The project is now a single lane
+> (see `docs/WORKSTREAMS.md`); the A/B/M letters survive as area labels so the
+> history stays transparent. Area M also owns the shared/serial code.
+
+Add new entries here. The **mutable fields — `Status`,
 `Priority`, `Dependencies` — are cross-editable**: anyone may edit them (and the
-summary row) in *any* lane's file; only an entry's *body* (title, description, ID)
-is lane-owned. Convention, ID rules and the priority/field definitions are in the
+summary row) in *any* area's file; only an entry's *body* (title, description, ID)
+is area-owned. Convention, ID rules and the priority/field definitions are in the
 hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-M<nnn>`, numbered from
 `001`.
 
-Lane M covers the shared, serial code (`src/*` emulator, `port/lof.cpp`,
-`port/gfx.*`, `port/font.*`, `port/data.*`, `port/screens.*`) and any cross-lane
-work that no single lane owns.
+Area M covers the shared, serial code (`src/*` emulator, `port/lof.cpp`,
+`port/gfx.*`, `port/font.*`, `port/data.*`, `port/screens.*`) and any cross-area
+work.
 
 ## Summary
 

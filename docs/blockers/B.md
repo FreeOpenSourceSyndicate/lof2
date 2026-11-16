@@ -1,9 +1,13 @@
-# BLOCKERS — lane B (characters / items)
+# BLOCKERS — area B (characters / items)
 
-Owned by **Agent B**. Add new entries here. The **mutable fields — `Status`,
+> **Area B is the old "lane B"** (domain label). The project is now a single lane
+> (see `docs/WORKSTREAMS.md`); the A/B/M letters survive as area labels so the
+> history stays transparent.
+
+Add new entries here. The **mutable fields — `Status`,
 `Priority`, `Dependencies` — are cross-editable**: anyone may edit them (and the
-summary row) in *any* lane's file; only an entry's *body* (title, description, ID)
-is lane-owned. Convention, ID rules and the priority/field definitions are in the
+summary row) in *any* area's file; only an entry's *body* (title, description, ID)
+is area-owned. Convention, ID rules and the priority/field definitions are in the
 hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
 `001`.
 

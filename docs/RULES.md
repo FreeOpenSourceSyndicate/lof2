@@ -32,10 +32,10 @@ the disassembly as authoritative and re-examine the other source for the error
 (e.g. a stale capture or a mis-decoded file); do not silently prefer the
 lower-ranked source.
 
-**Reading the decompilation is never out of lane.** Although `analysis/*.asm`
-and the decompiler are Maintainer-owned (Rule 8), any agent — in any lane — may
+**Reading the decompilation is never out of bounds.** Although `analysis/*.asm`
+and the decompiler are Maintainer-owned (Rule 8), any agent — in any area — may
 (and should) read the disassembly to find the source of truth for its own work.
-"Stay in your lane" restricts *editing* other lanes' files, never *reading* the
+"Do not edit another agent's files" restricts *editing*, never *reading* the
 decompilation.
 
 A number that was *recovered* (template-matched, decoded, traced) is not a
@@ -44,14 +44,14 @@ makes a test pass. "It works" is not "it is derived".
 
 The only exception is **Rule 6** (explicit owner authorisation).
 
-## Rule 2 — Removing a guess is the default task. If another lane is needed, it is a blocker.
+## Rule 2 — Removing a guess is the default task. If another area is needed, it is a blocker.
 
 When you find a guess, your job is to **remove it** by finding the source of
-truth. If removing it needs work that **another lane owns** (see
-`docs/WORKSTREAMS.md` for file ownership), then it is **a blocker**: file it in
-the shared blocker registry (`docs/BLOCKERS.md`, your lane's file) with the
-`BLK-<lane><nnn>` ID, the evidence, and exactly what would unblock it. Do not
-"work around" it and do not let the guess stand silently.
+truth. If removing it needs work in a **different area** than the one you are
+working in (see `docs/WORKSTREAMS.md` for the area/file map), then it is **a
+blocker**: file it in the shared blocker registry (`docs/BLOCKERS.md`, the area's
+file) with the `BLK-<area><nnn>` ID, the evidence, and exactly what would unblock
+it. Do not "work around" it and do not let the guess stand silently.
 
 A guess that you can remove yourself is a normal task, not a blocker — but it
 MUST be removed before you call the work done.
@@ -82,7 +82,7 @@ would settle the question. Revisit the watchlist **at the start of every
 session** (it is part of this file's checklist). When it becomes clear:
 
 - the guess **can** be removed → promote it to a normal task (Rule 2), or a
-  blocker if another lane is needed;
+  blocker if another area is needed;
 - the guess **cannot** be removed → promote it to "owner decision required"
   (Rule 3).
 
@@ -92,7 +92,7 @@ Nothing leaves the watchlist without being resolved one of these ways.
 
 If something is unclear from the compilation and data but **can be known from
 playing the game**, do not guess and do not stall: **ask the owner**. The owner
-can play and answer. Log the question and the answer in your lane notes.
+can play and answer. Log the question and the answer in your notes file.
 
 ## Rule 6 — Guesswork is allowed ONLY when the owner explicitly authorises it.
 
@@ -112,19 +112,30 @@ Any change to these rules is appended to the **Changelog** below, newest first,
 with the date and a one-line summary. This file is the canonical announcement
 point; other documents may summarise but MUST point here.
 
-## Rule 8 — Stay in your lane. Owner-only work goes on the owner-task list.
+## Rule 8 — One lane now: don't collide on files; owner-only work goes on the owner-task list.
 
-Every agent **stays in its own lane** and works only on the files it owns (the
-map in `docs/WORKSTREAMS.md`). Do not edit another lane's files, and do not pick
-up unowned work ad hoc. *Reading* files you do not own is always allowed — in
-particular, **reading the decompilation is never out of lane** (Rule 1).
+The project ran with **three parallel lanes** (A = dungeons, B = characters/items,
+M = shared/engine). That split is **retired** (owner decision, 2026-11-16): in
+practice only the maintainer line had unblocked work, so the lane boundaries
+mostly produced hand-offs, and items whose nominal owner was idle had nobody
+feeling responsible. There is now **one lane — the Maintainer lane (`M`)** —
+which owns the whole tree. The old lane definitions are **kept in
+`docs/WORKSTREAMS.md`** as *areas* (domain labels) so the history stays
+transparent and fan-out stays safe.
 
-- **Work that belongs to no lane yet MUST be added to a lane** — either give it
-  to an existing lane whose remit fits, or create a new lane and register it in
-  `docs/WORKSTREAMS.md` (name, owner, files, goal) **before** starting it.
-- **Exception — work only the owner can do is an owner task.** It is not an
-  agent lane. Record it in `docs/OWNER-TASKS.md` with what is needed and why
-  only the owner can do it.
+- **Working alone (the normal case):** the Maintainer lane may edit **any** file,
+  and works the single queue in `docs/HANDOFF.md` §4.
+- **When more than one agent runs:** agents take items off the **same** single
+  queue. The one rule that replaces "stay in your lane" is: **do not start an
+  item that touches the same area (or the same file) as an item another active
+  agent is already working on.** The queue lists the area per item, and the area
+  table in `docs/WORKSTREAMS.md` says which files each area covers.
+- **Unowned work** no longer needs "adding to a lane" first; it goes on the queue
+  in `docs/HANDOFF.md` §4 (or, if it is genuinely new, as a new queue row). The
+  queue is the single source of "what is left".
+- **Exception — work only the owner can do is an owner task.** It is not an agent
+  item. Record it in `docs/OWNER-TASKS.md` with what is needed and why only the
+  owner can do it.
 - **The Maintainer (lane M) MUST re-remind the owner of every open owner task
   every session**, in the reply/handover, until the owner confirms it is done.
   This is the same standing obligation as Rule 3 (unremovable guesses) — an
@@ -132,7 +143,8 @@ particular, **reading the decompilation is never out of lane** (Rule 1).
 
 Owner tasks include (non-exhaustive): deciding the fate of an unremovable guess
 (Rule 3), playing the game to answer a question (Rule 5), authorising a guess
-(Rule 6), and any blocker whose `Responsible` is `External (repo owner)`.
+(Rule 6), starting/stopping extra agents, and any blocker whose `Responsible` is
+`External (repo owner)`.
 
 ## Rule 9 — When the owner states a rule, reconcile it against this book (never duplicate).
 
@@ -183,14 +195,13 @@ answer is always one of two:
 2. **The Maintainer (lane M) is the backstop for orphaned PRs** — any PR whose
    author is gone, or that is stale, DRAFT, or abandoned, is handled by the
    Maintainer: review it, and either push it to green and merge it, or close it
-   with a one-line reason on the PR. A PR from another lane is **not** out of
-   the Maintainer's lane for this purpose — triage is a Maintainer duty even
-   though the underlying code is owned by that lane (Rule 8 governs *editing*
-   the code, not handling the PR).
+   with a one-line reason on the PR. Handling another agent's PR is **not** out
+   of bounds for this purpose — triage is a Maintainer duty even though the
+   underlying code belongs to that agent's area.
 
 Rules of engagement:
 
-- An agent does **not** merge another lane's open PR; it either leaves it for
+- An agent does **not** merge another agent's open PR; it either leaves it for
   the author, or (if it is clearly abandoned) asks the Maintainer. Do not
   merge or close a peer's PR unilaterally.
 - The Maintainer **sweeps open PRs every session** (the session checklist step
@@ -209,7 +220,8 @@ Detail and commands: `docs/HANDOFF.md` "Merging your PR".
 3. Read `docs/OWNER-TASKS.md` — the Maintainer re-reminds the owner of every
    open owner task in the reply/handover.
 4. Read `docs/HANDOFF.md`, `docs/RISKS.md`, `docs/WORKSTREAMS.md`.
-5. Stay in your lane (Rule 8); if work is unowned, add it to a lane first.
+5. Pick the top unclaimed item from the queue in `docs/HANDOFF.md` §4; if more
+   than one agent is active, pick one in a disjoint area (Rule 8).
 6. Run `./bootstrap.sh` and `./check.sh` if the workspace may have reset.
 7. **Sweep open PRs** (Rule 11): `gh pr list --state open`. The author owns its
    own PR; the **Maintainer handles anything orphaned, stale, DRAFT, or
@@ -223,6 +235,26 @@ Detail and commands: `docs/HANDOFF.md` "Merging your PR".
 ---
 
 ## Changelog (newest first)
+
+### 2026-11-16 — Three lanes retired: one lane, one queue (Rule 8)
+
+- Owner decision: the project is restructured so that **all active lines always
+  have unblocked work**. The three-lane split (A/B/M) is **retired**; there is now
+  **one lane — the Maintainer lane (`M`)** — that owns the whole tree. The old
+  lane definitions are **kept in `docs/WORKSTREAMS.md`** as *areas* (domain
+  labels) for transparency and safe fan-out.
+- **Rule 8 adapted** (not duplicated — Rule 9): "stay in your lane" becomes "do
+  not start an item that touches the same area/file as an item another active
+  agent is working on". Working alone, the one lane may edit any file.
+- A **single prioritized work queue** now lives in `docs/HANDOFF.md` §4 (the
+  authoritative "what is left"), with an **Area** column per item so 1–3 agents
+  can pick disjoint items.
+- The per-lane blocker files (`docs/blockers/{A,B,M}.md`), the `BLK-<area><nnn>`
+  IDs, and the per-lane notes are **kept unchanged** — they are history and the
+  audit trail; existing commits/PRs reference them.
+- Owner: *"if that reduces the amount of lines to 1, this is perfectly fine"* and
+  *"the old line definitions should definitively be preserved in the
+  documentation"* — both honoured.
 
 ### 2026-11-15 — Open-PR ownership made explicit (Rule 11)
 

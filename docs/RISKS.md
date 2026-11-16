@@ -49,11 +49,12 @@ tests break, with no green state left to return to.
 
 **Mitigations:**
 
-1. Know your files (see `docs/WORKSTREAMS.md`) and stay in them.
+1. Know the files your item touches (see `docs/WORKSTREAMS.md`) and keep to
+   them; if other agents are running, do not touch a file another is editing.
 2. Before a risky change, note the current commit: `git rev-parse HEAD`.
 3. If the tree goes red and you cannot fix it within a few minutes:
    `git checkout -- <files>` or `git stash`, confirm `make test` is green again,
-   then add an entry to your lane's blocker file under `docs/blockers/` (A, B or
+   then add an entry to the area's blocker file under `docs/blockers/` (A, B or
    M — see the hub `docs/BLOCKERS.md`) describing the problem (and a
    `docs/BLOCKED-<name>.md` file if it is long).
 4. `make test` green is the shared contract; never push a branch that breaks it.
