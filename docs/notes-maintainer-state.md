@@ -30,22 +30,34 @@ item and finished it.
   which uses a faded entry-route palette).  The House-of-Trades greeting
   ("greets you in Thyn.") is a **fixed immediate** in the engine — deliberately
   left un-varying.
-- **PR pending** (lane M, `work/maintainer-g001`); `make test` green and every
-  port golden screen passes (menu/play/town/building/ui/walk/vor/noexe).
+- **PR #113 MERGED** (lane M, `work/maintainer-g001`); `make test` green and
+  every port golden screen passes (menu/play/town/building/ui/walk/vor/noexe).
+- **Doc corrections merged:** #114 (OT-001 note: G-001 no longer "still
+  hardcoded"), #115 (HANDOFF building-screens bullet: Emporium/Bank/House are
+  DONE; there is no "ornate engine-drawn panel"; only the Inn/Temple remain and
+  they are first-person `D5` interiors, i.e. Lane A), #116 (G-002 progress:
+  the patch draw site is identified — see below).
 - Note: `make check` runs the slow emulator golden suite (~5+ min) — run the port
   tests directly (`python3 tests/port_*_test.py`) for a quick loop.
 
-**Open / next (unchanged priorities):**
+**Open / next (updated):**
 
-- **G-002 (lane M, watchlist):** the 16×16 patch at the town screen's top-left
-  corner is engine-drawn (not any `EGA/**` asset); trace the town draw path.
-- **Building screens** (Emporium/Temple/Inn/Bank): the Emporium reads no new
-  files and its ornate panel is engine-drawn — decode the panel's draw routine.
-  Oracle `ref/oracle/shop.png`.
+- **G-002 (lane M, watchlist, cosmetic):** the 16×16 patch at the town/menu
+  top-left corner is engine-drawn.  **Draw site identified** (this session):
+  a masked EGA sprite blitter, store `mov word es:[bx+di],dx` at runtime
+  `119D:0463` (image ~`0x1D30`); the same pixel is redrawn by two more stores in
+  the same segment (`119D:0B95`, `119D:0FC8`).  The image-`0x2898` copier blits
+  a 24×16 sprite from `ds:0xFE0`, but that invocation lands at byte-column 3
+  (not the patch's column 0), so the patch must come from the other store(s).
+  Next: break at the blit entry (image `0x1CF2`) and capture `si`/`bx`/`cx`, or
+  `LOF_PXWATCH` a patch pixel *in the boot-menu* run (single store there) to get
+  the exact dest.  88 px, 0.14% of the screen — not urgent.
+- **Inn / Temple screens:** first-person `D5` interiors (walkable), not `TWN`
+  tiles → **Lane A** (viewport composite).
 - **Lane A:** dungeon viewport composite (per-cell sprite composition) — see
   `docs/notes-a.md`.
 - **Lane B:** `BLK-B004` (combat round resolution) and `BLK-B005` (implement the
-  ROST checksum).
+  ROST checksum in `port/char.cpp`).
 
 ## Session 2026-11-15 (thirteenth session) — TL;DR — READ THIS FIRST
 

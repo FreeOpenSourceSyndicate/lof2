@@ -142,10 +142,51 @@ static void test_resolve_83() {
     rmdir(dir.c_str());
 }
 
+// A 16-bit `out dx, ax` to an EGA index port must also drive the paired data
+// port with AH, *including when AH is zero* — AH==0 is a legitimate register
+// value (Read Map Select 0 / Map Mask 0), and dropping that write left the
+// register at its previous value, which corrupted the first blit pass.  The
+// attribute controller is special: index and data both go to 0x3C0.
+// Also pins the graphics-controller register numbering (7 = Read Map Select,
+// 8 = Bit Mask — bit mask was once wrongly mapped to 7).
+static void test_ega_reg_out16() {
+    Machine m;
+    m.reset_cpu_state();
+
+    // Sequencer: `mov al,2; mov ah,1; out 0x3C4,ax` -> Map Mask = 1.
+    m.port_out16(0x3C4, 0x0102);
+    CHECK(m.ega.seq_map_mask == 0x01);
+
+    // Graphics controller: index 4 (Read Map Select), data 0.  The zero data
+    // byte must still land (this is the regression the AGENTS.md note records).
+    m.ega.gc_read_map = 3;
+    m.port_out16(0x3CE, 0x0004);
+    CHECK(m.ega.gc_read_map == 0x00);
+
+    // CRTC: index then paired data on 0x3D5.
+    m.port_out16(0x3D4, 0x0C0E);           // idx 0x0E, data 0x0C
+    CHECK(m.ega.crtc[0x0E] == 0x0C);
+
+    // Attribute controller: AL=index, AH=data, both to 0x3C0.
+    m.port_out16(0x3C0, 0x0700);           // pal[0] = 7
+    CHECK(m.ega.attr_pal[0] == 0x07);
+    m.port_out16(0x3C0, 0x1001);           // pal[1] = 0x10
+    CHECK(m.ega.attr_pal[1] == 0x10);
+
+    // Register numbering: 8 = Bit Mask, 7 = Read Map Select.
+    m.port_write_byte(0x3CE, 8);
+    m.port_write_byte(0x3CF, 0x3F);
+    CHECK(m.ega.gc_bitmask == 0x3F);
+    m.port_write_byte(0x3CE, 7);
+    m.port_write_byte(0x3CF, 2);
+    CHECK(m.ega.gc_read_map == 2);
+}
+
 int main() {
     test_alu();
     test_keyboard();
     test_ega_write();
+    test_ega_reg_out16();
     test_string_rep();
     test_resolve_83();
     if (g_fail == 0) { std::printf("all tests passed\n"); return 0; }
