@@ -161,7 +161,7 @@ by pushing `work/<yourname>` with a one-line claim at the top of your notes file
 | 4 | M | **In-game play loop** — movement + combat in `--ui` | the UI state machine stops at the play screen; wire the `--walk` loop (and then combat) into it | `port/lof.cpp` | open |
 | 5 | M/A | **Inn & Temple `D5` interiors** | walkable first-person scenes (the intro ends inside the Inn); shares area A's viewport composite | `port/lof.cpp`, `port/dungeon.*` | open |
 | 6 | B | **BLK-B004** — combat action dispatcher / round resolution | needs an area-M emulator combat-round dump first (see the entry); then pin the dispatcher against real state | `port/char.*`, `src/*` | open (needs M) |
-| 7 | M | **Regression tests** for `AGENTS.md` "do not regress" | still untested: INT 10h AH=12h EGA detection, the full `scancode_ascii` row | `tests/cpu_test.cpp` | open |
+| 7 | M | **Regression tests** for `AGENTS.md` "do not regress" | **DONE (2026-11-16)**: `test_keyboard_full_row()` (full unshifted Set-1 row + modifiers) and `test_ega_detect_int10_12()` (INT 10h AH=12h BL=10h → BX=3/CX=0, non-EGA subfn → AL=0) added to `tests/cpu_test.cpp` | `tests/cpu_test.cpp` | **done** |
 
 Item detail lives in the linked doc (`G-002` → `docs/GUESSWORK.md`; `BLK-*` →
 `docs/blockers/*.md`). **Update the Status column** as items land, so the queue

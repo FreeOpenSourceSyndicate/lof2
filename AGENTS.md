@@ -597,6 +597,7 @@ save-location field: slot 1 opens `DNGS\DNG05` + `ega\d5`, slot 2 opens
 - VOR.EXE LZEXE unpacking (was printing "Packed file is corrupt").
 - Copy-protection guard (`lofx` + disk ids).
 - INT 10h AH=12h EGA detection (game must select EGA mode 0Dh, not VGA).
+  Covered by `test_ega_detect_int10_12()` in `make test`.
 - 16-bit `out dx, ax` must drive the paired EGA data port with AH:
   - 0x3C4/0x3C5, 0x3CE/0x3CF, 0x3D4/0x3D5 → write AH to port+1.
   - 0x3C0 attribute controller: **index and data both go to 0x3C0**, so a 16-bit
@@ -624,7 +625,8 @@ save-location field: slot 1 opens `DNGS\DNG05` + `ega\d5`, slot 2 opens
   AH=01/07/08 and the 0Ch dispatch; AH=0Bh reports it as pending.  The town
   entry (`O,2,Down,Up` -> town menu) is the end-to-end regression check.
 - `scancode_ascii` table: 0x2C is `z` (the row is `zxcvbnm,./`, no leading `\`),
-  0x29 is `` ` ``, 0x2B is `\`.  Covered by `make test`.
+  0x29 is `` ` ``, 0x2B is `\`.  The **full** unshifted Set-1 row is now pinned by
+  `test_keyboard_full_row()` in `make test`.
 - `reset_cpu_state` must clear transient CPU state (`halted`, prefix/repeat
   flags), not just the registers — otherwise a second program (LOF after VOR)
   inherits the first one's halt flag.  Covered by `make test`.

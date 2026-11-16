@@ -57,6 +57,65 @@ static void test_keyboard() {
     for (auto& x : t) CHECK(scancode_ascii(x.sc) == x.want);
 }
 
+// The FULL unshifted US Set-1 row (AGENTS.md "do not regress"): every key of
+// the number row, all three letter rows, the punctuation keys, and the control
+// keys.  The expected ASCII is written out by physical key, independently of
+// the table, so any single mis-mapped scan code is caught.
+static void test_keyboard_full_row() {
+    struct { uint8_t sc; uint8_t want; } t[] = {
+        // number row: 1 2 3 4 5 6 7 8 9 0 - =
+        {0x02,'1'},{0x03,'2'},{0x04,'3'},{0x05,'4'},{0x06,'5'},{0x07,'6'},
+        {0x08,'7'},{0x09,'8'},{0x0A,'9'},{0x0B,'0'},{0x0C,'-'},{0x0D,'='},
+        // top letter row: q w e r t y u i o p [ ]
+        {0x10,'q'},{0x11,'w'},{0x12,'e'},{0x13,'r'},{0x14,'t'},{0x15,'y'},
+        {0x16,'u'},{0x17,'i'},{0x18,'o'},{0x19,'p'},{0x1A,'['},{0x1B,']'},
+        // home row: a s d f g h j k l ; ' `
+        {0x1E,'a'},{0x1F,'s'},{0x20,'d'},{0x21,'f'},{0x22,'g'},{0x23,'h'},
+        {0x24,'j'},{0x25,'k'},{0x26,'l'},{0x27,';'},{0x28,'\''},{0x29,'`'},
+        // bottom row: z x c v b n m , . / and backslash
+        {0x2C,'z'},{0x2D,'x'},{0x2E,'c'},{0x2F,'v'},{0x30,'b'},{0x31,'n'},
+        {0x32,'m'},{0x33,','},{0x34,'.'},{0x35,'/'},{0x2B,'\\'},
+        // control keys: Esc Backspace Tab Enter Space
+        {0x01,0x1B},{0x0E,0x08},{0x0F,0x09},{0x1C,0x0D},{0x39,0x20},
+    };
+    for (auto& x : t) CHECK(scancode_ascii(x.sc) == x.want);
+    // Modifier-only and undefined scan codes map to 0 (no ASCII).
+    CHECK(scancode_ascii(0x1D) == 0);   // Ctrl
+    CHECK(scancode_ascii(0x2A) == 0);   // Left Shift
+    CHECK(scancode_ascii(0x36) == 0);   // Right Shift
+    CHECK(scancode_ascii(0x00) == 0);
+    CHECK(scancode_ascii(0x58) == 0);   // F12 / undefined here
+}
+
+// INT 10h AH=12h BL=10h "return EGA information" — the game probes this to pick
+// EGA mode 0Dh over the CGA/VGA paths (AGENTS.md "Fixed bugs").  BL must come
+// back 3 (256 KiB EGA) and CX 0; any other subfunction must not claim EGA.
+static void test_ega_detect_int10_12() {
+    Machine m;
+    // BL = 10h (the documented subfunction selector).
+    m.reset_cpu_state();
+    m.cpu.ax = 0x1200;
+    m.cpu.bx = 0x0010;
+    m.do_int(0x10);
+    CHECK((m.cpu.bx & 0xFF) == 3);
+    CHECK(m.cpu.cx == 0);
+
+    // BH = 10h is accepted too (some callers set the high byte instead).
+    m.reset_cpu_state();
+    m.cpu.ax = 0x1200;
+    m.cpu.bx = 0x1000;
+    m.do_int(0x10);
+    CHECK((m.cpu.bx & 0xFF) == 3);
+
+    // A different subfunction returns "no alternate select" (AL = 0), so a
+    // caller asking something else is not fooled into thinking it is EGA.
+    m.reset_cpu_state();
+    m.cpu.ax = 0x1200;
+    m.cpu.bx = 0x0000;
+    m.do_int(0x10);
+    CHECK((m.cpu.ax & 0xFF) == 0);
+}
+
 static void test_ega_write() {
     Machine m;
     m.reset_cpu_state();
@@ -260,8 +319,10 @@ int main() {
     test_alu();
     test_alu_flags();
     test_keyboard();
+    test_keyboard_full_row();
     test_ega_write();
     test_ega_reg_out16();
+    test_ega_detect_int10_12();
     test_string_rep();
     test_resolve_83();
     if (g_fail == 0) { std::printf("all tests passed\n"); return 0; }
