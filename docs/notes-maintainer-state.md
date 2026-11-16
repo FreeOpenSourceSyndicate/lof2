@@ -32,6 +32,11 @@ last Maintainer-owned blocker.
   Reproducible recipe published in `ref/oracle/README.md`. `docs/blockers/A.md`
   updated (it had wrongly still said "Open" on `main`).
 - **Golden re-verified:** `golden_test: ok (frames=60)` after both merges.
+- **Stale-ref cleanup.** The 66 `work/*` / `docs/*` remote-tracking refs left
+  over from the eighteenth session were **local cache only** — `git ls-remote
+  --heads origin` shows the remote has just `main` (the deletions landed).
+  Pruned the local refs (`git branch -r` → `origin/main` only); the audit and
+  restore SHAs are in `docs/branch-audit.txt`.
 
 **Open / next:** the queue (`docs/HANDOFF.md` §4) is the single source of "what
 is left": #1 G-002 (M), #3 BLK-A001/A005 (A), #4 play loop (M), #5 Inn/Temple
