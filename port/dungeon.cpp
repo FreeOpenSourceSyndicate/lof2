@@ -48,9 +48,9 @@ bool decode_dungeon(const std::vector<uint8_t>& raw, Dungeon& out,
         return false;
     }
 
-    out.h0 = d[0];
-    out.h1 = d[1];
-    out.field = (uint16_t)(d[2] | (d[3] << 8));
+    out.h0 = d[0];                                        // flag
+    out.h1 = d[1];                                        // entry facing
+    out.field = (uint16_t)((d[2] << 8) | d[3]);           // entry pos, big-endian
 
     out.tiles.assign(d.begin() + kDungeonHeader,
                      d.begin() + kDungeonHeader + kDungeonTiles);
@@ -64,8 +64,9 @@ bool decode_dungeon(const std::vector<uint8_t>& raw, Dungeon& out,
 static char tile_symbol(uint8_t v) {
     switch (v) {
         case 0:  return '#';
-        case 6:  return '.';
-        case 3:  return '%';
+        case 6:  return '%';
+        case 13: return '%';
+        case 3:  return '.';
         case 12: return '*';
         case 7:  return '+';
         case 8:  return 'o';
@@ -93,11 +94,16 @@ std::vector<std::string> dungeon_ascii(const Dungeon& d, bool show_objects) {
 }
 
 bool dungeon_is_solid_tile(uint8_t code) {
-    // Structural walls.  PROVISIONAL set (see dungeon.h); refined once a real
-    // dungeon frame is available from the oracle.
+    // Walls: tile 6 and tile 13.  Ground truth (emulator opacity sweep, Round 27):
+    // patch a tile code X directly ahead and vary the cell *behind* it.  For
+    // X in {0,1,2,3,7,8,12} the view changes (the ray passes through); only for
+    // X in {6,13} is the view unchanged (the cell behind is occluded).  The
+    // rendered view for 6/13 is the full-screen wall sprite DP036, matching.
+    // The earlier {3,12} guess is disproved: DNG06's spawn cell is tile 3, and
+    // {3,12} leaves it with 0 of 1201 cells reachable (DNG00: 8/684).
     switch (code) {
-        case 3:
-        case 12:
+        case 6:
+        case 13:
             return true;
         default:
             return false;
@@ -168,13 +174,19 @@ bool dungeon_place(const Dungeon& d, DungeonPos& p, int x, int y) {
     return false;
 }
 
+bool dungeon_place_entry(const Dungeon& d, DungeonPos& p) {
+    p.facing = d.entry_facing() & 3;
+    return dungeon_place(d, p, d.entry_x(), d.entry_y());
+}
+
 // Colour per tile code (EGA 16-colour indices).
 static uint8_t tile_colour(uint8_t v) {
     switch (v) {
-        case 0:  return 8;    // dark gray  - open floor
-        case 6:  return 7;    // light gray - floor
-        case 3:  return 4;    // red        - wall
-        case 12: return 1;    // blue       - wall/water
+        case 0:  return 8;    // dark gray  - void/open
+        case 6:  return 4;    // red        - wall
+        case 13: return 4;    // red        - wall variant
+        case 3:  return 7;    // light gray - floor/doorway
+        case 12: return 1;    // blue       - water
         case 7:  return 10;   // green
         case 8:  return 6;    // brown
         case 2:  return 13;   // magenta
@@ -235,11 +247,80 @@ std::string dungeon_view_dir(int dungeon) {
     return "D" + std::to_string(dungeon % 10);
 }
 
+bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax,
+                        int& ay) {
+    int x = p.x + dungeon_facing_dx(p.facing);
+    int y = p.y + dungeon_facing_dy(p.facing);
+    if (x < 0 || y < 0 || x >= kDungeonW || y >= kDungeonH) return false;
+    ax = x;
+    ay = y;
+    return true;
+}
+
+int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p) {
+    int x, y;
+    if (!dungeon_ahead_cell(d, p, x, y)) return 1;   // off-map -> wall ahead
+    // Only the LOW nibble of the ahead tile code selects the base view; the
+    // high nibble is an object/feature class the base blit ignores.  Measured by
+    // sweeping the ahead cell of DNG05's spawn (Round 28; see dungeon.h).
+    switch (d.tile(x, y) & 0x0f) {
+        case 0x4: return 58;             // side passage
+        case 0x5: return 59;             // side passage variant
+        case 0x6: case 0xd: return 60;   // looking at a wall -> flat wall face
+        case 0xa: return 14;             // doorway
+        // 0x1/0x3/0xb/0xc render DP001 (a textured wall/room view).
+        case 0x1: case 0x3: case 0xb: case 0xc: return 1;
+        // 0x0/0x2/0x7/0x8/0x9 are open cells whose view the engine draws from
+        // the `EGA/CHAR2/CHnn` room bank (Round 38), not a composed DPnnn view.
+        // The room-index -> CHnn table is not decoded yet, so fall back to the
+        // wall view DP001 (G-004).
+        default: return 1;
+    }
+}
+
 std::string dungeon_view_path(const std::string& dir, int dungeon, int index) {
     char buf[32];
     std::snprintf(buf, sizeof(buf), "/EGA/%s/DP%03d",
                   dungeon_view_dir(dungeon).c_str(), index);
     return dir + buf;
+}
+
+std::string dungeon_room_art_path(const std::string& dir, int ch) {
+    // The room routine branches on the number: `cmp ax, 0x16 / jge big`, so a
+    // number below 22 always selects the CHAR3 bank (verified: NN=5 opens
+    // ega\char3\ch05).  Numbers >= 22 take the bank digit from the runtime table
+    // cs:[0x2a3e] indexed by cs:[0x240e]; that index is context-supplied and is
+    // 5 (-> '2', CHAR2) for the DNG05 spawn, so 2 is used here as the measured
+    // value.  `ch` is the encounter/area sprite number, `NSC<dd>[id].+0x48` for
+    // the position-selected record.  See docs/notes-a.md Rounds 42-45.
+    const int bank = (ch < kRoomArtSmallThreshold) ? 3 : 2;
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "/EGA/CHAR%d/CH%02d", bank, ch);
+    return dir + buf;
+}
+
+std::string dungeon_encounter_sprite(const std::string& dir, int scenario,
+                                     int location) {
+    int ch = dungeon_room_art_number(dir, scenario, location);
+    if (ch < 0) return {};
+    return dungeon_room_art_path(dir, ch);
+}
+
+int dungeon_room_art_number(const std::string& dir, int scenario, int location) {
+    if (location < 0) return -1;
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "/SYST/NSC%02d", scenario);
+    FILE* f = std::fopen((dir + buf).c_str(), "rb");
+    if (!f) return -1;
+    uint8_t count = 0;
+    if (std::fread(&count, 1, 1, f) != 1) { std::fclose(f); return -1; }
+    if (location >= count) { std::fclose(f); return -1; }
+    long off = 1L + (long)location * kRoomArtDiskStride + kRoomArtField;
+    if (std::fseek(f, off, SEEK_SET) != 0) { std::fclose(f); return -1; }
+    uint8_t v = 0;
+    if (std::fread(&v, 1, 1, f) != 1) { std::fclose(f); return -1; }
+    std::fclose(f);
+    return v;
 }
 
 bool render_dungeon_default_view(Screen& scr, const std::string& dir,
@@ -258,6 +339,12 @@ bool render_dungeon_screen(Screen& scr, const std::string& dir, int dungeon,
     blit_image(scr, frame, 0, 0);
     return render_dungeon_view(scr, dungeon_view_path(dir, dungeon, index),
                                kViewportX, kViewportY);
+}
+
+bool render_dungeon_play(Screen& scr, const std::string& dir, int dungeon,
+                         const Dungeon& d, const DungeonPos& p) {
+    return render_dungeon_screen(scr, dir, dungeon,
+                                 dungeon_base_view_index(d, p));
 }
 
 // Colour indices of the synthetic fallback viewport.  The oracle's window uses

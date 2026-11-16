@@ -1,7 +1,34 @@
 # BLOCKED — workstream A (dungeons): first-person viewport needs an oracle frame
 
-Owner: Agent A.  Branch: `work/agent-a`.  Status: **UNBLOCKED — the save-load
-crash is fixed on the merged branch and the emulator now enters the dungeon.**
+Owner: Agent A.  Branch: `work/agent-a`.  Status: **LARGELY UNBLOCKED — the
+base-sprite rule is fully decoded (Round 26); the remaining gap is the corridor
+multi-piece composite (BLK-A003) and the procedural overlay.**
+
+## Round 26 update (2026-11-08) — the base-sprite rule is a low-nibble table
+
+The base view sprite is selected by the **low nibble** of the tile code of the
+cell **directly ahead** of the party; the high nibble (an object/feature class)
+is ignored.  Method (no new oracle needed): patch DNG05's RLE tile layer with
+`tools/dngs.py patch`, run the analysis emulator with `LOF_EDUMP=`, and compare
+the 120x119 window to every `EGA/D5/DP*` sprite by pixel IoU.  Swept every tile
+code that occurs in `DNGS/` (26 distinct); seven high-nibble variants each of
+nibble 4 and 5 give byte-identical windows.  Full table in `docs/notes-a.md`
+Round 26.  Highlights: `0x4` → DP058 (IoU 1.000), `0x5` → DP059 (1.000),
+`0x6`/`0xd` → DP060 (1.000), `0xa` → DP014 (0.997); the corridor/opening
+nibbles `0x0/0x1/0x2/0x3/0x7/0x8/0x9/0xb/0xc` fall back to the wall view DP001
+(0.922).  Implemented as `dungeon_base_view_index` (returns `tile & 0x0f`) +
+`dungeon_ahead_cell` + `render_dungeon_play` in `port/dungeon.{h,cpp}` and
+pinned by `test_base_view`.
+
+Still open (tracked as BLK-A003): the corridor/opening view the engine
+*composites* from a 64x59 wall-at-depth-2 piece `DP037` centred plus smaller
+side pieces (greedy fixed-offset decomposition of the corridor window reaches
+only IoU 0.571, so the pieces are placed by a perspective rule, not fixed
+offsets), and the residual procedural overlay.  The emulator now renders the
+viewport (maintainer fix), so further sweeps are possible; they can run in
+parallel by copying the tree and passing each copy to `--dir`.
+
+The original report is kept below for the record.
 
 ## RESOLVED (merge of `origin/main` into `work/maintainer-town`)
 
@@ -65,10 +92,14 @@ The original report is kept below for the record.
   layer coherence).
 - Walkable model: `dungeon_passable` / `dungeon_reachable` / `dungeon_can_step`
   / `dungeon_step` / `dungeon_turn` / `dungeon_place`, plus a top-down
-  `render_dungeon_map`.  Wall set `{3,12}` keeps 23/29 levels fully connected
-  (mean largest component 0.993).
-- Object layer identified as **door/feature placement** (most non-zero features
-  sit on wall cells open straight through): DNG01 46/62, DNG17 216/327.
+  `render_dungeon_map`.  **CORRECTED (Round 27, 2026-11-08):** the wall set is
+  **`{6,13}`**, not `{3,12}` — the earlier `{3,12}` guess left DNG06's spawn
+  (tile 3) 0/1201 reachable.  The emulator opacity sweep (`docs/notes-a.md`
+  Round 27) is the ground truth.  Under `{6,13}` only 11/29 levels are one
+  connected region (mean largest component 0.935) — they are genuinely
+  multi-room, not shattered.  See `docs/GUESSWORK.md` G-003.
+- Object layer identified as **door/feature placement**; under `{6,13}` the
+  features sit on walkable cells (DNG01 0/62, DNG17 0/327 on wall tiles).
 - View directory resolved: it is the **ones digit** of the map id
   (`EGA/D<ones-digit>`).  Double-verified from the emulator's own open trace:
   slot 1 loads `DNGS\DNG05` + `ega\d5\dp001..dp069`; slot 2 loads `DNGS\DNG10` +

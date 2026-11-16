@@ -12,7 +12,10 @@ Observations so far (workstream A):
 
 Decoded layout (3892 bytes):
 
-    0    .. 3    : header (4 bytes; h2|h3 is a 16-bit word, meaning open)
+    0    .. 3    : header = [flag, entry_facing, entry_pos_hi, entry_pos_lo].
+                   entry_pos is BIG-endian (hi first) and is a row-major cell
+                   index y*36+x.  It is the party's start cell: DNG05 -> 125
+                   facing 2 (= GAME1's save), DNG10 -> 745 facing 0 (= GAME2's).
     4    .. 1299 : tile map, 36x36 = 1296 bytes, row-major
     1300 .. 3891 : 1296 two-byte records (feature code in the *high* byte)
 
@@ -28,6 +31,9 @@ Usage:
     python3 tools/dngs.py tiles game/EGA          # layered dungeon tilesets
     python3 tools/dngs.py atlas game/EGA D0 out.png  # sheet of a tileset
     python3 tools/dngs.py oracle ref/oracle/dungeon_slot1.png game/EGA 5 1
+    python3 tools/dngs.py patch game/DNGS/DNG05 /tmp/p.dng 17 4 12
+    python3 tools/dngs.py patchcell game/DNGS/DNG05 /tmp/p.dng 17 4 0 0
+    python3 tools/dngs.py nsc  game/SYST/NSC05 [location]
     python3 tools/dngs.py all
 """
 import collections
@@ -68,7 +74,7 @@ def decode(path):
     return out[:HEADER], out[HEADER:]
 
 
-TILE_SYMBOL = {0: '#', 1: '=', 2: '~', 3: '%', 6: '.', 7: '+', 8: 'o', 12: '*'}
+TILE_SYMBOL = {0: '#', 1: '=', 2: '~', 3: '.', 6: '%', 7: '+', 8: 'o', 12: '*', 13: '%'}
 
 
 def tiles(body):
@@ -109,11 +115,29 @@ def render_grid(blk, w=LAYER_W, symbol=True):
     return out
 
 
+def header(path):
+    """Return (flag, entry_facing, entry_pos, entry_x, entry_y) from a DNG file.
+
+    The 4-byte header is [flag, entry_facing, entry_pos_hi, entry_pos_lo]; the
+    entry position is big-endian and is a row-major cell index y*36+x (see the
+    module docstring and docs/notes-a.md Round 22)."""
+    hdr, _ = decode(path)
+    pos = (hdr[2] << 8) | hdr[3]
+    return hdr[0], hdr[1], pos, pos % LAYER_W, pos // LAYER_W
+
+
+def cmd_header(path):
+    f, fa, pos, x, y = header(path)
+    print('%s: flag=%d entry_facing=%d entry_pos=%d (x=%d,y=%d)' %
+          (os.path.basename(path), f, fa, pos, x, y))
+
+
 def cmd_info(path):
     hdr, body = decode(path)
-    v = struct.unpack('<H', hdr[2:4])[0]
-    print('%s  size=%d hdr=%s  word=%d (0x%X)' %
-          (os.path.basename(path), os.path.getsize(path), hdr.hex(' '), v, v))
+    f, fa, pos, ex, ey = header(path)
+    print('%s  size=%d hdr=%s  entry=%d (x=%d,y=%d) facing=%d flag=%d' %
+          (os.path.basename(path), os.path.getsize(path), hdr.hex(' '),
+           pos, ex, ey, fa, f))
     tl = tiles(body)
     tc = collections.Counter(tl)
     print('  tiles:   top %s' % tc.most_common(6))
@@ -123,6 +147,52 @@ def cmd_info(path):
         nz, adj = coherence(blk)
         print('  %s:   nz=%4d adj=%4d (adj/nz=%.2f)' %
               (name, nz, adj, adj / nz if nz else 0.0))
+
+
+# --- scenario NPC/monster table (SYST/NSC<dd>) ---------------------------
+#
+# The engine's view code selects a record from `SYST/NSC<dd>` by the party's
+# location id (`es:[0x259]`) and reads a byte at record +0x48; that byte is the
+# `NN` the room routine formats into `ega\char2\chNN` (Round 41, Task 2b).
+#
+# On disk the file is: one count byte, then `count` records of 78 bytes each
+# (verified for every NSC file: size == 1 + count*78).  In memory the engine
+# expands each record to 282 (0x11A) bytes, but the first 78 bytes are bytewise
+# identical, so the room-art byte is at 1 + i*78 + 0x48 on disk too.
+NSC_DISK_STRIDE = 78
+NSC_RECORD_STRIDE = 0x11A
+NSC_ROOMART_FIELD = 0x48
+
+
+def nsc_records(path):
+    """Yield (index, name, roomart) for each record in an NSC file."""
+    d = open(path, 'rb').read()
+    if not d:
+        return
+    count = d[0]
+    for i in range(count):
+        off = 1 + i * NSC_DISK_STRIDE
+        rec = d[off:off + NSC_DISK_STRIDE]
+        if len(rec) <= NSC_ROOMART_FIELD:
+            break
+        name = rec.split(b'\x00', 1)[0].decode('latin-1', 'replace')
+        yield i, name, rec[NSC_ROOMART_FIELD]
+
+
+def cmd_nsc(path, location=None):
+    recs = list(nsc_records(path))
+    print('%s: %d records (disk stride %d, room-art field +0x%02x)' %
+          (os.path.basename(path), len(recs), NSC_DISK_STRIDE,
+           NSC_ROOMART_FIELD))
+    for i, name, nn in recs:
+        if location is not None and i != location:
+            continue
+        print('  rec %3d  room-art=%3d  ega\\char2\\ch%02d  %s' %
+              (i, nn, nn, name))
+    if location is not None:
+        hit = [r for r in recs if r[0] == location]
+        if not hit:
+            sys.exit('location %d out of range (count=%d)' % (location, len(recs)))
 
 
 def cmd_grid(path, layer='tiles', w=LAYER_W):
@@ -142,11 +212,12 @@ def cmd_grid(path, layer='tiles', w=LAYER_W):
         print(ln)
 
 
-# Solid (wall) tile codes.  PROVISIONAL: derived from connectivity across the
-# 29 levels (the {3,12} set keeps 24/29 levels fully connected, which a
-# hand-built maze should be) and from the object-feature placement below.  Not
-# yet confirmed against an oracle frame; see docs/notes-a.md.
-SOLID_TILES = {3, 12}
+# Solid (wall) tile codes.  Ground truth (emulator opacity sweep, Round 27):
+# patching the ahead cell to code X and varying the cell *behind* it leaves the
+# view byte-identical only for X in {6,13} — those occlude and render the
+# full-screen wall face DP036.  Everything else is see-through/walkable.  The
+# earlier {3,12} guess is disproved (DNG06 spawns on tile 3).  See docs/notes-a.md.
+SOLID_TILES = {6, 13}
 
 
 def _is_solid(tl, x, y, w=LAYER_W, h=LAYER_W):
@@ -406,6 +477,113 @@ def cmd_oracle(oracle_png, ega_dir, dungeon, index=1):
           ', '.join('%s %.3f' % (n, s) for s, n in full[:5]))
 
 
+def _png_window(png, vx=10, vy=11, vw=120, vh=119):
+    """Read a 320x200 oracle PNG and return its view window as an ink bitmap:
+    a list of `vh` ints, bit x set where the pixel is non-background."""
+    import ega
+    w, h, rgb = _read_png(png)
+    rev = {}
+    for k, c in enumerate(ega.EGA_PALETTE):
+        rev.setdefault(c, k)
+    rows = []
+    for y in range(vy, vy + vh):
+        m = 0
+        for x in range(vx, vx + vw):
+            if rev.get(rgb[y][x], -1) not in (0, -1):
+                m |= 1 << (x - vx)
+        rows.append(m)
+    return rows
+
+
+def _planes_window(binpath, vx=10, vy=11, vw=120, vh=119):
+    """Read a `LOF_EDUMP` dump (4 x 0x10000 EGA planes) and return the view
+    window as an ink bitmap (same shape as `_png_window`)."""
+    d = open(binpath, 'rb').read()
+    assert len(d) >= 4 * 0x10000, 'planes dump is %d bytes, expected 262144' % len(d)
+    planes = [d[i * 0x10000:(i + 1) * 0x10000] for i in range(4)]
+    rows = []
+    for y in range(vy, vy + vh):
+        m = 0
+        for x in range(vx, vx + vw):
+            xb, bit = x >> 3, 7 - (x & 7)
+            if any(planes[p][y * 40 + xb] & (1 << bit) for p in range(4)):
+                m |= 1 << (x - vx)
+        rows.append(m)
+    return rows
+
+
+def _popcount(x):
+    try:
+        return x.bit_count()
+    except AttributeError:
+        return bin(x).count('1')
+
+
+def cmd_composite(src, ega_dir, dungeon, vx=10, vy=11, planes=False):
+    """Decode the dungeon viewport composite (BLK-001/BLK-006).
+
+    The engine draws a full base view then overlays the smaller `DPnnn` side
+    pieces in the horizon band.  This greedy-searches the tileset
+    `EGA/D<dungeon>/DP*` for the base + pieces that best explain the ink in the
+    view window of `src` (a 320x200 oracle PNG, or a `LOF_EDUMP` planes dump with
+    --planes).  Greedy: repeatedly place the sprite whose ink newly covers the
+    most unexplained target ink minus the ink it adds where the target is empty,
+    then OR it into the coverage.  Prints the chosen pieces and the final ink
+    IoU.  Ground truth: ref/oracle/dungeon_slot1.png -> DP001 + side pieces,
+    IoU 0.974 (see docs/notes-a.md Round 19).
+    """
+    import ega
+    tgt = _planes_window(src, vx, vy) if planes else _png_window(src, vx, vy)
+    H, W = len(tgt), 120
+    sprites = []
+    for f in sorted(glob.glob(os.path.join(ega_dir, 'D%d' % dungeon, 'DP*'))):
+        pix = [list(r) for r in ega.indices(f)]
+        h, w = len(pix), len(pix[0])
+        rows = []
+        for y in range(h):
+            m = 0
+            for x in range(w):
+                if pix[y][x]:
+                    m |= 1 << x
+            rows.append(m)
+        full = (w, h) == (W, H)
+        sprites.append((os.path.basename(f), rows, w, h, full))
+    cov = [0] * H
+    steps = []
+    for _ in range(12):
+        best = None
+        for name, rows, w, h, full in sprites:
+            oys = [0] if full else range(20, H - h + 1)
+            for oy in oys:
+                for ox in range(0, W - w + 1):
+                    new = fp = 0
+                    for r in range(h):
+                        s = rows[r] << ox
+                        t = tgt[oy + r]
+                        c = cov[oy + r]
+                        add = s & ~c
+                        new += _popcount(t & add)
+                        fp += _popcount(~t & add)
+                    gain = new - fp
+                    if best is None or gain > best[0]:
+                        best = (gain, name, ox, oy, new, fp, rows, w, h)
+        if best is None or best[4] < 30:
+            break
+        _, name, ox, oy, new, fp, rows, w, h = best
+        for r in range(h):
+            cov[oy + r] |= rows[r] << ox
+        steps.append((name, ox, oy, new, fp))
+    tgt_ink = sum(_popcount(r) for r in tgt)
+    cov_ink = sum(_popcount(r) for r in cov)
+    inter = sum(_popcount(cov[i] & tgt[i]) for i in range(H))
+    print('composite %s vs D%d (%s)' %
+          (os.path.basename(src), dungeon, 'planes' if planes else 'png'))
+    for name, ox, oy, new, fp in steps:
+        print('  %-6s @(%3d,%3d)  new %4d  fp %3d' % (name, ox, oy, new, fp))
+    print('  target ink %d, coverage ink %d, IoU %.3f' %
+          (tgt_ink, cov_ink, inter / max(tgt_ink + cov_ink - inter, 1)))
+
+
 def cmd_tiles(dn_dir):
     """Inventory the layered dungeon tilesets EGA/Dn/DPnnn (see notes-a.md).
 
@@ -469,6 +647,61 @@ def cmd_atlas(dn_dir, tile_set, out, cols=8, bg=0):
     print('codes: %s' % ' '.join('%03d' % c for c, _, _, _ in imgs))
 
 
+def rle_encode(data, esc):
+    """Re-encode a decoded buffer with the same RLE scheme (round-trips)."""
+    out = bytearray([esc])
+    i, n = 0, len(data)
+    while i < n:
+        j = i
+        while j < n and data[j] == data[i] and j - i < 255:
+            j += 1
+        run = j - i
+        if run >= 3 or data[i] == esc:
+            out += bytes([esc, run, data[i]])
+        else:
+            out += bytes([data[i]]) * run
+        i = j
+    return bytes(out)
+
+
+def cmd_patch(src, dst, pairs):
+    """Write `src` to `dst` with decoded tile cells overridden.
+
+    `pairs` is a flat list (x, y, value, ...) addressing tile cells, i.e.
+    decoded offset 4 + y*36 + x.  Used to feed the analysis emulator a specific
+    ahead-cell tile code without moving the party.
+    """
+    raw = open(src, 'rb').read()
+    esc = raw[0]
+    body = bytearray(rle_decode(raw, esc, 1))
+    for k in range(0, len(pairs), 3):
+        x, y, v = pairs[k], pairs[k + 1], pairs[k + 2]
+        body[HEADER + y * LAYER_W + x] = v
+    open(dst, 'wb').write(rle_encode(bytes(body), esc))
+
+
+def cmd_patchcell(src, dst, cells):
+    """Write `src` to `dst` overriding a cell's tile *and* feature byte.
+
+    `cells` is a flat list (x, y, tile, feature, ...).  `cmd_patch` only
+    touches the tile layer, so the feature byte of a cell is left at its
+    original value; that made it impossible to isolate the feature's effect on
+    the view (Round 29).  This sets the tile at decoded offset
+    `HEADER + y*36 + x` and the feature (high byte of the 2-byte object record)
+    at `HEADER + LAYER + (y*36 + x)*2 + 1`.
+    """
+    raw = open(src, 'rb').read()
+    esc = raw[0]
+    body = bytearray(rle_decode(raw, esc, 1))
+    for k in range(0, len(cells), 4):
+        x, y, tile, feat = cells[k], cells[k + 1], cells[k + 2], cells[k + 3]
+        body[HEADER + y * LAYER_W + x] = tile
+        i = HEADER + LAYER + (y * LAYER_W + x) * 2
+        body[i] = 0
+        body[i + 1] = feat
+    open(dst, 'wb').write(rle_encode(bytes(body), esc))
+
+
 def main(argv):
     if len(argv) < 2:
         sys.exit(__doc__)
@@ -478,6 +711,12 @@ def main(argv):
     elif cmd == 'info':
         for p in argv[1:]:
             cmd_info(p)
+    elif cmd == 'header':
+        for p in argv[1:]:
+            cmd_header(p)
+    elif cmd == 'nsc':
+        # dngs.py nsc <SYST/NSC05> [location]
+        cmd_nsc(argv[1], int(argv[2]) if len(argv) > 2 else None)
     elif cmd == 'grid':
         cmd_grid(argv[1], argv[2] if len(argv) > 2 else 'tiles',
                  int(argv[3]) if len(argv) > 3 else LAYER_W)
@@ -503,6 +742,18 @@ def main(argv):
         cmd_oracle(argv[1], argv[2] if len(argv) > 2 else 'game/EGA',
                    int(argv[3]) if len(argv) > 3 else 5,
                    int(argv[4]) if len(argv) > 4 else 1)
+    elif cmd == 'composite':
+        # dngs.py composite <oracle.png|planes.bin> <ega_dir> <dungeon> [--planes]
+        rest = [a for a in argv[1:] if a != '--planes']
+        cmd_composite(rest[0], rest[1] if len(rest) > 1 else 'game/EGA',
+                      int(rest[2]) if len(rest) > 2 else 5,
+                      planes='--planes' in argv[1:])
+    elif cmd == 'patch':
+        # dngs.py patch <in.dng> <out.dng> x y val [x y val ...]
+        cmd_patch(argv[1], argv[2], [int(a) for a in argv[3:]])
+    elif cmd == 'patchcell':
+        # dngs.py patchcell <in.dng> <out.dng> x y tile feat [x y tile feat ...]
+        cmd_patchcell(argv[1], argv[2], [int(a) for a in argv[3:]])
     elif cmd == 'all':
         for p in sorted(glob.glob('game/DNGS/DNG*')):
             cmd_info(p)
