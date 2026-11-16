@@ -18,7 +18,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 | BLK-A001 | A (dungeons) | Agent A | Medium | In progress | BLK-A003 |
 | BLK-A002 | A (dungeons) | Maintainer | Medium | **Resolved** (2026-11-12) | — |
 | BLK-A003 | A (dungeons) | Agent A | Medium | **Resolved** (2026-11-08) | — |
-| BLK-A004 | A (dungeons) | Maintainer | Medium | Open | — |
+| BLK-A004 | A (dungeons) | Maintainer | Medium | Resolved | — |
 | BLK-A005 | A (dungeons) | Agent A | Medium | Open | — |
 
 ---
@@ -316,10 +316,29 @@ for the corridor case (ahead tile 2/7/8).
 - **Blocked lane:** A (dungeons)
 - **Responsible:** Maintainer
 - **Priority:** Medium
-- **Status:** Open
+- **Status:** **Resolved** (2026-11-16)
 - **Dependencies:** —
 
-**Description & unblock action.** The `tests/golden_test.sh` recipe reaches the
+**Resolution.** The extended-key delivery the blocker asked for is implemented
+(`src/machine.cpp`: `INT 21h` AH=01/07/08/0C return AL=0 for an extended key and
+then the scan code on the next read), so the party now **moves** in the emulator
+with a scripted arrow sequence.  Verified head-lessly and deterministically:
+
+```sh
+# Temple spawn (O, "1"); two Up (0x48) steps forward.
+LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAUTO=0x18,0x02,0x48,0x48 LOF_KEYGAP=8 \
+    ./lof-native --dir game --headless --frames 1500 --shot moved.png
+```
+
+The spawn frame's viewport (the `DP001` sprite at 10,11) matches
+`ref/oracle/dungeon_slot1.png` at 62.7 % (vs 16.7 % for the moved oracle); the
+two-step frame matches `ref/oracle/dungeon_slot1_moved.png` at **80.9 %** (vs
+16.7 % for the spawn).  So `dungeon_slot1_moved` is reachable by **live
+movement**, not only by patching the DNG tile layer (the earlier workaround,
+`tools/dngs.py patch game/DNGS/DNG05 17 4 0`).  Both runs repeat md5-identical.
+The reproducible recipe is published in `ref/oracle/README.md`.
+
+**Description & unblock action (original).** The `tests/golden_test.sh` recipe reaches the
 Temple (`LOF_KEYAUTO=0x18,0x02 LOF_KEYGAP=8 --frames 1500`), but it does not
 reproduce the `ref/oracle/dungeon_slot1.png` state (the emulator's viewport was
 black at that time; BLK-A002 has since fixed the plane-0 blit) and the party
