@@ -30,8 +30,48 @@ How to use each section:
 
 ## B. Unclear — revisit (watchlist)
 
-### G-002 — 16×16 patch at the town screen's top-left corner (Lane M)
+### G-005 — dungeon solid-wall set `{6,13}` is oracle-derived, not decompiled (Lane A)
 
+- **What:** `dungeon_is_solid_tile()` in `port/dungeon.cpp` treats tiles 6 and 13
+  as the only walls (everything else, including the void tile 0, is walkable).
+- **Source of truth:** the emulator **opacity sweep** (Round 27,
+  `docs/notes-a.md`): patching the ahead cell to code `X` and varying the cell
+  *behind* it leaves the view byte-identical only for `X in {6,13}`; the render
+  for those is the full-screen wall face `DP036` (== `DP060`, 100% ink).  This is
+  source-of-truth #3 (oracle frames), so it is not a *chosen* value.
+- **Why it is still on the watchlist:** the sweep covered the ahead cell of one
+  DNG05 corridor.  It is direct evidence for 6/13 and for the tested see-through
+  codes (0/1/2/3/7/8/12), but codes that never occur directly ahead of a party
+  were not individually swept, and the *generality* (all 29 levels) is inferred
+  from consistency, not traced in the engine.
+- **To clear it:** confirm the wall test in the decompilation (`analysis/lof.asm`,
+  the move/collision path near image `0xD83`), which is a **Lane M** routine — if
+  it is not removable by Lane A it becomes a blocker (`docs/blockers/A.md`).
+  Cross-checking is also possible with more oracle sweeps (patch the *party
+  cell*, not the ahead cell) at no decompile cost.
+
+### G-006 — open-corridor dungeon view falls back to `DP001` (Lane A)
+
+- **What:** `dungeon_base_view_index()` returns `DP001` for the open-cell ahead
+  codes `0x0/0x2/0x7/0x8/0x9`, because the engine's actual view for those cells
+  is a composed image that no single `DPnnn` reproduces (BLK-A003).
+- **Source of truth:** the Round-28 ahead-code sweep (`docs/notes-a.md`) shows
+  the true window for those codes (ink 4941; identical for 0/2/7/8) matches no
+  single sprite (best IoU 0.35 across all 221 120×119 EGA files), no `DPnnn`/
+  `ANIM` piece composite (colour-exact search finds zero placements), and not the
+  drop-in's ray-caster (IoU 0.17).  So `DP001` is a **chosen** fallback, not a
+  decoded value.  Round 29 sharpens it: the engine projects the first
+  *view-opaque* cell at its depth (depth 1 → `DP001`, depth 2 → a trapezoidal
+  wall face, depth >= 3 → the corridor image, saturating); `DP001` is only exact
+  at depth 1.
+- **Why it is a guess:** it is not the engine's image.  It is the closest
+  single-sprite approximation for the corridor case until the composition rule is
+  decoded (BLK-A003).
+- **To clear it:** decode the engine's per-depth geometry composition (Lane M
+  decompile of the view routine, or further oracle sweeps that vary the whole
+  column) so the corridor view can be rendered natively.
+
+### G-002 — 16×16 patch at the town screen's top-left corner (Lane M)
 - **What:** the town screen (`--town`, `compose_town_screen()` in `port/lof.cpp`)
   matches the emulator frame at 99.2%; the residue is an 88-pixel 16×16 patch at
   rows 0..15 / cols 0..15 that the engine draws over `EGA/UP/MSCR`.
