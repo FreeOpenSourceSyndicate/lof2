@@ -9,12 +9,14 @@ then renders the play screen with the level map in the viewport.  It reads only
 game data -- DNGS/ and GAMES/ -- and never executes an original binary.
 
 The test drives the loop head-lessly and asserts the printed position against the
-walk model's own contract:
+walk model's own contract.  The party spawns at the **level's entry cell** (the
+DNG header's `entry_pos`/`entry_facing`, pinned in docs/notes-a.md Round 22 and
+equal to the save's `0x9a0`/`0x9a6`); for the Temple save (`GAME1`, `DNG05`) that
+is (17,3) facing S (2).  From there:
 
-  * from the spawn at (0,0) facing N (0), a turn left yields facing 3 and a turn
-    right yields facing 1;
+  * a turn left yields facing E (1) and a turn right yields W (3) (facing S);
   * a step is taken only when the cell ahead is passable, so the party stays put
-    when it faces the level edge (y-1 < 0 at (0,0) facing N);
+    when the cell ahead is a wall (tile 6/13);
   * turning 180 twice is a no-op on facing.
 
 It also checks that the walk screen differs from the static `--play` screen, i.e.
@@ -62,16 +64,17 @@ def main() -> int:
             print("port_walk_test: FAIL %s (got %s, want %s)" % (label, got, want))
             rc = 1
 
-    # Spawn: (0,0) facing N.  Turning left -> W (3), right -> E (1).
-    expect("", (0, 0, 0), "spawn")
-    expect("0x4b", (0, 0, 3), "turn left")
-    expect("0x4d", (0, 0, 1), "turn right")
-    # 180 twice is the identity.
-    expect("0x50,0x50", (0, 0, 0), "turn 180 twice")
-    # Facing N at the top edge cannot step (y-1 < 0): position unchanged.
-    expect("0x48,0x48", (0, 0, 0), "blocked at north edge")
-    # Facing S (2) steps freely into the level interior.
-    expect("0x50,0x48,0x48", (0, 2, 2), "step south twice")
+    # Spawn is the DNG05 entry cell (17,3) facing S (2).  Turning left -> E (1),
+    # right -> W (3); turning 180 twice is the identity.
+    expect("", (17, 3, 2), "spawn")
+    expect("0x4b", (17, 3, 1), "turn left")
+    expect("0x4d", (17, 3, 3), "turn right")
+    expect("0x50,0x50", (17, 3, 2), "turn 180 twice")
+    # Facing S at (17,3) steps into the open interior: two steps -> (17,5).
+    expect("0x48,0x48", (17, 5, 2), "step south twice")
+    # Turn 180 to face N (0), step to (17,2), then the next cell (17,1) is tile 3
+    # (open) and (17,0) is tile 6 (a wall): the party stops at (17,1).
+    expect("0x50,0x48,0x48,0x48", (17, 1, 0), "blocked at north wall")
 
     # The walk viewport must differ from the static play composition.
     walk_shot = "/tmp/port_walk_test.png"
