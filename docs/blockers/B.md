@@ -18,7 +18,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
 | BLK-B001 | B (characters/items) | Maintainer | High | Resolved | — |
 | BLK-B002 | B (characters/items) | Maintainer | Medium | Resolved | BLK-B001 |
 | BLK-B003 | B (characters/items) | Agent B | Medium | Resolved | — |
-| BLK-B004 | B (characters/items) | Maintainer | Medium | Open | — |
+| BLK-B004 | B (characters/items) | Maintainer | Medium | Partly resolved (dispatcher+state grounded; table semantics open) | — |
 | BLK-B005 | B (characters/items) | Agent B | Medium | Resolved | — |
 
 ---
@@ -130,7 +130,8 @@ engine never tests.
 - **Blocked lane:** B (characters/items)
 - **Responsible:** Maintainer
 - **Priority:** Medium
-- **Status:** Open (2026-11-08)
+- **Status:** Partly resolved (2026-11-10) — dispatcher + round state grounded;
+  round-table *column semantics* still open (needs live play)
 - **Dependencies:** —
 
 **Description & unblock action.** The encounter *screen* is now grounded (see
@@ -155,6 +156,35 @@ generated on load and move randomly — so the dump must pin the RNG seed (see
 `docs/GUESSWORK.md` "RNG seeded from the BIOS tick counter"). The deterministic
 `LOF_NO_TIMER=1` + `LOF_KEYAUTO=...` path reaches the encounter but does not yet
 drive a round.
+
+**Progress (2026-11-10) — the dispatcher and round state are grounded; the
+emulator does drive a round.**  Full write-up in `docs/notes-b.md` ("Combat
+action dispatcher — grounded").  In short:
+
+- The **live party struct** is at linear `0x600B4` (= `0x5C92:0x3794`, reached
+  via `es=[ds:0xafa6]=0x468E`, `les bx, es:[0x30]`), 410 bytes/record, name at
+  `+1`.  A second copy sits at `0x471E8`.  (The save-file buffer is *not* the one
+  combat writes.)
+- The per-character **action byte is `+0x0f`**, default `1` (Attacks); `(D)efend`
+  sets it to `0`.  `+0x0d` is the selected flag (`0x00`→`0xff`), `+0x0e` the
+  target (filled by the `Who has … aimed at (1-6) ?` prompt).  The enum is the
+  already-derived `kActionNames` (`0=Defends,1=Attacks,2=Stalks,3=Use object,
+  4=Cast Spell`).
+- Driving it needs `LOF_KEYAT` (the walk eats earlier keys): encounter `A` →
+  config `A` → digit `1`..`6` → action letter → `C`ontinue, e.g.
+  `LOF_KEYAT="50:0x18,100:0x03,150:0x50,200:0x48,250:0x2e,650:0x1e,780:0x02,900:0x20,1020:0x2e"`.
+  Deterministic (`LOF_NO_TIMER=1`), md5-stable.
+- The **round-result table** is `The result of this round:` + `Name       HP   W
+  P B Attack` (melee, image `0x48D2D`) / `Gld. Rt Exp. HP` (withdraw,
+  `0x49048`), one row per member.
+
+**Still open.**  (a) the round table's per-column *semantics* (`W P B`,
+`Attack`) are read off the header text only, not confirmed against a live
+withdraw/melee table; (b) `(S)neak`/`(U)se object`/`(P)erform magic` did not
+change `+0xf` in scripted runs (they open a sub-prompt first), so their enum
+values are not yet confirmed by live play; (c) the meaning of the `+0x70` byte
+(round setup fills it from `rand(5)+1`; independent of `+0x0f`).  (a) and (b) are
+Rule-5 candidates — a short owner live-play confirmation would close them.
 
 ## BLK-B005 — Implement the ROST per-record checksum in `port/char.cpp`
 

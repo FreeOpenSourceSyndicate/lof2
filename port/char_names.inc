@@ -221,3 +221,27 @@ static const char* const kCombatWithdrawHeader[] = {
     "---------- ---- -- ---- -----",
 };
 
+static const char* const kCombatConfigActionNames[] = {
+    "(D)efend",
+    "(A)ttack",
+    "(S)neak",
+    "(U)se object",
+    "(P)erform magic",
+};
+
+static const char* const kCombatConfigRankNames[] = {
+    "(1)Enter Kill-Rank",
+    "(2)Enter Attack-Rank",
+    "(3)Enter Defence-Rank",
+    "(4)Enter Retreat-Rank",
+};
+
+static const char* const kCombatContinueNames[] = {
+    "(C)ontinue",
+};
+
+static const char* const kCombatAimNames[] = {
+    "Who has ",
+    " aimed at  (1-6) ?",
+};
+

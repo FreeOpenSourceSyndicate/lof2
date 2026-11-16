@@ -547,6 +547,22 @@ std::vector<std::string> combat_withdraw_header() {
     return to_vec(kCombatWithdrawHeader, kCombatWithdrawHeaderCount);
 }
 
+std::vector<std::string> combat_config_action_names() {
+    return to_vec(kCombatConfigActionNames, kCombatConfigActionCount);
+}
+
+std::vector<std::string> combat_config_rank_names() {
+    return to_vec(kCombatConfigRankNames, kCombatConfigRankCount);
+}
+
+std::vector<std::string> combat_continue_names() {
+    return to_vec(kCombatContinueNames, kCombatContinueCount);
+}
+
+std::vector<std::string> combat_aim_names() {
+    return to_vec(kCombatAimNames, kCombatAimCount);
+}
+
 std::string combat_group_line(uint32_t count, const std::string& plural,
                               uint32_t rank) {
     char buf[128];

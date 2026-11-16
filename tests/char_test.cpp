@@ -752,6 +752,29 @@ static int real_data() {
     assert(cwh.size() == kCombatWithdrawHeaderCount &&
            cwh[0] == "The result of this round:" &&
            cwh[1] == "Name       Gld. Rt Exp. HP   ");
+    // The per-character combat config menu (shown after choosing (A)ttack at
+    // the encounter).  Its 5 actions are in `action_names()` order, so index i
+    // is the value the engine stores in the character's action byte (+0x0f).
+    // Grounded in the emulator: (D)efend set char0 +0x0f 1 -> 0.
+    auto cca = combat_config_action_names();
+    assert(cca.size() == kCombatConfigActionCount &&
+           cca[0] == "(D)efend" && cca[1] == "(A)ttack" && cca[2] == "(S)neak" &&
+           cca[3] == "(U)se object" && cca[4] == "(P)erform magic");
+    auto an = action_names();
+    assert(an.size() == kCombatConfigActionCount);
+    assert(an[0] == "Defends" && an[1] == "Attacks" && an[2] == "Stalks" &&
+           an[3] == "Use object" && an[4] == "Cast Spell");
+    auto ccr = combat_config_rank_names();
+    assert(ccr.size() == kCombatConfigRankCount &&
+           ccr[0] == "(1)Enter Kill-Rank" &&
+           ccr[1] == "(2)Enter Attack-Rank" &&
+           ccr[2] == "(3)Enter Defence-Rank" &&
+           ccr[3] == "(4)Enter Retreat-Rank");
+    auto cco = combat_continue_names();
+    assert(cco.size() == kCombatContinueCount && cco[0] == "(C)ontinue");
+    auto cam = combat_aim_names();
+    assert(cam.size() == kCombatAimCount && cam[0] == "Who has " &&
+           cam[1] == " aimed at  (1-6) ?");
     // The count/rank line the encounter prints for an enemy group.
     assert(combat_group_line(3, "Ogres", 1) == "3 Ogres (Rnk 1)");
     assert(combat_group_line(4, "Mercenaries", 2) == "4 Mercenaries (Rnk 2)");
