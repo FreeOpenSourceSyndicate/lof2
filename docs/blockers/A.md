@@ -289,7 +289,7 @@ md5-identical, so it is not an animation phase either.  Reproducing it needs the
 decompiled view routine (Lane M) — a cross-lane dependency.  Positive side result: the emulator's corridor capture matches the
 moved oracle at symmetric-difference **10 px**, so the emulator *does* reproduce
 the moved frame (BLK-A004's premise is stale).  The drop-in keeps the `DP001`
-fallback meanwhile (G-004).
+fallback meanwhile (G-006).
 
 **Log.** 2026-11-08 Agent A (Round 27) — the opacity sweep that fixed the wall
 set (`{6,13}`, `docs/notes-a.md`) also sharpens this blocker: a **wall** cell

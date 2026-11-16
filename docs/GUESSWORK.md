@@ -30,7 +30,7 @@ How to use each section:
 
 ## B. Unclear — revisit (watchlist)
 
-### G-003 — dungeon solid-wall set `{6,13}` is oracle-derived, not decompiled (Lane A)
+### G-005 — dungeon solid-wall set `{6,13}` is oracle-derived, not decompiled (Lane A)
 
 - **What:** `dungeon_is_solid_tile()` in `port/dungeon.cpp` treats tiles 6 and 13
   as the only walls (everything else, including the void tile 0, is walkable).
@@ -50,7 +50,7 @@ How to use each section:
   Cross-checking is also possible with more oracle sweeps (patch the *party
   cell*, not the ahead cell) at no decompile cost.
 
-### G-004 — open-corridor dungeon view falls back to `DP001` (Lane A)
+### G-006 — open-corridor dungeon view falls back to `DP001` (Lane A)
 
 - **What:** `dungeon_base_view_index()` returns `DP001` for the open-cell ahead
   codes `0x0/0x2/0x7/0x8/0x9`, because the engine's actual view for those cells

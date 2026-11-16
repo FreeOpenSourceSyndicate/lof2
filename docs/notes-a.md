@@ -1392,7 +1392,7 @@ model.  `make test` and `make port` green.
 **Caveat (Rule 1).**  The sweep covered the ahead cell of one DNG05 corridor; it
 is strong direct evidence for 6/13 and for 0/1/2/3/7/8/12, but codes that never
 occur ahead of a party were not individually swept.  It is an oracle result, not
-a decompiled one — flagged in `docs/GUESSWORK.md` (G-003).
+a decompiled one — flagged in `docs/GUESSWORK.md` (G-005).
 
 ## Round 28 — full ahead-code sweep: the base-view map is corrected, and the view is ray-composed
 
@@ -1447,7 +1447,7 @@ equivalent and much cheaper way to reach any view.
 Implemented: corrected `dungeon_base_view_index` (0x1/0x3/0xb/0xc → 1 explicitly;
 0x0/0x2/0x7/0x8/0x9 fall back to 1 as the documented approximation) and
 `test_base_view` now pins the full map.  `make test` and `make port` green.
-The corridor case stays BLK-A003 (Open); the fallback is recorded as G-004.
+The corridor case stays BLK-A003 (Open); the fallback is recorded as G-006.
 
 ### Round 28 addendum — the corridor view is frame-stable (not an animation phase)
 
@@ -1870,7 +1870,7 @@ room routine. No further static analysis is possible without the room routine's
 code location, which is inside the GFA-compiled body with no adjacent table.
 
 BLK-A003 remains open; the port's `DP001` fallback for open cells (documented
-guess G-004) is unchanged, as any replacement would itself be a guess.
+guess G-006) is unchanged, as any replacement would itself be a guess.
 
 ## Round 38 — BLK-A003 UNBLOCKED: the "procedural" corridor is `EGA/CHAR2/CHnn`
 
