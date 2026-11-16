@@ -401,7 +401,7 @@ Roadmap:
 | `LOF_KEYAT=f:sc,...` | queue each scancode at an exact frame (multi-screen scripts) |
 | `LOF_HOUR`/`LOF_MIN`/`LOF_SEC` | override the DOS clock (INT 21h AH=2Ch) |
 | `LOF_WATCH=lo:hi`   | log every byte/word write to `[lo,hi)` (hex) with the writing `cs:ip` |
-| `LOF_PXWATCH=x,y`   | log the `cs:ip` that writes EGA viewport pixel `(x,y)` (+ `LOF_PXWATCH_N=n` to cap hits) — find "which code draws this pixel" directly |
+| `LOF_PXWATCH=x,y`   | log the `cs:ip` that writes EGA viewport pixel `(x,y)` (+ `LOF_PXWATCH_N=n` to cap hits) — find "which code draws this pixel" directly. Also prints `si/di/bx/bp/ds` at the write. `LOF_PXDUMP=<file>` (+ `LOF_PXDUMP_AT=<hit>`, default 0) snapshots the DS segment (`ds:0000..01FF`) at that hit — recovers a scratch sprite the engine composed before blitting |
 | `LOF_TRACE_IP=lo:hi` | trace instructions whose linear address (`cs*16+ip`) is in `[lo,hi)` (hex); a bare `addr` still matches exactly. `LOF_TRACE_BT=1` also dumps the raw `ss:sp` words and the frame chain, for routines with no valid `bp` |
 | `LOF_TICK=n`         | value returned by `INT 1Ah` (BIOS time), i.e. the RNG seed (default `0x0B`); `LOF_I1A=1` traces it |
 | `LOF_DISASM=seg:off:len` | hex-dump `len` bytes of the loaded image at `seg:off` |
