@@ -1,0 +1,78 @@
+# Stale work/* branch audit (2026-11-16, eighteenth session)
+#
+# All branches below were deleted as stale. Every one had a MERGED PR
+# (content already on main via squash-merge) EXCEPT the three marked
+# SUPERSEDED, which were verified content-superseded by main.
+# Tip SHAs are recorded so any branch can be restored if ever needed:
+#   git branch <name> <sha> && git push origin <name>
+#
+docs/agent-self-service                  67203f3bfaa14456e8aced54eb40e471db43d4b9  merged-PR
+docs/agent-workstyle                     50b4f1004f35fe3c98682f8dcc41631ab7df2c04  merged-PR
+main                                     352517147aba2526adecd132b40eea199ca8f5aa  merged-PR
+preserve-analysis-work                   55b2ab714d186f5e3913c9f435cd215560b2e00a  merged-PR
+work/agent-a                             aef7abd7a784f19b62c9232474847c73ba7972cd  merged-PR
+work/agent-a-2                           707da5dedbea56698fb139d1ca72d331986d7a6c  merged-PR
+work/agent-a-blockers                    67005428546a0ccfa2adfeeac6605d9b9284433f  SUPERSEDED
+work/agent-b                             7d361dbeeb74926454d381d910d18f8592826ff8  merged-PR
+work/agent-b-10                          6379f340bda5eee75c7210c074096da0537e581c  merged-PR
+work/agent-b-11                          73aa86445cbe3e75367a361b7fc58311f7e1173a  merged-PR
+work/agent-b-12                          0a635d64d59de08ff6d5e8d0999fd11258408435  merged-PR
+work/agent-b-13                          c29105f56077614faf3e9c86f2038d57de0fd855  merged-PR
+work/agent-b-14                          7dee3e37fbedfce3865c777a2ecec08a0ddfe27e  merged-PR
+work/agent-b-15                          ae20b27aeba40aef9a37f437cc497d8f10bc3dae  merged-PR
+work/agent-b-16                          ab945dc929160048d6f45f55b27baf9f424f5fb0  merged-PR
+work/agent-b-17                          e44adb1bd9126bdb9e7b35a478813989289bdd4b  merged-PR
+work/agent-b-18                          356a46d8dab5db576b23864b156d90724c8382a3  merged-PR
+work/agent-b-19                          0219bc74e7a8b142c405118844b6cd3f0f1b2b45  merged-PR
+work/agent-b-2                           22c34709c48c2846e8d10f8795a841ce2e3a0590  merged-PR
+work/agent-b-20                          7f968d4f5652d87ea72290ecc68ea785b7b794f0  merged-PR
+work/agent-b-21                          acab28bf1ad50fa9b0197b727965ffbccd7b3f52  merged-PR
+work/agent-b-22                          d3d4152612a4eea2ebd201e71f69b4558045803d  merged-PR
+work/agent-b-23                          e1cdf23d7e0d8002c6cf09cbff1802fa02f50676  merged-PR
+work/agent-b-3                           995bf7bae1cf7ed4aa7c7dc3850addb1e4101b58  merged-PR
+work/agent-b-4                           cee66b07b95198c2722ce0bf209071d961ef0bf9  merged-PR
+work/agent-b-5                           de13a19cab65215ae668d34d39df1c571d11334b  merged-PR
+work/agent-b-6                           76ed71e3cff85792b4652bf180f3a90c95a4cfe7  merged-PR
+work/agent-b-7                           a381b051abfce5abcd6356bf3466afe545efbea0  merged-PR
+work/agent-b-8                           a5b69a549b5cdf997715546a858f436925c75ca3  merged-PR
+work/agent-b-9                           985845b66231ec285831536343cb56fdcfe22608  merged-PR
+work/agent-b-blockers                    be8b30c57cfbc6bb52b8a9ca4ce8cf6f5c5006fd  merged-PR
+work/agent-b-combat-notes                3640c8b54723e0dce4dc42e9474ee21a3fb607a7  merged-PR
+work/agent-b-defense                     ef85414fb13f51521179404291c68ba89fa37982  merged-PR
+work/agent-b-f6-profession               88b18c4669509ea061be1777e7af8348566d1e20  merged-PR
+work/agent-b-gold-rations                7f21b98c7e68bef4aafc8dc5833f5997142bca87  merged-PR
+work/agent-b-hpseed                      c60b78bb1bcc7788dda2ba3033f32eaddf314bb1  merged-PR
+work/agent-b-invbase                     cdf94fc9f347b05751f7d86bd61f38cec3be78fe  merged-PR
+work/agent-b-inventory                   9cd791a199347c4cc4e8b85fae5dab710326000d  merged-PR
+work/agent-b-invused                     d56669a602c0c55f0728af22b73ec7d0dde360d8  merged-PR
+work/agent-b-item-fields                 c56e641111260438f022e0363e74deec84701f91  merged-PR
+work/agent-b-item-fix                    3c6b553d642b6a4da6bc6a6e138cc182aaebb94d  merged-PR
+work/agent-b-items                       d28ecb0125af9186ef0b9a91569b6e1d93d4982a  merged-PR
+work/agent-b-items-docs                  7865041178ae3570a3b37a47dbb6f517f3ecb47e  merged-PR
+work/agent-b-itemuse-fix                 73d3363e995055b9e9a9c2a53013dc46bf31b6f9  merged-PR
+work/agent-b-itemuse-static              e2b71a08c41f3c88bb0d86bd9a722659df32eebd  SUPERSEDED
+work/agent-b-mptable                     5f2096f8d8747d1f69baa06d2055d4c83e6fd61b  merged-PR
+work/agent-b-panelstat                   b35d9a958b78dc96d4db7a91f450a88c0526c507  merged-PR
+work/agent-b-partystatus                 bc262cf78f5f2576d18486304c64150f4ec6812b  merged-PR
+work/agent-b-prof                        4eb97da91b82dd110af5854a477c38b4312c3de5  merged-PR
+work/agent-b-seed                        25fd4a03141071e371b272fc4894aed4941f7d26  merged-PR
+work/agent-b-sheet                       14b739598fc86b7fe856383a00fedf09cba0c734  merged-PR
+work/agent-b-shopstock                   f33dec161abf2f26bba1550987eed00149cd02c0  merged-PR
+work/agent-b-slotbytes                   4a7e64f8fb07118d5899ea68f694ba77e6575955  merged-PR
+work/agent-b-snsstats                    be802a67af44d0cfa44c2ef03683c5aca27cb0e0  merged-PR
+work/agent-b-speed-fix                   8ada8d250c10b48e8f01a9dbc79cb0176e4af467  merged-PR
+work/agent-b-status                      676ce2b25657f0322dde684d9b9a58b21bda7e14  merged-PR
+work/agent-b-status2                     351214094c369aefb71c113c3a142da7f8cee1a5  merged-PR
+work/agent-b-weight                      5762561ee7622429b33d6288d8bb3321ffcdd7a1  merged-PR
+work/agent-b-weightbase                  092f20a12d330f11c6e09933513380c08aa74aae  merged-PR
+work/blocker-registry                    4c88a6f7582118815db2d8b99eace8e5018031a8  merged-PR
+work/check-hardening                     1824c0e7e3bbf3f9c1eb4aa5333b819af62168db  merged-PR
+work/main-town-docs                      b47008059773e9dcf51cd632666f8c905dbc8b3a  merged-PR
+work/main-wire-spec                      8e19d685a7960a34d89886f29c9a3bd82f0339f1  merged-PR
+work/maintainer-menu                     7b7cdfec9d8cbd6504f2008b2a13a2a993aad2cd  merged-PR
+work/maintainer-state                    2b50c491c5ba723005cf8d7a4d47e8d24656fa7b  merged-PR
+work/maintainer-town                     5c93f6ab8caaec09aa528a9cf718512a6f80e653  merged-PR
+work/merge-maintainer-town               5c93f6ab8caaec09aa528a9cf718512a6f80e653  SUPERSEDED
+work/notes-town-path                     fbbd0e1e78ebb9fe6b375d528c1ce20eb231e009  merged-PR
+work/oracle-input-golden                 54cd84e9885ee5ebd6965c91b71fff88963c7dbf  merged-PR
+work/palette-investigation               67a56801bca09b0cc53950a33563fd2155601abd  merged-PR
