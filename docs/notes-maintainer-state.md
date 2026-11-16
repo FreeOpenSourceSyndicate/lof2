@@ -5,6 +5,38 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-16 (nineteenth session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**; `main` green. This session found and fixed a **red
+tree** that the previous `check.sh` defect had been hiding, and closed the
+last Maintainer-owned blocker.
+
+- **check.sh "hang" fixed (queue #8, PR #125).** `check.sh` invoked
+  `tests/golden_test.sh` in **both** the `if` and the `elif`, so every non-ok
+  result re-ran the whole ~22 min emulator sweep (≈44 min) — that was the
+  "hang". Now it runs once and branches on the captured output.
+- **Red tree fixed (queue #9, PR #126).** `make golden-port` was failing on
+  `main`: `port_walk_test.py` reported `FAIL spawn (got (3,2,0), want (0,0,0))`.
+  Cause: PR #117 corrected the wall set to `{6,13}`, making DNG05's `(0,0)` a
+  wall, so the walk loop's hard-coded `dungeon_place(...,0,0)` walked out to
+  `(3,2)`. Fix: place the party at the level **entry cell**
+  (`dungeon_place_entry()` = the DNG header's `entry_pos`/`entry_facing` = the
+  save's `0x9a0`/`0x9a6`, Round 22), removing the guessed `(0,0)` spawn; update
+  the test's stale expectations to the derived DNG05 entry `(17,3)` facing S.
+  `make test` + `make golden-port` + golden emulator (`ok`) all green.
+- **BLK-A004 closed (this session).** The Maintainer blocker is now **Resolved**:
+  the extended-key delivery makes the party move in the emulator with scripted
+  arrows. Verified: the Temple spawn viewport matches `dungeon_slot1.png`
+  (62.7 % vs 16.7 %), and after two `Up` steps it matches
+  `dungeon_slot1_moved.png` (**80.9 %** vs 16.7 %); both runs md5-deterministic.
+  Reproducible recipe published in `ref/oracle/README.md`. `docs/blockers/A.md`
+  updated (it had wrongly still said "Open" on `main`).
+- **Golden re-verified:** `golden_test: ok (frames=60)` after both merges.
+
+**Open / next:** the queue (`docs/HANDOFF.md` §4) is the single source of "what
+is left": #1 G-002 (M), #3 BLK-A001/A005 (A), #4 play loop (M), #5 Inn/Temple
+(M/A), #6 BLK-B004 (B, needs M). #2/#7/#8/#9 are done. **Owner tasks:** none open.
+
 ## Session 2026-11-16 (eighteenth session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. HEAD at start `3525171` (main, clean, pushed). Repo
