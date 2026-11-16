@@ -5,6 +5,56 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-16 (sixteenth session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**. HEAD at start `ec6fda3` (main, clean, pushed). This was
+a **continuation** session on the queued lane-M item (G-002) plus a regression
+test.
+
+- **G-002 advanced a long way (still cosmetic).** The 16×16 town/menu top-left
+  patch is now fully characterized:
+  - It is drawn by the **generic EGA-image blitter** (image `0x1C70`; the one
+    AGENTS.md calls "the blitter that consumes the decoded buffer"): it does
+    `mov ds,dx; cmp [si],0x1234`, so `si` points at a decoded EGA image. At the
+    patch blit `si` starts at `0x0A` (past the 10-byte header) and steps `+0x20`
+    per plane (`bp`) → a **16×16, 4-plane image** (0x20 bytes/plane) at `ds:0`,
+    header `[0]=0x1234 [1]=2 [3]=0x10 [5]=0x8a`.
+  - A new `LOF_PXDUMP` snapshot at the blit reproduces the oracle patch exactly
+    (ink mask) — the blit is understood.
+  - The sprite is **not** in any `EGA/**` asset (exhaustive 676-file scan),
+    **not** in `LOF.EXE`/`VOR.EXE`, **not** in any game data file — it is
+    composed at run time.  `LOF_WATCH` shows the scratch buffer is filled by the
+    **in-memory EGA RLE decoder** (image `0x22F2`), i.e. a compressed image
+    decoded from a run-time-built source.
+  - It appears identically (ink) in menu/town/buildings/dungeon, so a **single
+    fixed overlay** clears G-002 on every explore screen.
+  - **Remaining step:** find the routine that stages the 16×16 source image
+    (watch the decoder state `cs:[0xa1c]` len / `cs:[0xa06]` dest) and dump its
+    bytes. Full write-up: `docs/GUESSWORK.md` G-002.
+- **New emulator diagnostics (lane M, `src/machine.cpp`):** `LOF_PXWATCH` now
+  also prints `si/di/bx/bp/ds`; new `LOF_PXDUMP=<file>` (`LOF_PXDUMP_AT=<hit>`)
+  snapshots the DS segment at a hit — this is what recovered the scratch sprite.
+  Documented in `AGENTS.md`. **PR #119 MERGED.**
+- **PR #120 MERGED** — added `test_alu_flags()` to `tests/cpu_test.cpp`
+  (AGENTS.md "do not regress" ALU items: CMP/SUB don't write their dest;
+  SUB/CMP flag order CF/OF/AF/SF/ZF/PF; 0x83 is 16-bit sign-extended).
+- `make test` green (cpu incl. new test, font, dungeon, char).
+
+**Open / next (updated):**
+
+- **G-002 (lane M, watchlist, cosmetic):** remaining step = recover the 16×16
+  sprite's run-time source (see above). 88 px, not urgent.
+- **Lane A:** dungeon viewport composite (per-cell sprite composition) —
+  `docs/notes-a.md`.
+- **Lane B:** `BLK-B004` (combat round resolution), `BLK-B005` (ROST checksum in
+  `port/char.cpp`).
+- When lane M runs dry: take the next unchecked `docs/HANDOFF.md` item, or add a
+  regression test from AGENTS.md's "do not regress" list (still untested there:
+  the INT 10h AH=12h EGA-detection path, the `scancode_ascii` full row, and the
+  `reset_cpu_state` transient-state clearing — `scancode_ascii` and
+  `reset_cpu_state` already have coverage via `test_keyboard`/the second-program
+  boot).
+
 ## Session 2026-11-15 (fourteenth session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. HEAD at start `556fd71` (main, clean, pushed). This was
