@@ -17,12 +17,15 @@ make check          # health check: poison guard, build, tests, git hygiene
 1. `docs/RULES.md` — **the owner's standing rules and their changelog.** Read
    this first, every session. In particular: **never guess** (see
    `docs/GUESSWORK.md`, the guess register, which you also read every session)
-   and **stay in your lane** (see `docs/OWNER-TASKS.md` for owner-only work).
-2. `docs/HANDOFF.md` — orientation, the two hard constraints, and the rules for
-   surviving a workspace reset or an unrecoverable error.
+   and **do not edit a file another active agent is working on** (see
+   `docs/OWNER-TASKS.md` for owner-only work).
+2. `docs/HANDOFF.md` — orientation, the two hard constraints, the **single work
+   queue** you pull items from, and the rules for surviving a workspace reset or
+   an unrecoverable error.
 3. `docs/RISKS.md` — the four risks (especially the poisoned sibling repo).
-4. `docs/WORKSTREAMS.md` — the work split, file ownership, and **how to pick your
-   workstream yourself** (no one needs to assign it to you).
+4. `docs/WORKSTREAMS.md` — the one-lane model, the **areas** (old lanes, kept for
+   transparency), the file map, and **how to pick your own work item** (no one
+   needs to assign it to you).
 
 You do not need any prior context. `AGENTS.md` holds the deep technical
 reference; `docs/` holds the operating instructions. If the owner asks you to add

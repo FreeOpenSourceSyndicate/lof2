@@ -14,7 +14,7 @@ announces rule changes — read the changelog too, so you catch anything new.
 In particular: agents must NEVER guess. A guess is any value, behaviour, layout,
 name, or algorithm not traceable to the decompilation (analysis/*.asm), the game
 data files, the oracle frames, or playing the game. Removing a guess is the
-default task; if it needs another lane's work it is a blocker
+default task; if it needs work in another area it is a blocker
 (docs/BLOCKERS.md). A guess that cannot be removed must be reported to the owner
 and re-reminded every session until the owner orders how to handle it. A guess
 whose removability is unclear goes on the watchlist in docs/GUESSWORK.md and is
@@ -23,14 +23,16 @@ owner instead of guessing. Guesswork is allowed ONLY when the owner explicitly
 authorises it (and it is then recorded in docs/GUESSWORK.md).
 
 Then read docs/GUESSWORK.md (act on every open item), docs/OWNER-TASKS.md (work
-only the owner can do), docs/HANDOFF.md, docs/RISKS.md, and
-docs/WORKSTREAMS.md, run ./bootstrap.sh and ./check.sh if the workspace may have
-reset, and only then start work.
+only the owner can do), docs/HANDOFF.md (its work queue is the single source of
+"what is left"), docs/RISKS.md, and docs/WORKSTREAMS.md, run ./bootstrap.sh and
+./check.sh if the workspace may have reset, and only then start work.
 
-Stay in your lane: work only the files you own, and if something has to be done
-that no lane owns, add it to a lane (register a new lane in docs/WORKSTREAMS.md)
-before starting it. Work only the owner can do is an owner task, recorded in
-docs/OWNER-TASKS.md — never an agent lane.
+Pick your item from the queue in docs/HANDOFF.md. There is one lane (the
+maintainer's), so you may edit any file — but if other agents are running, pick an
+item in an area disjoint from theirs (the queue lists the area per item; the file
+map is in docs/WORKSTREAMS.md), so you never edit the same file at once. Work
+only the owner can do is an owner task, recorded in docs/OWNER-TASKS.md — never an
+agent item.
 ```
 
 ---

@@ -4,15 +4,16 @@
 > changelog), then `docs/GUESSWORK.md` (the guess register) and
 > `docs/OWNER-TASKS.md` (owner-only work), then `docs/HANDOFF.md`,
 > `docs/RISKS.md`, and `docs/WORKSTREAMS.md`.** The rules file
-> is authoritative: **never guess** and **stay in your lane** — every underived
-> value must be removed, filed as a blocker if another lane is needed, or (if it
-> cannot be removed) reported to the owner and re-reminded every session. They
+> is authoritative: **never guess**, and **do not edit a file another active
+> agent is working on** — every underived value must be removed, filed as a
+> blocker if another area is needed, or (if it cannot be removed) reported to the
+> owner and re-reminded every session. They
 > cover how to survive a workspace reset, how to avoid the poisoned sibling repo,
-> and which files you own. This
-> file is the deep technical reference. When you get blocked, record it in your
-> lane's blocker file under `docs/blockers/` (A = dungeons, B = characters, M =
-> maintainer); the hub `docs/BLOCKERS.md` defines the `BLK-<lane><nnn>` IDs and
-> fields.
+> and the file map. This
+> file is the deep technical reference. When you get blocked, record it in the
+> area's blocker file under `docs/blockers/` (A = dungeons, B = characters, M =
+> shared/engine); the hub `docs/BLOCKERS.md` defines the `BLK-<area><nnn>` IDs and
+> fields. There is **one lane** now — see `docs/WORKSTREAMS.md`.
 
 ## Goal
 
@@ -322,7 +323,7 @@ Pressing `O` then Enter loads the save and enters the play loop. The engine then
 reads `ROST/ROST` and `ROST/SHOP` (party + shop) and the town graphics
 `EGA/TWN/TWN00..TWN05` (plus the shared `EGA/UP/*` UI assets), and draws the
 town screen. This is the first reachable in-game state, so it is the natural
-oracle for the drop-in's play loop and for workstream B's remaining stat/combat
+oracle for the drop-in's play loop and for area B's remaining stat/combat
 semantics. Captured deterministically as the `town` scenario in
 `tests/golden_test.sh` (`--keys 0x18,0x1c`).
 
