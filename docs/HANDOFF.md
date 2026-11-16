@@ -162,6 +162,8 @@ by pushing `work/<yourname>` with a one-line claim at the top of your notes file
 | 5 | M/A | **Inn & Temple `D5` interiors** | walkable first-person scenes (the intro ends inside the Inn); shares area A's viewport composite | `port/lof.cpp`, `port/dungeon.*` | open |
 | 6 | B | **BLK-B004** — combat action dispatcher / round resolution | needs an area-M emulator combat-round dump first (see the entry); then pin the dispatcher against real state | `port/char.*`, `src/*` | open (needs M) |
 | 7 | M | **Regression tests** for `AGENTS.md` "do not regress" | **DONE (2026-11-16)**: `test_keyboard_full_row()` (full unshifted Set-1 row + modifiers) and `test_ega_detect_int10_12()` (INT 10h AH=12h BL=10h → BX=3/CX=0, non-EGA subfn → AL=0) added to `tests/cpu_test.cpp` | `tests/cpu_test.cpp` | **done** |
+| 8 | M | **check.sh apparent hang** | **DONE (2026-11-10)**: `check.sh` invoked `tests/golden_test.sh` in both the `if` and the `elif`, so every non-ok result re-ran the whole ~22 min emulator sweep (≈44 min). Capture the output once and branch on it | `check.sh` | **done** |
+| 9 | M | **`--walk`/`--ui` spawn guess `(0,0)`** | **DONE (2026-11-10)**: PR #117 corrected the wall set to `{6,13}`, which made DNG05's `(0,0)` a wall, so the hard-coded `dungeon_place(...,0,0)` walked outward to `(3,2)` and `port_walk_test.py` went red (hidden by the doubled golden run). Place the party at the DNG entry cell (`dungeon_place_entry()`, Round 22 = the save's `0x9a0`/`0x9a6`); fix the test's stale `(0,0)` expectations | `port/lof.cpp`, `tests/port_walk_test.py` | **done** |
 
 Item detail lives in the linked doc (`G-002` → `docs/GUESSWORK.md`; `BLK-*` →
 `docs/blockers/*.md`). **Update the Status column** as items land, so the queue
@@ -233,7 +235,9 @@ stays the single source of "what is left".
       `--ui-keys` scripts a key sequence for head-less regression testing
       (`tests/port_ui_test.py`).  In-game movement/combat remain to do.
 - [x] Native walk loop (`--walk`) — maintainer.  Loads the save's dungeon
-      (`DNGS/DNG<d><l>` from the save's location byte), places the party and
+      (`DNGS/DNG<d><l>` from the save's location byte), places the party at the
+      level's entry cell (`dungeon_place_entry()`, the DNG header's
+      `entry_pos`/`entry_facing` = the save's `0x9a0`/`0x9a6`, Round 22) and
       replays a scancode sequence through agent A's walk model
       (0x48 step, 0x50 turn 180, 0x4b/0x4d turn), then renders the play screen
       with the level map in the viewport.  `--walk-keys` scripts the input;

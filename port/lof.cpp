@@ -422,7 +422,7 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                     state = PLAY;
                     // Load the save's dungeon so the play state is walkable.
                     have_dng = load_dungeon(dir + "/DNGS/" + dungeon_map_name(save_location(sg)),
-                                            dng, &err) && dungeon_place(dng, pos, 0, 0);
+                                            dng, &err) && dungeon_place_entry(dng, pos);
                 }
             } else if (on_menu && key == 'Q') {
                 break;
@@ -461,7 +461,7 @@ static bool walk_loop(const std::string& dir, const std::string& save,
         fprintf(stderr, "lof: %s: %s\n", path.c_str(), err.c_str());
         return false;
     }
-    dungeon_place(d, pos, 0, 0);
+    dungeon_place_entry(d, pos);
     for (int k : keys) walk_apply_key(d, pos, k);
     std::string vd = dungeon_view_dir(save_location(sg));
     if (!compose_play_screen(dir, vd.empty() ? "D0/DP001" : vd + "/DP001", sg, true, out, err))
