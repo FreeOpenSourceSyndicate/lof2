@@ -311,6 +311,15 @@ COMBAT_INTRO_OFF, COMBAT_INTRO_N = 0x490BD, 4     # how the enemy is met
 COMBAT_ACTIONS_OFF, COMBAT_ACTIONS_N = 0x49143, 4  # the four menu choices
 COMBAT_ROUND_HDR_OFF, COMBAT_ROUND_HDR_N = 0x48D2D, 3   # melee round table
 COMBAT_WITHDRAW_HDR_OFF, COMBAT_WITHDRAW_HDR_N = 0x49048, 3  # withdraw table
+# The per-character combat *config* menu (shown after choosing (A)ttack at the
+# encounter).  The engine maps the action byte (struct +0x0f) onto
+# COMBAT_ACTIONS 0..4; this menu is where the player sets it (digit = character,
+# letter = action, (C)ontinue commits).  Grounded end to end in the emulator
+# (docs/notes-b.md, "Combat action dispatcher"): (D)efend set char0 +0x0f 1->0.
+COMBAT_CONFIG_ACTION_OFF, COMBAT_CONFIG_ACTION_N = 0x48E15, 5  # D/A/S/U/P
+COMBAT_CONFIG_RANK_OFF, COMBAT_CONFIG_RANK_N = 0x48E4C, 4      # 1/2/3/4
+COMBAT_CONTINUE_OFF, COMBAT_CONTINUE_N = 0x48EA0, 1            # (C)ontinue
+COMBAT_AIM_OFF, COMBAT_AIM_N = 0x48EAB, 2   # "Who has " + " aimed at  (1-6) ?"
 
 
 def _fixed_names(d, off, n, rec=NAME_REC):
@@ -363,6 +372,14 @@ def emit_names(exe_path, out_path):
          _packed_names(d, COMBAT_ROUND_HDR_OFF, COMBAT_ROUND_HDR_N)),
         ("kCombatWithdrawHeader",
          _packed_names(d, COMBAT_WITHDRAW_HDR_OFF, COMBAT_WITHDRAW_HDR_N)),
+        ("kCombatConfigActionNames",
+         _packed_names(d, COMBAT_CONFIG_ACTION_OFF, COMBAT_CONFIG_ACTION_N)),
+        ("kCombatConfigRankNames",
+         _packed_names(d, COMBAT_CONFIG_RANK_OFF, COMBAT_CONFIG_RANK_N)),
+        ("kCombatContinueNames",
+         _packed_names(d, COMBAT_CONTINUE_OFF, COMBAT_CONTINUE_N)),
+        ("kCombatAimNames",
+         _packed_names(d, COMBAT_AIM_OFF, COMBAT_AIM_N)),
     ]
     with open(out_path, "w") as f:
         f.write("// Legend of Faerghail character-generation name tables — "

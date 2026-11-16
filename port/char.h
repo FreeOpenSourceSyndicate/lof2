@@ -451,6 +451,13 @@ constexpr size_t kCombatActionCount = 4;
 // Round-result table rows: title, column header, underline rule.
 constexpr size_t kCombatRoundHeaderCount = 3;
 constexpr size_t kCombatWithdrawHeaderCount = 3;
+// Per-character combat config menu (image 0x48E15..): 5 actions (Defend/Attack/
+// Sneak/Use object/Perform magic), 4 rank-entry lines, the (C)ontinue key and
+// the two-part aim prompt ("Who has " + " aimed at  (1-6) ?").
+constexpr size_t kCombatConfigActionCount = 5;
+constexpr size_t kCombatConfigRankCount = 4;
+constexpr size_t kCombatContinueCount = 1;
+constexpr size_t kCombatAimCount = 2;
 
 std::vector<std::string> combat_intro_names();
 std::vector<std::string> combat_action_names();
@@ -459,6 +466,22 @@ std::vector<std::string> combat_action_names();
 // Gld. / Rt / Exp. / HP.
 std::vector<std::string> combat_round_header();
 std::vector<std::string> combat_withdraw_header();
+
+// The per-character combat *config* menu (shown after choosing (A)ttack at the
+// encounter).  The five action choices are in `kActionNames` order, i.e. index
+// i sets the character's action byte (struct +0x0f) to i:
+//   0 (D)efend, 1 (A)ttack, 2 (S)neak, 3 (U)se object, 4 (P)erform magic.
+// The player picks a character with a digit 1..6, then an action letter;
+// (C)ontinue commits and runs the round.  Grounded end to end in the emulator:
+// (D)efend set char0 +0x0f 1 -> 0 (docs/notes-b.md).
+std::vector<std::string> combat_config_action_names();
+// The four "Enter <X>-Rank" lines (image 0x48E4C), keyed 1..4.
+std::vector<std::string> combat_config_rank_names();
+// "(C)ontinue" (image 0x48EA0) — the commit key.
+std::vector<std::string> combat_continue_names();
+// The aim prompt, split as the engine stores it: "Who has " then
+// " aimed at  (1-6) ?" (image 0x48EAB).  Filled into the target byte (+0x0e).
+std::vector<std::string> combat_aim_names();
 
 // The count/rank line an encounter prints for one enemy group, e.g.
 // "3 Ogres (Rnk 1)": `count`, a space, the plural name, then the rank in
