@@ -7,7 +7,7 @@ They never execute the original `LOF.EXE` / `VOR.EXE`.
 
 ```sh
 ./bootstrap.sh      # restore the (git-ignored) game data + build + test
-make check          # health check: poison guard, build, tests, git hygiene
+make check          # health check: build, tests, git hygiene
 ```
 
 ## If you are an agent (or starting one)
@@ -19,10 +19,11 @@ make check          # health check: poison guard, build, tests, git hygiene
    `docs/GUESSWORK.md`, the guess register, which you also read every session)
    and **do not edit a file another active agent is working on** (see
    `docs/OWNER-TASKS.md` for owner-only work).
-2. `docs/HANDOFF.md` — orientation, the two hard constraints, the **single work
+2. `docs/HANDOFF.md` — orientation, the hard constraint, the **single work
    queue** you pull items from, and the rules for surviving a workspace reset or
    an unrecoverable error.
-3. `docs/RISKS.md` — the four risks (especially the poisoned sibling repo).
+3. `docs/RISKS.md` — the three risks (workspace reset, the red tree, running the
+   original binaries).
 4. `docs/WORKSTREAMS.md` — the one-lane model, the **areas** (old lanes, kept for
    transparency), the file map, and **how to pick your own work item** (no one
    needs to assign it to you).

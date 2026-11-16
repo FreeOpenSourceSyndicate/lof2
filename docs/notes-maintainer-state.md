@@ -721,8 +721,6 @@ Pick a workstream from `docs/WORKSTREAMS.md`. The highest-value open items:
 
 ## Hygiene
 
-- Do **not** read/clone/fetch the sibling repo `FreeOpenSourceSyndicate/lof`
-  (poisoned). `check.sh` guards this.
 - `game/`, `downloads/`, `GAME1` are git-ignored (proprietary); restore with
   `./bootstrap.sh`.
 - Commit and push after every meaningful step — the workspace can reset.

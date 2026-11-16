@@ -53,7 +53,7 @@ LOCAL_TEST_CMDS ?=
 local-test:
 	@$(LOCAL_TEST_CMDS)
 
-# Health check: repo name, poison guard, build, tests, git hygiene.
+# Health check: repo name, build, tests, git hygiene.
 check:
 	./check.sh
 

@@ -236,6 +236,21 @@ Detail and commands: `docs/HANDOFF.md` "Merging your PR".
 
 ## Changelog (newest first)
 
+### 2026-11-16 — Poisoned sibling repo removed; its guards retired
+
+- The owner **deleted the sibling repo `FreeOpenSourceSyndicate/lof`**. Every
+  warning and check about it is therefore obsolete and has been removed:
+  - `check.sh` no longer has the "poison guard" remote check (repo identity is
+    still verified);
+  - `docs/RISKS.md` **Risk 1 (sibling-repo poisoning) is deleted**; the remaining
+    risks are renumbered (1 workspace reset, 2 the red tree, 3 running the
+    original binaries);
+  - the "never look at the sibling repo" clauses are removed from `README.md`,
+    `AGENTS.md`, `docs/HANDOFF.md`, `docs/notes-maintainer-state.md` and the
+    Makefile comment.
+- Rule 1 (never guess) and the hard constraint (never run the original
+  binaries) are unaffected.
+
 ### 2026-11-16 — Three lanes retired: one lane, one queue (Rule 8)
 
 - Owner decision: the project is restructured so that **all active lines always
