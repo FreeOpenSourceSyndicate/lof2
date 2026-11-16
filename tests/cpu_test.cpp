@@ -117,10 +117,84 @@ static void test_string_rep() {
     CHECK(!(m.cpu.flags & ZF));
 }
 
-// The engine opens the save as `GAMES\GAME%3d` (printf "%3d"), i.e.
-// "GAMES/GAME  2" with padding spaces, and the shipped files are "GAME2".
-// Machine::resolve must match 8.3 names ignoring those spaces (and case).
+// ALU/flag edge cases that the game's MS-C run-time depends on and that are
+// easy to regress (AGENTS.md "do not regress"): 0x83 is 16-bit sign-extended,
+// CMP/SUB do not write their destination, and SUB/CMP/SBB set the flags in the
+// right order (borrow-out CF, signed OF, AF, SF, ZF, PF).
+static void test_alu_flags() {
+    Machine m;
+    // cmp ax,bx ; ax=0x0000 bx=0x0001  =>  CF (borrow), SF, PF(0xFF), not ZF
+    {
+        m.reset_cpu_state();
+        const uint8_t code[] = { 0x39, 0xD8, 0xF4 };
+        std::memcpy(&m.ram[0x1000 << 4], code, sizeof code);
+        m.cpu.cs = 0x1000; m.cpu.ip = 0;
+        m.cpu.ax = 0x0000; m.cpu.bx = 0x0001; m.cpu.flags = 0;
+        for (int i = 0; i < 4 && !m.cpu.halted; i++) cpu_step(m.cpu);
+        CHECK(m.cpu.flags & CF);
+        CHECK(m.cpu.flags & SF);
+        CHECK(m.cpu.flags & PF);
+        CHECK(!(m.cpu.flags & ZF));
+        CHECK(!(m.cpu.flags & OF));
+        CHECK(m.cpu.ax == 0x0000);   // CMP must not write its destination
+        CHECK(m.cpu.bx == 0x0001);
+    }
+    // sub ax,bx ; ax=0x8000 bx=0x0001  =>  OF, SF (0x7FFF), no CF, no ZF
+    {
+        m.reset_cpu_state();
+        const uint8_t code[] = { 0x29, 0xD8, 0xF4 };
+        std::memcpy(&m.ram[0x1000 << 4], code, sizeof code);
+        m.cpu.cs = 0x1000; m.cpu.ip = 0;
+        m.cpu.ax = 0x8000; m.cpu.bx = 0x0001; m.cpu.flags = 0;
+        for (int i = 0; i < 4 && !m.cpu.halted; i++) cpu_step(m.cpu);
+        CHECK(m.cpu.ax == 0x7FFF);
+        CHECK(m.cpu.flags & OF);
+        CHECK(!(m.cpu.flags & CF));
+        CHECK(!(m.cpu.flags & SF));
+        CHECK(!(m.cpu.flags & ZF));
+    }
+    // sub ax,ax  =>  ZF, no CF, no OF; result 0
+    {
+        m.reset_cpu_state();
+        const uint8_t code[] = { 0x29, 0xC0, 0xF4 };
+        std::memcpy(&m.ram[0x1000 << 4], code, sizeof code);
+        m.cpu.cs = 0x1000; m.cpu.ip = 0;
+        m.cpu.ax = 0x1234; m.cpu.flags = 0;
+        for (int i = 0; i < 4 && !m.cpu.halted; i++) cpu_step(m.cpu);
+        CHECK(m.cpu.ax == 0x0000);
+        CHECK(m.cpu.flags & ZF);
+        CHECK(!(m.cpu.flags & CF));
+        CHECK(!(m.cpu.flags & OF));
+    }
+    // cmp ax,ax  =>  ZF, no CF/SF/OF
+    {
+        m.reset_cpu_state();
+        const uint8_t code[] = { 0x39, 0xC0, 0xF4 };
+        std::memcpy(&m.ram[0x1000 << 4], code, sizeof code);
+        m.cpu.cs = 0x1000; m.cpu.ip = 0;
+        m.cpu.ax = 0x0042; m.cpu.flags = 0;
+        for (int i = 0; i < 4 && !m.cpu.halted; i++) cpu_step(m.cpu);
+        CHECK(m.cpu.flags & ZF);
+        CHECK(!(m.cpu.flags & CF));
+        CHECK(!(m.cpu.flags & SF));
+        CHECK(!(m.cpu.flags & OF));
+    }
+    // 0x83 is 16-bit: add bx,-1 (sign-extended 0xFF) => bx=0x0002
+    {
+        m.reset_cpu_state();
+        const uint8_t code[] = { 0x83, 0xC3, 0xFF, 0xF4 };  // add bx,-1
+        std::memcpy(&m.ram[0x1000 << 4], code, sizeof code);
+        m.cpu.cs = 0x1000; m.cpu.ip = 0;
+        m.cpu.bx = 0x0003; m.cpu.flags = 0;
+        for (int i = 0; i < 4 && !m.cpu.halted; i++) cpu_step(m.cpu);
+        CHECK(m.cpu.bx == 0x0002);
+    }
+}
+
 static void test_resolve_83() {
+    // The engine opens the save as `GAMES\GAME%3d` (printf "%3d"), i.e.
+    // "GAMES/GAME  2" with padding spaces, and the shipped files are "GAME2".
+    // Machine::resolve must match 8.3 names ignoring those spaces (and case).
     char tmpl[] = "/tmp/lof_resolve_XXXXXX";
     char* root = mkdtemp(tmpl);
     CHECK(root != nullptr);
@@ -184,6 +258,7 @@ static void test_ega_reg_out16() {
 
 int main() {
     test_alu();
+    test_alu_flags();
     test_keyboard();
     test_ega_write();
     test_ega_reg_out16();
