@@ -5,6 +5,40 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-17 (twenty-fourth session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**. Took over the crashed predecessor's in-progress queue
+item **#3 (BLK-A001 / BLK-A005)** and **closed the viewport-composite half**.
+
+- **BLK-A005 viewport composite RESOLVED.** The moved first-person window is the
+  depth≥3 room sprite `CHAR2/CH25` **tiled across the viewport** at **x-stride 120
+  (the sprite width) / y-stride -1**: copies at window `(-24,17)`, `(96,16)`,
+  `(216,15)`, ... (= screen `(-14,28)`, `(106,27)`, `(226,26)`, ...). Two copies
+  reproduce the **emulator framebuffer exactly** (0 mismatching px,
+  palette-independent) and the DOSBox oracle window at **0.99930** (the 10
+  residual px are the engine's live 1px corner diagonal, absent from the emulator
+  too). The predecessor's Round-48 "shade difference" was a **palette-inversion
+  bug** (its `attr_rgb()` swapped brown/red); with `port/gfx.cpp::attr_rgb` the
+  second copy is pixel-exact with **no colour remap**.
+- **Implementation:** `DungeonView::tile` (`port/dungeon.h`) + the tiling loop in
+  `render_dungeon_play_view` (`port/dungeon.cpp`). Moved-window score **0.9669 →
+  0.9993**; `tests/port_dungeon_view_test.py` floor 0.96 → **0.998**;
+  `tests/dungeon_test.cpp::test_view_depth` asserts `v.tile` for depth≥3.
+- **Docs:** `docs/notes-a.md` Round 49 (with the palette-inversion lesson);
+  `docs/blockers/A.md` (BLK-A005 → *partially resolved*, viewport half closed);
+  `AGENTS.md` "First-person viewport"; `docs/HANDOFF.md` queue #3.
+- Branch `work/maintainer-viewport`, commit `2c67419`.
+
+**Still open (BLK-A005):** the encounter-id **producer** (`es:[0x259]`, the other
+half of BLK-A005) — the consumer is decoded, the producer is not. The depth-2
+`CH40` view was **not** re-tested against a clean oracle (the only in-game
+evidence is the depth≥3 corridor); tiling is applied to depth≥3 `CH25` only,
+where the proof exists (Rule 1 — no guess for `CH40`).
+
+**Open / next:** queue `docs/HANDOFF.md` §4 — #3 partial (encounter-id producer),
+#4 partial (combat), #5 Inn/Temple `D5` interiors (M/A). #1/#2/#6/#7/#8/#9 done.
+**Owner tasks:** none open (OT-003 closed as not-needed).
+
 ## Session 2026-11-17 (twenty-third session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. Took over the crashed predecessor's in-progress
