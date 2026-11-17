@@ -71,74 +71,6 @@ How to use each section:
   decompile of the view routine, or further oracle sweeps that vary the whole
   column) so the corridor view can be rendered natively.
 
-### G-002 — 16×16 patch at the town screen's top-left corner (Lane M)
-- **What:** the town screen (`--town`, `compose_town_screen()` in `port/lof.cpp`)
-  matches the emulator frame at 99.2%; the residue is an 88-pixel 16×16 patch at
-  rows 0..15 / cols 0..15 that the engine draws over `EGA/UP/MSCR`.
-- **Why it looks like a guess:** the port currently just leaves `MSCR` there
-  (i.e. it renders *something* not derived from the engine's actual draw), so the
-  patch is an underived value.
-- **Evidence:** the patch is not `MSCR`, not `TWN00`, not any single `EGA/**`
-  asset, and not a shifted/wrapped copy of either (best match ≈0% on that patch;
-  the oracle patch is a diagonal arrow shape). See
-  `docs/notes-maintainer-town.md`.
-- **New evidence (2026-11-13):** the *same* patch appears in both the town frame
-  and the main-menu frame (the two frames are identical in rows 0..10 of the
-  corner), so it is **not** a town-specific sprite. It also differs from `MSCR`
-  in **both** DOSBox and the emulator, so it is not a decode artefact — it is
-  something the engine draws over `MSCR`. Template-matching every `EGA/**` asset
-  at every 4-px offset found **no** match (<25 mean-abs threshold). This points
-  firmly at an engine-drawn sprite/algorithm (→ trace the routine).
-- **Why unclear:** it may be removable by tracing the routine that draws the town
-  screen (a small sprite blit / arrow) in `analysis/lof.asm`; not yet attempted.
-- **Progress (2026-11-15, fourteenth session) — the draw site is found.**  A
-  `LOF_PXWATCH=5,5 LOF_PXWATCH_N=40` run of the `town` scenario (and of the boot
-  menu) shows the patch pixel is written by a **masked EGA sprite blitter** whose
-  store is `mov word es:[bx+di],dx` at runtime `119D:0463` (image ~`0x1D30`; the
-  surrounding code at image `0x1CF2..0x1D38` does the per-byte read-modify-write:
-  it builds a run mask in AX from `ds:[bp]`, a shift `cl`, and the sprite byte
-  `[si+0xa]`, then `and dx,ax; or dx,cs:[0x37e]; mov es:[bx+di],dx`).  The
-  **same pixel is redrawn by two more stores** in the same segment
-  (`119D:0B95`, `119D:0FC8`) — i.e. the patch is blitted more than once (layers).
-  Next step: break at the blit entry (image `0x1CF2`) and capture the caller-set
-  `si` (sprite source), `bx` (plane base), `cx` (width/height) to recover the
-  sprite bytes, then reproduce the blit in `port/lof.cpp`.  The patch is
-  **cosmetic** (88 px, 0.14% of the screen); it is the *only* residue besides the
-  dynamic party panel, so it is not urgent.
-- **To clear it:** capture the sprite + dest at the blit entry and reproduce it.
-  If the source turns out to be a data-table sprite → move to **D**. If it is
-  computed with no recoverable source → move to **A**.
-- **Progress (2026-11-16, fifteenth session) — the sprite is recovered; the
-  remaining gap is the *selector* that chooses its source.**
-  - The `119D:0463` blitter is the **generic EGA-image blitter** (image
-    `0x1C70`, the one AGENTS.md calls "the blitter that consumes the decoded
-    buffer"): it does `mov ds,dx; cmp [si],0x1234` and reads a 4-word header at
-    `si` (magic, width-bytes, height, stride), so `si` points at a **decoded,
-    11-byte-header-less EGA image** in memory.  At the patch blit `si` starts at
-    `0x0A` (right past the 10-byte header) and steps `+0x20` per plane
-    (`bp` = plane, 4 passes) → the sprite is a **16×16, 4-plane, 0x20 bytes/plane
-    image at `ds:0`** with header `[0]=0x1234 [1]=2 [3]=0x10 [5]=0x8a`.
-  - A `LOF_PXDUMP` snapshot at the blit (`ds` scratch buffer) reproduces the
-    oracle patch exactly (ink-mask), so the blit is understood.  The sprite is
-    **not** in any `EGA/**` asset, **not** in `LOF.EXE`/`VOR.EXE`, and **not** in
-    any game data file — it is produced at runtime.
-  - `LOF_WATCH=<linear of ds:0>` shows the scratch buffer is filled by the
-    **general EGA-image RLE decoder** at image `0x22F2` (it reads
-    `ds = cs:[0x35a2]` and writes to `es = cs:[0xa06]`).  So the patch is a
-    **compressed EGA image decoded at run time** into the scratch buffer, then
-    blitted — not a `EGA/**` file (a different, in-memory loader feeds it).
-  - **Remaining task:** the decoder's source pointer `cs:[0x35a2]` is set once
-    early to segment `0x4130`, which at run time holds the 120×119 view image
-    (`[esc]34 12 [w=15][h=119][size=0x1bee]`), so the patch's own source is
-    selected elsewhere; find the routine that stages the 16×16 image (watch the
-    decoder's other state, `cs:[0xa1c]` length and `cs:[0xa06]` dest) and dump
-    its source bytes.  That yields the exact sprite to bake into `port/lof.cpp`.
-    The image is drawn identically (ink) in menu/town/buildings/dungeon, so a
-    single fixed overlay clears G-002 for every explore screen.  Cosmetic: 88 px.
-  - New emulator diagnostics added this session: `LOF_PXWATCH` now also prints
-    `si/di/bx/bp/ds`, and `LOF_PXDUMP=<file>` (`LOF_PXDUMP_AT=<hit>`) snapshots
-    the DS segment at a watch hit.
-
 ### G-004 — `item_effect_name()` labels beyond the traced dispatcher values (Lane B)
 
 - **What:** `item_effect_name()` gives 41 labels for the item effect byte
@@ -259,3 +191,99 @@ and a tinderbox consumes the oil and prints "… make light…", grounding item
 effect value 34 (lantern) as a light source; recorded under G-004.
 
 *(The original watchlist entry moved here from section B.)*
+
+### G-002 — 16×16 patch at the town screen's top-left corner (Lane M)
+- **What:** the town screen (`--town`, `compose_town_screen()` in `port/lof.cpp`)
+  matches the emulator frame at 99.2%; the residue is an 88-pixel 16×16 patch at
+  rows 0..15 / cols 0..15 that the engine draws over `EGA/UP/MSCR`.
+- **Why it looks like a guess:** the port currently just leaves `MSCR` there
+  (i.e. it renders *something* not derived from the engine's actual draw), so the
+  patch is an underived value.
+- **Evidence:** the patch is not `MSCR`, not `TWN00`, not any single `EGA/**`
+  asset, and not a shifted/wrapped copy of either (best match ≈0% on that patch;
+  the oracle patch is a diagonal arrow shape). See
+  `docs/notes-maintainer-town.md`.
+- **New evidence (2026-11-13):** the *same* patch appears in both the town frame
+  and the main-menu frame (the two frames are identical in rows 0..10 of the
+  corner), so it is **not** a town-specific sprite. It also differs from `MSCR`
+  in **both** DOSBox and the emulator, so it is not a decode artefact — it is
+  something the engine draws over `MSCR`. Template-matching every `EGA/**` asset
+  at every 4-px offset found **no** match (<25 mean-abs threshold). This points
+  firmly at an engine-drawn sprite/algorithm (→ trace the routine).
+- **Why unclear:** it may be removable by tracing the routine that draws the town
+  screen (a small sprite blit / arrow) in `analysis/lof.asm`; not yet attempted.
+- **Progress (2026-11-15, fourteenth session) — the draw site is found.**  A
+  `LOF_PXWATCH=5,5 LOF_PXWATCH_N=40` run of the `town` scenario (and of the boot
+  menu) shows the patch pixel is written by a **masked EGA sprite blitter** whose
+  store is `mov word es:[bx+di],dx` at runtime `119D:0463` (image ~`0x1D30`; the
+  surrounding code at image `0x1CF2..0x1D38` does the per-byte read-modify-write:
+  it builds a run mask in AX from `ds:[bp]`, a shift `cl`, and the sprite byte
+  `[si+0xa]`, then `and dx,ax; or dx,cs:[0x37e]; mov es:[bx+di],dx`).  The
+  **same pixel is redrawn by two more stores** in the same segment
+  (`119D:0B95`, `119D:0FC8`) — i.e. the patch is blitted more than once (layers).
+  Next step: break at the blit entry (image `0x1CF2`) and capture the caller-set
+  `si` (sprite source), `bx` (plane base), `cx` (width/height) to recover the
+  sprite bytes, then reproduce the blit in `port/lof.cpp`.  The patch is
+  **cosmetic** (88 px, 0.14% of the screen); it is the *only* residue besides the
+  dynamic party panel, so it is not urgent.
+- **To clear it:** capture the sprite + dest at the blit entry and reproduce it.
+  If the source turns out to be a data-table sprite → move to **D**. If it is
+  computed with no recoverable source → move to **A**.
+- **Progress (2026-11-16, fifteenth session) — the sprite is recovered; the
+  remaining gap is the *selector* that chooses its source.**
+  - The `119D:0463` blitter is the **generic EGA-image blitter** (image
+    `0x1C70`, the one AGENTS.md calls "the blitter that consumes the decoded
+    buffer"): it does `mov ds,dx; cmp [si],0x1234` and reads a 4-word header at
+    `si` (magic, width-bytes, height, stride), so `si` points at a **decoded,
+    11-byte-header-less EGA image** in memory.  At the patch blit `si` starts at
+    `0x0A` (right past the 10-byte header) and steps `+0x20` per plane
+    (`bp` = plane, 4 passes) → the sprite is a **16×16, 4-plane, 0x20 bytes/plane
+    image at `ds:0`** with header `[0]=0x1234 [1]=2 [3]=0x10 [5]=0x8a`.
+  - A `LOF_PXDUMP` snapshot at the blit (`ds` scratch buffer) reproduces the
+    oracle patch exactly (ink-mask), so the blit is understood.  The sprite is
+    **not** in any `EGA/**` asset, **not** in `LOF.EXE`/`VOR.EXE`, and **not** in
+    any game data file — it is produced at runtime.
+  - `LOF_WATCH=<linear of ds:0>` shows the scratch buffer is filled by the
+    **general EGA-image RLE decoder** at image `0x22F2` (it reads
+    `ds = cs:[0x35a2]` and writes to `es = cs:[0xa06]`).  So the patch is a
+    **compressed EGA image decoded at run time** into the scratch buffer, then
+    blitted — not a `EGA/**` file (a different, in-memory loader feeds it).
+  - **Remaining task:** the decoder's source pointer `cs:[0x35a2]` is set once
+    early to segment `0x4130`, which at run time holds the 120×119 view image
+    (`[esc]34 12 [w=15][h=119][size=0x1bee]`), so the patch's own source is
+    selected elsewhere; find the routine that stages the 16×16 image (watch the
+    decoder's other state, `cs:[0xa1c]` length and `cs:[0xa06]` dest) and dump
+    its source bytes.  That yields the exact sprite to bake into `port/lof.cpp`.
+    The image is drawn identically (ink) in menu/town/buildings/dungeon, so a
+    single fixed overlay clears G-002 for every explore screen.  Cosmetic: 88 px.
+  - New emulator diagnostics added this session: `LOF_PXWATCH` now also prints
+    `si/di/bx/bp/ds`, and `LOF_PXDUMP=<file>` (`LOF_PXDUMP_AT=<hit>`) snapshots
+    the DS segment at a watch hit.
+- **RESOLVED (2026-11-17, twentieth session).** The patch is the game's **software
+  mouse cursor**, not a scene sprite — so it was never a guess, only an
+  un-identified draw. The engine draws its own arrow: routine image `0x2C2F`
+  polls `INT 33h` fn3 and, when the pointer moves, calls `0x2758`, which blits a
+  fixed 4-plane 16×16 sprite at the polled mouse position. The engine never asks
+  the BIOS to draw the cursor (only fn0 reset at image `0x1E85` and fn3 poll at
+  `0x1F10` are used), so the shape is engine data.
+  - **Why the emulator lacked it:** the emulator's mouse never moves, so the
+    "pointer moved" branch is never taken and no cursor is drawn. DOSBox
+    rasterises it, and every reference capture was taken with the mouse parked at
+    **(0,0)** — hence the patch sits in the top-left corner of the affected
+    frames (bank/emporium/house/menu/menu2/town/town2/dungeon_slot1[_moved]) and
+    is absent from the ones where the capture had no cursor (play/shop/wilderness/
+    charsheet/combat/amulet/town_cyldane).
+  - **Fix:** the sprite was recovered byte-exact (the scratch-buffer dump the
+    prior session produced) and baked into `port/lof.cpp` as `kCursorSprite` /
+    `kCursorMask` + `draw_cursor()`, exposed via a new `--cursor X,Y` flag.
+    `--cursor 0,0` reproduces the reference captures exactly: town / emporium /
+    bank / house are now **100.0%** static match with the corner **pixel-exact**;
+    the menu residue drops to 14 px (the pre-existing wrapped-strip seam). Tests
+    `port_town`/`port_building` now pin the corner (previously masked) and use
+    `--cursor 0,0`; `port_menu`'s tolerance tightened 300 → 20. Merged as PR #129.
+  - The `LOF_PXDUMP` note above (decoder `0x22F2` staging the sprite) is the
+    same mechanism seen from the decode side: `0x2758`'s staging path runs the
+    general EGA-image decoder to expand the 16×16 cursor image into the scratch
+    buffer, then the generic blitter (`0x1C70`) draws it. No data-table sprite is
+    involved, so this resolves to **D** (data-file/asset) — the fixed overlay is
+    the correct reproduction.

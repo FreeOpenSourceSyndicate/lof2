@@ -18,7 +18,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
 | BLK-B001 | B (characters/items) | Maintainer | High | Resolved | — |
 | BLK-B002 | B (characters/items) | Maintainer | Medium | Resolved | BLK-B001 |
 | BLK-B003 | B (characters/items) | Agent B | Medium | Resolved | — |
-| BLK-B004 | B (characters/items) | Maintainer | Medium | Partly resolved (dispatcher+state grounded; table semantics open) | — |
+| BLK-B004 | B (characters/items) | Maintainer | Medium | Partly resolved (dispatcher+state+actions grounded; `W P B` columns open) | — |
 | BLK-B005 | B (characters/items) | Agent B | Medium | Resolved | — |
 
 ---
@@ -131,7 +131,8 @@ engine never tests.
 - **Responsible:** Maintainer
 - **Priority:** Medium
 - **Status:** Partly resolved (2026-11-10) — dispatcher + round state grounded;
-  round-table *column semantics* still open (needs live play)
+  action enum confirmed by live play (2026-11-17); `W P B` column semantics
+  still open (needs decompile of the print routine or a populated-row capture)
 - **Dependencies:** —
 
 **Description & unblock action.** The encounter *screen* is now grounded (see
@@ -180,11 +181,28 @@ action dispatcher — grounded").  In short:
 
 **Still open.**  (a) the round table's per-column *semantics* (`W P B`,
 `Attack`) are read off the header text only, not confirmed against a live
-withdraw/melee table; (b) `(S)neak`/`(U)se object`/`(P)erform magic` did not
-change `+0xf` in scripted runs (they open a sub-prompt first), so their enum
-values are not yet confirmed by live play; (c) the meaning of the `+0x70` byte
-(round setup fills it from `rand(5)+1`; independent of `+0x0f`).  (a) and (b) are
-Rule-5 candidates — a short owner live-play confirmation would close them.
+withdraw/melee table; (c) the meaning of the `+0x70` byte (round setup fills it
+from `rand(5)+1`; independent of `+0x0f`).
+
+**Owner live-play confirmation (2026-11-17) — (b) is closed, (a) narrowed.**
+The owner played a round (full quote in `docs/OWNER-TASKS.md`, OT-002):
+
+- **`Attack` column** = a Passed/Failed flag for whether the character performed
+  their action; matches the only two engine literals, `"Failed"` (image
+  `0x438B1`) and `"Passed"` (`0x438B8`).
+- **`(S)neak`** = a check; on success the character "disappears in the shadows"
+  (icon removed from the positioning panel), is not attacked that round, then
+  next round auto-selects Attack and gets a sneak attack ("creeps up on … from
+  behind"), and may target any rank.  Matches the engine messages
+  `" disappears in the shadows..."` (`0x4309A`) / `" creeps up on "` (`0x43195`)
+  / `" and now "` (`0x431A4`) / `"from behind!"` (`0x431AE`).
+- **`(U)se object`** = opens the inventory to use an item (e.g. a crossbow for
+  ranged combat) → enum index 3.  **`(P)erform magic`** = opens the spell list →
+  enum index 4.  So the `+0x0f` enum values 2/3/4 are now confirmed by live play.
+- **`W P B`** — the owner believes `W`=weapon, `P`=armour (German *Panzerung*)
+  but could **not** identify `B`.  This remains the only open sub-item of (a):
+  settle it by decompiling the round-table print routine, or with a follow-up
+  owner observation of a populated `W P B` row.
 
 ## BLK-B005 — Implement the ROST per-record checksum in `port/char.cpp`
 
