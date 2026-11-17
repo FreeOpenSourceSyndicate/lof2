@@ -17,21 +17,49 @@ Rules for this file:
 
 ## Open
 
-### OT-002 — Confirm the BLK-B004 combat round-table columns and the Sneak/Use/Magic actions
-
-- **What is needed:** play a round of combat and report (a) what the melee
-  round-result columns `W P B` and `Attack` mean, and (b) whether choosing
-  `(S)neak`, `(U)se object` and `(P)erform magic` in the per-character config
-  menu behaves as those labels say (each opens a sub-prompt first).
-- **Why only the owner:** this is a Rule-5 judgement/live-play call — the
-  emulator reaches the round deterministically (`LOF_KEYAT` script in
-  `docs/notes-b.md`) but the *meaning* of the table columns is only visible by
-  playing; the disassembly gives the header strings, not their semantics.
-- **Unblocks:** the last open part of BLK-B004 (`docs/blockers/B.md`). The
-  dispatcher, the action byte (`+0x0f`) and the config-menu strings are already
-  grounded and merged (PR #128).
+*(none currently)*
 
 ## Done
+
+### OT-002 — Confirm the BLK-B004 combat round-table columns and the Sneak/Use/Magic actions
+
+- **Delivered:** the owner played a combat round and reported the action
+  semantics (2026-11-17).
+- **Outcome — `(S)neak`:** "only opens a sub-prompt if there are multiple ranks
+  of enemies. In the combat round, it runs some sort of check and if successful,
+  the character 'disappears in the shadows'. This removes their icon from the
+  positioning panel in the lower left and seems to be doing nothing else in that
+  round. In the next round, the character autoselects 'attack'. Starting the next
+  combat round, the message reads '[character] creeps up on the [enemy] and now
+  him from behind'. Some typos in there, but it seems to trigger a sneak attack
+  in the following round. It looks like a character in the shadows will not be
+  attacked. Sneaking allows to attack any rank, not just the first."
+  - This is **consistent with the decompilation**: the sneak messages are
+    `" disappears in the shadows..."` (image `0x4309A`), `" is seen creeping
+    up!"` (`0x430D5`) and `" creeps up on "` + `" and now "` + `"from behind!"`
+    (image `0x43195`/`0x431A4`/`0x431AE`) — matching the reported wording exactly
+    (including the engine's own typo "and now him from behind").
+- **Outcome — `(U)se object`:** "basically opens the inventory to select an item
+  to use. This allows e.g. for ranged combat, by using a crossbow." Consistent
+  with the derived `kActionNames` index 3 and the item-use path
+  (`docs/blockers/B.md` BLK-B002/B003).
+- **Outcome — `(P)erform magic`:** "opens the list of spells and allows for spell
+  use in combat." Consistent with `kActionNames` index 4 and the spell table
+  (BLK-B002).
+- **Outcome — the round table:** "In the quick combat sum up table, the 'attack'
+  column simply seems to state if the character successfully performed their
+  action … it says either 'Failed' or 'Passed'." The engine strings confirm this:
+  `"Failed"` (image `0x438B1`) and `"Passed"` (image `0x438B8`) are the only two
+  literals, so the `Attack` column is a boolean Passed/Failed. The owner was
+  **unsure** about `W P B`: "I think 'W' stands for weapon and 'P' for armour
+  ((P)anzerung in German). But I have no idea what the 'B' may stand for."
+- **Still open (narrowed):** the exact meaning of the `W P B` columns is *not*
+  yet confirmed (owner could not resolve `B`; the header text alone does not
+  name the values). It stays open in **BLK-B004** (`docs/blockers/B.md`) — to be
+  settled by decompiling the round-table print routine, or by a follow-up owner
+  observation of a populated `W P B` row.
+- **Unblocked:** BLK-B004's action enum (`+0x0f`) is now confirmed by live play
+  for Sneak/Use/Magic (2/3/4); only the `W P B` column semantics remain.
 
 ### OT-001 — Provide a save that stands the party in a town other than Thyn (e.g. Cyldane)
 

@@ -5,6 +5,48 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-17 (twenty-first session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**; `main` green. First session of the new maintainer
+(the previous one was interrupted; state verified from the repo, not from any
+external hand-off). Two items landed.
+
+- **G-002 resolved (PR #129) — the 16×16 corner patch is the mouse cursor.**
+  The patch shared by the menu/town/building/dungeon frames is the engine's
+  **software mouse cursor**, not a scene sprite:
+  - routine image `0x2C2F` polls `INT 33h` fn3 and, when the pointer moves,
+    calls `0x2758`, which blits a fixed 4-plane 16×16 arrow at the polled
+    position. The engine never asks the BIOS to draw the cursor (only fn0 reset
+    `0x1E85` and fn3 poll `0x1F10`), so the shape is engine data.
+  - the emulator never draws it because its mouse never moves; the DOSBox
+    captures were taken with the mouse parked at **(0,0)**, which is why the
+    patch sits in the top-left corner of the frames that have it.
+  - the sprite (already dumped byte-exact in the prior session) is baked into
+    `port/lof.cpp` as `kCursorSprite`/`kCursorMask` + `draw_cursor()`, exposed
+    as `--cursor X,Y`. `--cursor 0,0` reproduces the oracle: town/emporium/bank/
+    house **100.0%** static match with the corner **pixel-exact**; the menu
+    residue drops to 14 px (a pre-existing wrapped-strip seam). Tests
+    `port_town`/`port_building` now pin the corner (previously masked) and use
+    `--cursor 0,0`; `port_menu` tolerance 300 → 20. **No guess remains** — it is
+    a fixed overlay recovered from the engine.
+- **OT-002 answered (owner live play) — BLK-B004 action enum confirmed.**
+  Owner reported: `(S)neak` = success check → "disappears in the shadows" (icon
+  removed, not attacked that round), next round auto-Attack + sneak attack
+  ("creeps up on … from behind"), may target any rank; `(U)se object` = open
+  inventory to use an item (ranged e.g. crossbow); `(P)erform magic` = open the
+  spell list; the round-table `Attack` column is just **Passed/Failed**. All
+  consistent with the decompiled strings (`0x4309A`, `0x43195`, `0x438B1`,
+  `0x438B8`). So `+0x0f` enum 2/3/4 is confirmed by live play. **Still open:**
+  the `W P B` column meanings (owner guesses `W`=weapon, `P`=armour, unknown
+  `B`) — kept in BLK-B004; settle by decompiling the round-table print routine
+  or a follow-up populated-row capture. Recorded in `docs/OWNER-TASKS.md`
+  (OT-002 → Done) and `docs/blockers/B.md`.
+
+**Open / next:** the queue (`docs/HANDOFF.md` §4) is the single source of
+"what is left": #3 BLK-A001/A005 (A, viewport composite), #4 play loop (M),
+#5 Inn/Temple interiors (M/A), #6 BLK-B004 (B, only `W P B` open). #1/#2/#7/#8/
+#9 done. **Owner tasks:** none currently open (OT-001, OT-002 both Done).
+
 ## Session 2026-11-10 (twentieth session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**; `main` green (HEAD at start `6e3fbcc`, clean, pushed).
