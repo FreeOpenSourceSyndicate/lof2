@@ -1471,12 +1471,13 @@ LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_DUMP=/tmp/round.mem \
 ### 4. The round-result table
 
 After the round the engine draws `The result of this round:` + the melee table
-`Name       HP   W P B Attack` (title/header/rule at image `0x48D2D`/
-`0x48D47`/`0x48D64`) and fills one row per party member (names verified present
-in the frame: `Decker`…`Cassandra`). The withdraw table (`0x49048`) lists
-`Gld. Rt Exp. HP` instead. This is the same table the strings were read from;
-the per-column *semantics* (HP / the `W P B` flags / `Attack`) are still only
-read off the header text and remain unverified — see the open item below.
+`Name       HP   W P B Attack` (title/header/rule at image `0x4383D`/
+`0x43857`/`0x43874` — the earlier `0x48D2D/0x48D47/0x48D64` were *file*
+offsets, not image offsets) and fills one row per party member (names verified
+present in the frame: `Decker`…`Cassandra`). The withdraw table (`0x49048`) lists
+`Gld. Rt Exp. HP` instead. **The per-column semantics are now resolved** — see
+"Meaning of the columns" below (W = weapon damaged, P = shield/armour damaged,
+B = an ability improved, Attack = Passed/Failed).
 
 ### 5. Reproduce / verify
 
@@ -1552,37 +1553,90 @@ Then the round-resolution path sets individual bits to 1.
 
 ### Setter sites (all `mov byte es:[..], 1`, `es=[0xafdc]`/`[0xafd4]`)
 
-| flag | set at image | enclosing fn | nearby strings |
-|------|--------------|--------------|----------------|
-| **W** | `0x156CA`, `0x15955` | `0x1370C` | "learn new spells", "The Grand Board of Trades" |
-| **P** | `0x17290`, `0x17658`, `0x1777A` | `0x1370C` | "welcome to our Great Temple!", "Whose wounds should we heal" |
-| **B** | `0x12846` | `0xF5C0` | "pick-pocketing improves!" |
-| **B** | `0x13D7E`, `0x1471D` | `0x1370C` | — |
+> **CORRECTION (2026-11-18).** The first version of this table resolved the
+> setter strings with the **wrong DS base `0x40000`**, which made the setters
+> look like *town* routines ("learn new spells", "welcome to our Great Temple",
+> "pick-pocketing improves!"). Those strings do not exist at the operands the
+> setters load. The base is **`0x41D10`** (`file = DS_operand + 0x41D10`),
+> proven two ways: (a) the printer's own title operand `0x701d` → file `0x48d2d`
+> = `"The result of this round:"`; and (b) a runtime `LOF_TRACE_IP` at the W
+> setter (`1DAF:7CDA`) shows **`ds = 0x4C92`**, and `0x4C920 − 0xAC10 = 0x41D10`
+> (`0x40000` corresponds to a DS of `0x4AC1`, which never occurs). With the
+> correct base the setters are **combat** messages, and the table below is the
+> fixed one. (The earlier "Key structural fact" paragraph — that the flags are
+> shared town/combat bits — was an artefact of the wrong base and is **void**.)
 
-**Key structural fact:** the `0x5608`/`0x5609`/`0x224` bytes are **not** inside
-the 410-byte character records (those live at `0x30..0x9CC`); they are **global
-scratch flags in the party segment**, written by *both* the combat path *and*
-the town skill routines (House of Trades sets W, the Temple sets P,
-pick-pocketing sets B). The combat fn reaches `0x1370C` via its callee `0x17982`
-(`0x17A0C`/`0x17B8F`/`0x17D13`/`0x17D76`), so the same setter code runs in
-combat. Therefore **the arrays are generic per-character event bits reused
-across result panels**, and the *combat* meaning of W/P/B must be confirmed
-against a populated round frame (or by tracing which combat branch sets each).
+Enclosing functions are the `55 8b ec` prologue boundaries (reliable; a `retf`
+scan is not, because the big resolver is one prologue with several `retf`s).
+
+| flag | set at image | enclosing fn | strings (correct base `0x41D10`) |
+|------|--------------|--------------|----------------------------------|
+| **W** | `0x156CA` | `0x1370C` | `"The weapon of "` … `" gets stuck in the armour and is "` … `"damaged!"` |
+| **W** | `0x15955` | `0x1370C` | `"Unfortunately, the weapon "` … `" is not durable "` … `" enough, and breaks with a loud bang!"` |
+| **P** | `0x17290` | `0x1370C` | `"The armour rusts!"` / `"The shield rusts!"` / `"The weapon rusts!"` |
+| **P** | `0x17658` | `0x1370C` | `"However, the shield of "` … `" has been hit "` … `"and damaged!"` |
+| **P** | `0x1777A` | `0x1370C` | `"However, the armour of "` … `" has been hit "` … `"and damaged!"` |
+| **B** | `0x12846` | `0x11DD6` | `"(Defensive ability grows!)"` |
+| **B** | `0x13D7D` | `0x1370C` | `"(Sneaking ability improves!)"` |
+| **B** | `0x1471C` | `0x1370C` | `"(Concentration improves!)"` |
+
+(Addresses are the `es:`-prefixed form, matching the listing; the bare form of
+each is one byte later. The `0x12846`/`0x156CA`/`0x15955`/`0x17658` sites are
+decoded in `analysis/lof.asm`; `0x13D7D`/`0x1471C`/`0x17290`/`0x1777A` fall in
+regions the listing skips as "unreached", so they were recovered by a byte scan
+for the `26 c6 87 <disp16> 01` pattern.)
+
+**The columns are equipment-condition / ability events.** Each `W`/`P` setter
+is immediately followed by a per-slot condition write on the *same* character,
+and the slot index is a local that the rust dispatch **names**:
+
+| slot local | item | rust message |
+|-----------|------|--------------|
+| `[bp-0x38]` | **weapon** | `"The weapon rusts!"` (`0x1725A`) |
+| `[bp-0x30]` | **shield** | `"The shield rusts!"` (`0x1722A`) |
+| `[bp-0x3e]` | **armour** | `"The armour rusts!"` (`0x171ED`) |
+
+`char[slot*4 + 0x85]` is the slot's condition byte (0..100; `port/char.h`).
+The paired writes are `sub byte es:[bx+si+0x85],2` (damaged, −2) or
+`mov byte es:[bx+si+0x85],0` (destroyed). So:
+
+- **`W`** = **the character's *weapon* was damaged** this round — `0x156CA`
+  (`sub …,2` on the weapon slot) and `0x15955` (`…,0`, the weapon breaks).
+- **`P`** = **a *protective* item (shield or armour) was damaged** — `0x17658`
+  (shield −2), `0x1777A` (armour −2); the `0x17290` rust variant zeroes the
+  weapon/shield/armour slot and prints the matching "rusts" line.
+- **`B`** = **an ability improved** — the three setters print
+  `(Defensive ability grows!)` / `(Sneaking ability improves!)` /
+  `(Concentration improves!)` (i.e. a successful skill use in the round).
+- **`Attack`** = Passed/Failed (below).
 
 ### Runtime confirmation
 
 `LOF_WATCH=4bee8:4bef4` (W/P arrays) over the deterministic combat drive
 (`LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAT="50:0x18,100:0x03,150:0x50,200:0x48,250:0x2e,650:0x1e,780:0x02,900:0x20,1020:0x2e"`)
-shows the arrays are zeroed at round setup and a **W bit (`0x4BEEC`, char 2) is
-set to 1** at `1DAF:7CE0` = image `0x156CA` — i.e. the W flag is genuinely set
-during the run. Frame: `/tmp/round.png` (ephemeral).
+shows the arrays are zeroed at round setup and a **W bit is set to 1** at
+`1DAF:7CDA` = image `0x156CA` — i.e. the W flag is genuinely set during the run.
+That run's `LOF_TRACE_IP=257ca` also prints **`ds = 0x4C92`** at the setter,
+which is what pins the string base to `0x41D10` (see the correction above).
 
-### Still open (narrowed)
+### Meaning of the columns (corrected 2026-11-18)
 
-- The **combat meaning** of W / P / B (the owner's guess `W`=weapon,
-  `P`=armour; `B` unknown). Next step: capture a populated round-table frame and
-  read the `*`/`-` pattern, or trace which combat branch sets each bit. A short
-  owner live-play check ("after a round, which columns show `*`?") would settle
-  it — the owner offered to play.
-- Note: `Attack` prints **`Failed` when `[0x3d48] ≠ 0`** (a failure counter), so
-  the column is Passed/Failed as the owner reported; `-` when out of action.
+| column | byte | meaning | evidence |
+|--------|------|---------|----------|
+| **W** | `es:[i*2 + 0x5608]` | the character's **weapon was damaged** this round | setters `0x156CA`/`0x15955` pair with a write to the **weapon** slot's condition (`[bp-0x38]`), messages `"The weapon of … gets stuck … damaged!"` / `"…the weapon … breaks with a loud bang!"` |
+| **P** | `es:[i*2 + 0x5609]` | a **protective item (shield/armour) was damaged** this round | setters `0x17658`/`0x1777A` pair with the **shield** (`[bp-0x30]`)/**armour** (`[bp-0x3e]`) slot, messages `"However, the shield/armour of … has been hit and damaged!"`; `0x17290` is the rust variant |
+| **B** | `es:[i + 0x224]` | an **ability improved** this round | setters `0x12846`/`0x13D7D`/`0x1471C` print `"(Defensive ability grows!)"` / `"(Sneaking ability improves!)"` / `"(Concentration improves!)"` |
+| **Attack** | `es:[i + 0x3d48]` | the action **Passed/Failed** | `-` if out of action (`char +0x49 ≠ 0`); else `Failed` if `[0x3d48] ≠ 0`; else `Passed` |
+
+**Owner live-play corroboration (OT-002/OT-003):** the owner saw a round with
+`W=- P=* B=-` in which the character's **worn armour condition dropped by 2%**
+and nothing else changed — exactly the `P` mechanism above (armour slot −2). The
+`B` column was `-` because no ability check succeeded that round.
+
+**Still open (one confirmation):** the owner's test rounds never damaged a
+**weapon** and never showed a `B=*` cell. So the `W` and `B` readings are derived
+from the decompilation (message + paired slot) but not yet seen in a populated
+frame. Owner task **OT-003** now asks only for (a) a round in which a **weapon**
+is damaged and (b) a round in which an ability message (`Defensive ability
+grows!` / `Sneaking ability improves!` / `Concentration improves!`) appears,
+reporting the `W` and `B` cells. That closes BLK-B004 with no guesswork.
