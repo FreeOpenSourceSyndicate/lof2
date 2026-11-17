@@ -2409,3 +2409,51 @@ producer should be traced next with `LOF_PXWATCH=<residue pixel>` (the write sit
 is in the `119D:129F` blitter loop, called from the walk renderer).  Left open as
 BLK-A005; the drop-in keeps the exact `CH25` blit (96.7% window) and does **not**
 guess the residue.
+
+## Round 49 — BLK-A005 RESOLVED: the corridor view is a *tiled* CH25 (maintainer, 2026-11-17)
+
+The Round-48 residue is a **second `CHAR2/CH25` blit**.  The whole moved viewport
+window is `CH25` **tiled across the window at x-stride 120 (the sprite width) and
+y-stride -1**:
+
+    window[x,y] = CH25[x + 24 - 120*k, y - 17 + k]   for the copy k whose x-range covers x
+
+equivalently: blit `CH25` at window `(-24,17)`, `(96,16)`, `(216,15)`, ... i.e.
+screen `(-14,28)`, `(106,27)`, `(226,26)`, ...  The first two copies already
+reproduce the emulator framebuffer **exactly** (0 mismatching pixels), and adding
+the third keeps it exact (the third copy is entirely off-window).
+
+**Why Round 48 missed it.**  Round 48 scored the residue against the oracle index
+image using a **buggy palette inversion**: its `attr_rgb()` gave brown (index 6)
+the value it should give red, so the second CH25 copy's brown pixels read as
+"oracle red(4) vs CH25 brown(6) — a shading difference".  With the port's actual
+`attr_rgb()` (brown = `(170,85,0)`, red = `(170,0,0)`) the same second copy is
+pixel-exact and **no remap is needed**.  Lesson: invert oracle RGB through the
+*same* palette function the port uses (`port/gfx.cpp::attr_rgb`), not a
+hand-rolled one.
+
+**Evidence (three independent checks).**
+
+1. **Emulator framebuffer (palette-independent, authoritative).**  Dump the
+   emulator's planes on the moved frame (`LOF_EDUMP`), decode to index space and
+   compare: a single `CH25` at window `(-24,17)` matches **0.96765**; two copies
+   `(-24,17)+(96,16)` match **1.00000** (0 mismatching px over the whole
+   120x119 window).
+2. **DOSBox oracle.**  Two `CH25` copies match the oracle window at **0.99930**
+   (the 10 non-matching px are the engine's live 1px diagonal at the viewport's
+   top-left corner, which the emulator lacks too — a separate element, not this
+   view).  No colour remap: the earlier `{6:4}` remap only "helped" because of
+   the palette-inversion bug.
+3. **Offset sweep.**  Exhaustive `(lx,ly,rx,ry)` search against the emulator
+   framebuffer: the unique best is `(-24,17,96,16)` at 1.00000; neighbours score
+   0.98 or less.
+
+**Implemented.**  `DungeonView` gained a `bool tile`; `dungeon_view_for` sets it
+for the depth->=3 `CH25` view and `render_dungeon_play_view` tiles the sprite at
+`x-stride 120 / y-stride -1` until the copy starts past the window.  The moved
+window score rose **0.9669 -> 0.9993** (`port_dungeon_view_test.py`, floor now
+0.998); the depth-march unit test asserts `v.tile` for the depth->=3 regime.
+
+**Still open.**  The encounter-id **producer** (`es:[0x259]`, BLK-A005's other
+half) and the spawn (depth-1) window's horizon-band residue (the engine's live
+overlay; `DP001` covers the middle 80 columns pixel-identically).

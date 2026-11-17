@@ -502,25 +502,27 @@ set — code `3` is walkable but view-opaque, so the march stops on it.
 
 Ground truth: the emulator depth sweep (`LOF_EDUMP=` + a `DNGS/DNG05` tile patch)
 and, decisively, the DOSBox oracle.  The moved frame
-(`ref/oracle/dungeon_slot1_moved.png`) is `CHAR2/CH25` blitted at screen
-`(-14,28)`, matching **1.0000** over all 4479 pixels it covers; the spawn
+(`ref/oracle/dungeon_slot1_moved.png`) is `CHAR2/CH25` **tiled across the
+viewport** at **x-stride 120 (the sprite width) / y-stride -1** — copies at
+screen `(-14,28)`, `(106,27)`, `(226,26)`, ... — matching **1.00000** in the
+emulator framebuffer and **0.9993** vs the oracle (the 10 residual px are the
+engine's live 1px corner diagonal, absent from the emulator too); the spawn
 (`ref/oracle/dungeon_slot1.png`) is `DP001` at (10,11).  The blit is **clipped to
 the viewport window** (CH25's origin is left of it, at x=-14, so it must not spill
 onto the HUD).
 
 Implemented as `dungeon_view_opaque` + `dungeon_view_for` + `render_dungeon_play_view`
-in `port/dungeon.{h,cpp}`; `--walk` and `--ui` compose the HUD + panel with no
-viewport tile and then blit the depth-selected sprite.  Guarded by
-`tests/dungeon_test.cpp::test_view_depth` and `tests/port_dungeon_view_test.py`
-(`make golden-port`).
+in `port/dungeon.{h,cpp}` (`DungeonView::tile` drives the tiling); `--walk` and
+`--ui` compose the HUD + panel with no viewport tile and then blit the
+depth-selected sprite.  Guarded by `tests/dungeon_test.cpp::test_view_depth` and
+`tests/port_dungeon_view_test.py` (`make golden-port`).
 
 **Still open (BLK-A005).**  The depth-2/≥3 `CHAR2/CHnn` numbers (40, 25) are the
 scenario's encounter-sprite bank (`NSC05[id].+0x48`); whether they are keyed by
 *depth* or coincide with the location-id lookup for the Temple save is not
 proven, so the drop-in applies them for **scenario 5 only** and keeps the
-depth-1 tileset sprite elsewhere.  In the moved window, `CH25` covers only the
-left 96 columns (all pixel-exact); a **second element** fills the right ~24
-columns (the 472-px residue) and is not yet decoded.
+depth-1 tileset sprite elsewhere.  The encounter-id *producer* (`es:[0x259]`) is
+also still undecoded.
 
 ### FIXED BUG — emulator crashed on the slot-1 (dungeon) load
 

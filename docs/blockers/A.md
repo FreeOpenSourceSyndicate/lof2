@@ -19,7 +19,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 | BLK-A002 | A (dungeons) | Maintainer | Medium | **Resolved** (2026-11-12) | — |
 | BLK-A003 | A (dungeons) | Agent A | Medium | **Resolved** (2026-11-08) | — |
 | BLK-A004 | A (dungeons) | Maintainer | Medium | Resolved | — |
-| BLK-A005 | A (dungeons) | Maintainer | Medium | In progress | — |
+| BLK-A005 | A (dungeons) | Maintainer | Medium | **Partially resolved** (2026-11-17) | — |
 
 ---
 
@@ -28,7 +28,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 - **Blocked lane:** A (dungeons)
 - **Responsible:** Agent A
 - **Priority:** Medium
-- **Status:** Open
+- **Status:** Open (viewport-composite half **resolved** 2026-11-17)
 - **Dependencies:** —
 
 **Description & unblock action.** The consumer half of the encounter-sprite
@@ -50,6 +50,22 @@ by tracing the boot viewport path, then decoding the `+0x39`/`+0x2c` selection
 (and the `es:[0x54]` level table) so the drop-in can pick the sprite for an
 arbitrary walk move without the emulator.  Until then the play view keeps the
 `DP001` fallback.  Detail: `docs/notes-a.md` Rounds 45-46.
+
+**Log.** 2026-11-17 Maintainer (Round 49) — **RESOLVED (viewport-composite half).**
+The 472-px residue is a **second `CHAR2/CH25` blit**: the corridor view is the
+room sprite *tiled across the viewport* at **x-stride 120 / y-stride -1** (copies
+at window `(-24,17)`, `(96,16)`, `(216,15)`, ... = screen `(-14,28)`,
+`(106,27)`, `(226,26)`, ...). Two copies reproduce the **emulator framebuffer
+exactly** (0 mismatching px, palette-independent) and the DOSBox oracle window at
+**0.99930** (the 10 residual px are the engine's live 1px corner diagonal, absent
+from the emulator too). No colour remap is involved — Round 48's "shade
+difference" was a **palette-inversion bug** (its `attr_rgb()` swapped brown/red);
+with `port/gfx.cpp::attr_rgb` the second copy is pixel-exact. Implemented via
+`DungeonView::tile` + the tiling loop in `render_dungeon_play_view`; the moved
+window score rose **0.9669 → 0.9993** (`tests/port_dungeon_view_test.py`, floor
+0.998) and `tests/dungeon_test.cpp::test_view_depth` asserts `v.tile`. **This
+half of BLK-A005 is closed**; the encounter-id *producer* (`es:[0x259]`) remains
+open (below). Detail: `docs/notes-a.md` Round 49.
 
 **Log.** 2026-11-17 Maintainer (Round 48) — negative results on the residue.
 Exhaustively searched every `EGA/**` sprite at every integer offset against the
@@ -113,17 +129,17 @@ cells ahead of the party to the first **view-opaque** cell (low nibble NOT in
 | >=3   | `EGA/CHAR2/CH25` | (-14,28) |
 
 Verified **pixel-exact** against the DOSBox oracle: the moved frame
-(`ref/oracle/dungeon_slot1_moved.png`) is `CHAR2/CH25` at (-14,28) matching
-**1.0000** over all 4479 pixels it covers; the spawn is `DP001` at (10,11)
+(`ref/oracle/dungeon_slot1_moved.png`) is `CHAR2/CH25` tiled across the window at
+x-stride 120 / y-stride -1 (copies at window (-24,17), (96,16), ... = screen
+(-14,28), (106,27), ...) matching **1.0000** in the emulator framebuffer and
+0.9993 vs the oracle (BLK-A005, Round 49); the spawn is `DP001` at (10,11)
 (0.952 window / residue = engine overlay). The window is clipped to the viewport
 (the CH25 blit at x=-14 must not spill onto the HUD). Implemented as
 `dungeon_view_opaque` + `dungeon_view_for` + `render_dungeon_play_view` in
 `port/dungeon.{h,cpp}`, wired into `--walk` and `--ui` (`port/lof.cpp`); pinned
 by `tests/dungeon_test.cpp::test_view_depth` and `tests/port_dungeon_view_test.py`
 (`make golden-port`). The depth-2/>=3 sprites are the scenario's encounter bank
-(BLK-A005), pinned for D5; other scenarios keep the depth-1 tileset sprite. The
-residual 3.3% of the moved window is a second element to the right of CH25's
-coverage (still BLK-A005).
+(BLK-A005), pinned for D5; other scenarios keep the depth-1 tileset sprite.
 
 **Log.** 2026-11-08 Agent A (Rounds 38-44) — the dependency (BLK-A003) is
 **Resolved**: the moved-cell view is a single `EGA/CHAR2/CHnn` blit, and the `NN`

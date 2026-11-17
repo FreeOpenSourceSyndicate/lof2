@@ -341,6 +341,15 @@ struct DungeonView {
     std::string path;   // e.g. "<dir>/EGA/D5/DP001"
     int x = kViewportX; // screen blit position
     int y = kViewportY;
+
+    // Corridor views (the depth->=3 `CHAR2/CHnn` room sprite) are *tiled*
+    // horizontally across the 120px-wide viewport: the engine blits the same
+    // sprite repeatedly at x-stride 120 (the sprite width) and y-stride -1,
+    // starting at the view's base position.  Measured pixel-exactly against the
+    // emulator framebuffer for the Temple corridor (BLK-A005): the moved window
+    // equals `CH25` at window (-24,17) plus `CH25` at (96,16) with zero
+    // mismatching pixels.  When `tile` is false the view is a single blit.
+    bool tile = false;
 };
 DungeonView dungeon_view_for(const std::string& dir, int dungeon,
                              const Dungeon& d, const DungeonPos& p);

@@ -42,11 +42,13 @@ MOVED_ORACLE = os.path.join(ROOT, "ref", "oracle", "dungeon_slot1_moved.png")
 VX, VY, VW, VH = 10, 11, 120, 119
 
 # The spawn window carries the engine's live overlay residue; the moved window
-# is the pure CHAR2/CH25 blit plus a second, still-undecoded element to the right
-# of CH25's coverage (BLK-A005).  CH25's own 4479 pixels are pixel-exact (1.0);
-# the whole-window floor below leaves room for that second element.
+# is now reproduced pixel-exactly as `CHAR2/CH25` tiled across the viewport at
+# x-stride 120 / y-stride -1 (see DungeonView::tile and BLK-A005).  The only
+# residual in the moved window is a 1px diagonal at the top-left corner (the
+# engine's live element, absent from the emulator too), so the floor sits just
+# below 1.0 to catch regressions while tolerating it.
 SPAWN_MIN = 0.93
-MOVED_MIN = 0.96
+MOVED_MIN = 0.998
 
 
 def walk(keys, shot):

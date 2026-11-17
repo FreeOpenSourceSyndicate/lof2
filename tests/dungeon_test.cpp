@@ -864,15 +864,18 @@ static void test_view_depth(const std::string& dir) {
     v = view();
     assert(v.path == "/root/EGA/CHAR2/CH40" && v.x == 58 && v.y == 27);
 
-    // Wall at depth 3 and deeper -> CHAR2/CH25 at (-14,28).
+    // Wall at depth 3 and deeper -> CHAR2/CH25 at (-14,28), tiled across the
+    // viewport (BLK-A005: the corridor sprite repeats at x-stride 120/y-stride -1).
     d.tiles[7 * kDungeonW + 5] = 0;
     d.tiles[8 * kDungeonW + 5] = 3;              // 3 is view-opaque
     v = view();
     assert(v.path == "/root/EGA/CHAR2/CH25" && v.x == -14 && v.y == 28);
+    assert(v.tile);
     d.tiles[8 * kDungeonW + 5] = 0;
     d.tiles[20 * kDungeonW + 5] = 6;
     v = view();
     assert(v.path == "/root/EGA/CHAR2/CH25" && v.x == -14 && v.y == 28);
+    assert(v.tile);
 
     // An all-open column runs off the map: treated as an opaque wall at the
     // edge (the engine's map is bounded).
