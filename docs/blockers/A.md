@@ -51,6 +51,20 @@ by tracing the boot viewport path, then decoding the `+0x39`/`+0x2c` selection
 arbitrary walk move without the emulator.  Until then the play view keeps the
 `DP001` fallback.  Detail: `docs/notes-a.md` Rounds 45-46.
 
+**Log.** 2026-11-17 Maintainer (Round 48) — negative results on the residue.
+Exhaustively searched every `EGA/**` sprite at every integer offset against the
+residue (window cols 96..119, 462 non-zero px): the best single-sprite fit is
+**0.840** (`D3/DP030` at (94,14)); `D5/DP001` 0.02; `CH25` mirrored 174/472;
+`CH25` blitted a second time at (96,16) explains 309/472 but the 153 misses are
+*all* `oracle red(4)` vs `CH25 brown(6)` (a shading difference). So the residue is
+a **separate second element** with a shade/palette offset, not a leftover, not a
+mirror, and not a clean second copy of CH25. The emulator reproduces the moved
+frame but its window matches the oracle only 65% (plane-0/palette divergence), so
+it cannot isolate the residue; the drop-in is already closer (96.7% window, CH25
+1.0000 over its coverage). Next: trace the producer with
+`LOF_PXWATCH=<residue pixel>` (write site is the `119D:129F` blitter called from
+the walk renderer). Detail: `docs/notes-a.md` Round 48.
+
 **Log.** 2026-11-17 Maintainer (Round 47) — partial progress: the *view* use of
 the encounter bank is now pinned for the D5/Temple scenario without needing the
 `es:[0x259]` producer. The first-person sprite is selected by the **depth to the

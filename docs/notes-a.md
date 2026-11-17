@@ -2374,3 +2374,38 @@ depth->sprite correlation here is empirical and applied for scenario 5 only.
 **Method note.**  The first patcher used for the depth sweep skipped decoded byte
 0, which produced a spurious "depth 3 -> DP036" row; fixed, the model is the clean
 depth-1/2/>=3 table above.  Reproduce with `LOF_EDUMP` + a DNG05 tile patch.
+
+## Round 48 — BLK-A005 residue: negative results (maintainer, 2026-11-17)
+
+Attacked the 472-px residue in the **moved** viewport window (the region to the
+right of `CHAR2/CH25`'s coverage; `CH25` is blitted at screen `(-14,28)` = window
+`(-24,17)` and covers window cols 0..95).  The residue lives at window cols
+96..119, rows ~30..118, and is **462 non-zero pixels** (window-rel x≥96).
+
+**What was ruled out** (all scored against the DOSBox oracle index image, i.e.
+the oracle RGB inverted through the standard EGA palette):
+
+| hypothesis | result |
+|---|---|
+| a second **full sprite** in any `EGA/**` bank (every bank, every integer offset) | best single fit **0.840** (`D3/DP030` at (94,14)); no sprite is pixel-exact |
+| the tileset sprite `D5/DP001` (spawn leftover / under-blit) | residue match **0.02** |
+| `CHAR2/CH25` **mirrored** horizontally | 174/472 |
+| `CHAR2/CH25` blitted a **second time** (e.g. right wall of the corridor) | best at window `(96,16)`: 309/472 residue pixels, but the 153 misses are *all* `oracle 4 (red)` vs `CH25 6 (brown)` — a shading difference, not a clean second copy |
+| `CHAR2/CH47` (the next-best whole sprite) | 289/472 |
+
+**Emulator cross-check.**  The emulator *does* reproduce the moved frame, but its
+window matches the oracle only **65%** (its known plane-0 / palette divergence);
+it does not isolate the residue.  The drop-in's whole window matches the oracle
+**96.7%** and `CH25` alone is pixel-exact (1.0000) over its 4479 covered pixels —
+so the drop-in is strictly *closer* than the emulator here, and the residue is the
+only gap.
+
+**Conclusion.**  The residue is a **second, separate viewport element** (a
+different shading of the right-hand wall, or a wall drawn with a palette/shade
+offset) that no shipped `EGA/**` sprite reproduces byte-for-byte at any integer
+offset.  It is **not** a leftover of the spawn sprite and **not** a mirror.
+Reproduce with `LOF_EDUMP` on the moved frame + the residue-mask scorer; the
+producer should be traced next with `LOF_PXWATCH=<residue pixel>` (the write site
+is in the `119D:129F` blitter loop, called from the walk renderer).  Left open as
+BLK-A005; the drop-in keeps the exact `CH25` blit (96.7% window) and does **not**
+guess the residue.
