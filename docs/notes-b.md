@@ -1494,3 +1494,95 @@ here are `/tmp/round*.mem` (ephemeral) — regenerate with the command above.
   would settle their enum values (they are already in the derived table as
   2/3/4).
 - The per-column semantics of the round table (`W P B`, `Attack`).
+
+## BLK-B004 — the round-result printer FOUND (2026-11-17, twenty-first session)
+
+**The `W P B` columns are decoded structurally.** The printer for the melee
+round table is at **image `0x186A3`** (file `0x1DB93`), inside the combat
+round function **`0x1810E`** (it prints `"The result of this round:"` at
+`0x18681`). It is reached from the same code that prints the config menu
+(`0x1865A` `lcall 0x212f,0x6c24`), so the whole round flow is one routine.
+
+### How to find it (reproducible method)
+
+The printer runs with **`ds = 0x4C92`**, so its DS-relative string operands are
+`image_offset − 0x3C820` (e.g. header image `0x43857` → operand `0x7037`).
+Searching the image for `b8 <disp16>` with `disp = image_off − 0x3C820` finds
+every string the printer loads. The six flag operands are:
+
+| column | image off | DS operand | strings |
+|--------|-----------|-----------|---------|
+| header | `0x43857` | `0x7037` | `Name       HP   W P B Attack` |
+| rule   | `0x43864` | `0x7054` | `---------- ---- - - - -------` |
+| W *    | `0x4389f` | `0x707f` | `* ` | 
+| W -    | `0x438a2` | `0x7082` | `- ` |
+| P *    | `0x438a5` | `0x7085` | `* ` |
+| P -    | `0x438a8` | `0x7088` | `- ` |
+| B *    | `0x438ab` | `0x708b` | `* ` |
+| B -    | `0x438ae` | `0x708e` | `- ` |
+| Attack | `0x438b1`/`0x438b8`/`0x438bf` | `0x7091`/`0x7098`/`0x709f` | `Failed`/`Passed`/`-` |
+
+### The four per-character arrays (party segment `0x468E`)
+
+The printer reads, for character `i` (0..5), four bytes from the **party
+segment** (`es = [ds:0xafdc] = [ds:0xafd4] = [ds:0xafd6] = 0x468E`):
+
+| column | address | printed |
+|--------|---------|---------|
+| **W** | `es:[i*2 + 0x5608]` | `* ` if ≠ 0, else `- ` (image `0x18933..0x1895B`) |
+| **P** | `es:[i*2 + 0x5609]` | `* ` if ≠ 0, else `- ` (`0x1895C..0x18983`) |
+| **B** | `es:[i + 0x224]` | `* ` if ≠ 0, else `- ` (`0x18986..0x189AB`) |
+| **Attack** | `es:[i + 0x3d48]` | `-` if char `+0x49 ≠ 0` (out of action); else `Failed` if `[0x3d48] ≠ 0`; else `Passed` (`0x189AE..0x189F6`) |
+
+The row also prints, before HP: the `+0x24`-indexed name (`es=[0xafde]`,
+`[bx*4+0xeb0]`), the `+0x0f` action name (`es=[0xafe0]`, `[bx*4+0xec0]`),
+`@ %ld` from `+0x16`, and the HP delta `char[+0x22] − snapshot` (`%4ld `).
+
+### The arrays are zeroed each round, then set during resolution
+
+At the top of the combat function the four arrays are **zeroed** for all six
+characters (image `0x18198`–`0x181B8`):
+```
+18198: es = [0xafd4]; mov byte es:[bx+0x224], al        ; B  = 0
+1819F: es = [0xafdc]; mov byte es:[si+0x5609], al       ; P  = 0
+181A8:                mov byte es:[si+0x5608], al       ; W  = 0
+181B0: es = [0xafd6]; mov byte es:[bx+0x3d48], al       ; Attack = 0
+```
+Then the round-resolution path sets individual bits to 1.
+
+### Setter sites (all `mov byte es:[..], 1`, `es=[0xafdc]`/`[0xafd4]`)
+
+| flag | set at image | enclosing fn | nearby strings |
+|------|--------------|--------------|----------------|
+| **W** | `0x156CA`, `0x15955` | `0x1370C` | "learn new spells", "The Grand Board of Trades" |
+| **P** | `0x17290`, `0x17658`, `0x1777A` | `0x1370C` | "welcome to our Great Temple!", "Whose wounds should we heal" |
+| **B** | `0x12846` | `0xF5C0` | "pick-pocketing improves!" |
+| **B** | `0x13D7E`, `0x1471D` | `0x1370C` | — |
+
+**Key structural fact:** the `0x5608`/`0x5609`/`0x224` bytes are **not** inside
+the 410-byte character records (those live at `0x30..0x9CC`); they are **global
+scratch flags in the party segment**, written by *both* the combat path *and*
+the town skill routines (House of Trades sets W, the Temple sets P,
+pick-pocketing sets B). The combat fn reaches `0x1370C` via its callee `0x17982`
+(`0x17A0C`/`0x17B8F`/`0x17D13`/`0x17D76`), so the same setter code runs in
+combat. Therefore **the arrays are generic per-character event bits reused
+across result panels**, and the *combat* meaning of W/P/B must be confirmed
+against a populated round frame (or by tracing which combat branch sets each).
+
+### Runtime confirmation
+
+`LOF_WATCH=4bee8:4bef4` (W/P arrays) over the deterministic combat drive
+(`LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_KEYAT="50:0x18,100:0x03,150:0x50,200:0x48,250:0x2e,650:0x1e,780:0x02,900:0x20,1020:0x2e"`)
+shows the arrays are zeroed at round setup and a **W bit (`0x4BEEC`, char 2) is
+set to 1** at `1DAF:7CE0` = image `0x156CA` — i.e. the W flag is genuinely set
+during the run. Frame: `/tmp/round.png` (ephemeral).
+
+### Still open (narrowed)
+
+- The **combat meaning** of W / P / B (the owner's guess `W`=weapon,
+  `P`=armour; `B` unknown). Next step: capture a populated round-table frame and
+  read the `*`/`-` pattern, or trace which combat branch sets each bit. A short
+  owner live-play check ("after a round, which columns show `*`?") would settle
+  it — the owner offered to play.
+- Note: `Attack` prints **`Failed` when `[0x3d48] ≠ 0`** (a failure counter), so
+  the column is Passed/Failed as the owner reported; `-` when out of action.
