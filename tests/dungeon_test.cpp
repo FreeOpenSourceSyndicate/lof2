@@ -823,6 +823,86 @@ static void test_walk_real(const std::string& dir) {
                 steps, turns, p.x, p.y);
 }
 
+// The first-person view is selected by marching the column of cells ahead of
+// the party to the first *view-opaque* cell (dungeon_view_opaque /
+// dungeon_view_for, docs/notes-a.md Round 47).  This pins the depth model on
+// synthetic maps and on the real DNG05 entry column (which the DOSBox oracle
+// confirms: spawn -> DP001, after a step -> CHAR2/CH25 at (-14,28)).
+static void test_view_depth(const std::string& dir) {
+    // View-opacity is by LOW nibble and is NOT the movement wall set: 3 is
+    // walkable but view-opaque, and 0/2/7/8/9 are open.
+    for (int hi = 0; hi <= 0xf0; hi += 0x10) {
+        assert(!dungeon_view_opaque(hi | 0x0));
+        assert(!dungeon_view_opaque(hi | 0x2));
+        assert(!dungeon_view_opaque(hi | 0x7));
+        assert(!dungeon_view_opaque(hi | 0x8));
+        assert(!dungeon_view_opaque(hi | 0x9));
+        assert(dungeon_view_opaque(hi | 0x1));
+        assert(dungeon_view_opaque(hi | 0x3));    // passable but opaque
+        assert(dungeon_view_opaque(hi | 0x6));
+        assert(dungeon_view_opaque(hi | 0xa));
+        assert(dungeon_view_opaque(hi | 0xd));
+    }
+
+    // Synthetic corridor: party at (5,5) facing S.  The ahead cells (5,6),
+    // (5,7), ... are open until one is made opaque; the depth picks the sprite
+    // and the depth-1 case falls back to the tileset DPnnn path.
+    Dungeon d;
+    d.tiles.assign(kDungeonTiles, 0);
+    d.objects.assign(kDungeonTiles, 0);
+    DungeonPos p{5, 5, 2};
+    auto view = [&]() { return dungeon_view_for("/root", 5, d, p); };
+
+    // Wall at depth 1 -> a D5/DPnnn tileset sprite at the viewport origin.
+    d.tiles[6 * kDungeonW + 5] = 6;
+    DungeonView v = view();
+    assert(v.path == "/root/EGA/D5/DP060" && v.x == 10 && v.y == 11);
+
+    // Wall at depth 2 -> CHAR2/CH40 at (58,27).
+    d.tiles[6 * kDungeonW + 5] = 0;
+    d.tiles[7 * kDungeonW + 5] = 6;
+    v = view();
+    assert(v.path == "/root/EGA/CHAR2/CH40" && v.x == 58 && v.y == 27);
+
+    // Wall at depth 3 and deeper -> CHAR2/CH25 at (-14,28).
+    d.tiles[7 * kDungeonW + 5] = 0;
+    d.tiles[8 * kDungeonW + 5] = 3;              // 3 is view-opaque
+    v = view();
+    assert(v.path == "/root/EGA/CHAR2/CH25" && v.x == -14 && v.y == 28);
+    d.tiles[8 * kDungeonW + 5] = 0;
+    d.tiles[20 * kDungeonW + 5] = 6;
+    v = view();
+    assert(v.path == "/root/EGA/CHAR2/CH25" && v.x == -14 && v.y == 28);
+
+    // An all-open column runs off the map: treated as an opaque wall at the
+    // edge (the engine's map is bounded).
+    d.tiles.assign(kDungeonTiles, 0);
+    v = view();
+    assert(v.path == "/root/EGA/CHAR2/CH25");
+
+    // Only the D5 scenario maps depths 2/>=3 onto the encounter bank; other
+    // scenarios keep the depth-1 tileset sprite (the bank is scenario-specific).
+    d.tiles[6 * kDungeonW + 5] = 0;
+    d.tiles[7 * kDungeonW + 5] = 6;
+    DungeonView v1 = dungeon_view_for("/root", 1, d, p);
+    assert(v1.path == "/root/EGA/D1/DP001" && v1.x == 10 && v1.y == 11);
+
+    // Real DNG05: the entry (17,3) facing S sees the wall at (17,4) at depth 1
+    // (DP001); one step south (17,4) leaves the column open to the wall at
+    // (17,10) -> depth >=3 -> CH25.  Matches the oracle captures.
+    Dungeon r;
+    if (load_dungeon(dir + "/DNG05", r)) {
+        DungeonPos e; dungeon_place_entry(r, e);
+        assert(e.x == 17 && e.y == 3 && e.facing == 2);
+        DungeonView sv = dungeon_view_for(dir + "/..", 5, r, e);
+        assert(sv.path == dir + "/../EGA/D5/DP001" && sv.x == 10 && sv.y == 11);
+        DungeonPos q = e; q.y = 4;               // step south into the corridor
+        DungeonView qv = dungeon_view_for(dir + "/..", 5, r, q);
+        assert(qv.path == dir + "/../EGA/CHAR2/CH25" && qv.x == -14 && qv.y == 28);
+        std::printf("dungeon_test: depth-march view verified (DNG05 entry)\n");
+    }
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_render();
@@ -846,6 +926,7 @@ int main(int argc, char** argv) {
     test_dungeon_screen(dir);
     test_base_view(dir);
     test_room_art(dir);
+    test_view_depth(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }

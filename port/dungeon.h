@@ -316,6 +316,35 @@ bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax, int& ay)
 // `index` 0 is never returned: DP000 does not exist on disk.
 int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p);
 
+// A tile is *view-opaque* when the first-person renderer stops marching on it.
+// This is NOT the movement wall set (`dungeon_is_solid_tile`): code 3 is
+// walkable but renders opaque, so the view column stops on it.  Ground truth:
+// the emulator depth sweep (notes-a.md Round 47).
+bool dungeon_view_opaque(uint8_t code);
+
+// The first-person view sprite for the party's position, as a path (relative to
+// `dir`) plus the *screen* position to blit it at (clipped to the viewport
+// window).  The engine marches the column of cells ahead of the party to the
+// first view-opaque cell and blits a pre-rendered sprite chosen by that depth:
+//
+//   depth 1  -> EGA/D<d>/DP<index>  at (10,11)  (tileset sprite, nibble-mapped
+//                                                by dungeon_base_view_index)
+//   depth 2  -> EGA/CHAR2/CH40      at (58,27)
+//   depth >=3-> EGA/CHAR2/CH25      at (-14,28)
+//
+// Verified pixel-exact against the DOSBox oracle (ref/oracle/dungeon_slot1.png
+// spawn = DP001; ref/oracle/dungeon_slot1_moved.png = CH25 at (-14,28), 1.0000)
+// for the D5/Temple scenario.  The depth-2/>=3 sprites are the scenario's
+// encounter-sprite bank (`NSC<dd>[id].+0x48`, BLK-A005) and are pinned for D5
+// only; other scenarios still resolve their depth-1 tileset sprite correctly.
+struct DungeonView {
+    std::string path;   // e.g. "<dir>/EGA/D5/DP001"
+    int x = kViewportX; // screen blit position
+    int y = kViewportY;
+};
+DungeonView dungeon_view_for(const std::string& dir, int dungeon,
+                             const Dungeon& d, const DungeonPos& p);
+
 // Convenience: blit the dungeon's canonical view sprite (DP001) at (10,11).
 // This is the base first-person view the engine shows on entry; it is verified
 // for dungeon 5 (the slot-1 Temple oracle) and structurally valid for all
@@ -338,6 +367,12 @@ bool render_dungeon_screen(Screen& scr, const std::string& dir, int dungeon,
 // code of the cell ahead.  Returns false if the frame or sprite is missing.
 bool render_dungeon_play(Screen& scr, const std::string& dir, int dungeon,
                          const Dungeon& d, const DungeonPos& p);
+
+// Blit only the first-person view sprite for the party's position (see
+// dungeon_view_for) into an already-composed screen, clipped to the viewport
+// window.  Returns false if the sprite cannot be loaded.
+bool render_dungeon_play_view(Screen& scr, const std::string& dir, int dungeon,
+                              const Dungeon& d, const DungeonPos& p);
 
 // Synthetic *fallback* for a level with no pre-rendered view sprite (and useful
 // as an automap-style aid): ray-cast the 36x36 tile grid along the party facing

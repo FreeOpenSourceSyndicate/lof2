@@ -2335,3 +2335,42 @@ party, which is why it is not derivable from a single static byte of the DNG or
 the save: it depends on the party cell, the view mode, and the record flags.
 Porting it faithfully is a self-contained job once a walk capture is available
 (BLK-A004); it is not a data-format question. The consumer it feeds is delivered.
+
+## Round 47 — viewport is a depth-marched sprite blit (maintainer, 2026-11-17)
+
+Re-ran the emulator with the BLK-A004 extended-key fix (a walk move is now
+possible) and dumped the EGA planes for a set of controlled DNG05 patches.  The
+view window (10,11)-(130,130) is a **single pre-rendered sprite**, selected by
+marching the column of cells ahead of the party to the first *view-opaque* cell.
+View-opaque = tile low nibble in `{3,6,13}` (note: 3 is walkable but opaque in
+the view — the earlier "movement wall set" is NOT the view set).
+
+Measured (D5/Temple, party DNG05 (17,3) facing S, patching the ahead cells):
+
+| first opaque cell | view sprite      | blit offset (screen) |
+|-------------------|------------------|----------------------|
+| depth 1, wall 6/d | `D5/DP060` (=DP036) | (10,11)           |
+| depth 1, code 3   | `D5/DP001`       | (10,11)              |
+| depth 1, code 4/5 | `D5/DP058`/`DP059` | (10,11)            |
+| depth 1, code 0xa | `D5/DP014`       | (10,11)              |
+| depth 2           | `CHAR2/CH40`     | (58,27)              |
+| depth >= 3        | `CHAR2/CH25`     | (-14,28)             |
+
+**Pixel-exact evidence.**  The open-corridor window (spawn with the two ahead
+cells cleared) is `CHAR2/CH25` blitted at screen `(-14,28)` — i.e.
+viewport-relative `(-24,17)` — matching at **1.0000** over the whole 120x119
+window (4941 ink == CH25's 4941).  The depth-2 window is `CHAR2/CH40` at screen
+`(58,27)` (viewport-relative `(48,16)`), matching 1.0000 (5111 ink == CH40's
+5111).  The spawn itself is `D5/DP001` at (10,11) (0.945 vs the raw oracle,
+residue = the engine's live overlay).
+
+**Caveat / still open.**  The model is exact for the Temple spawn column and its
+2/3/4/5-deep variants.  In the moved window, CH25 covers only the left 96 columns
+(4479 px, all pixel-exact); a **second element** fills the right ~24 columns (the
+472-px residue) and is not yet decoded — that is the remaining BLK-A005 work.  The
+`CHAR2/CHnn` numbers are the encounter-sprite bank (`NSC05[id].+0x48`); the
+depth->sprite correlation here is empirical and applied for scenario 5 only.
+
+**Method note.**  The first patcher used for the depth sweep skipped decoded byte
+0, which produced a spurious "depth 3 -> DP036" row; fixed, the model is the clean
+depth-1/2/>=3 table above.  Reproduce with `LOF_EDUMP` + a DNG05 tile patch.

@@ -5,6 +5,48 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-17 (twenty-third session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**. Took over the crashed predecessor's in-progress
+queue item **#3 (BLK-A001 / BLK-A005, the first-person viewport composite)** and
+landed it. Branch `work/maintainer-viewport`, commit `547070b`.
+
+- **BLK-A001 resolved — the dungeon viewport is a depth-marched single-sprite
+  blit, not a per-cell composite.** March the column of cells ahead of the party
+  to the first **view-opaque** cell (tile-code low nibble NOT in `{0,2,7,8,9}`);
+  the depth selects the sprite and its screen offset:
+  - depth 1 → `EGA/D<d>/DP<index>` at (10,11) (the tileset sprite,
+    `dungeon_base_view_index`);
+  - depth 2 → `EGA/CHAR2/CH40` at (58,27);
+  - depth ≥3 → `EGA/CHAR2/CH25` at (-14,28), **clipped to the viewport window**.
+  Verified **pixel-exact** against the DOSBox oracle: the moved frame
+  (`ref/oracle/dungeon_slot1_moved.png`) is `CHAR2/CH25` at (-14,28) matching
+  **1.0000 over all 4479 pixels it covers**; the spawn is `DP001` at (10,11).
+  The predecessor's "0.9676" was the whole-window score (the residue is a second
+  element, below); the clean CH25-only match is 1.0000.
+- **Implementation:** `dungeon_view_opaque` + `dungeon_view_for` +
+  `render_dungeon_play_view` in `port/dungeon.{h,cpp}`; `render_dungeon_play`
+  now uses the depth model. `port/lof.cpp`: `--walk` and `--ui` compose the HUD +
+  party panel with no viewport tile, then blit the depth-selected sprite (this
+  also wires movement into `--ui`, half of queue #4).
+- **Tests:** `tests/dungeon_test.cpp::test_view_depth` (synthetic depth regimes +
+  real DNG05 entry column) and `tests/port_dungeon_view_test.py` (spawn/moved
+  window vs the oracle; added to `make golden-port`).
+- **Docs:** `AGENTS.md` "First-person viewport" section; `docs/blockers/A.md`
+  (BLK-A001 → Resolved, BLK-A005 → In progress); `docs/GUESSWORK.md` (G-006
+  resolved, new G-007 for the empirical scenario-5 sprite pin); `docs/notes-a.md`
+  Round 47 caveat corrected; `docs/HANDOFF.md` queue #3/#4.
+
+**Still open (BLK-A005):** the encounter-id producer (`es:[0x259]`) and the
+**second element to the right of CH25** in the moved window (the 472-px residue,
+~3.3% of the window). The depth-2/≥3 `CHnn` numbers are the scenario's
+encounter bank (`NSC05[id].+0x48`), pinned for D5 only (G-007); other scenarios
+keep the depth-1 tileset sprite.
+
+**Open / next:** queue `docs/HANDOFF.md` §4 — #3 partial (BLK-A005 residue),
+#4 partial (combat), #5 Inn/Temple `D5` interiors (M/A), #6 BLK-B004 (`W P B`
+meaning). #1/#2/#7/#8/#9 done. **Owner tasks:** OT-003 (live-play W/P/B check).
+
 ## Session 2026-11-17 (twenty-second session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. `main` green at `05aa0f0` (clean, pushed, **0 open

@@ -52,24 +52,31 @@ How to use each section:
 
 ### G-006 — open-corridor dungeon view falls back to `DP001` (Lane A)
 
-- **What:** `dungeon_base_view_index()` returns `DP001` for the open-cell ahead
-  codes `0x0/0x2/0x7/0x8/0x9`, because the engine's actual view for those cells
-  is a composed image that no single `DPnnn` reproduces (BLK-A003).
-- **Source of truth:** the Round-28 ahead-code sweep (`docs/notes-a.md`) shows
-  the true window for those codes (ink 4941; identical for 0/2/7/8) matches no
-  single sprite (best IoU 0.35 across all 221 120×119 EGA files), no `DPnnn`/
-  `ANIM` piece composite (colour-exact search finds zero placements), and not the
-  drop-in's ray-caster (IoU 0.17).  So `DP001` is a **chosen** fallback, not a
-  decoded value.  Round 29 sharpens it: the engine projects the first
-  *view-opaque* cell at its depth (depth 1 → `DP001`, depth 2 → a trapezoidal
-  wall face, depth >= 3 → the corridor image, saturating); `DP001` is only exact
-  at depth 1.
-- **Why it is a guess:** it is not the engine's image.  It is the closest
-  single-sprite approximation for the corridor case until the composition rule is
-  decoded (BLK-A003).
-- **To clear it:** decode the engine's per-depth geometry composition (Lane M
-  decompile of the view routine, or further oracle sweeps that vary the whole
-  column) so the corridor view can be rendered natively.
+- **Status: RESOLVED (2026-11-17).**  The corridor view is a *depth-marched
+  single-sprite blit*: depth 1 → the tileset `DPnnn`, depth 2 → `CHAR2/CH40` at
+  (58,27), depth ≥3 → `CHAR2/CH25` at (-14,28).  The DOSBox oracle
+  (`ref/oracle/dungeon_slot1_moved.png`) matches `CHAR2/CH25` at (-14,28) at
+  **1.0000** over its coverage.  `dungeon_base_view_index()` is unchanged (it is
+  the depth-1 case); the new `dungeon_view_for()` implements the full march.
+  See `AGENTS.md` "First-person viewport" and `docs/notes-a.md` Round 47.
+- **What it was:** `dungeon_base_view_index()` returned `DP001` for the open-cell
+  ahead codes `0x0/0x2/0x7/0x8/0x9`, because no single `DPnnn` reproduces the
+  corridor case.  It is now handled by the depth march instead of a fallback.
+
+### G-007 — depth-2/≥3 dungeon view sprite is empirical, pinned to scenario 5 (Lane A)
+
+- **What:** `dungeon_view_for()` blits `EGA/CHAR2/CH40` (depth 2) / `CHAR2/CH25`
+  (depth ≥3) only when the scenario is 5; other scenarios keep the depth-1
+  tileset sprite.
+- **Source of truth:** the emulator depth sweep + the DOSBox oracle for the
+  D5/Temple save (slot 1).  The sprites and offsets are exact for that scenario.
+- **Why it is on the watchlist:** the two `CHnn` numbers are that scenario's
+  encounter-sprite bank (`NSC05[id].+0x48`); whether the engine keys them by
+  *depth* or they merely coincide with the location-id lookup for this save is not
+  proven, and no other scenario's depth-2/≥3 view has been captured.  The
+  general rule is BLK-A005 (the `es:[0x259]` producer).
+- **To clear it:** capture a second scenario's corridor view and either confirm
+  the depth keying or decode the producer so the bank index is data-driven.
 
 ### G-004 — `item_effect_name()` labels beyond the traced dispatcher values (Lane B)
 
