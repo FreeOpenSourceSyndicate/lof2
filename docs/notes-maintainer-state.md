@@ -5,6 +5,93 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-17 (twenty-fourth session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**. Took over the crashed predecessor's in-progress queue
+item **#3 (BLK-A001 / BLK-A005)** and **closed the viewport-composite half**.
+
+- **BLK-A005 viewport composite RESOLVED.** The moved first-person window is the
+  depth≥3 room sprite `CHAR2/CH25` **tiled across the viewport** at **x-stride 120
+  (the sprite width) / y-stride -1**: copies at window `(-24,17)`, `(96,16)`,
+  `(216,15)`, ... (= screen `(-14,28)`, `(106,27)`, `(226,26)`, ...). Two copies
+  reproduce the **emulator framebuffer exactly** (0 mismatching px,
+  palette-independent) and the DOSBox oracle window at **0.99930** (the 10
+  residual px are the engine's live 1px corner diagonal, absent from the emulator
+  too). The predecessor's Round-48 "shade difference" was a **palette-inversion
+  bug** (its `attr_rgb()` swapped brown/red); with `port/gfx.cpp::attr_rgb` the
+  second copy is pixel-exact with **no colour remap**.
+- **Implementation:** `DungeonView::tile` (`port/dungeon.h`) + the tiling loop in
+  `render_dungeon_play_view` (`port/dungeon.cpp`). Moved-window score **0.9669 →
+  0.9993**; `tests/port_dungeon_view_test.py` floor 0.96 → **0.998**;
+  `tests/dungeon_test.cpp::test_view_depth` asserts `v.tile` for depth≥3.
+- **Docs:** `docs/notes-a.md` Round 49 (with the palette-inversion lesson);
+  `docs/blockers/A.md` (BLK-A005 → *partially resolved*, viewport half closed);
+  `AGENTS.md` "First-person viewport"; `docs/HANDOFF.md` queue #3.
+- Branch `work/maintainer-viewport`, commit `2c67419`.
+
+**Still open (BLK-A005):** the encounter-id **producer** (`es:[0x259]`, the other
+half of BLK-A005) — the consumer is decoded, the producer is not. The depth-2
+`CH40` view was **not** re-tested against a clean oracle (the only in-game
+evidence is the depth≥3 corridor); tiling is applied to depth≥3 `CH25` only,
+where the proof exists (Rule 1 — no guess for `CH40`).
+
+**Open / next:** queue `docs/HANDOFF.md` §4 — #3 partial (encounter-id producer),
+#4 partial (combat), #5 Inn/Temple `D5` interiors (M/A). #1/#2/#6/#7/#8/#9 done.
+**Owner tasks:** none open (OT-003 closed as not-needed).
+
+## Session 2026-11-17 (twenty-third session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**. Took over the crashed predecessor's in-progress
+queue item **#3 (BLK-A001 / BLK-A005, the first-person viewport composite)** and
+landed it. Branch `work/maintainer-viewport`, commit `547070b`.
+
+- **BLK-A001 resolved — the dungeon viewport is a depth-marched single-sprite
+  blit, not a per-cell composite.** March the column of cells ahead of the party
+  to the first **view-opaque** cell (tile-code low nibble NOT in `{0,2,7,8,9}`);
+  the depth selects the sprite and its screen offset:
+  - depth 1 → `EGA/D<d>/DP<index>` at (10,11) (the tileset sprite,
+    `dungeon_base_view_index`);
+  - depth 2 → `EGA/CHAR2/CH40` at (58,27);
+  - depth ≥3 → `EGA/CHAR2/CH25` at (-14,28), **clipped to the viewport window**.
+  Verified **pixel-exact** against the DOSBox oracle: the moved frame
+  (`ref/oracle/dungeon_slot1_moved.png`) is `CHAR2/CH25` at (-14,28) matching
+  **1.0000 over all 4479 pixels it covers**; the spawn is `DP001` at (10,11).
+  The predecessor's "0.9676" was the whole-window score (the residue is a second
+  element, below); the clean CH25-only match is 1.0000.
+- **Implementation:** `dungeon_view_opaque` + `dungeon_view_for` +
+  `render_dungeon_play_view` in `port/dungeon.{h,cpp}`; `render_dungeon_play`
+  now uses the depth model. `port/lof.cpp`: `--walk` and `--ui` compose the HUD +
+  party panel with no viewport tile, then blit the depth-selected sprite (this
+  also wires movement into `--ui`, half of queue #4).
+- **Tests:** `tests/dungeon_test.cpp::test_view_depth` (synthetic depth regimes +
+  real DNG05 entry column) and `tests/port_dungeon_view_test.py` (spawn/moved
+  window vs the oracle; added to `make golden-port`).
+- **Docs:** `AGENTS.md` "First-person viewport" section; `docs/blockers/A.md`
+  (BLK-A001 → Resolved, BLK-A005 → In progress); `docs/GUESSWORK.md` (G-006
+  resolved, new G-007 for the empirical scenario-5 sprite pin); `docs/notes-a.md`
+  Round 47 caveat corrected; `docs/HANDOFF.md` queue #3/#4.
+
+**Still open (BLK-A005):** the encounter-id producer (`es:[0x259]`) and the
+**second element to the right of CH25** in the moved window (the 472-px residue,
+~3.3% of the window). The depth-2/≥3 `CHnn` numbers are the scenario's
+encounter bank (`NSC05[id].+0x48`), pinned for D5 only (G-007); other scenarios
+keep the depth-1 tileset sprite.
+
+**Open / next:** queue `docs/HANDOFF.md` §4 — #3 partial (BLK-A005 residue),
+#4 partial (combat), #5 Inn/Temple `D5` interiors (M/A). #1/#2/#6/#7/#8/#9 done.
+**Owner tasks:** none open (OT-003 closed as not-needed).
+
+**Owner interaction (this session).** The owner reported the full combat
+round-table layout (`[name] HP W P B Attack`, one row per living member; HP =
+the round's HP change; Attack = action Passed/Failed) and confirmed **`P=*` ⟺
+armour −2%** and that **`B` is not ammunition**. This corroborates the derived
+`W P B` model (the decompilation already fixes `W`=weapon damaged, `P`=shield/
+armour damaged, `B`=ability improved). The owner also noted the **table shows
+only in quick combat while the messages show only in regular rounds** (so they
+can't be cross-checked by eye) and **closed OT-003 as not-needed**. Recorded in
+`docs/blockers/B.md`, `docs/notes-b.md` and `docs/OWNER-TASKS.md` (OT-003 →
+Done).
+
 ## Session 2026-11-17 (twenty-second session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. `main` green at `05aa0f0` (clean, pushed, **0 open

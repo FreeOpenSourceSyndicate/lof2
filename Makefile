@@ -38,6 +38,7 @@ golden-port:
 	python3 tests/port_building_test.py
 	python3 tests/port_ui_test.py
 	python3 tests/port_walk_test.py
+	python3 tests/port_dungeon_view_test.py
 	python3 tests/port_vor_test.py
 
 # The drop-in must run with the original EXEs absent (hard constraint #1).

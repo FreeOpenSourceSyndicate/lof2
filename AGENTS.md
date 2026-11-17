@@ -478,9 +478,51 @@ Verified against the DOSBox oracle (`ref/oracle/`):
 
 * Loading slot 1 lands in **"The Temple"** with the party list on the left and a
   *flat grey wall* (index 7) filling the viewport until the party turns/moves —
-  the viewport is drawn from tiles, not a full-screen asset.
+  the viewport is a depth-marched sprite blit (see the viewport section below),
+  not a full-screen asset.
 * The status fields read `Direction`, `Time of day`, `Spirits`, `Rations`
   (e.g. `Spirits Good`, `Rations 19`).
+
+### First-person viewport — depth-marched single-sprite blit (2026-11-17)
+
+The viewport is **not** a per-cell composite and **not** a fixed `DP001` blit:
+it is a *single pre-rendered sprite* selected by marching the column of cells
+ahead of the party to the first **view-opaque** cell.  The depth selects both the
+sprite and its screen offset:
+
+| depth | sprite | screen blit |
+|-------|--------|-------------|
+| 1     | `EGA/D<d>/DP<index>` (`dungeon_base_view_index`) | (10,11) |
+| 2     | `EGA/CHAR2/CH40` | (58,27) |
+| >=3   | `EGA/CHAR2/CH25` | (-14,28) |
+
+**View-opaque** is by the tile code's **low nibble**: `0/2/7/8/9` are open (the
+march continues); everything else stops it.  This is **not** the movement wall
+set — code `3` is walkable but view-opaque, so the march stops on it.
+
+Ground truth: the emulator depth sweep (`LOF_EDUMP=` + a `DNGS/DNG05` tile patch)
+and, decisively, the DOSBox oracle.  The moved frame
+(`ref/oracle/dungeon_slot1_moved.png`) is `CHAR2/CH25` **tiled across the
+viewport** at **x-stride 120 (the sprite width) / y-stride -1** — copies at
+screen `(-14,28)`, `(106,27)`, `(226,26)`, ... — matching **1.00000** in the
+emulator framebuffer and **0.9993** vs the oracle (the 10 residual px are the
+engine's live 1px corner diagonal, absent from the emulator too); the spawn
+(`ref/oracle/dungeon_slot1.png`) is `DP001` at (10,11).  The blit is **clipped to
+the viewport window** (CH25's origin is left of it, at x=-14, so it must not spill
+onto the HUD).
+
+Implemented as `dungeon_view_opaque` + `dungeon_view_for` + `render_dungeon_play_view`
+in `port/dungeon.{h,cpp}` (`DungeonView::tile` drives the tiling); `--walk` and
+`--ui` compose the HUD + panel with no viewport tile and then blit the
+depth-selected sprite.  Guarded by `tests/dungeon_test.cpp::test_view_depth` and
+`tests/port_dungeon_view_test.py` (`make golden-port`).
+
+**Still open (BLK-A005).**  The depth-2/≥3 `CHAR2/CHnn` numbers (40, 25) are the
+scenario's encounter-sprite bank (`NSC05[id].+0x48`); whether they are keyed by
+*depth* or coincide with the location-id lookup for the Temple save is not
+proven, so the drop-in applies them for **scenario 5 only** and keeps the
+depth-1 tileset sprite elsewhere.  The encounter-id *producer* (`es:[0x259]`) is
+also still undecoded.
 
 ### FIXED BUG — emulator crashed on the slot-1 (dungeon) load
 

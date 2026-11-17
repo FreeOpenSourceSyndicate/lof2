@@ -2335,3 +2335,125 @@ party, which is why it is not derivable from a single static byte of the DNG or
 the save: it depends on the party cell, the view mode, and the record flags.
 Porting it faithfully is a self-contained job once a walk capture is available
 (BLK-A004); it is not a data-format question. The consumer it feeds is delivered.
+
+## Round 47 — viewport is a depth-marched sprite blit (maintainer, 2026-11-17)
+
+Re-ran the emulator with the BLK-A004 extended-key fix (a walk move is now
+possible) and dumped the EGA planes for a set of controlled DNG05 patches.  The
+view window (10,11)-(130,130) is a **single pre-rendered sprite**, selected by
+marching the column of cells ahead of the party to the first *view-opaque* cell.
+View-opaque = tile low nibble in `{3,6,13}` (note: 3 is walkable but opaque in
+the view — the earlier "movement wall set" is NOT the view set).
+
+Measured (D5/Temple, party DNG05 (17,3) facing S, patching the ahead cells):
+
+| first opaque cell | view sprite      | blit offset (screen) |
+|-------------------|------------------|----------------------|
+| depth 1, wall 6/d | `D5/DP060` (=DP036) | (10,11)           |
+| depth 1, code 3   | `D5/DP001`       | (10,11)              |
+| depth 1, code 4/5 | `D5/DP058`/`DP059` | (10,11)            |
+| depth 1, code 0xa | `D5/DP014`       | (10,11)              |
+| depth 2           | `CHAR2/CH40`     | (58,27)              |
+| depth >= 3        | `CHAR2/CH25`     | (-14,28)             |
+
+**Pixel-exact evidence.**  The open-corridor window (spawn with the two ahead
+cells cleared) is `CHAR2/CH25` blitted at screen `(-14,28)` — i.e.
+viewport-relative `(-24,17)` — matching at **1.0000** over the whole 120x119
+window (4941 ink == CH25's 4941).  The depth-2 window is `CHAR2/CH40` at screen
+`(58,27)` (viewport-relative `(48,16)`), matching 1.0000 (5111 ink == CH40's
+5111).  The spawn itself is `D5/DP001` at (10,11) (0.945 vs the raw oracle,
+residue = the engine's live overlay).
+
+**Caveat / still open.**  The model is exact for the Temple spawn column and its
+2/3/4/5-deep variants.  In the moved window, CH25 covers only the left 96 columns
+(4479 px, all pixel-exact); a **second element** fills the right ~24 columns (the
+472-px residue) and is not yet decoded — that is the remaining BLK-A005 work.  The
+`CHAR2/CHnn` numbers are the encounter-sprite bank (`NSC05[id].+0x48`); the
+depth->sprite correlation here is empirical and applied for scenario 5 only.
+
+**Method note.**  The first patcher used for the depth sweep skipped decoded byte
+0, which produced a spurious "depth 3 -> DP036" row; fixed, the model is the clean
+depth-1/2/>=3 table above.  Reproduce with `LOF_EDUMP` + a DNG05 tile patch.
+
+## Round 48 — BLK-A005 residue: negative results (maintainer, 2026-11-17)
+
+Attacked the 472-px residue in the **moved** viewport window (the region to the
+right of `CHAR2/CH25`'s coverage; `CH25` is blitted at screen `(-14,28)` = window
+`(-24,17)` and covers window cols 0..95).  The residue lives at window cols
+96..119, rows ~30..118, and is **462 non-zero pixels** (window-rel x≥96).
+
+**What was ruled out** (all scored against the DOSBox oracle index image, i.e.
+the oracle RGB inverted through the standard EGA palette):
+
+| hypothesis | result |
+|---|---|
+| a second **full sprite** in any `EGA/**` bank (every bank, every integer offset) | best single fit **0.840** (`D3/DP030` at (94,14)); no sprite is pixel-exact |
+| the tileset sprite `D5/DP001` (spawn leftover / under-blit) | residue match **0.02** |
+| `CHAR2/CH25` **mirrored** horizontally | 174/472 |
+| `CHAR2/CH25` blitted a **second time** (e.g. right wall of the corridor) | best at window `(96,16)`: 309/472 residue pixels, but the 153 misses are *all* `oracle 4 (red)` vs `CH25 6 (brown)` — a shading difference, not a clean second copy |
+| `CHAR2/CH47` (the next-best whole sprite) | 289/472 |
+
+**Emulator cross-check.**  The emulator *does* reproduce the moved frame, but its
+window matches the oracle only **65%** (its known plane-0 / palette divergence);
+it does not isolate the residue.  The drop-in's whole window matches the oracle
+**96.7%** and `CH25` alone is pixel-exact (1.0000) over its 4479 covered pixels —
+so the drop-in is strictly *closer* than the emulator here, and the residue is the
+only gap.
+
+**Conclusion.**  The residue is a **second, separate viewport element** (a
+different shading of the right-hand wall, or a wall drawn with a palette/shade
+offset) that no shipped `EGA/**` sprite reproduces byte-for-byte at any integer
+offset.  It is **not** a leftover of the spawn sprite and **not** a mirror.
+Reproduce with `LOF_EDUMP` on the moved frame + the residue-mask scorer; the
+producer should be traced next with `LOF_PXWATCH=<residue pixel>` (the write site
+is in the `119D:129F` blitter loop, called from the walk renderer).  Left open as
+BLK-A005; the drop-in keeps the exact `CH25` blit (96.7% window) and does **not**
+guess the residue.
+
+## Round 49 — BLK-A005 RESOLVED: the corridor view is a *tiled* CH25 (maintainer, 2026-11-17)
+
+The Round-48 residue is a **second `CHAR2/CH25` blit**.  The whole moved viewport
+window is `CH25` **tiled across the window at x-stride 120 (the sprite width) and
+y-stride -1**:
+
+    window[x,y] = CH25[x + 24 - 120*k, y - 17 + k]   for the copy k whose x-range covers x
+
+equivalently: blit `CH25` at window `(-24,17)`, `(96,16)`, `(216,15)`, ... i.e.
+screen `(-14,28)`, `(106,27)`, `(226,26)`, ...  The first two copies already
+reproduce the emulator framebuffer **exactly** (0 mismatching pixels), and adding
+the third keeps it exact (the third copy is entirely off-window).
+
+**Why Round 48 missed it.**  Round 48 scored the residue against the oracle index
+image using a **buggy palette inversion**: its `attr_rgb()` gave brown (index 6)
+the value it should give red, so the second CH25 copy's brown pixels read as
+"oracle red(4) vs CH25 brown(6) — a shading difference".  With the port's actual
+`attr_rgb()` (brown = `(170,85,0)`, red = `(170,0,0)`) the same second copy is
+pixel-exact and **no remap is needed**.  Lesson: invert oracle RGB through the
+*same* palette function the port uses (`port/gfx.cpp::attr_rgb`), not a
+hand-rolled one.
+
+**Evidence (three independent checks).**
+
+1. **Emulator framebuffer (palette-independent, authoritative).**  Dump the
+   emulator's planes on the moved frame (`LOF_EDUMP`), decode to index space and
+   compare: a single `CH25` at window `(-24,17)` matches **0.96765**; two copies
+   `(-24,17)+(96,16)` match **1.00000** (0 mismatching px over the whole
+   120x119 window).
+2. **DOSBox oracle.**  Two `CH25` copies match the oracle window at **0.99930**
+   (the 10 non-matching px are the engine's live 1px diagonal at the viewport's
+   top-left corner, which the emulator lacks too — a separate element, not this
+   view).  No colour remap: the earlier `{6:4}` remap only "helped" because of
+   the palette-inversion bug.
+3. **Offset sweep.**  Exhaustive `(lx,ly,rx,ry)` search against the emulator
+   framebuffer: the unique best is `(-24,17,96,16)` at 1.00000; neighbours score
+   0.98 or less.
+
+**Implemented.**  `DungeonView` gained a `bool tile`; `dungeon_view_for` sets it
+for the depth->=3 `CH25` view and `render_dungeon_play_view` tiles the sprite at
+`x-stride 120 / y-stride -1` until the copy starts past the window.  The moved
+window score rose **0.9669 -> 0.9993** (`port_dungeon_view_test.py`, floor now
+0.998); the depth-march unit test asserts `v.tile` for the depth->=3 regime.
+
+**Still open.**  The encounter-id **producer** (`es:[0x259]`, BLK-A005's other
+half) and the spawn (depth-1) window's horizon-band residue (the engine's live
+overlay; `DP001` covers the middle 80 columns pixel-identically).

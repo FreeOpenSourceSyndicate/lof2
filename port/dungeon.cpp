@@ -278,6 +278,95 @@ int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p) {
     }
 }
 
+bool dungeon_view_opaque(uint8_t code) {
+    // The renderer marches the view column past these nibbles and stops on any
+    // other.  Measured by the depth sweep (notes-a.md Round 47): the open
+    // nibbles 0/2/7/8/9 let the march continue; 3 is opaque even though it is
+    // walkable (so the movement wall set is NOT the view set).
+    switch (code & 0x0f) {
+        case 0x0: case 0x2: case 0x7: case 0x8: case 0x9: return false;
+        default: return true;
+    }
+}
+
+DungeonView dungeon_view_for(const std::string& dir, int dungeon,
+                             const Dungeon& d, const DungeonPos& p) {
+    DungeonView v;
+    // Default: the depth-1 tileset sprite at the viewport origin.
+    v.path = dungeon_view_path(dir, dungeon, dungeon_base_view_index(d, p));
+    v.x = kViewportX;
+    v.y = kViewportY;
+
+    // March the column of cells ahead to the first view-opaque cell.
+    int dx = dungeon_facing_dx(p.facing), dy = dungeon_facing_dy(p.facing);
+    int cx = p.x, cy = p.y, depth = 0;
+    for (int step = 1; step <= kDungeonW + kDungeonH; step++) {
+        cx += dx; cy += dy;
+        depth = step;
+        bool off = (cx < 0 || cy < 0 || cx >= kDungeonW || cy >= kDungeonH);
+        if (off || dungeon_view_opaque(d.tile(cx, cy))) break;
+    }
+
+    // Depth-2 and depth->=3 blit a scenario encounter sprite instead.  These are
+    // pinned for the D5/Temple scenario only (the `NSC<dd>` encounter bank is
+    // scenario-specific and its producer is BLK-A005); other scenarios keep the
+    // depth-1 tileset sprite above.
+    if (dungeon == 5) {
+        if (depth == 2) {
+            v.path = dir + "/EGA/CHAR2/CH40";
+            v.x = 58; v.y = 27;
+        } else if (depth >= 3) {
+            v.path = dir + "/EGA/CHAR2/CH25";
+            v.x = -14; v.y = 28;
+            v.tile = true;   // corridor: the engine tiles this room sprite
+        }
+    }
+    return v;
+}
+
+// Blit an EGA image at (dx,dy) clipped to the viewport window, so a sprite whose
+// origin is left of the window (e.g. CH25 at x=-14) cannot spill onto the HUD.
+static void blit_clipped_to_window(Screen& scr, const EgaImage& img, int dx,
+                                   int dy) {
+    int w = img.width_bytes, h = img.height;
+    size_t pl = (size_t)w * h;
+    for (int y = 0; y < h; y++) {
+        int sy = dy + y;
+        if (sy < kViewportY || sy >= kViewportY + kViewportH) continue;
+        const uint8_t* p0 = img.planes.data() + (size_t)y * w;
+        const uint8_t* p1 = img.planes.data() + pl + (size_t)y * w;
+        const uint8_t* p2 = img.planes.data() + 2 * pl + (size_t)y * w;
+        const uint8_t* p3 = img.planes.data() + 3 * pl + (size_t)y * w;
+        for (int xb = 0; xb < w; xb++) {
+            uint8_t b0 = p0[xb], b1 = p1[xb], b2 = p2[xb], b3 = p3[xb];
+            for (int bit = 0; bit < 8; bit++) {
+                int sx = dx + xb * 8 + bit;
+                if (sx < kViewportX || sx >= kViewportX + kViewportW) continue;
+                int s = 7 - bit;
+                uint8_t val = (uint8_t)(((b0 >> s) & 1) | (((b1 >> s) & 1) << 1) |
+                                        (((b2 >> s) & 1) << 2) | (((b3 >> s) & 1) << 3));
+                scr.put(sx, sy, val);
+            }
+        }
+    }
+}
+
+bool render_dungeon_play_view(Screen& scr, const std::string& dir, int dungeon,
+                              const Dungeon& d, const DungeonPos& p) {
+    DungeonView v = dungeon_view_for(dir, dungeon, d, p);
+    EgaImage img;
+    if (!load_ega_image(v.path, img, nullptr)) return false;
+    if (v.tile) {
+        // Corridor: tile the sprite across the viewport at x-stride 120 (the
+        // sprite width) and y-stride -1, until the copy starts past the window.
+        for (int k = 0; v.x + 120 * k < kViewportX + kViewportW; k++)
+            blit_clipped_to_window(scr, img, v.x + 120 * k, v.y - k);
+        return true;
+    }
+    blit_clipped_to_window(scr, img, v.x, v.y);
+    return true;
+}
+
 std::string dungeon_view_path(const std::string& dir, int dungeon, int index) {
     char buf[32];
     std::snprintf(buf, sizeof(buf), "/EGA/%s/DP%03d",
@@ -343,8 +432,10 @@ bool render_dungeon_screen(Screen& scr, const std::string& dir, int dungeon,
 
 bool render_dungeon_play(Screen& scr, const std::string& dir, int dungeon,
                          const Dungeon& d, const DungeonPos& p) {
-    return render_dungeon_screen(scr, dir, dungeon,
-                                 dungeon_base_view_index(d, p));
+    EgaImage frame;
+    if (!load_ega_image(dir + "/EGA/UP/MSCR", frame, nullptr)) return false;
+    blit_image(scr, frame, 0, 0);
+    return render_dungeon_play_view(scr, dir, dungeon, d, p);
 }
 
 // Colour indices of the synthetic fallback viewport.  The oracle's window uses

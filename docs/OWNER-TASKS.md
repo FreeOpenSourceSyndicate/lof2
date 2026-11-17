@@ -17,28 +17,37 @@ Rules for this file:
 
 ## Open
 
-### OT-003 — Corroborate the `W` and `B` columns of the round-result table (optional)
-
-- **What is needed:** after a combat round resolves, read the `W` and `B`
-  columns of the `The result of this round:` table for one or two party members.
-  Specifically, two cases would close BLK-B004 completely:
-  1. a round in which a **weapon** is damaged — confirm `W` shows `*`; and
-  2. a round in which an **ability** improves — confirm `B` shows `*`. The
-     ability messages are printed in the combat log and read
-     `"(Defensive ability grows!)"` / `"(Sneaking ability improves!)"` /
-     `"(Concentration improves!)"`.
-- **Status:** the `W`/`B` meanings are now **derived from the decompilation**
-  (message + the slot the setter pairs with), so this task is **corroboration
-  only** — it is no longer a blocker. `P` was already corroborated by the
-  owner's earlier round (`P=*` ⟺ armour −2). If you happen to see one of the two
-  cases above, the observed cell closes the loop; if not, the derived meanings
-  stand (Rule 1: the decompilation is the primary source).
-- **Why only the owner can do it:** it needs live play — the columns are engine
-  state that no save carries.
-- **What it unblocks:** nothing critical; it is the last optional confirmation
-  for **BLK-B004**.
+*(none)*
 
 ## Done
+
+### OT-003 — Corroborate the `W` and `B` columns of the round-result table
+
+- **Closed (2026-11-17): the owner is skipping it** — the `W`/`B` meanings are
+  already derived from the decompilation, so the live-play confirmation is not
+  needed (Rule 1: the decompilation is the primary source).
+- **What the table looks like (owner report, 2026-11-17, confirmed correct):** one
+  row per living party member,
+
+  ```
+  [name]                -7 - * - Passed
+  [name]                -5 - - - Failed
+  ```
+
+  Columns after the name are: **HP** (the change in that member's HP this round),
+  then the four flag columns **W P B** (`*` = the event happened, `-` = it did
+  not) and **Attack** (`Passed`/`Failed` = whether the member's chosen action
+  succeeded).  The owner confirmed **`P = *` ⟺ armour −2%** (the derived `P`
+  rule) and that **`B` is not used ammunition**.
+- **New engine-behaviour fact (owner, 2026-11-17):** the round-result **table** is
+  shown only for **quick combat**; the **per-action messages** (the weapon-damage
+  / ability lines) are shown only in a **regular** (non-quick) round.  So the two
+  are never on screen together — which is why the owner could not cross-check a
+  `*` against its message.  Recorded in `docs/blockers/B.md` and
+  `docs/notes-b.md`.
+- **Outcome:** BLK-B004's columns are fully grounded by the decompilation
+  (`W`=weapon damaged, `P`=shield/armour damaged, `B`=ability improved,
+  `Attack`=action Passed/Failed); no further live-play confirmation is required.
 
 ### OT-002 — Confirm the BLK-B004 combat round-table columns and the Sneak/Use/Magic actions
 

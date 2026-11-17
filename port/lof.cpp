@@ -123,11 +123,11 @@ static void draw_cursor(Screen& s, int x, int y) {
 // decoded assets against a DOSBox capture of save slot 2 (ref/oracle/play.png).
 static bool compose_play_screen(const std::string& dir, const std::string& play,
                                 const SaveGame& sg, bool have_sg, Screen& s,
-                                std::string& err) {
+                                std::string& err, bool with_view = true) {
     s.resize(320, 200);
     s.clear(0);
     if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
-    if (!blit_ega(s, dir + "/EGA/" + play, 10, 11, &err)) return false;
+    if (with_view && !blit_ega(s, dir + "/EGA/" + play, 10, 11, &err)) return false;
     // Party panel: the six character names in a 3x2 grid, drawn with CHR2's
     // 5x5 small-caps face.  Positions recovered from the oracle.
     if (!have_sg) return true;
@@ -460,6 +460,17 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
     Dungeon dng;
     DungeonPos pos;
     bool have_dng = false;
+    SaveGame play_sg;
+    int play_dungeon = 0;
+    // Compose the in-game screen (HUD + party panel, no viewport tile) and blit
+    // the depth-selected first-person view for the party's current position.
+    auto redraw_play = [&]() {
+        if (!compose_play_screen(dir, "", play_sg, true, play_screen, err,
+                                 /*with_view=*/false))
+            return;
+        if (!render_dungeon_play_view(play_screen, dir, play_dungeon, dng, pos))
+            draw_viewport_map(play_screen, dng, pos);
+    };
     for (;;) {
         if (state == INTRO) win.present(intro[frame]);
         else if (have_play) win.present(play_screen);
@@ -470,14 +481,15 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
             bool on_menu = (frame + 1 == intro.size());
             if (on_menu && key == 'O') {
                 SaveGame sg = load_save(save_path);
-                std::string vd = sg.ok ? dungeon_view_dir(save_location(sg)) : std::string();
-                if (!vd.empty() &&
-                    compose_play_screen(dir, vd + "/DP001", sg, true, play_screen, err)) {
+                if (sg.ok && load_dungeon(
+                                 dir + "/DNGS/" + dungeon_map_name(save_location(sg)),
+                                 dng, &err) && dungeon_place_entry(dng, pos)) {
+                    play_sg = sg;
+                    play_dungeon = save_location(sg);
+                    have_dng = true;
+                    redraw_play();
                     have_play = true;
                     state = PLAY;
-                    // Load the save's dungeon so the play state is walkable.
-                    have_dng = load_dungeon(dir + "/DNGS/" + dungeon_map_name(save_location(sg)),
-                                            dng, &err) && dungeon_place_entry(dng, pos);
                 }
             } else if (on_menu && key == 'Q') {
                 break;
@@ -486,9 +498,9 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
             }
         } else if (state == PLAY) {
             if (key == 'Q') break;
-            // Arrow keys walk the party; recompose the viewport map after a move.
+            // Arrow keys walk the party; recompose the viewport after a move.
             if (have_dng && walk_apply_key(dng, pos, key))
-                draw_viewport_map(play_screen, dng, pos);
+                redraw_play();
         }
     }
     win.close();
@@ -518,10 +530,15 @@ static bool walk_loop(const std::string& dir, const std::string& save,
     }
     dungeon_place_entry(d, pos);
     for (int k : keys) walk_apply_key(d, pos, k);
-    std::string vd = dungeon_view_dir(save_location(sg));
-    if (!compose_play_screen(dir, vd.empty() ? "D0/DP001" : vd + "/DP001", sg, true, out, err))
+    // Compose the HUD + party panel with no viewport tile, then blit the
+    // depth-selected first-person view sprite into the window (its offset
+    // depends on the wall depth, so it is not a fixed DP001 blit).
+    if (!compose_play_screen(dir, "", sg, true, out, err, /*with_view=*/false))
         return false;
-    draw_viewport_map(out, d, pos);
+    if (!render_dungeon_play_view(out, dir, save_location(sg), d, pos)) {
+        // No view sprite on disk: fall back to the synthetic map viewport.
+        draw_viewport_map(out, d, pos);
+    }
     return true;
 }
 

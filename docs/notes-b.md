@@ -1628,10 +1628,20 @@ which is what pins the string base to `0x41D10` (see the correction above).
 | **B** | `es:[i + 0x224]` | an **ability improved** this round | setters `0x12846`/`0x13D7D`/`0x1471C` print `"(Defensive ability grows!)"` / `"(Sneaking ability improves!)"` / `"(Concentration improves!)"` |
 | **Attack** | `es:[i + 0x3d48]` | the action **Passed/Failed** | `-` if out of action (`char +0x49 ≠ 0`); else `Failed` if `[0x3d48] ≠ 0`; else `Passed` |
 
-**Owner live-play corroboration (OT-002/OT-003):** the owner saw a round with
-`W=- P=* B=-` in which the character's **worn armour condition dropped by 2%**
-and nothing else changed — exactly the `P` mechanism above (armour slot −2). The
-`B` column was `-` because no ability check succeeded that round.
+**Owner live-play corroboration (2026-11-17, expanded report):** the owner
+described the table in full:
+
+```
+[name]                -7 - * - Passed
+[name]                -5 - - - Failed
+```
+
+One row per living party member.  Columns: **HP** = the change in that member's
+HP this round; **W P B** = `*`/`-` flags (the event happened / did not);
+**Attack** = `Passed`/`Failed` for whether the member's chosen action succeeded.
+The owner confirmed **`P = *` ⟺ armour −2%** (exactly the `P` mechanism above,
+armour slot −2) and that **`B` is not used ammunition** (tested) — consistent
+with the derived "ability improved" meaning.
 
 **Still open (one confirmation):** the owner's test rounds never damaged a
 **weapon** and never showed a `B=*` cell. So the `W` and `B` readings are derived
@@ -1640,3 +1650,13 @@ frame. Owner task **OT-003** now asks only for (a) a round in which a **weapon**
 is damaged and (b) a round in which an ability message (`Defensive ability
 grows!` / `Sneaking ability improves!` / `Concentration improves!`) appears,
 reporting the `W` and `B` cells. That closes BLK-B004 with no guesswork.
+
+**Engine behaviour (owner, 2026-11-17) — quick vs regular rounds.**  The
+round-result **table** is displayed only when **quick combat** is selected; the
+per-action **messages** (the weapon-damage and ability lines above) are displayed
+only in a **regular** (non-quick) round.  The two are therefore never on screen at
+the same time — which is why the owner could not cross-check a `*` flag against
+its message.  **OT-003 was therefore closed as not-needed** (the `W`/`B` meanings
+are decompilation-derived and stand; Rule 1).  (Whether the melee round table is
+*only* the quick-combat summary is not yet confirmed — the printer at `0x186A3`
+runs in both modes' round function.)
