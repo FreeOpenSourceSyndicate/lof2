@@ -230,12 +230,26 @@ Full write-up + reproducible method: `docs/notes-b.md`
 
 `char[slot*4 + 0x85]` is the slot's condition byte (0..100; `port/char.h`).
 
-**Owner live-play corroboration (OT-002/OT-003).** The owner saw a round with
-`W=- P=* B=-` in which the character's **worn armour condition dropped by 2%**
-and nothing else changed — exactly the `P` mechanism (armour slot −2). This
-closes the `P` reading; `W` and `B` are derived from the decompilation but not
-yet seen in a populated frame (the owner's rounds never damaged a weapon and
-never showed an ability message). OT-003 is narrowed to those two cases.
+**Owner live-play corroboration (2026-11-17, expanded report).**  The owner
+described the table in full and confirmed several columns:
+
+- the table has **one row per living party member**, of the form
+  `[name]   -7 - * - Passed` / `[name]   -5 - - - Failed`;
+- the **second column is the change in that member's HP** for the round (matches
+  the printer's HP delta `char[+0x22] − snapshot`);
+- the **`Attack` column** is `Passed`/`Failed` — whether the member's chosen
+  action (attack, cast, …) succeeded;
+- **`P = *` ⟺ armour −2%** — exactly the derived `P` rule (armour slot −2);
+- **`B` is *not* used ammunition** (the owner tested and ruled that out) —
+  consistent with the derived meaning (an ability/skill improvement).
+
+The owner could not reproduce a **`W`** `*` (never damaged a weapon) and never
+saw a **`B`** `*`, so those two remain derived-from-decompilation rather than
+live-observed.  **OT-003** is narrowed to exactly those two cases and is
+**optional corroboration** (Rule 1: the decompilation is the primary source, and
+the `W`/`B` meanings already stand).  The derived `W`/`B` strings were re-checked
+against the raw image (present at file `0x48752`/`0x487fd` for `W`,
+`0x4841a`/`0x485a8`/`0x4866b` for `B`).
 
 **Owner live-play confirmation (2026-11-17) — (b) is closed, (a) narrowed.**
 The owner played a round (full quote in `docs/OWNER-TASKS.md`, OT-002):

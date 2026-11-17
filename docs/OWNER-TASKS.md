@@ -19,24 +19,56 @@ Rules for this file:
 
 ### OT-003 — Corroborate the `W` and `B` columns of the round-result table (optional)
 
-- **What is needed:** after a combat round resolves, read the `W` and `B`
-  columns of the `The result of this round:` table for one or two party members.
-  Specifically, two cases would close BLK-B004 completely:
-  1. a round in which a **weapon** is damaged — confirm `W` shows `*`; and
-  2. a round in which an **ability** improves — confirm `B` shows `*`. The
-     ability messages are printed in the combat log and read
-     `"(Defensive ability grows!)"` / `"(Sneaking ability improves!)"` /
-     `"(Concentration improves!)"`.
-- **Status:** the `W`/`B` meanings are now **derived from the decompilation**
-  (message + the slot the setter pairs with), so this task is **corroboration
-  only** — it is no longer a blocker. `P` was already corroborated by the
-  owner's earlier round (`P=*` ⟺ armour −2). If you happen to see one of the two
-  cases above, the observed cell closes the loop; if not, the derived meanings
-  stand (Rule 1: the decompilation is the primary source).
-- **Why only the owner can do it:** it needs live play — the columns are engine
-  state that no save carries.
-- **What it unblocks:** nothing critical; it is the last optional confirmation
-  for **BLK-B004**.
+> **Owner, please read this one.** This is the **only** open owner task. It is
+> **optional** — the `W`/`B` meanings are already derived from the decompilation
+> and stand without it (Rule 1). It is kept open only because you asked to be
+> reminded of anything needing you, and it is the last unconfirmed cell. If you
+> would rather not chase it, say so and it moves to Done.
+
+**What the table looks like (your report, 2026-11-17, confirmed correct):** one
+row per party member,
+
+```
+[name]                -7 - * - Passed
+[name]                -5 - - - Failed
+```
+
+Columns after the name are: **HP** (the change in that member's HP this round),
+then the four flag columns **W P B** (`*` = the event happened, `-` = it did
+not) and **Attack** (`Passed`/`Failed` = whether the member's chosen action
+succeeded). Your observation that **`P = *` ⟺ armour −2%** is exactly the
+derived `P` rule. Thank you — that closed `P`.
+
+**What is still unconfirmed by live play (both are already derived, so this is
+corroboration only):**
+
+1. **`W`** — a round in which a **weapon is damaged**. The combat log prints one
+   of these lines immediately before the table:
+   - `"The weapon of <name> gets stuck in the armour and is damaged!"`, or
+   - `"Unfortunately, the weapon <name> is not durable enough, and breaks with a
+     loud bang!"`.
+   If you see either, the same member's **`W`** cell should be `*` (and their
+   weapon's condition drops by 2, or the weapon is destroyed in the second case).
+2. **`B`** — a round in which an **ability improves**. The log prints one of:
+   - `"(Defensive ability grows!)"` (from a successful defence/parry),
+   - `"(Sneaking ability improves!)"` (from a successful sneak), or
+   - `"(Concentration improves!)"` (from a successful cast/concentration).
+   If you see any of these, the same member's **`B`** cell should be `*`.
+
+You already ruled out ammunition for `B` — good, that is consistent with the
+derived meaning (an ability/skill improvement, not a consumable).
+
+**How to make it happen:** weapon damage happens when you *attack* a well-armoured
+foe and the hit "gets stuck" (or a fragile weapon breaks); ability growth happens
+when a member **defends/parries**, **sneaks**, or **concentrates/casts** and the
+roll succeeds. Several rounds against a tough enemy should produce at least one.
+
+**Why only you can do it:** it needs live play — the flags are per-round engine
+state that no save carries.
+
+**What it unblocks:** nothing critical. It is the last optional confirmation for
+**BLK-B004** (the action enum and the `P`/`HP`/`Attack` columns are already
+settled). If you never see a `W`/`B` `*`, the derived meanings still stand.
 
 ## Done
 

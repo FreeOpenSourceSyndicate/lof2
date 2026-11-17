@@ -47,6 +47,15 @@ keep the depth-1 tileset sprite.
 #4 partial (combat), #5 Inn/Temple `D5` interiors (M/A), #6 BLK-B004 (`W P B`
 meaning). #1/#2/#7/#8/#9 done. **Owner tasks:** OT-003 (live-play W/P/B check).
 
+**Owner interaction (this session).** The owner reported the full combat
+round-table layout (`[name] HP W P B Attack`, one row per living member; HP =
+the round's HP change; Attack = action Passed/Failed) and confirmed **`P=*` ⟺
+armour −2%** and that **`B` is not ammunition**. This corroborates the derived
+`W P B` model (the decompilation already fixes `W`=weapon damaged, `P`=shield/
+armour damaged, `B`=ability improved). Recorded in `docs/blockers/B.md`,
+`docs/notes-b.md` and `docs/OWNER-TASKS.md` (OT-003 rewritten to the two
+still-unobserved cells, flagged **optional**).
+
 ## Session 2026-11-17 (twenty-second session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. `main` green at `05aa0f0` (clean, pushed, **0 open
