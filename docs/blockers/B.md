@@ -18,7 +18,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
 | BLK-B001 | B (characters/items) | Maintainer | High | Resolved | — |
 | BLK-B002 | B (characters/items) | Maintainer | Medium | Resolved | BLK-B001 |
 | BLK-B003 | B (characters/items) | Agent B | Medium | Resolved | — |
-| BLK-B004 | B (characters/items) | Maintainer | Medium | Resolved (2026-11-18): dispatcher+state+printer grounded; **column meanings derived from the decompilation** — W = weapon damaged, P = shield/armour damaged, B = ability improved, Attack = Passed/Failed. Owner play corroborated `P`. OT-003 (optional corroboration of W/B) still open | — |
+| BLK-B004 | B (characters/items) | Maintainer | Medium | **Resolved (2026-11-18)**: dispatcher+state+printer grounded; **column meanings derived from the decompilation** — W = weapon damaged, P = shield/armour damaged, B = ability improved, Attack = Passed/Failed. Owner play corroborated `P`; OT-003 (optional W/B corroboration) closed as not-needed | — |
 | BLK-B005 | B (characters/items) | Agent B | Medium | Resolved | — |
 
 ---
@@ -245,11 +245,19 @@ described the table in full and confirmed several columns:
 
 The owner could not reproduce a **`W`** `*` (never damaged a weapon) and never
 saw a **`B`** `*`, so those two remain derived-from-decompilation rather than
-live-observed.  **OT-003** is narrowed to exactly those two cases and is
+live-observed.  **OT-003** was narrowed to exactly those two cases and is
 **optional corroboration** (Rule 1: the decompilation is the primary source, and
-the `W`/`B` meanings already stand).  The derived `W`/`B` strings were re-checked
-against the raw image (present at file `0x48752`/`0x487fd` for `W`,
-`0x4841a`/`0x485a8`/`0x4866b` for `B`).
+the `W`/`B` meanings already stand); the owner has since **closed it as
+not-needed**.  The derived `W`/`B` strings were re-checked against the raw image
+(present at file `0x48752`/`0x487fd` for `W`, `0x4841a`/`0x485a8`/`0x4866b` for
+`B`).
+
+**Quick vs regular rounds (owner, 2026-11-17).**  The round-result **table** is
+shown only in **quick combat**; the per-action **messages** (weapon-damage /
+ability lines) are shown only in a **regular** round.  The two never appear
+together, which is why the owner could not cross-check a `*` against its message.
+This is why the `W`/`B` cells cannot easily be confirmed by eye — the meanings
+stay decompilation-derived.
 
 **Owner live-play confirmation (2026-11-17) — (b) is closed, (a) narrowed.**
 The owner played a round (full quote in `docs/OWNER-TASKS.md`, OT-002):

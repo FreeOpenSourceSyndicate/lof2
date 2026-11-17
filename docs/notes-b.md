@@ -1650,3 +1650,13 @@ frame. Owner task **OT-003** now asks only for (a) a round in which a **weapon**
 is damaged and (b) a round in which an ability message (`Defensive ability
 grows!` / `Sneaking ability improves!` / `Concentration improves!`) appears,
 reporting the `W` and `B` cells. That closes BLK-B004 with no guesswork.
+
+**Engine behaviour (owner, 2026-11-17) — quick vs regular rounds.**  The
+round-result **table** is displayed only when **quick combat** is selected; the
+per-action **messages** (the weapon-damage and ability lines above) are displayed
+only in a **regular** (non-quick) round.  The two are therefore never on screen at
+the same time — which is why the owner could not cross-check a `*` flag against
+its message.  **OT-003 was therefore closed as not-needed** (the `W`/`B` meanings
+are decompilation-derived and stand; Rule 1).  (Whether the melee round table is
+*only* the quick-combat summary is not yet confirmed — the printer at `0x186A3`
+runs in both modes' round function.)

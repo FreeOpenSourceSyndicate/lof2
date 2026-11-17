@@ -44,17 +44,19 @@ encounter bank (`NSC05[id].+0x48`), pinned for D5 only (G-007); other scenarios
 keep the depth-1 tileset sprite.
 
 **Open / next:** queue `docs/HANDOFF.md` §4 — #3 partial (BLK-A005 residue),
-#4 partial (combat), #5 Inn/Temple `D5` interiors (M/A), #6 BLK-B004 (`W P B`
-meaning). #1/#2/#7/#8/#9 done. **Owner tasks:** OT-003 (live-play W/P/B check).
+#4 partial (combat), #5 Inn/Temple `D5` interiors (M/A). #1/#2/#6/#7/#8/#9 done.
+**Owner tasks:** none open (OT-003 closed as not-needed).
 
 **Owner interaction (this session).** The owner reported the full combat
 round-table layout (`[name] HP W P B Attack`, one row per living member; HP =
 the round's HP change; Attack = action Passed/Failed) and confirmed **`P=*` ⟺
 armour −2%** and that **`B` is not ammunition**. This corroborates the derived
 `W P B` model (the decompilation already fixes `W`=weapon damaged, `P`=shield/
-armour damaged, `B`=ability improved). Recorded in `docs/blockers/B.md`,
-`docs/notes-b.md` and `docs/OWNER-TASKS.md` (OT-003 rewritten to the two
-still-unobserved cells, flagged **optional**).
+armour damaged, `B`=ability improved). The owner also noted the **table shows
+only in quick combat while the messages show only in regular rounds** (so they
+can't be cross-checked by eye) and **closed OT-003 as not-needed**. Recorded in
+`docs/blockers/B.md`, `docs/notes-b.md` and `docs/OWNER-TASKS.md` (OT-003 →
+Done).
 
 ## Session 2026-11-17 (twenty-second session) — TL;DR — READ THIS FIRST
 
