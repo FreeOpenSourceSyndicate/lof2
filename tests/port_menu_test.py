@@ -23,10 +23,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ORACLE = os.path.join(ROOT, "ref", "oracle", "menu.png")
 SHOT = "/tmp/port_menu_test.png"
 
-# Regions where the engine paints dynamic content the port cannot reproduce
-# offline (the top-left corner is overwritten by the loaded town view).  The
-# comparison tolerates a small number of stray pixels there.
-THRESHOLD = 300
+# With the mouse cursor reproduced (`--cursor 0,0`), the only residue is a
+# ~14-px 1-px seam where the left viewport's wrapped strip meets the town tile
+# (see docs/notes-maintainer-town.md).  Tolerate just that.
+THRESHOLD = 20
 
 
 def main() -> int:
@@ -35,7 +35,7 @@ def main() -> int:
         return 0
     subprocess.run(
         [os.path.join(ROOT, "lof"), "--dir", os.path.join(ROOT, "game"),
-         "--headless", "--shot", SHOT],
+         "--headless", "--cursor", "0,0", "--shot", SHOT],
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     port = np.asarray(Image.open(SHOT).convert("RGB")).astype(int)
@@ -55,8 +55,8 @@ def main() -> int:
     if n <= THRESHOLD:
         # The menu text must be pixel-exact: the port blits the EGA/UP/CHR1
         # cells directly (6-px advance), and the engine does the same, so any
-        # font-mapping or advance regression shows up here (the top-left
-        # residue above is the engine's dynamic town overlay, not text).
+        # font-mapping or advance regression shows up here (the residue above is
+        # the wrapped-strip seam, not text).
         for name, (x0, x1, y0, y1) in {
                 "greeting": (139, 300, 90, 108),
                 "options": (139, 300, 112, 180),

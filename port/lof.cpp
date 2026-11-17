@@ -60,6 +60,61 @@ static void dump_spec_files(const std::string& dir) {
     }
 }
 
+// The game's software mouse cursor: a 16x16 arrow the engine draws itself over
+// the current screen at the polled mouse position.  The engine never asks the
+// BIOS to draw it (it only calls INT 33h fn0 "reset" and fn3 "poll"), so the
+// shape is a fixed 4-plane sprite the routine at image 0x2758 blits.  It is the
+// "16x16 top-left patch" that the DOSBox reference captures show: those frames
+// were taken with the mouse parked at (0,0).  The emulator never draws it
+// (its mouse never moves), so its frames lack the arrow.  Values were recovered
+// byte-exact by dumping the decoded scratch buffer (LOF_PXDUMP) at the blit.
+static const uint8_t kCursorSprite[16][16] = {
+    {0xf,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+    {0x8,0x8,0x8,0,0,0,0,0,0,0,0,0,0,0,0,0},
+    {0,0x8,0x3,0x3,0x8,0,0,0,0,0,0,0,0,0,0,0},
+    {0,0x8,0x8,0x3,0x3,0x8,0,0,0,0,0,0,0,0,0,0},
+    {0,0,0x8,0x8,0x3,0x3,0,0,0,0,0,0x8,0,0,0,0},
+    {0,0,0x8,0x8,0x8,0x3,0,0,0,0x8,0x3,0,0,0,0,0},
+    {0x3,0,0,0,0,0x8,0x8,0,0,0x3,0x8,0,0,0,0,0},
+    {0xf,0,0,0,0,0,0x8,0x3,0x8,0,0,0,0,0,0,0},
+    {0xf,0x8,0x3,0x8,0,0,0x8,0x8,0x3,0,0,0,0,0,0,0},
+    {0xf,0x3,0x8,0x8,0x3,0x3,0x8,0x8,0x8,0x3,0,0,0,0,0,0},
+    {0x3,0xf,0x8,0x8,0x8,0x8,0x8,0,0,0x8,0x3,0,0,0,0,0},
+    {0,0xf,0x3,0x8,0x8,0x8,0x8,0,0,0,0x8,0x3,0,0,0,0},
+    {0,0x3,0xf,0x3,0x8,0x8,0x8,0x8,0,0,0,0x8,0x3,0,0,0},
+    {0,0,0x3,0xf,0x3,0x8,0x8,0x8,0,0,0,0,0x8,0x3,0,0},
+    {0,0,0,0x3,0xf,0xf,0x3,0x8,0,0,0,0,0,0x8,0x3,0},
+    {0,0,0,0,0,0x3,0xf,0xf,0xf,0x3,0,0,0,0,0x8,0x3},
+};
+// Mask: 1 where the sprite writes a pixel (value != 0), 0 where it is
+// transparent (the engine's masked blit leaves those pixels untouched).
+static const uint8_t kCursorMask[16][16] = {
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+    {1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0},
+    {0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0},
+    {0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0},
+    {0,0,1,1,1,1,0,0,0,0,0,1,0,0,0,0},
+    {0,0,1,1,1,1,0,0,0,1,1,0,0,0,0,0},
+    {1,0,0,0,0,1,1,0,0,1,1,0,0,0,0,0},
+    {1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0},
+    {1,1,1,1,0,0,1,1,1,0,0,0,0,0,0,0},
+    {1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0},
+    {1,1,1,1,1,1,1,0,0,1,1,0,0,0,0,0},
+    {0,1,1,1,1,1,1,0,0,0,1,1,0,0,0,0},
+    {0,1,1,1,1,1,1,1,0,0,0,1,1,0,0,0},
+    {0,0,1,1,1,1,1,1,0,0,0,0,1,1,0,0},
+    {0,0,0,1,1,1,1,1,0,0,0,0,0,1,1,0},
+    {0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1},
+};
+
+// Draw the mouse cursor at (x,y), masking out its transparent pixels.  The
+// engine draws it after every other element, so it sits on top of the screen.
+static void draw_cursor(Screen& s, int x, int y) {
+    for (int cy = 0; cy < 16; cy++)
+        for (int cx = 0; cx < 16; cx++)
+            if (kCursorMask[cy][cx]) s.put(x + cx, y + cy, kCursorSprite[cy][cx]);
+}
+
 // Compose the in-game play screen: the static HUD background (EGA/UP/MSCR)
 // with the first-person viewport tile (EGA/SUB/DPNNN) blitted into the 120x119
 // window at (10,11), then the party panel.  `play` is the SUB-relative tile
@@ -477,6 +532,11 @@ int main(int argc, char** argv) {
     std::string shot;
     long shot_frame = -1;
     std::string walk_save, walk_keys;
+    // --cursor X,Y overlays the engine's software mouse cursor at (X,Y) on the
+    // rendered screen.  The DOSBox reference captures were taken with the mouse
+    // parked at (0,0), so `--cursor 0,0` reproduces them exactly.
+    int cur_x = 0, cur_y = 0;
+    bool have_cursor = false;
 
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
@@ -491,6 +551,13 @@ int main(int argc, char** argv) {
         else if (a == "--walk") walk = true;
         else if (a == "--save" && i + 1 < argc) walk_save = argv[++i];
         else if (a == "--walk-keys" && i + 1 < argc) walk_keys = argv[++i];
+        else if (a == "--cursor" && i + 1 < argc) {
+            const char* v = argv[++i];
+            char* end = nullptr;
+            cur_x = (int)strtol(v, &end, 10);
+            if (end && *end == ',') cur_y = (int)strtol(end + 1, nullptr, 10);
+            have_cursor = true;
+        }
     }
 
     if (dump) { dump_data(dir); return 0; }
@@ -615,6 +682,7 @@ int main(int argc, char** argv) {
             fprintf(stderr, "lof: %s\n", err.c_str());
             return 1;
         }
+        if (have_cursor) draw_cursor(s, cur_x, cur_y);
         if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
         if (!headless) present_sdl(s, "Legend of Faerghail");
         return 0;
@@ -640,6 +708,7 @@ int main(int argc, char** argv) {
             fprintf(stderr, "lof: %s\n", err.c_str());
             return 1;
         }
+        if (have_cursor) draw_cursor(s, cur_x, cur_y);
         if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
         if (!headless) present_sdl(s, "Legend of Faerghail");
         return 0;
@@ -670,6 +739,7 @@ int main(int argc, char** argv) {
     if (frames.empty()) { fprintf(stderr, "lof: %s\n", err.c_str()); return 1; }
     if (shot_frame >= 0 && (size_t)shot_frame < frames.size()) scr = frames[shot_frame];
     else scr = frames.back();
+    if (have_cursor) draw_cursor(scr, cur_x, cur_y);
 
     if (have_shot && !save_png(shot, scr)) {
         fprintf(stderr, "lof: cannot write %s\n", shot.c_str());
