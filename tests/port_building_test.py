@@ -46,7 +46,7 @@ def check(flag, ref, label):
         return 0
     shot = "/tmp/port_building_%s.png" % ref
     subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
-                    flag, "--shot", shot],
+                    flag, "--cursor", "0,0", "--shot", shot],
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     port = np.asarray(Image.open(shot).convert("RGB")).astype(int)
@@ -66,16 +66,20 @@ def check(flag, ref, label):
             print("port_building_test: FAIL %s (%s region not exact)" % (label, name))
             return 1
 
-    # Whole screen, masking the 16x16 top-left patch and the dynamic party panel.
+    # Whole screen, masking only the dynamic party panel.  The 16x16 top-left
+    # patch is the engine's software mouse cursor (capture parked at (0,0)),
+    # reproduced by `--cursor 0,0`, so the corner is pinned too.
     mask = np.ones(port.shape[:2], dtype=bool)
-    mask[0:16, 0:16] = False
     mask[0:52, 140:320] = False
     match = float((port == oracle).all(2)[mask].mean())
     if match < 0.999:
         print("port_building_test: FAIL %s (static match=%.2f%% < 99.9%%)"
               % (label, 100 * match))
         return 1
-    print("port_building_test: ok %s (viewport + text exact)" % label)
+    if not (port[0:16, 0:16] == oracle[0:16, 0:16]).all():
+        print("port_building_test: FAIL %s (mouse-cursor corner not exact)" % label)
+        return 1
+    print("port_building_test: ok %s (viewport + text + cursor exact)" % label)
     return 0
 
 

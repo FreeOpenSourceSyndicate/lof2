@@ -17,8 +17,10 @@ The town *name* is not hardcoded: the engine (image 0x53E0) selects "Thyn." or
 test also pins that selector using the owner-supplied Cyldane save (GAME4) and
 its oracle frame (ref/oracle/town_cyldane.png).
 
-The static screen is pixel-exact except for a 16x16 top-left patch and the
-dynamic party panel the engine draws from the loaded save; both are excluded.
+The static screen is pixel-exact except for the dynamic party panel the engine
+draws from the loaded save.  The 16x16 top-left patch is the engine's software
+mouse cursor (the capture parked the mouse at (0,0)); the test reproduces it
+with `--cursor 0,0` and pins the corner too.
 
 Run via `make golden-port` (or directly).  Needs PIL + numpy and the oracle PNG.
 """
@@ -62,7 +64,7 @@ def main() -> int:
         print("port_town_test: SKIP (no oracle capture)")
         return 0
     subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME,
-                    "--headless", "--town", "--shot", SHOT],
+                    "--headless", "--town", "--cursor", "0,0", "--shot", SHOT],
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     port = np.asarray(Image.open(SHOT).convert("RGB")).astype(int)
@@ -72,14 +74,18 @@ def main() -> int:
         return 1
 
     # The static composition: viewport + every text row must be pixel-exact.
-    # The excluded regions are the 16x16 top-left patch and the party panel
-    # (top-right, drawn from live save state).
+    # The only excluded region is the party panel (top-right, drawn from live
+    # save state).  The 16x16 top-left patch is the engine's software mouse
+    # cursor (the DOSBox capture parked the mouse at (0,0)); `--cursor 0,0`
+    # reproduces it, so the corner is now pinned too.
     mask = np.ones(port.shape[:2], dtype=bool)
-    mask[0:16, 0:16] = False      # top-left patch
     mask[0:52, 140:320] = False   # dynamic party panel
     static_match = float((port[mask] == oracle[mask]).all(1).mean())
     if static_match < 0.999:
         print("port_town_test: FAIL (static match=%.2f%% < 99.9%%)" % (100 * static_match))
+        return 1
+    if not (port[0:16, 0:16] == oracle[0:16, 0:16]).all():
+        print("port_town_test: FAIL (mouse-cursor corner not exact)")
         return 1
 
     # The viewport must be byte-identical (the EGA decoder renders TWN00
