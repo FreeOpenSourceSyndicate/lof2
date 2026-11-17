@@ -18,7 +18,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
 | BLK-B001 | B (characters/items) | Maintainer | High | Resolved | — |
 | BLK-B002 | B (characters/items) | Maintainer | Medium | Resolved | BLK-B001 |
 | BLK-B003 | B (characters/items) | Agent B | Medium | Resolved | — |
-| BLK-B004 | B (characters/items) | Maintainer | Medium | Partly resolved (dispatcher+state+actions grounded; printer located; only the `W P B` *meaning* open — OT-003) | — |
+| BLK-B004 | B (characters/items) | Maintainer | Medium | Resolved (2026-11-18): dispatcher+state+printer grounded; **column meanings derived from the decompilation** — W = weapon damaged, P = shield/armour damaged, B = ability improved, Attack = Passed/Failed. Owner play corroborated `P`. OT-003 (optional corroboration of W/B) still open | — |
 | BLK-B005 | B (characters/items) | Agent B | Medium | Resolved | — |
 
 ---
@@ -198,16 +198,44 @@ reads four per-character bytes from the party segment (`0x468E`, via
 | **Attack** | `es:[i + 0x3d48]` | `-` if out of action (`+0x49≠0`); else `Failed` if ≠0; else `Passed` |
 
 The four arrays are **zeroed at round setup** (image `0x18198`–`0x181B8`) and
-set to `1` by **shared town/combat setters** (W `0x156CA`/`0x15955`, P
-`0x17290`/`0x17658`/`0x1777A`, B `0x12846`/`0x13D7E`/`0x1471D`; enclosing fns
-`0x1370C`/`0xF5C0`).  A `LOF_WATCH=4bee8:4bef4` run of the scripted combat drive
-confirms a **W bit is set** mid-round (`1DAF:7CE0` = image `0x156CA`).  The
-arrays are **generic per-character event bits reused across result panels**
-(the House of Trades sets W, the Temple sets P, pick-pocketing sets B), so the
-*combat* meaning of W/P/B is the only thing left; it needs a populated round
-frame (filed as owner task **OT-003**) or a trace of which combat branch sets
-each bit.  Full write-up + reproducible method: `docs/notes-b.md`
+set to `1` by the **combat** setters below.  A `LOF_WATCH=4bee8:4bef4` run of
+the scripted combat drive confirms a **W bit is set** mid-round (`1DAF:7CDA` =
+image `0x156CA`), and that run's `LOF_TRACE_IP` shows **`ds = 0x4C92`** at the
+setter — which pins the string base to **`0x41D10`** (see the correction below).
+Full write-up + reproducible method: `docs/notes-b.md`
 ("BLK-B004 — the round-result printer FOUND").
+
+> **CORRECTION (2026-11-18).** The earlier text here read the setters with the
+> **wrong DS base `0x40000`** and therefore called them "shared town/combat
+> setters" (House of Trades / Temple / pick-pocketing). That was wrong: the base
+> is **`0x41D10`**, and the setters are **combat** messages. The correct meanings
+> are in the next section. (The wrong base arose because `0x40000` is *also* a
+> plausible base — DS `0x4AC1` — but the engine's DS at these setters is
+> `0x4C92`.)
+
+**Column meaning (resolved 2026-11-18, from the decompilation + owner play):**
+
+- **`W`** = the character's **weapon was damaged** this round. Setters `0x156CA`
+  (`sub byte es:[bx+si+0x85],2` on the **weapon** slot, `[bp-0x38]`) and
+  `0x15955` (slot set to `0` — the weapon breaks); messages `"The weapon of … "`
+  / `"Unfortunately, the weapon … breaks with a loud bang!"`.
+- **`P`** = a **protective item (shield or armour) was damaged** this round.
+  Setters `0x17658` (**shield** slot `[bp-0x30]`, −2), `0x1777A` (**armour**
+  slot `[bp-0x3e]`, −2); the `0x17290` rust variant zeroes the weapon/shield/
+  armour slot and prints `"The weapon/shield/armour rusts!"`.
+- **`B`** = an **ability improved** this round. Setters `0x12846`/`0x13D7D`/
+  `0x1471C` print `"(Defensive ability grows!)"` / `"(Sneaking ability
+  improves!)"` / `"(Concentration improves!)"`.
+- **`Attack`** = the action **Passed/Failed** (owner-confirmed).
+
+`char[slot*4 + 0x85]` is the slot's condition byte (0..100; `port/char.h`).
+
+**Owner live-play corroboration (OT-002/OT-003).** The owner saw a round with
+`W=- P=* B=-` in which the character's **worn armour condition dropped by 2%**
+and nothing else changed — exactly the `P` mechanism (armour slot −2). This
+closes the `P` reading; `W` and `B` are derived from the decompilation but not
+yet seen in a populated frame (the owner's rounds never damaged a weapon and
+never showed an ability message). OT-003 is narrowed to those two cases.
 
 **Owner live-play confirmation (2026-11-17) — (b) is closed, (a) narrowed.**
 The owner played a round (full quote in `docs/OWNER-TASKS.md`, OT-002):
