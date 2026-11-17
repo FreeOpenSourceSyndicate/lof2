@@ -5,6 +5,44 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-17 (twenty-second session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**. `main` green at `05aa0f0` (clean, pushed, **0 open
+PRs**, only `main` on the remote). `./bootstrap.sh --check` → game data present
++ all three saves installed; `make test` green; `make golden-port` green after
+installing the missing `numpy`/`Pillow` (`bootstrap.sh` warns about these; run
+`pip install numpy Pillow` once per reset). No code changed; this session was a
+**state-of-affairs check + handover** plus one **lane-B analysis advance**.
+
+- **BLK-B004 advanced — the round-result table printer is FOUND.** The melee
+  round table (`The result of this round:` / `Name       HP   W P B Attack`) is
+  printed by image **`0x186A3`**, inside the combat round function **`0x1810E`**.
+  It reads four **per-character bytes** from the party segment (`0x468E`):
+  **W**=`[i*2+0x5608]`, **P**=`[i*2+0x5609]`, **B**=`[i+0x224]`,
+  **Attack**=`[i+0x3d48]`; each prints `* `/`- ` (Attack: `Failed`/`Passed`/`-`
+  when out of action). The four arrays are **zeroed at round setup** (image
+  `0x18198`–`0x181B8`) and set to `1` by shared town/combat setters (W
+  `0x156CA`/`0x15955`, P `0x17290`/`0x17658`/`0x1777A`, B `0x12846`/`0x13D7E`/
+  `0x1471D`, all inside fn `0x1370C`/`0xF5C0`). A `LOF_WATCH=4bee8:4bef4` run of
+  the scripted combat drive confirms a **W bit is set** mid-round
+  (`1DAF:7CE0` = image `0x156CA`). **Still open: the combat *meaning* of W/P/B**
+  (the arrays are generic event bits reused across result panels — House of
+  Trades sets W, the Temple sets P, pick-pocketing sets B — so the combat
+  semantics need a populated round frame or a trace of which combat branch sets
+  each). Full write-up + reproducible method: `docs/notes-b.md`
+  ("BLK-B004 — the round-result printer FOUND"). Branch/PR:
+  `work/maintainer-blk-b004` (docs-only).
+- **State verified end to end:** all 8 drop-in golden screens pass
+  (`port_menu/play/town/building/ui/walk/vor`), `make test` green, tree clean.
+  The queue (`docs/HANDOFF.md` §4) is unchanged: #3 BLK-A001/A005 (A, viewport
+  composite), #4 play loop (M), #5 Inn/Temple interiors (M/A), #6 BLK-B004
+  (B — now **only** the W/P/B *meaning* remains). #1/#2/#7/#8/#9 done.
+- **Owner tasks:** none open (OT-001, OT-002 both Done). One **new** owner
+  question is filed in `docs/OWNER-TASKS.md` (**OT-003**) because it is a
+  live-play observation only the owner can make: *after a combat round, which of
+  the W/P/B columns show `*` for a character who attacked / was hit / defended?*
+  That settles the last open BLK-B004 item without further guesswork.
+
 ## Session 2026-11-17 (twenty-first session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**; `main` green. First session of the new maintainer

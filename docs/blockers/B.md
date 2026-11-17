@@ -18,7 +18,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
 | BLK-B001 | B (characters/items) | Maintainer | High | Resolved | — |
 | BLK-B002 | B (characters/items) | Maintainer | Medium | Resolved | BLK-B001 |
 | BLK-B003 | B (characters/items) | Agent B | Medium | Resolved | — |
-| BLK-B004 | B (characters/items) | Maintainer | Medium | Partly resolved (dispatcher+state+actions grounded; `W P B` columns open) | — |
+| BLK-B004 | B (characters/items) | Maintainer | Medium | Partly resolved (dispatcher+state+actions grounded; printer located; only the `W P B` *meaning* open — OT-003) | — |
 | BLK-B005 | B (characters/items) | Agent B | Medium | Resolved | — |
 
 ---
@@ -183,6 +183,31 @@ action dispatcher — grounded").  In short:
 `Attack`) are read off the header text only, not confirmed against a live
 withdraw/melee table; (c) the meaning of the `+0x70` byte (round setup fills it
 from `rand(5)+1`; independent of `+0x0f`).
+
+**Progress (2026-11-17, twenty-second session) — the round-table printer is
+found; only the `W P B` *meaning* remains.**  The melee round table is printed
+by image **`0x186A3`**, inside the combat round function **`0x1810E`**.  It
+reads four per-character bytes from the party segment (`0x468E`, via
+`[ds:0xafdc]`/`[ds:0xafd4]`/`[ds:0xafd6]`):
+
+| column | address | printed |
+|--------|---------|---------|
+| **W** | `es:[i*2 + 0x5608]` | `* ` if ≠0 else `- ` |
+| **P** | `es:[i*2 + 0x5609]` | `* ` if ≠0 else `- ` |
+| **B** | `es:[i + 0x224]` | `* ` if ≠0 else `- ` |
+| **Attack** | `es:[i + 0x3d48]` | `-` if out of action (`+0x49≠0`); else `Failed` if ≠0; else `Passed` |
+
+The four arrays are **zeroed at round setup** (image `0x18198`–`0x181B8`) and
+set to `1` by **shared town/combat setters** (W `0x156CA`/`0x15955`, P
+`0x17290`/`0x17658`/`0x1777A`, B `0x12846`/`0x13D7E`/`0x1471D`; enclosing fns
+`0x1370C`/`0xF5C0`).  A `LOF_WATCH=4bee8:4bef4` run of the scripted combat drive
+confirms a **W bit is set** mid-round (`1DAF:7CE0` = image `0x156CA`).  The
+arrays are **generic per-character event bits reused across result panels**
+(the House of Trades sets W, the Temple sets P, pick-pocketing sets B), so the
+*combat* meaning of W/P/B is the only thing left; it needs a populated round
+frame (filed as owner task **OT-003**) or a trace of which combat branch sets
+each bit.  Full write-up + reproducible method: `docs/notes-b.md`
+("BLK-B004 — the round-result printer FOUND").
 
 **Owner live-play confirmation (2026-11-17) — (b) is closed, (a) narrowed.**
 The owner played a round (full quote in `docs/OWNER-TASKS.md`, OT-002):
