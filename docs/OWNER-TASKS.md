@@ -17,7 +17,22 @@ Rules for this file:
 
 ## Open
 
-*(none currently)*
+### OT-003 — Observe a populated combat round-result table (the `W P B` columns)
+
+- **What is needed:** after a combat round resolves, read the `W P B` columns of
+  the `The result of this round:` table for one or two party members and report
+  which cells show `*` vs `-`. Ideally one case per situation: a character who
+  **attacked and hit**, one who **was hit** (lost HP), one who **defended** or
+  did nothing, and one who was **put out of action**.
+- **Why only the owner can do it:** it needs live play — the columns are
+  engine state that no save carries, and the emulator path only reaches the
+  table with a specific scripted input (and enemy randomness).
+- **What it unblocks:** the last open sub-item of **BLK-B004**. The printer is
+  now decoded (`docs/notes-b.md`), so we know the three flags are per-character
+  bytes (`W`=`[i*2+0x5608]`, `P`=`[i*2+0x5609]`, `B`=`[i+0x224]`) that the round
+  zeroes then sets to `1`; only their *combat meaning* is unknown (the owner's
+  guess: `W`=weapon, `P`=armour/`Panzerung`; `B` unknown). A single populated
+  frame resolves it with no guesswork.
 
 ## Done
 
