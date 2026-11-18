@@ -49,6 +49,23 @@ How to use each section:
   it is not removable by Lane A it becomes a blocker (`docs/blockers/A.md`).
   Cross-checking is also possible with more oracle sweeps (patch the *party
   cell*, not the ahead cell) at no decompile cost.
+- **Progress (2026-11-18, maintainer).** The **renderer** half is now
+  decompiled: the per-cell view routine (`img 0x2BA20`, capstone from
+  `LOF_SEGDUMP`) reads the map byte `es:[bx+0x46d8]`, **masks it `& 0x0f`**
+  (`img 0x2BA78`, `and al,0xf`) into a scratch grid, and its feature test
+  (`img 0x2BE2E`) then `cmp al,6 / je` + `cmp al,0xd / je` (plus 4/5/0xa/7/8/0xc
+  for other features).  So the engine keys the wall decision on the **masked**
+  low nibble, exactly as the port's `dungeon_base_view_index` does; the port's
+  `dungeon_is_solid_tile` does *not* mask, but this is a **no-op for the wall
+  set on every shipped map** (verified: for all 29 `DNGS/DNG*`, no tile code has
+  `solid(c) != solid(c & 0x0f)`), so the oracle-derived `{6,13}` stands under the
+  mask.  The **mover** (the step-rejection test) is still not isolated — the four
+  `mov es:[bx+0x4612],al` sites in the image are all the party *trail-shift*
+  (`img 0x10D29`/`0x1A171`/`0x1AD3F`/`0x1AEB1`, each preceded by
+  `dec es:[0x4615]`), not the collision test, and the collision routine is
+  reached indirectly (routine R is an `lcall` target with no static far-call
+  site).  **Status: partially cleared** — renderer-level `{6,13}` decompiled +
+  mask shown harmless; the mover remains oracle-derived.
 
 ### G-006 — open-corridor dungeon view falls back to `DP001` (Lane A)
 

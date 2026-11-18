@@ -293,6 +293,11 @@ static void test_render_layers() {
     assert(door_c == 14);                   // feature marker
     assert(dungeon_is_solid_tile(6) && dungeon_is_solid_tile(13));
     assert(!dungeon_is_solid_tile(3) && !dungeon_is_solid_tile(0));
+    // The engine masks the tile code to its low nibble before the wall test
+    // (view routine `and al,0xf`; G-005), so the high nibble (an object/feature
+    // class) must not change solidity.
+    assert(dungeon_is_solid_tile(0x16) && dungeon_is_solid_tile(0x2d));
+    assert(!dungeon_is_solid_tile(0x10) && !dungeon_is_solid_tile(0x0f));
 }
 
 // First-person viewport.  A solid wall directly ahead fills the window with

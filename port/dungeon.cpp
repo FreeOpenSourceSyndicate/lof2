@@ -101,7 +101,12 @@ bool dungeon_is_solid_tile(uint8_t code) {
     // rendered view for 6/13 is the full-screen wall sprite DP036, matching.
     // The earlier {3,12} guess is disproved: DNG06's spawn cell is tile 3, and
     // {3,12} leaves it with 0 of 1201 cells reachable (DNG00: 8/684).
-    switch (code) {
+    //
+    // The engine keys the view on the *masked* low nibble (the view routine
+    // reads the map byte, `and al,0xf`, then `cmp al,6 / cmp al,0xd`; G-005), so
+    // mask here too.  No shipped map has a code whose solidity differs under the
+    // mask, so this is a faithful no-op today.
+    switch (code & 0x0f) {
         case 6:
         case 13:
             return true;
