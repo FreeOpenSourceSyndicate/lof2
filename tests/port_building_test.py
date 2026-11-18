@@ -10,11 +10,14 @@ against the emulator's frame for that building:
   --emporium  EGA/TWN/TWN01  (the shop)          ref/oracle/emporium.png
   --bank      EGA/TWN/TWN02  (the bank)          ref/oracle/bank.png
   --house     EGA/TWN/TWN04  (the House of trades) ref/oracle/house.png
+  --temple    EGA/TWN/TWN05  (the Temple)        ref/oracle/temple_bldg.png
 
-The references are generated from the emulator's `shop`/`bank`/`house` golden
-frames (tests/golden_test.sh scenarios).  The viewport and every text row are
-pixel-exact; the only residue is the engine's 16x16 top-left patch and the
-dynamic party panel, both excluded.
+The references are generated from the emulator's `shop`/`bank`/`house`/
+`temple_bldg` golden frames (tests/golden_test.sh scenarios).  The viewport and
+every text row are pixel-exact; the only residue is the engine's 16x16 top-left
+patch and the dynamic party panel, both excluded.  The Temple viewport is the
+same two-tile scrolled blit the menu uses (see `blit_wrapped_viewport`), with the
+tile's column 0 landing at viewport x=40.
 
 Run via `make golden-port` (or directly).  Needs PIL + numpy and the reference
 PNGs.
@@ -34,6 +37,7 @@ BUILDINGS = [
     ("--emporium", "emporium.png", "Emporium (TWN01)"),
     ("--bank", "bank.png", "Bank (TWN02)"),
     ("--house", "house.png", "House of trades (TWN04)"),
+    ("--temple", "temple_bldg.png", "Temple (TWN05)"),
 ]
 
 MIN_MATCH = 0.99

@@ -238,10 +238,10 @@ Progress:
       Both are pure image blits, so the port reproduces each *pixel-exactly*
       from the game data. Guarded by `tests/port_vor_test.py` (`make
       golden-port`); no DOSBox capture needed.
-- [x] LOF town + building screens (`--town`, `--emporium`, `--bank`, `--house`):
-      all share one shape — the HUD background `EGA/UP/MSCR` with a town-scene
-      tile blitted into the 120x119 viewport at (10,11) plus `CHR1` text at
-      x=139 (rows 92..172).  The town menu uses the street tile
+- [x] LOF town + building screens (`--town`, `--emporium`, `--bank`, `--house`,
+      `--temple`): all share one shape — the HUD background `EGA/UP/MSCR` with a
+      town-scene tile blitted into the 120x119 viewport at (10,11) plus `CHR1`
+      text at x=139 (rows 92..172).  The town menu uses the street tile
       `EGA/TWN/TWN00`; the buildings use their exterior tile and greeting/menu
       strings (all the engine's own):
         * Emporium = `TWN01`: "Well hi, wealthy heroes, what / would you like,
@@ -251,12 +251,20 @@ Progress:
           deposit, (C)ontinue;
         * House of trades = `TWN04`: "The Grand Board of Trades / greets you in
           Thyn." + "Welcome!" + (T)raining, (L)earn magic spells, (A)nother
-          language, (J)oint deposit, (C)ontinue.
-      The viewport and text are pixel-exact against the emulator frames; only
-      the engine's 16x16 top-left patch and the dynamic party panel differ.
-      (The Inn and Temple open first-person `D5` interiors instead of a TWN
-      tile.)  Guarded by `tests/port_town_test.py` and
-      `tests/port_building_test.py` (`make golden-port`).
+          language, (J)oint deposit, (C)ontinue;
+        * Temple = `TWN05`: "welcome to our / Great Temple!" + (H)eal character,
+          (R)evive a dead character, (J)oint deposit, (C)ontinue.
+      The viewport tile is drawn as the engine's **two-tile scrolled blit**
+      (`blit_wrapped_viewport`): the tile's column 0 lands at viewport x=`x0`,
+      and the columns that scroll off the right edge wrap back in on the left one
+      scanline lower.  `x0`=0 is a plain blit (town + the building exteriors);
+      the main menu uses `x0`=16 and the **Temple uses `x0`=40**.  The viewport
+      and text are pixel-exact against the emulator frames; only the engine's
+      16x16 top-left patch (the software mouse cursor, reproduced by
+      `--cursor 0,0`) and the dynamic party panel differ.  Guarded by
+      `tests/port_town_test.py` and `tests/port_building_test.py`
+      (`make golden-port`).  (The Inn and Temple *first-person interiors*, entered
+      after the building menu, are a separate later state.)
 
 ### Font / text rendering (decoded)
 

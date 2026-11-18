@@ -5,6 +5,38 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-17 (twenty-fifth session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**. Took queue item **#5 (Inn & Temple `D5` interiors)** and
+found the premise was **wrong**: the Temple *building screen* is **not** a `D5`
+first-person interior — it is town-style, exactly like the Emporium/Bank/House.
+
+- **Temple building screen RESOLVED.** It is `EGA/UP/MSCR` + the temple exterior
+  `EGA/TWN/TWN05` in the 120x119 viewport at (10,11) + `CHR1` text at x=139. The
+  viewport is the engine's **two-tile scrolled blit** (same mechanism the main
+  menu uses): the tile's column 0 lands at viewport x=**40**, and the columns
+  scrolled off the right edge wrap back in on the left one scanline lower. With
+  that scroll the viewport is pixel-exact vs the emulator's `temple_bldg` frame
+  (plain `TWN05` blit only 0.330; the earlier "X0=80" best-fit was the same wrap
+  measured from the wrong origin). Strings are the engine's own
+  (`ds:0x5086/0x5095/0x50a3/0x50b4/0x50ce/0x50de`): "welcome to our / Great
+  Temple!" + (H)eal character, (R)evive a dead character, (J)oint deposit,
+  (C)ontinue (rows 92/100/116/124/140/156, white/black).
+- **The emulator is a valid building-screen oracle**: the emulator's `shop` frame
+  is **byte-identical (1.0000)** to the DOSBox `ref/oracle/emporium.png`, so
+  scoring against emulator building frames is sound.
+- **Implementation:** `compose_temple_screen()` + `blit_wrapped_viewport()` in
+  `port/lof.cpp`, exposed as `--temple`. Guarded by `tests/port_building_test.py`
+  (added the Temple row); whole-screen static match **1.0000** with `--cursor 0,0`
+  (viewport + text + cursor exact). All `make golden-port` tests pass.
+- **Still open (#5):** the Inn's own screen (the intro ends *inside* the Inn with
+  no party members) and the Inn/Temple *first-person interiors* entered after the
+  building menu are separate, later states.
+
+**Open / next:** queue `docs/HANDOFF.md` §4 — #3 partial (encounter-id producer),
+#4 partial (combat), #5 partial (Inn screen + interiors). **Owner tasks:** none
+open (OT-003 closed as not-needed).
+
 ## Session 2026-11-17 (twenty-fourth session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. Took over the crashed predecessor's in-progress queue
