@@ -744,6 +744,8 @@ static int real_data() {
     assert(can.size() == kCombatActionCount &&
            can[0] == "(A)ttack" && can[1] == "(G)reet your opponents" &&
            can[2] == "(T)alk to them" && can[3] == "(W)ithdraw at once");
+    auto cp = combat_prompt_names();
+    assert(cp.size() == kCombatPromptCount && cp[0] == "What will you do ?");
     auto crh = combat_round_header();
     assert(crh.size() == kCombatRoundHeaderCount &&
            crh[0] == "The result of this round:" &&

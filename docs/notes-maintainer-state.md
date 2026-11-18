@@ -5,6 +5,37 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-18 (twenty-ninth session) — TL;DR
+
+Environment **HEALTHY**. Worked the **encounter screen** (the wandering-monster
+screen, first met from the wilderness).
+
+- **Encounter screen (`--encounter`) — landed.**  `port/lof.cpp` gained an
+  `EncounterGroup` list and `compose_encounter_screen()`; the shared play chrome
+  was factored into `draw_party_and_status()` (the encounter oracle's party
+  panel is *byte-identical* to the play oracle's).  The screen blits the
+  encountered monster's `EGA/CHAR0/CH<nn>` sprite (the NSC record's `+0x48` art)
+  into the viewport as the engine's tiled first-person cell, and draws the intro
+  + "What will you do ?" + one "N <Plural> (Rnk R)" line per group + the four
+  choices in `CHR1` at x=139.  Whole-screen **0.96** vs `ref/oracle/combat.png`
+  (viewport 0.9938; residue = the dynamic party/status values).  Guarded by
+  `tests/port_encounter_test.py` (`make golden-port`).
+- **Grounded facts.**  The sprite bank is **CHAR0** (emulator open trace
+  `ega\char0\ch24` for the pinned oracle; a second forced seed opens
+  `ega\char0\ch26`), so `NSC[record].+0x48 -> EGA/CHAR0/CH<nn>` holds across two
+  encounters; the `CH` number is RNG-selected monster placement (BLK-A005).
+  The combat strings now come from `port/char_names.inc` via the existing
+  `combat_*` accessors (added `combat_prompt_names()` for "What will you do ?");
+  a `char_test.cpp` assertion pins it.
+- **New watchlist item G-008.**  The sprite's horizontal origin (56) and the
+  wrap rule are exact, but the **vertical origin** is not a fixed constant: it
+  is 3 for the pinned `CH24` and 9 for a forced `CH26` encounter (both 120×119).
+  The pinned oracle is exact; the general rule for `dy` is not yet derived
+  (needs a decompile read of the encounter-draw routine).  Filed under Rule 4.
+- **`make check` is not hanging** — it runs the ~12-scenario emulator sweep
+  (`tests/golden_test.sh`, up to 300 s per scenario); give it a long timeout.
+  The predecessor's "TIMED OUT" was an under-sized timeout, not a defect.
+
 ## Session 2026-11-18 (twenty-eighth session) — TL;DR
 
 Environment **HEALTHY** (`./check.sh` → `[check] HEALTHY`, 0 fails). Queue item #3

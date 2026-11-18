@@ -539,6 +539,10 @@ std::vector<std::string> combat_action_names() {
     return to_vec(kCombatActionNames, kCombatActionCount);
 }
 
+std::vector<std::string> combat_prompt_names() {
+    return to_vec(kCombatPrompt, kCombatPromptCount);
+}
+
 std::vector<std::string> combat_round_header() {
     return to_vec(kCombatRoundHeader, kCombatRoundHeaderCount);
 }

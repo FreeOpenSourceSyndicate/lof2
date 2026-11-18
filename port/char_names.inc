@@ -209,6 +209,10 @@ static const char* const kCombatActionNames[] = {
     "(W)ithdraw at once",
 };
 
+static const char* const kCombatPrompt[] = {
+    "What will you do ?",
+};
+
 static const char* const kCombatRoundHeader[] = {
     "The result of this round:",
     "Name       HP   W P B Attack",

@@ -448,6 +448,8 @@ constexpr size_t kCombatIntroCount = 4;
 // The four menu choices drawn under "What will you do ?" (image 0x49143):
 // (A)ttack, (G)reet your opponents, (T)alk to them, (W)ithdraw at once.
 constexpr size_t kCombatActionCount = 4;
+// The menu prompt "What will you do ?" (image 0x49130).
+constexpr size_t kCombatPromptCount = 1;
 // Round-result table rows: title, column header, underline rule.
 constexpr size_t kCombatRoundHeaderCount = 3;
 constexpr size_t kCombatWithdrawHeaderCount = 3;
@@ -461,6 +463,8 @@ constexpr size_t kCombatAimCount = 2;
 
 std::vector<std::string> combat_intro_names();
 std::vector<std::string> combat_action_names();
+// The encounter menu prompt "What will you do ?" (image 0x49130).
+std::vector<std::string> combat_prompt_names();
 // Round-result table: {title, column header, underline rule}.  The melee table
 // (0x48D2D) lists HP / W / P / B / Attack; the withdraw table (0x49048) lists
 // Gld. / Rt / Exp. / HP.

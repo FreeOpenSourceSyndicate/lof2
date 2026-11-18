@@ -230,6 +230,16 @@ stays the single source of "what is left".
       `tests/port_inn_test.py`.  (An earlier note claimed the Inn/Temple are
       first-person `D5` interiors — that was a misconception; there is no such
       state.)
+- [x] Encounter screen (`--encounter`) — the wandering-monster screen.  It
+      reuses the play chrome (`MSCR` + `draw_party_and_status`) and blits the
+      monster's `EGA/CHAR0/CH<nn>` sprite (the NSC record's `+0x48` art; the
+      emulator's own open trace shows `ega\char0\ch24`) into the viewport as a
+      tiled first-person cell, then draws the intro + "What will you do ?" +
+      one "N <Plural> (Rnk R)" line per enemy group + the four choices in `CHR1`
+      at x=139.  Whole-screen **0.96** vs `ref/oracle/combat.png` (viewport
+      0.9938; residue = the dynamic party/status values).  Guarded by
+      `tests/port_encounter_test.py`.  The sprite's vertical origin is exact for
+      the pinned oracle but not yet derived in general — see G-008.
 - [ ] Dungeon subsystem (`DNGS/`) — **area A**; see the work queue (§4).
 - [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — **area B**; see the work
       queue (§4). **Unblocked:** the SPEC/ROST reads now happen in the oracle

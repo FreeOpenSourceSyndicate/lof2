@@ -279,6 +279,26 @@ Progress:
       heal (1-6)?" / "Who should be revived / (1-6)?" + (C)ontinue.  All strings
       are the engine's own.  Guarded by `tests/port_inn_test.py` and the
       `temple_heal`/`temple_revive` rows of `tests/port_building_test.py`.
+- [x] Encounter screen (`--encounter`): the wandering-monster screen the engine
+      draws when it spawns enemies (first met from the wilderness).  It reuses
+      the play screen's chrome — `EGA/UP/MSCR`, the party/status panel (its
+      oracle panel is *byte-identical* to the play oracle's, so it is drawn by
+      the same `draw_party_and_status`) — and blits the encountered monster's
+      creature sprite into the 120x119 viewport.  The sprite is the monster
+      record's `+0x48` art: `SYST/NSC00` record 12 (Mercenary) has `+0x48`=24,
+      i.e. **`EGA/CHAR0/CH24`** (the emulator's own open trace for the oracle
+      encounter, `LOF_I21=1`, opens `ega\char0\ch24`).  It is blitted as the
+      engine's **tiled first-person cell** — copies advance by (viewport width,
+      −1) and both axes wrap — which reproduces the oracle viewport at 0.9938.
+      Text is `CHR1` at a 6-px pitch, x=139: the intro "You unknowingly meet"
+      and "What will you do ?" in colour 8; each group line "4 Mercenaries
+      (Rnk 2)" / "6 Mercenaries (Rnk 1)" with its count+name in colour 8 and
+      its " (Rnk R)" tail black; the four choices "(A)ttack" …
+      "(W)ithdraw at once" black.  Whole-screen match **0.96** vs
+      `ref/oracle/combat.png` (residue = the dynamic party/status values, as on
+      the play screen).  `--encounter [rec[:count[:rank]]]` is repeatable (one
+      group per line); the bare flag renders the pinned oracle (two Mercenary
+      groups).  Guarded by `tests/port_encounter_test.py` (`make golden-port`).
 
 ### Font / text rendering (decoded)
 
