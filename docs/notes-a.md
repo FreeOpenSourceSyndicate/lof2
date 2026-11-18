@@ -2457,3 +2457,40 @@ window score rose **0.9669 -> 0.9993** (`port_dungeon_view_test.py`, floor now
 **Still open.**  The encounter-id **producer** (`es:[0x259]`, BLK-A005's other
 half) and the spawn (depth-1) window's horizon-band residue (the engine's live
 overlay; `DP001` covers the middle 80 columns pixel-identically).
+
+## Round 50 — BLK-A005 producer runs on a walk step (maintainer, 2026-11-18)
+
+The blocker's stated unblock action — "drive a walk move in the emulator (needs
+the maintainer's extended-key fix, BLK-A004)" — is **done**: BLK-A004 is in, so a
+forward step is now possible and the encounter-id producer **executes**.
+
+Repro (Temple slot 1, one forward step):
+
+```sh
+LOF_CMDLEN=3 LOF_KEYAUTO=0x18,0x02,0x48,0x48 LOF_KEYGAP=8 \
+  ./lof-native --dir game --headless --frames 1500 --shot /dev/null
+```
+
+Tracing the producer with `LOF_TRACE_IP=377CA:37d30` (routine R, image
+`0x276CA` → linear `0x377CA`) gives **3 hits** (it is walk/combat-path code: 0
+hits at boot-to-Temple, matching Round 45).  The `es:[0x259]` store `img 0x27A6A`
+(linear `0x37B6A`) fires **6 times** per call — `si` = 0,0xC,0x18,0x24,0x30,0x3C
+(the 6 window columns × 0xC stride), `di`=0x11A0.  So the producer is observable;
+only the *port* remains.
+
+**What routine R computes** (disassembled from `LOF_SEGDUMP`; full listing in
+`docs/blockers/A.md` BLK-A005 Round 50): a proximity scan of the 3×6 cell window
+in front of the party, not a per-cell lookup.  It fills an 18-entry
+`(cellx,celly)` list of window cells whose `NSC<dd>` record (`es:[0x52]`, stride
+`0x11a`) has `+0x39` (present) and an ordering key `+0x52`/`+0x54` greater than the
+running counter, keyed by the view mode `es:[0x4615]` (`+0x38`/`+0x36` home
+offset; modes 2/1/3 = `(0xC,6)`/`(0,0x12)`/`(6,6)`), then packs the list into a
+3×6 grid and writes each found cell's record fields to the party slot array
+`es:[0xb0ac]` (`+0x259`=id, `+0x25a`=`+0x4c`, `+0x25d`=col+1, `+0x25f..0x261`,
+`+0x25c` ratio, `+0x262` word from `es:[0x54]+0x9e`).
+
+**Left to do (lane A):** port this scan to `port/dungeon.{h,cpp}` as
+`dungeon_encounter_id()` and feed `dungeon_encounter_sprite()`, replacing the
+scenario-5 special case (G-007).  The consumer half is already delivered; the id
+is data-driven once this lands.  No guess: the routine is fully disassembled and
+its inputs (`es:[0x4612]/[0x4613]/[0x4615]`, the `NSC` flags) are known.
