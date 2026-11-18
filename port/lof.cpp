@@ -427,6 +427,59 @@ static bool compose_temple_screen(const std::string& dir, Screen& s, std::string
     return true;
 }
 
+// The Temple's (H)eal / (R)evive options open a character-selection sub-prompt
+// over the *same* viewport (the priest's question replaces the greeting).  The
+// question strings are the engine's own (LOF.EXE ds:0x5106 "Whose wounds should"
+// / 0x511a "we heal (1-6)?" for heal; ds:0x50e9 "Who should be revived" /
+// 0x50fe "(1-6)?" for revive), drawn white (15) on the light-gray box; the only
+// option row is "(C)ontinue" (black, 0) at y=116.  Verified against the emulator
+// `temple_heal`/`temple_revive` frames (ref/oracle/temple_heal.png,
+// temple_revive.png).
+static bool compose_temple_prompt(const std::string& dir, const char* line0,
+                                  const char* line1, Screen& s, std::string& err) {
+    s.resize(320, 200);
+    s.clear(0);
+    if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
+    if (!blit_wrapped_viewport(s, dir, "TWN05", 40, err)) return false;
+    Font font;
+    if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
+    font.draw_text(s, 139, 92, line0, 15);
+    font.draw_text(s, 139, 100, line1, 15);
+    font.draw_text(s, 139, 116, "(C)ontinue", 0);
+    return true;
+}
+
+// The Inn's (R)est option: the innkeeper's question over the *same* viewport
+// (the Inn screen is the main menu, so the viewport is the menu's scrolled TWN03
+// blit, x0=16).  The question and the (S)/(W)/(J) options are the engine's own
+// (LOF.EXE ds:0x49d5 "Would you like a simple" / 0x49ed "nights rest, or do you
+// also" / 0x4a09 "wish to have all rations" / 0x4a22 "replenished?" /
+// 0x4a2f "(S)imple nights stay" / 0x4a44 "(W)ith replenished rations"), drawn
+// white (15) for the question and "(C)ontinue" and black (0) for the three
+// option rows.  Verified against the emulator `inn_rest` frame
+// (ref/oracle/inn_rest.png).
+static bool compose_inn_rest_screen(const std::string& dir, Screen& s, std::string& err) {
+    s.resize(320, 200);
+    s.clear(0);
+    if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
+    if (!blit_wrapped_viewport(s, dir, "TWN03", 16, err)) return false;
+    Font font;
+    if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
+    static const TownTextRow kText[] = {
+        { 92, "Would you like a simple", 15},
+        {100, "nights rest, or do you also", 15},
+        {108, "wish to have all rations", 15},
+        {116, "replenished?", 15},
+        {132, "(S)imple nights stay", 0},
+        {140, "(W)ith replenished rations", 0},
+        {156, "(J)oint deposit", 0},
+        {172, "(C)ontinue", 15},
+    };
+    for (const auto& r : kText)
+        font.draw_text(s, 139, r.y, r.text, r.idx);
+    return true;
+}
+
 // --dump-dungeon: decode a few DNGS/DNGxx levels and print the 36x36 floor
 // plan (and object layer) so the recovered map format is visible from the
 // shipped front-end.
@@ -733,6 +786,9 @@ int main(int argc, char** argv) {
     bool bank_flag = false;
     bool house_flag = false;
     bool temple_flag = false;
+    bool inn_rest_flag = false;
+    bool temple_heal_flag = false;
+    bool temple_revive_flag = false;
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
         else if (std::string(argv[i]) == "--save" && i + 1 < argc) save = argv[++i];
@@ -741,11 +797,20 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--bank") bank_flag = true;
         else if (std::string(argv[i]) == "--house") house_flag = true;
         else if (std::string(argv[i]) == "--temple") temple_flag = true;
+        else if (std::string(argv[i]) == "--inn-rest") inn_rest_flag = true;
+        else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
+        else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
     }
-    if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag) {
+    if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||
+        inn_rest_flag || temple_heal_flag || temple_revive_flag) {
         std::string err;
         Screen s;
-        bool ok = temple_flag  ? compose_temple_screen(dir, s, err)
+        bool ok = temple_heal_flag   ? compose_temple_prompt(dir, "Whose wounds should",
+                                                             "we heal (1-6)?", s, err)
+                  : temple_revive_flag ? compose_temple_prompt(dir, "Who should be revived",
+                                                             "(1-6)?", s, err)
+                  : inn_rest_flag      ? compose_inn_rest_screen(dir, s, err)
+                  : temple_flag  ? compose_temple_screen(dir, s, err)
                   : house_flag    ? compose_house_screen(dir, s, err)
                   : bank_flag   ? compose_bank_screen(dir, s, err)
                   : emporium_flag ? compose_emporium_screen(dir, s, err)
