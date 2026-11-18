@@ -19,7 +19,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 | BLK-A002 | A (dungeons) | Maintainer | Medium | **Resolved** (2026-11-12) | — |
 | BLK-A003 | A (dungeons) | Agent A | Medium | **Resolved** (2026-11-08) | — |
 | BLK-A004 | A (dungeons) | Maintainer | Medium | Resolved | — |
-| BLK-A005 | A (dungeons) | Maintainer | Medium | **Partially resolved** (2026-11-17) | — |
+| BLK-A005 | A (dungeons) | Maintainer | Medium | **Partially resolved** (2026-11-18: producer now runs on a walk step; port pending) | — |
 
 ---
 
@@ -50,6 +50,46 @@ by tracing the boot viewport path, then decoding the `+0x39`/`+0x2c` selection
 (and the `es:[0x54]` level table) so the drop-in can pick the sprite for an
 arbitrary walk move without the emulator.  Until then the play view keeps the
 `DP001` fallback.  Detail: `docs/notes-a.md` Rounds 45-46.
+
+**Log.** 2026-11-18 Maintainer (Round 50) — **the producer *does* run on a walk
+step** (the blocker's stated unblock action), and it is a full window scan, so it
+is portable but not trivial. Driving the Temple save with a forward step
+(`LOF_CMDLEN=3 LOF_KEYAUTO=0x18,0x02,0x48,0x48 LOF_KEYGAP=8 … --frames 1500`)
+and tracing `LOF_TRACE_IP=377CA:37d30` now yields **3 hits** at linear `0x377CA`
+(it is walk/combat-path code — 0 hits at boot-to-Temple, as recorded above). The
+`es:[0x259]` writer `img 0x27A6A` (linear `0x37B6A`) fires 6 times per call
+(`si`=0,0xC,0x18,0x24,0x30,0x3C; `di`=0x11A0). So the fix the blocker needed
+(BLK-A004, the extended-key scan-code delivery) is already in and the producer is
+now observable; what remains is **porting it**, which is a self-contained job.
+
+Decoded shape of routine R (`img 0x276CA`..`0x27D30`, disassembled with capstone
+from `LOF_SEGDUMP`): it is a **proximity scan of the 3x6 cell window** in front of
+the party, not a per-cell lookup, so the id genuinely depends on party cell + view
+mode + per-record flags (confirming Round 46b). Outline:
+1. Zero an 18-entry `(cellx,celly)` list at `[bp-0x32]` (0xff-filled) and a 3x6
+   "seen" grid at `[bp-0x138]`.
+2. Switch on view mode `es:[0x4615]` (`ds:[0xb08a]`): mode 2 → home `(col,row)` =
+   `[bp-0x38],[bp-0x36]` = `(0xC,6)`; mode 1 → `(0,0x12)`, home=-1; mode 3 →
+   `(6,6)`, home=-1.
+3. Scan columns `[bp-0x34]`=0..`es:[0x4615]`-1, rows `[bp-0x3a]`=0..0x11: for each
+   window cell, index the `NSC<dd>` record table (`es:[0x52]`, stride `0x11a`) by
+   the cell's byte at `es:[bx+0x4612]` and require `+0x39` (present) and the
+   32-bit ordering key at `+0x52`/`+0x54` > the running step counter; the
+   home-cell column must also be past `[bp-0x38]` to take the special branch.
+   Qualifying `(col,row)` pairs are appended to the 18-entry list.
+4. Pack the list into the 3x6 grid `[bp-0x138]` (6 per row).
+5. For each grid cell with a record, write the record's fields into the party
+   "slot" array at `es:[0xb0ac]` (`+0x259` = record id, `+0x25a` = `+0x4c`,
+   `+0x25d` = col+1, `+0x25f/0x260/0x261` = `+0x2d/+0x2e/+0x30`,
+   `+0x25c` = a `100*key/(key*8)` ratio, `+0x262` a word from `es:[0x54]+0x9e`),
+   and accumulate per-column hit counts in `es:[0xb0ae]`.
+
+**What is left.** Port this scan into `port/dungeon.{h,cpp}` as
+`dungeon_encounter_id()` (party cell + view mode + `NSC<dd>` `+0x39`/`+0x2c`/
+`+0x52`/`+0x54` flags → id), then feed `dungeon_encounter_sprite()` instead of the
+scenario-5 special case (G-007). Verify by comparing the emulator's `es:[0x259]`
+after a scripted step against the port's computation for several DNG05 cells.
+The consumer half is already delivered. Detail: `docs/notes-a.md` Round 50.
 
 **Log.** 2026-11-17 Maintainer (Round 49) — **RESOLVED (viewport-composite half).**
 The 472-px residue is a **second `CHAR2/CH25` blit**: the corridor view is the
