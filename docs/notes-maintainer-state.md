@@ -5,6 +5,64 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-18 (twenty-seventh session) — TL;DR
+
+Environment **HEALTHY** (`./check.sh` → `[check] HEALTHY`, 0 fails). One item
+advanced and one PR merged.
+
+- **G-005 (dungeon solid-wall set `{6,13}`) — PARTIALLY CLEARED (PR #139).** The
+  **renderer** half is now decompiled: the per-cell view routine (`img 0x2BA20`)
+  reads the map byte `es:[bx+0x46d8]`, masks it `and al,0x0f` (`img 0x2BA78`)
+  and tests `cmp al,6 / je` + `cmp al,0xd / je` (`img 0x2BE2E`).  The port's
+  `dungeon_is_solid_tile()` now masks too; verified a **no-op for the wall set on
+  all 29 shipped maps** (no code has `solid(c) != solid(c & 0x0f)`); regression
+  added to `tests/dungeon_test.cpp`.  The **mover** (step-rejection test) is
+  still oracle-derived — the four `mov es:[bx+0x4612],al` sites are all the party
+  *trail-shift* (`img 0x10D29`/`0x1A171`/`0x1AD3F`/`0x1AEB1`), and the collision
+  routine is reached indirectly (routine R is an `lcall` target with no static
+  far-call site).  Recorded in `docs/GUESSWORK.md` (G-005).
+
+### Open-items inventory + agent-hour estimates (owner request, 2026-11-18)
+
+Full status: queue (`docs/HANDOFF.md` §4) is 8/9 done; the only `partial` rows
+are **#3** (BLK-A005 producer port) and **#4** (combat).  Watchlist: G-004,
+G-005, G-007 (G-006 resolved).  No open blockers, no open owner tasks.
+
+| # | Item | Area | Est. agent-hours | Notes |
+|---|------|------|------------------|-------|
+| 1 | BLK-A005 — port routine R as `dungeon_encounter_id()`; feed `dungeon_encounter_sprite()`; drop G-007's scenario-5 special case | A | **6–10** | Routine R fully disassembled (Round 50); self-contained port of a 3×6 proximity scan + the `NSC`-bank lookup. |
+| 2 | BLK-A004/BLK-B004 — **combat**: wire the (already-grounded) dispatcher + round model into the play loop (encounter start, turn order, damage, messages) | A/B | **12–20** | Semantics decoded; the work is the state machine + rendering. Biggest single chunk. |
+| 3 | **Town services** — (B)uy/(S)ell/(R)epair, (D)eposit/(W)ithdraw, (T)raining/(L)earn magic, Inn rest effect | B | **10–16** | Screens + strings done; the *transactions* (item/gold/stat mutation, save write-back) are not. |
+| 4 | G-007 — data-drive the depth-2/≥3 view sprite (remove the scenario-5 pin) | A | **2–3** | Subsumed by #1 (the producer supplies the bank index). |
+| 5 | G-004 — ground `item_effect_name()` beyond the traced dispatcher values | B | **4–6** | Needs more decompile reads or live-play effects; low risk (labels only). |
+| 6 | G-005 (mover) — isolate the step-rejection wall test | M | **3–5** | Hard: indirect call, no static xref; the renderer half is done. |
+| 7 | Exploration breadth — town-exit / overworld travel; unvisited screens; save write-back; remaining text pages | M | **15–25** | Open-ended; no single queue item yet. |
+| 8 | Party-panel live state (time of day, morale, rations, internal clock) | M | **4–8** | Engine state a save does not carry; labels drawn only today. |
+
+**Estimate for the remaining *queued* items (1–6): ~37–60 agent-hours.**
+Adding the open-ended breadth (7) and live state (8): **~55–95 agent-hours** to
+a *faithful, feature-complete* drop-in.
+
+### Overall progress estimate: **~70% complete** (headline)
+
+Weighted by the player-facing scope:
+
+| Dimension | Weight | Complete | Contribution |
+|-----------|--------|----------|--------------|
+| Static screens + rendering (title/credits/menu/town/buildings/play/inventory/spells/character sheets) | 30% | ~95% | 28.5% |
+| Data-format decoding (EGA, `SYST`, `ROST`, `DNGS`, saves, font, `DSKTAB`) | 20% | ~90% | 18.0% |
+| Dungeon first-person view (depth march + wall set) | 10% | ~85% | 8.5% |
+| Movement / play loop | 15% | ~55% | 8.25% |
+| Combat | 15% | ~15% | 2.25% |
+| Town services (transactions) | 5% | ~10% | 0.5% |
+| Save write-back / game progression | 5% | ~5% | 0.25% |
+| **Total** | 100% | | **≈66%** |
+
+By **completed queue items** (8 of 9, with 2 partial): **~85%**.  By **test/oracle
+coverage of the implemented surface** (golden-port + `make test` green): **~90%**.
+The honest headline — weighting the large undelivered gameplay systems
+(combat + services + save-write) — is **~70%**.
+
 ## Session 2026-11-18 (twenty-sixth session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. Closed queue item **#5 (Inn & Temple screens)** — the
