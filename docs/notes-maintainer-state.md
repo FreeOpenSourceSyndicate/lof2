@@ -44,6 +44,28 @@ the Temple has a first-person interior state. What actually exists is a set of
 **Open / next:** queue `docs/HANDOFF.md` §4 — #3 partial (encounter-id producer),
 #4 partial (combat). **Owner tasks:** none open (OT-003 closed as not-needed).
 
+### Also this session: queue #3 (BLK-A005 producer) advanced
+
+Picked up #3 after closing #5. The blocker's stated unblock action — "drive a
+walk move in the emulator (needs BLK-A004)" — is **done**: BLK-A004 is in, so a
+forward step is possible and the encounter-id producer **executes**.
+
+- Repro: `LOF_CMDLEN=3 LOF_KEYAUTO=0x18,0x02,0x48,0x48 LOF_KEYGAP=8
+  ./lof-native --dir game --headless --frames 1500 --shot /dev/null`.
+  `LOF_TRACE_IP=377CA:37d30` (routine R, img `0x276CA`) → **3 hits** (0 at
+  boot-to-Temple, matching Round 45); the `es:[0x259]` store `img 0x27A6A` fires
+  6×/call.
+- Routine R decoded from `LOF_SEGDUMP`: a **3×6 proximity scan** of the cell
+  window in front of the party (not a per-cell lookup) — the id depends on party
+  cell + view mode `es:[0x4615]` + `NSC<dd>` flags `+0x39`/`+0x2c`/`+0x52`/`+0x54`.
+  Full outline + offsets: `docs/blockers/A.md` BLK-A005 Round 50, `docs/notes-a.md`
+  Round 50.
+- **Left to do:** port the scan to `port/dungeon.{h,cpp}` as
+  `dungeon_encounter_id()` and feed `dungeon_encounter_sprite()`, replacing the
+  scenario-5 special case (G-007).  Self-contained but not small (routine R is
+  ~0x700 bytes / several nested loops); **not attempted this session** — a partial
+  port would risk the "never guess" rule.  Merged as PR #137 (docs + findings).
+
 ## Session 2026-11-17 (twenty-fifth session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. Took queue item **#5 (Inn & Temple `D5` interiors)** and
