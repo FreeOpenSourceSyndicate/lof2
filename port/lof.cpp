@@ -115,21 +115,15 @@ static void draw_cursor(Screen& s, int x, int y) {
             if (kCursorMask[cy][cx]) s.put(x + cx, y + cy, kCursorSprite[cy][cx]);
 }
 
-// Compose the in-game play screen: the static HUD background (EGA/UP/MSCR)
-// with the first-person viewport tile (EGA/SUB/DPNNN) blitted into the 120x119
-// window at (10,11), then the party panel.  `play` is the SUB-relative tile
-// path (e.g. "D0/DP001"); `sg` supplies the party when `have_sg` is set.  The
-// window geometry, background and panel layout were recovered by matching the
-// decoded assets against a DOSBox capture of save slot 2 (ref/oracle/play.png).
-static bool compose_play_screen(const std::string& dir, const std::string& play,
-                                const SaveGame& sg, bool have_sg, Screen& s,
-                                std::string& err, bool with_view = true) {
-    s.resize(320, 200);
-    s.clear(0);
-    if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
-    if (with_view && !blit_ega(s, dir + "/EGA/" + play, 10, 11, &err)) return false;
-    // Party panel: the six character names in a 3x2 grid, drawn with CHR2's
-    // 5x5 small-caps face.  Positions recovered from the oracle.
+// Draw the shared in-game chrome that every explore/combat screen carries over
+// the HUD background: the six-member party roster (names in CHR2's 5x5
+// small-caps face, professions, the +0x1e stat number and the status word) and
+// the lower-left status box (scenario, facing, Spirits, Rations).  Recovered by
+// matching a DOSBox capture; the roster panel is pixel-exact.  The play screen
+// and the encounter screen both draw it (the encounter oracle's panel is
+// byte-identical to the play oracle's).
+static bool draw_party_and_status(Screen& s, const std::string& dir,
+                                  const SaveGame& sg, bool have_sg, std::string& err) {
     if (!have_sg) return true;
     Font small;
     if (!small.load(dir + "/EGA/UP/CHR2", &err)) return false;
@@ -198,6 +192,108 @@ static bool compose_play_screen(const std::string& dir, const std::string& play,
         box.draw_text(s, 6, 176, "Spirits  ", 15);
         box.draw_text(s, 6, 184, "Rations  ", 15);
     }
+    return true;
+}
+
+// Compose the in-game play screen: the static HUD background (EGA/UP/MSCR) with
+// the first-person viewport tile (EGA/SUB/DPNNN) blitted into the 120x119 window
+// at (10,11), then the shared party/status chrome.  `play` is the SUB-relative
+// tile path (e.g. "D0/DP001"); `sg` supplies the party when `have_sg` is set.
+// The window geometry, background and panel layout were recovered by matching
+// the decoded assets against a DOSBox capture of save slot 2 (ref/oracle/play.png).
+static bool compose_play_screen(const std::string& dir, const std::string& play,
+                                const SaveGame& sg, bool have_sg, Screen& s,
+                                std::string& err, bool with_view = true) {
+    s.resize(320, 200);
+    s.clear(0);
+    if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
+    if (with_view && !blit_ega(s, dir + "/EGA/" + play, 10, 11, &err)) return false;
+    return draw_party_and_status(s, dir, sg, have_sg, err);
+}
+
+// One enemy group on the encounter screen: the monster record id in the
+// scenario's SYST/NSC<dd> table (which selects the plural name and, via the
+// record's +0x48 field, the CHAR0 sprite) plus the group's size and rank.
+struct EncounterGroup {
+    int rec = 12;             // NSC00 record (12 = Mercenary, the pinned oracle)
+    uint32_t count = 4;
+    uint32_t rank = 2;
+};
+
+// Compose the wandering-monster encounter screen: the same HUD background, the
+// party/status chrome, and a first-person viewport holding the encountered
+// monster's sprite.  The engine reads the monster table SYST/NSC<scenario>
+// during the encounter, picks one record per enemy group, and blits its creature
+// sprite (NSC[record].+0x48 -> EGA/CHAR0/CH<nn>, e.g. Mercenary = record 12 ->
+// CH24); each group also prints a "N <Plural> (Rnk R)" line, one per 8-px row
+// from y=108, under the intro line.  The CHAR0 bank is the engine's own choice
+// here: the emulator's open trace for the oracle encounter shows
+// `ega\char0\ch24` (LOF_I21=1).
+//
+// The sprite is blitted as the engine's *tiled* first-person cell: copies
+// advance by (viewport width, -1) and both axes wrap, so the viewport pixel
+// (wy,wx) reads sprite row (wy-3-1[wx<56]) mod 119 and column (wx-56) mod 120.
+// Verified against the emulator's encounter frame (ref/oracle/combat.png): the
+// viewport matches at 0.9938 and the whole screen at 0.96 (the residue is the
+// party/status values a save does not carry, as on the play screen).
+static bool compose_encounter_screen(const std::string& dir, const char* intro,
+                                     const std::vector<EncounterGroup>& groups,
+                                     const std::vector<SnsRecord>& roster, int sprite_ch,
+                                     const SaveGame& sg, bool have_sg,
+                                     Screen& s, std::string& err) {
+    s.resize(320, 200);
+    s.clear(0);
+    if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
+
+    // Monster sprite: tiled diagonal first-person cell (EGA/CHAR0/CH<nn>).
+    EgaImage mon;
+    char spath[64];
+    snprintf(spath, sizeof spath, "%s/EGA/CHAR0/CH%02d", dir.c_str(), sprite_ch);
+    if (load_ega_image(spath, mon, &err)) {
+        int wb = mon.width_bytes, h = mon.height;
+        size_t pl = (size_t)wb * h;
+        int sw = wb * 8;
+        for (int wx = 0; wx < kViewportW; wx++) {
+            int scol = ((wx - 56) % sw + sw) % sw;
+            int sxb = scol >> 3, sh = 7 - (scol & 7);
+            for (int wy = 0; wy < kViewportH; wy++) {
+                int srow = ((wy - 3 - (wx < 56 ? 1 : 0)) % h + h) % h;
+                const uint8_t* p = mon.planes.data() + (size_t)srow * wb + sxb;
+                uint8_t v = (uint8_t)(((p[0] >> sh) & 1) | (((p[pl] >> sh) & 1) << 1) |
+                                      (((p[2 * pl] >> sh) & 1) << 2) |
+                                      (((p[3 * pl] >> sh) & 1) << 3));
+                s.put(kViewportX + wx, kViewportY + wy, v);
+            }
+        }
+    }
+
+    if (!draw_party_and_status(s, dir, sg, have_sg, err)) return false;
+
+    // Encounter text, in CHR1's full face at a 6-px pitch, x=139: the intro
+    // line and "What will you do ?" in colour 8, each group line's count/name
+    // in colour 8 with its " (Rnk R)" tail black (0), and the four action
+    // choices black.  Group lines start at y=108, one per 8-px row.
+    Font font;
+    if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
+    font.draw_text(s, 139, 92, intro, 8);
+    for (size_t g = 0; g < groups.size(); g++) {
+        const EncounterGroup& grp = groups[g];
+        std::string plural = (grp.rec >= 0 && grp.rec < (int)roster.size())
+                                 ? roster[grp.rec].plural : "Monsters";
+        std::string line = combat_group_line(grp.count, plural, grp.rank);
+        int y = 108 + 8 * (int)g;
+        size_t rnk = line.find(" (Rnk");
+        if (rnk == std::string::npos) {
+            font.draw_text(s, 139, y, line, 8);
+        } else {
+            font.draw_text(s, 139, y, line.substr(0, rnk), 8);
+            font.draw_text(s, 139 + 6 * (int)rnk, y, line.substr(rnk), 0);
+        }
+    }
+    font.draw_text(s, 139, 132, combat_prompt_names().at(0), 8);
+    const std::vector<std::string>& actions = combat_action_names();
+    for (size_t i = 0; i < actions.size(); i++)
+        font.draw_text(s, 139, 156 + 8 * (int)i, actions[i], 0);
     return true;
 }
 
@@ -789,6 +885,8 @@ int main(int argc, char** argv) {
     bool inn_rest_flag = false;
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
+    bool encounter_flag = false;
+    std::vector<EncounterGroup> encounter_groups;
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
         else if (std::string(argv[i]) == "--save" && i + 1 < argc) save = argv[++i];
@@ -800,6 +898,22 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--inn-rest") inn_rest_flag = true;
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
+        else if (std::string(argv[i]) == "--encounter") {
+            encounter_flag = true;
+            // Optional "rec[:count[:rank]]" spec; repeatable for several groups.
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                EncounterGroup g;
+                int n = sscanf(argv[++i], "%d:%u:%u", &g.rec, &g.count, &g.rank);
+                if (n < 2) g.count = 4;
+                if (n < 3) g.rank = 2;
+                encounter_groups.push_back(g);
+            }
+        }
+    }
+    // Bare --encounter renders the pinned oracle: two Mercenary groups.
+    if (encounter_flag && encounter_groups.empty()) {
+        encounter_groups.push_back({12, 4, 2});
+        encounter_groups.push_back({12, 6, 1});
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||
         inn_rest_flag || temple_heal_flag || temple_revive_flag) {
@@ -816,6 +930,29 @@ int main(int argc, char** argv) {
                   : emporium_flag ? compose_emporium_screen(dir, s, err)
                                 : compose_town_screen(dir, town_name_from_save(save), s, err);
         if (!ok) {
+            fprintf(stderr, "lof: %s\n", err.c_str());
+            return 1;
+        }
+        if (have_cursor) draw_cursor(s, cur_x, cur_y);
+        if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
+        if (!headless) present_sdl(s, "Legend of Faerghail");
+        return 0;
+    }
+    if (encounter_flag) {
+        std::string err;
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) {
+            sg = load_save(save);
+            have_sg = sg.ok;
+        }
+        std::vector<SnsRecord> roster = monster_roster(dir, 0);
+        int sprite_ch = dungeon_room_art_number(dir, 0, encounter_groups[0].rec);
+        if (sprite_ch < 0) sprite_ch = 0;
+        std::string intro = combat_intro_names().at(0);
+        Screen s;
+        if (!compose_encounter_screen(dir, intro.c_str(), encounter_groups, roster,
+                                      sprite_ch, sg, have_sg, s, err)) {
             fprintf(stderr, "lof: %s\n", err.c_str());
             return 1;
         }

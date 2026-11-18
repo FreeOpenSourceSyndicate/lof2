@@ -34,6 +34,7 @@ golden-port:
 	$(MAKE) -s port
 	python3 tests/port_menu_test.py
 	python3 tests/port_play_test.py
+	python3 tests/port_encounter_test.py
 	python3 tests/port_town_test.py
 	python3 tests/port_building_test.py
 	python3 tests/port_inn_test.py

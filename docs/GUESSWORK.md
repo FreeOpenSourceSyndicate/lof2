@@ -100,6 +100,34 @@ How to use each section:
 - **To clear it:** capture a second scenario's depth-2/≥3 view and read its
   `CHnn`; if it differs, table the numbers per scenario.
 
+### G-008 — encounter viewport sprite placement: horizontal origin pinned, vertical origin varies (Lane M)
+
+- **What:** `compose_encounter_screen()` in `port/lof.cpp` blits the encountered
+  monster's `EGA/CHAR0/CH<nn>` sprite as the engine's tiled first-person cell
+  (copies advance by (120,−1), both axes wrap) at origin **(56,3)**.  The
+  horizontal origin 56 and the wrap rule are exact, but the **vertical origin**
+  (3) is the value measured for the pinned oracle sprite (`CH24`, Mercenary).
+- **Source of truth:** the emulator frame `ref/oracle/combat.png` (the first
+  wilderness encounter).  A brute-force origin search over that frame gives
+  `(56,3)` at **1.0000** for `CHAR0/CH24` — so it is recovered, not chosen, *for
+  that sprite*.
+- **Why it is on the watchlist:** a second encounter, forced with a different
+  RNG seed (`LOF_TICK=0x7777`), spawns `Elven soldier/officer` and the engine
+  opens `ega\char0\ch26`; a search over that frame gives **`(56,9)`** at 1.0000.
+  So the vertical origin is **not a fixed constant** — it varies between
+  encounters (the two sprites are both 120×119, so it is not a size effect; the
+  cause is either the sprite's own content or the monster's distance).  The
+  pinned oracle is exact, but the general rule for `dy` is not derived.
+- **Bank confirmed (not part of the guess):** both seeds open the **CHAR0** bank
+  (`ega\char0\ch24`, `ega\char0\ch26`), so `NSC[record].+0x48 -> EGA/CHAR0/CH<nn>`
+  is grounded across two encounters; the `CH` number is RNG-selected by monster
+  placement (see BLK-A005 / the RNG entry in section E), not by the save.
+- **To clear it:** read the encounter-draw routine in `analysis/lof.asm` to find
+  how it computes the sprite's `dy` (the writes go through the shared plane
+  blitter `119D:129F`, so the position is computed earlier); or capture a third
+  encounter and fit the rule.  Until then the port is exact for the pinned
+  oracle and *approximate* for other monsters.
+
 ### G-004 — `item_effect_name()` labels beyond the traced dispatcher values (Lane B)
 
 - **What:** `item_effect_name()` gives 41 labels for the item effect byte
