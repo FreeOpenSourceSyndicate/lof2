@@ -277,6 +277,32 @@ static bool compose_building_screen(const std::string& dir, const char* tile,
     return true;
 }
 
+// Blit a town-scene tile (EGA/TWN/<tile>) into the 120x119 viewport at (10,11)
+// as the engine's scrolled two-tile blit: the tile's column 0 lands at viewport
+// x=`x0`; the columns that scroll off the right edge wrap back in on the left
+// one scanline lower.  `x0` = 0 is a plain blit (the town and the building
+// exteriors); the menu (`x0` = 16) and the Temple (`x0` = 40) are scrolled.
+static bool blit_wrapped_viewport(Screen& s, const std::string& dir,
+                                  const char* tile, int x0, std::string& err) {
+    EgaImage twn;
+    if (!load_ega_image(dir + "/EGA/TWN/" + tile, twn, &err)) return false;
+    size_t pl = (size_t)twn.width_bytes * twn.height;
+    int tile_w = twn.width_bytes * 8;
+    auto px = [&](int x, int y) -> uint8_t {
+        int xb = x >> 3, sh = 7 - (x & 7);
+        const uint8_t* p = twn.planes.data() + (size_t)y * twn.width_bytes + xb;
+        return (uint8_t)(((p[0] >> sh) & 1) | (((p[pl] >> sh) & 1) << 1) |
+                         (((p[2 * pl] >> sh) & 1) << 2) | (((p[3 * pl] >> sh) & 1) << 3));
+    };
+    for (int sx = x0; sx < 120; sx++)           // main tile at (10+x0,11)
+        for (int y = 0; y < twn.height && 11 + y < 130; y++)
+            s.put(10 + sx, 11 + y, px(sx - x0, y));
+    for (int sx = 0; sx < x0; sx++)             // wrapped strip at (10,12)
+        for (int y = 0; y < twn.height && 12 + y < 130; y++)
+            s.put(10 + sx, 12 + y, px(tile_w - x0 + sx, y));
+    return true;
+}
+
 // The town name shown on entering a town is selected by the engine from the
 // loaded save, not hardcoded.  The town routine (image 0x53E0) tests the 32-bit
 // cell es:[0x460e] (via [ds:0xaf48]) and prints "Thyn." when it is nonzero and
@@ -373,6 +399,32 @@ static bool compose_house_screen(const std::string& dir, Screen& s, std::string&
     };
     return compose_building_screen(dir, "TWN04", kText,
                                    sizeof(kText) / sizeof(kText[0]), s, err);
+}
+
+// Compose the Temple screen: MSCR + the temple exterior EGA/TWN/TWN05 in the
+// viewport + the priest's greeting and the temple menu.  The viewport is the
+// same scrolled two-tile blit the menu uses but scrolled further (tile column 0
+// lands at viewport x=40); with that scroll the viewport is pixel-exact against
+// the emulator's `temple_bldg` frame.  Strings are the engine's own
+// (LOF.EXE ds:0x5086/0x5095/0x50a3/0x50b4/0x50ce/0x50de).
+static bool compose_temple_screen(const std::string& dir, Screen& s, std::string& err) {
+    s.resize(320, 200);
+    s.clear(0);
+    if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
+    if (!blit_wrapped_viewport(s, dir, "TWN05", 40, err)) return false;
+    Font font;
+    if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
+    static const TownTextRow kText[] = {
+        { 92, "welcome to our", 15},
+        {100, "Great Temple!", 15},
+        {116, "(H)eal character", 0},
+        {124, "(R)evive a dead character", 0},
+        {140, "(J)oint deposit", 0},
+        {156, "(C)ontinue", 15},
+    };
+    for (const auto& r : kText)
+        font.draw_text(s, 139, r.y, r.text, r.idx);
+    return true;
 }
 
 // --dump-dungeon: decode a few DNGS/DNGxx levels and print the 36x36 floor
@@ -680,6 +732,7 @@ int main(int argc, char** argv) {
     bool emporium_flag = false;
     bool bank_flag = false;
     bool house_flag = false;
+    bool temple_flag = false;
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
         else if (std::string(argv[i]) == "--save" && i + 1 < argc) save = argv[++i];
@@ -687,11 +740,13 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--emporium") emporium_flag = true;
         else if (std::string(argv[i]) == "--bank") bank_flag = true;
         else if (std::string(argv[i]) == "--house") house_flag = true;
+        else if (std::string(argv[i]) == "--temple") temple_flag = true;
     }
-    if (town_flag || emporium_flag || bank_flag || house_flag) {
+    if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag) {
         std::string err;
         Screen s;
-        bool ok = house_flag    ? compose_house_screen(dir, s, err)
+        bool ok = temple_flag  ? compose_temple_screen(dir, s, err)
+                  : house_flag    ? compose_house_screen(dir, s, err)
                   : bank_flag   ? compose_bank_screen(dir, s, err)
                   : emporium_flag ? compose_emporium_screen(dir, s, err)
                                 : compose_town_screen(dir, town_name_from_save(save), s, err);
