@@ -159,7 +159,7 @@ by pushing `work/<yourname>` with a one-line claim at the top of your notes file
 | 2 | B | **BLK-B005** — ROST per-record checksum | **DONE (2026-11-16)**: `rost_record_checksum()` + `intact` flag in `load_rost()`; tested in `tests/char_test.cpp` (synthetic + real fixtures) | `port/char.{h,cpp}`, `tests/char_test.cpp` | **done** |
 | 3 | A | **BLK-A001 / BLK-A005** — first-person viewport composite | **DONE for the depth model (2026-11-17)**: the view is a *depth-marched single-sprite blit* — depth 1 → `EGA/D<d>/DP<index>` @ (10,11), depth 2 → `EGA/CHAR2/CH40` @ (58,27), depth ≥3 → `EGA/CHAR2/CH25` @ (-14,28), where depth = first cell ahead with low nibble ∉ {0,2,7,8,9}. Pixel-exact vs the DOSBox oracle (spawn `DP001`; moved `CH25` **tiled** at x-stride 120 / y-stride -1 = window copies (-24,17),(96,16),… matching **1.0000** in the emulator framebuffer / 0.9993 vs the oracle, BLK-A005 Round 49). Wired into `--walk`/`--ui`; `tests/dungeon_test.cpp::test_view_depth` + `tests/port_dungeon_view_test.py` (floor 0.998). **Still open (BLK-A005):** the encounter-id *producer* (`es:[0x259]`) | `port/dungeon.{h,cpp}` | **partial** |
 | 4 | M | **In-game play loop** — movement + combat in `--ui` | **movement DONE (2026-11-17)**: the `--ui` PLAY state now walks the party on arrow keys (the `--walk` model) and redraws the depth-marched viewport after each move (`port_ui_test.py` checks the scripted `O` transition == `--walk`). **Remaining: combat** | `port/lof.cpp` | **partial** |
-| 5 | M/A | **Inn & Temple `D5` interiors** | **PARTIAL (2026-11-17):** the Temple building screen is town-style (`EGA/UP/MSCR` + `EGA/TWN/TWN05` viewport scrolled `x0`=40 + `CHR1` text at x=139) — `compose_temple_screen()` + `--temple`, pixel-exact vs the emulator `temple_bldg` frame, guarded by `tests/port_building_test.py`. The **Inn screen is the main menu** (the game starts inside the Inn): the boot-menu `(I)nn` key renders a frame byte-identical to `ref/oracle/menu.png` (1.0000), already covered by `--menu`. **Still open:** the Inn/Temple *first-person interiors* entered after the building menu are a later state | `port/lof.cpp`, `tests/port_building_test.py` | **partial** |
+| 5 | M | **Inn & Temple screens** | **DONE (2026-11-18):** neither is a `D5` first-person interior. The **Temple building screen** is town-style (`EGA/UP/MSCR` + `EGA/TWN/TWN05` viewport scrolled `x0`=40 + `CHR1` text at x=139) — `compose_temple_screen()` + `--temple`, pixel-exact vs the emulator `temple_bldg` frame. Its **(H)eal / (R)evive** options open a character-selection sub-prompt over the *same* viewport (`compose_temple_prompt()` + `--temple-heal`/`--temple-revive`; strings "Whose wounds should / we heal (1-6)?" and "Who should be revived / (1-6)?" + "(C)ontinue"). The **Inn screen is the main menu** (the game starts inside the Inn): the town `I` key renders a frame byte-identical to `ref/oracle/menu.png` (1.0000); its `(R)est` sub-prompt (`compose_inn_rest_screen()` + `--inn-rest`; "Would you like a simple / nights rest …" + `(S)/(W)/(J)` options) is over the same scrolled `TWN03` viewport the menu uses. Guarded by `tests/port_building_test.py` + `tests/port_inn_test.py` | `port/lof.cpp`, `tests/port_building_test.py`, `tests/port_inn_test.py` | **done** |
 | 6 | B | **BLK-B004** — combat action dispatcher / round resolution | **RESOLVED (2026-11-18)**: dispatcher + round state grounded; printer at image `0x186A3` (fn `0x1810E`). The `W P B` **meanings are derived from the decompilation** — `W`=weapon damaged, `P`=shield/armour damaged, `B`=an ability improved, `Attack`=Passed/Failed (setters paired with the weapon/shield/armour slot writes; messages `"The weapon of …"`, `"However, the shield/armour of …"`, `"(Defensive ability grows!)"` etc.). **Correction:** an earlier note used the wrong DS string base `0x40000`; the correct base is `0x41D10` (runtime `ds=0x4C92` at the setter). Owner play corroborated `P`; OT-003 (optional `W`/`B` corroboration) **closed as not-needed** — the table shows only in quick combat, the messages only in regular rounds, so they cannot be cross-checked by eye | `port/char.*`, `docs/notes-b.md` | **done** |
 | 7 | M | **Regression tests** for `AGENTS.md` "do not regress" | **DONE (2026-11-16)**: `test_keyboard_full_row()` (full unshifted Set-1 row + modifiers) and `test_ega_detect_int10_12()` (INT 10h AH=12h BL=10h → BX=3/CX=0, non-EGA subfn → AL=0) added to `tests/cpu_test.cpp` | `tests/cpu_test.cpp` | **done** |
 | 8 | M | **check.sh apparent hang** | **DONE (2026-11-16)**: `check.sh` invoked `tests/golden_test.sh` in both the `if` and the `elif`, so every non-ok result re-ran the whole ~22 min emulator sweep (≈44 min). Capture the output once and branch on it | `check.sh` | **done** |
@@ -213,17 +213,23 @@ stays the single source of "what is left".
       (nonzero → Thyn; `--save` chooses).  Guarded by `tests/port_town_test.py`
       (oracles `ref/oracle/town.png` + `ref/oracle/town_cyldane.png`).  G-001
       resolved.
-- [~] Building screens.  **Emporium (`--emporium`, `TWN01`), Bank (`--bank`,
-      `TWN02`) and House of trades (`--house`, `TWN04`) are DONE** and guarded by
-      `tests/port_building_test.py` (viewport + every text row pixel-exact vs
-      `ref/oracle/{emporium,bank,house}.png`).  They are the **same screen shape
-      as the town** — `MSCR` + the building's `TWN` tile at (10,11) + `CHR1` text
-      at x=139; there is **no ornate engine-drawn panel** (the earlier "ornate
-      panel" note was wrong — see `docs/notes-maintainer-town.md`, "Correction
-      2026-11-14").  **Remaining: the Inn and Temple**, which are *not* `TWN`
-      tiles but first-person **`D5` interiors** (walkable scenes; the intro even
-      ends inside the Inn) — so they belong with the area-A viewport composite.
-      Golden scenarios `shop`/`temple_bldg` exist (`ref/oracle/shop.png`).
+- [x] Building screens.  **Emporium (`--emporium`, `TWN01`), Bank (`--bank`,
+      `TWN02`), House of trades (`--house`, `TWN04`) and the Temple (`--temple`,
+      `TWN05`) are DONE** and guarded by `tests/port_building_test.py` (viewport
+      + every text row pixel-exact vs `ref/oracle/{emporium,bank,house,
+      temple_bldg}.png`).  They are the **same screen shape as the town** —
+      `MSCR` + the building's `TWN` tile at (10,11) + `CHR1` text at x=139; there
+      is **no ornate engine-drawn panel** (the earlier "ornate panel" note was
+      wrong — see `docs/notes-maintainer-town.md`, "Correction 2026-11-14").
+      The Temple's **(H)eal / (R)evive** options open a character-selection
+      sub-prompt over the *same* viewport (`--temple-heal`/`--temple-revive`).
+      The **Inn is not a `TWN` tile at all — its screen is the boot main menu**
+      (the game starts inside the Inn; the town `I` key renders a frame
+      byte-identical to `ref/oracle/menu.png`).  Its `(R)est` sub-prompt is
+      `--inn-rest` over the menu's scrolled `TWN03` viewport.  Guarded by
+      `tests/port_inn_test.py`.  (An earlier note claimed the Inn/Temple are
+      first-person `D5` interiors — that was a misconception; there is no such
+      state.)
 - [ ] Dungeon subsystem (`DNGS/`) — **area A**; see the work queue (§4).
 - [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — **area B**; see the work
       queue (§4). **Unblocked:** the SPEC/ROST reads now happen in the oracle

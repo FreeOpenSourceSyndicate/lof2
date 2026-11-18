@@ -5,6 +5,45 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-18 (twenty-sixth session) — TL;DR — READ THIS FIRST
+
+Environment **HEALTHY**. Closed queue item **#5 (Inn & Temple screens)** — the
+"D5 first-person interiors" premise was a **misconception**: neither the Inn nor
+the Temple has a first-person interior state. What actually exists is a set of
+*town-style* screens plus sub-prompts, all now implemented and guarded.
+
+- **Temple (H)eal / (R)evive sub-prompts RESOLVED.** Both open a
+  character-selection sub-prompt over the **same** `TWN05` viewport (only the
+  greeting/option text changes): heal = "Whose wounds should / we heal (1-6)?",
+  revive = "Who should be revived / (1-6)?", each with a lone "(C)ontinue"
+  (black) at y=116. Strings are the engine's own (`ds:0x50ea/0x50fe` heal,
+  `ds:0x50d8/0x50ee` revive). Implemented as `compose_temple_prompt()` +
+  `--temple-heal`/`--temple-revive`; pixel-exact vs fresh emulator frames
+  (`ref/oracle/temple_heal.png`, `temple_revive.png`).
+- **Inn (R)est sub-prompt RESOLVED.** The Inn screen *is* the boot main menu
+  (re-confirmed: a fresh emulator `town`+`I` capture is byte-identical to
+  `ref/oracle/menu.png` outside the party panel). Its `(R)est` option opens a
+  sub-prompt over the **same** scrolled `TWN03` viewport (x0=16) the menu uses:
+  "Would you like a simple / nights rest, or do you also / wish to have all
+  rations / replenished?" + (S)imple nights stay / (W)ith replenished rations /
+  (J)oint deposit (black) / (C)ontinue (white). Implemented as
+  `compose_inn_rest_screen()` + `--inn-rest`; pixel-exact vs the fresh emulator
+  `inn_rest` frame (`ref/oracle/inn_rest.png`).
+- **Oracle provenance re-verified:** the emulator's `temple_bldg` frame, rendered
+  with the standard EGA attribute palette, is **byte-identical** to the committed
+  `ref/oracle/temple_bldg.png` (0 diff px); and the fresh `temple_heal` capture is
+  byte-identical to the predecessor's `/tmp/temple_h.ega`. So the new oracle PNGs
+  use the same recipe the committed ones do.
+- **Tests:** `tests/port_inn_test.py` (new; Inn==menu + Inn rest) and the
+  `temple_heal`/`temple_revive` rows added to `tests/port_building_test.py`, both
+  wired into `make golden-port`.
+- **Doc corrections:** `AGENTS.md`, `docs/HANDOFF.md` (§4 item #5 and the
+  building-screens status) — removed the "Inn/Temple are first-person `D5`
+  interiors" claim everywhere it appeared.
+
+**Open / next:** queue `docs/HANDOFF.md` §4 — #3 partial (encounter-id producer),
+#4 partial (combat). **Owner tasks:** none open (OT-003 closed as not-needed).
+
 ## Session 2026-11-17 (twenty-fifth session) — TL;DR — READ THIS FIRST
 
 Environment **HEALTHY**. Took queue item **#5 (Inn & Temple `D5` interiors)** and

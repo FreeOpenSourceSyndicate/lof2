@@ -38,6 +38,11 @@ BUILDINGS = [
     ("--bank", "bank.png", "Bank (TWN02)"),
     ("--house", "house.png", "House of trades (TWN04)"),
     ("--temple", "temple_bldg.png", "Temple (TWN05)"),
+    # The Temple's (H)eal / (R)evive options open a character-selection
+    # sub-prompt over the *same* TWN05 viewport; only the greeting/option text
+    # changes.  The question strings are the engine's own.
+    ("--temple-heal", "temple_heal.png", "Temple heal prompt (TWN05)"),
+    ("--temple-revive", "temple_revive.png", "Temple revive prompt (TWN05)"),
 ]
 
 MIN_MATCH = 0.99

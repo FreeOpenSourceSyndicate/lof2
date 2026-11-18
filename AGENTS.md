@@ -263,8 +263,22 @@ Progress:
       16x16 top-left patch (the software mouse cursor, reproduced by
       `--cursor 0,0`) and the dynamic party panel differ.  Guarded by
       `tests/port_town_test.py` and `tests/port_building_test.py`
-      (`make golden-port`).  (The Inn and Temple *first-person interiors*, entered
-      after the building menu, are a separate later state.)
+      (`make golden-port`).
+- [x] Inn + Temple sub-prompts.  Neither the Inn nor the Temple is a `D5`
+      first-person interior (that earlier note was a misconception — there is no
+      such state).  The **Inn screen *is* the boot main menu**: the game starts
+      inside the Inn and the town `(I)nn` key redisplays the same menu
+      (`ref/oracle/inn.png` is byte-identical to `menu.png` except the dynamic
+      party panel).  The Inn's `(R)est` option opens a sub-prompt over the *same*
+      scrolled `TWN03` viewport the menu uses (`--inn-rest`): "Would you like a
+      simple / nights rest, or do you also / wish to have all rations /
+      replenished?" + (S)imple nights stay / (W)ith replenished rations /
+      (J)oint deposit / (C)ontinue.  The Temple's `(H)eal` / `(R)evive` options
+      likewise open a character-selection sub-prompt over the *same* `TWN05`
+      viewport (`--temple-heal` / `--temple-revive`): "Whose wounds should / we
+      heal (1-6)?" / "Who should be revived / (1-6)?" + (C)ontinue.  All strings
+      are the engine's own.  Guarded by `tests/port_inn_test.py` and the
+      `temple_heal`/`temple_revive` rows of `tests/port_building_test.py`.
 
 ### Font / text rendering (decoded)
 
