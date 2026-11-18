@@ -33,6 +33,17 @@ first-person interior — it is town-style, exactly like the Emporium/Bank/House
   no party members) and the Inn/Temple *first-person interiors* entered after the
   building menu are separate, later states.
 
+**Inn screen = the main menu (resolved, no new code).** Driving the boot menu's
+`(I)nn` key (`0x17`) in the emulator produces a frame that is **byte-identical to
+the main menu** (`ref/oracle/menu.png`, 1.0000) — the game *starts* inside the
+Inn, so the boot menu (Pick-pocket / Rest / Look / Erase / Add / Dismiss / Open
+file) **is** the Inn screen; there is no separate Inn asset. The only difference
+is the dynamic party panel (an empty party at boot vs the save's roster), which
+is why the boot-vs-`--menu` diff (450 px, y9..29 x148..197) is confined to the
+party panel. So `--menu` already reproduces the Inn; no `--inn` flag is needed.
+The Inn/Temple *first-person interiors* reached after `(C)ontinue`/building entry
+remain the open part of #5.
+
 **Open / next:** queue `docs/HANDOFF.md` §4 — #3 partial (encounter-id producer),
 #4 partial (combat), #5 partial (Inn screen + interiors). **Owner tasks:** none
 open (OT-003 closed as not-needed).
