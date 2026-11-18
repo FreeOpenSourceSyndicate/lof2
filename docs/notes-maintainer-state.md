@@ -5,6 +5,50 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-18 (twenty-eighth session) — TL;DR
+
+Environment **HEALTHY** (`./check.sh` → `[check] HEALTHY`, 0 fails). Queue item #3
+(BLK-A005) **closed**.
+
+- **BLK-A005 — RESOLVED, closed as *not-portable-by-data* (PR #141).**  The
+  `es:[0x259]` encounter-id producer (routine R, `img 0x276CA`) is fully
+  disassembled, but capturing its **input** (new one-shot `LOF_CAP` hook, at the
+  producer entry `313F:63DA` / linear `0x377CA`) proves the id is **not a function
+  of the save**: `es:[0x4612]` is a *trail of NSC record indices* pushed by
+  `img 0x23286` from the record whose runtime **cell key** `+0xf8`/`+0xfa` equals
+  the party cell; that key is written by the **monster-placement routine**
+  (`img 0x23095`), which walks each monster to a random 4-neighbour cell using the
+  game RNG (BIOS-tick seeded).  Measured: seed `0x0B` (×2) and `0x4321` put record
+  16 (`CH25`) on the party cell; seed `0x7777` put record 35 (`Ogre`, `CH40`)
+  there.  The port's depth march (BLK-A001/G-006) is the faithful,
+  save-independent model and matches **both** DOSBox oracles at 1.0000, so no port
+  change is warranted.  G-007 reframed: depth-keyed, only the `CHnn` *numbers*
+  remain as residue.
+- **Emulator dev aid added:** `LOF_CAP=<file>` (+ `LOF_CAP_N=<n>`) dumps the full
+  1 MB at the Nth `LOF_TRACE_IP` hit — reads a routine's input/output state.
+
+### Revised open-items inventory (agent-hours)
+
+| # | Item | Area | Est. agent-hrs | Status |
+|---|------|------|----------------|--------|
+| 1 | ~~BLK-A005 producer port~~ | A | ~~6–10~~ | **DONE** — closed as not-portable-by-data (RNG placement) |
+| 2 | **Combat** — wire the decoded dispatcher + round model into the play loop | A/B | **12–20** | open (biggest chunk) |
+| 3 | **Town services** — Buy/Sell/Repair, Deposit/Withdraw, Training/Learn magic, Inn rest (transactions + save write-back) | B | **10–16** | open |
+| 4 | **G-007 residue** — capture a 2nd scenario's depth-2/≥3 view, read its `CHnn` | A | **2–3** | open (labelling only) |
+| 5 | **G-004** — `item_effect_name()` labels beyond traced dispatcher values | B | **4–6** | open (labels only; largely already correct) |
+| 6 | **G-005 (mover)** — isolate the step-rejection wall test | M | **3–5** | open (hard: indirect call) |
+| 7 | **Exploration breadth** — town-exit/overworld travel, unvisited screens, save write-back | M | **15–25** | open-ended |
+| 8 | **Party-panel live state** — time of day, morale, rations, internal clock | M | **4–8** | open |
+
+**Remaining *queued* items (2–6): ~31–50 agent-hours.**  With breadth (7) and live
+state (8): **~50–83 agent-hours**.
+
+### Overall progress estimate: **~72% complete** (headline)
+
+Weighted by player-facing scope (see the table in the 27th-session entry): the
+dungeon viewport dimension rises to ~95% (BLK-A005 closed, both oracles 1.0000),
+which lifts the total to ≈**70%**; headline **~72%** given the extra closed item.
+
 ## Session 2026-11-18 (twenty-seventh session) — TL;DR
 
 Environment **HEALTHY** (`./check.sh` → `[check] HEALTHY`, 0 fails). One item
