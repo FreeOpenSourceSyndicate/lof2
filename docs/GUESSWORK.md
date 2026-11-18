@@ -80,20 +80,25 @@ How to use each section:
   ahead codes `0x0/0x2/0x7/0x8/0x9`, because no single `DPnnn` reproduces the
   corridor case.  It is now handled by the depth march instead of a fallback.
 
-### G-007 — depth-2/≥3 dungeon view sprite is empirical, pinned to scenario 5 (Lane A)
+### G-007 — depth-2/≥3 dungeon view sprite: depth-keyed, `CHnn` residue (Lane A)
 
 - **What:** `dungeon_view_for()` blits `EGA/CHAR2/CH40` (depth 2) / `CHAR2/CH25`
   (depth ≥3) only when the scenario is 5; other scenarios keep the depth-1
   tileset sprite.
 - **Source of truth:** the emulator depth sweep + the DOSBox oracle for the
   D5/Temple save (slot 1).  The sprites and offsets are exact for that scenario.
-- **Why it is on the watchlist:** the two `CHnn` numbers are that scenario's
-  encounter-sprite bank (`NSC05[id].+0x48`); whether the engine keys them by
-  *depth* or they merely coincide with the location-id lookup for this save is not
-  proven, and no other scenario's depth-2/≥3 view has been captured.  The
-  general rule is BLK-A005 (the `es:[0x259]` producer).
-- **To clear it:** capture a second scenario's corridor view and either confirm
-  the depth keying or decode the producer so the bank index is data-driven.
+- **Resolved (2026-11-18, Round 51):** BLK-A005 is closed as *not-portable-by-data*
+  — the engine's `es:[0x259]` encounter id is RNG-seeded monster placement, not a
+  function of the save.  The **observable, save-independent rule is the depth
+  march** (the port's model): depth 1 -> the tileset sprite, depth 2 -> one bank
+  sprite, depth ≥3 -> another.  That is what the port implements.
+- **Residue:** the exact `CHnn` *numbers* for depth 2/≥3 are still scenario-5
+  values; they are that scenario's encounter bank, and whether the numbers are
+  fixed or scenario-dependent is unproven.  This is now a *labelling* residue,
+  not a behavioural gap (the structure — which depth blits a bank sprite, and at
+  which offset — is decompiled).
+- **To clear it:** capture a second scenario's depth-2/≥3 view and read its
+  `CHnn`; if it differs, table the numbers per scenario.
 
 ### G-004 — `item_effect_name()` labels beyond the traced dispatcher values (Lane B)
 
