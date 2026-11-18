@@ -341,6 +341,19 @@ int main(int argc, char** argv) {
                     }
                     long pc = (long)(m.cpu.cs * 16u + m.cpu.ip);
                     if (pc >= lo && pc < hi && left > 0) {
+                        // LOF_CAP=file  dumps the full 1 MB linear memory at the
+                        // Nth hit of this trace point (one-shot), so the engine's
+                        // input or output state to a routine can be read.
+                        if (const char* cf = getenv("LOF_CAP")) {
+                            static long capn = -1, hit = 0;
+                            if (capn == -1) { char* n = getenv("LOF_CAP_N"); capn = n ? atol(n) : 1; }
+                            if (++hit == capn) {
+                                FILE* f = fopen(cf, "wb");
+                                if (f) { fwrite(m.mem(), 1, 1u << 20, f); fclose(f);
+                                         fprintf(stderr, "[cap] dumped 1MB at hit %ld/%ld, %08u %04X:%04X to %s\n",
+                                                 hit, capn, m.instr_count, m.cpu.cs, m.cpu.ip, cf); }
+                            }
+                        }
                         fprintf(stderr, "T %08u %04X:%04X | ax=%04X bx=%04X cx=%04X dx=%04X si=%04X di=%04X bp=%04X sp=%04X ds=%04X es=%04X ss=%04X fl=%04X\n",
                             m.instr_count, m.cpu.cs, m.cpu.ip, m.cpu.ax, m.cpu.bx, m.cpu.cx, m.cpu.dx,
                             m.cpu.si, m.cpu.di, m.cpu.bp, m.cpu.sp, m.cpu.ds, m.cpu.es, m.cpu.ss, m.cpu.flags);

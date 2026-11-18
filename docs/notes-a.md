@@ -2494,3 +2494,55 @@ offset; modes 2/1/3 = `(0xC,6)`/`(0,0x12)`/`(6,6)`), then packs the list into a
 scenario-5 special case (G-007).  The consumer half is already delivered; the id
 is data-driven once this lands.  No guess: the routine is fully disassembled and
 its inputs (`es:[0x4612]/[0x4613]/[0x4615]`, the `NSC` flags) are known.
+
+## Round 51 — BLK-A005 producer input is RNG-seeded monster placement (maintainer, 2026-11-18)
+
+**Result: the producer is NOT portably re-derivable from the save data.**  Its
+input is a *runtime monster-placement table* built with the game's RNG, so the
+encounter id is not a deterministic function of the save.
+
+Method: a new one-shot emulator hook `LOF_CAP=<file>` (with `LOF_CAP_N=<n>`)
+dumps the full 1 MB at the Nth hit of a `LOF_TRACE_IP` point.  Driving the Temple
+save with a forward step and capturing at the producer entry (`313F:63DA`, linear
+`0x377CA`) gives the routine's **input** state; capturing the same recipe at
+different `LOF_TICK` (RNG seed) values gives the input for each seed.
+
+Findings:
+
+1. **The producer's `es:[0x4612]` array is a trail of NSC record indices, not
+   map cells.**  At the producer entry `es:[0x4615]=1`, `es:[0x4612]=16`, and the
+   routine indexes `NSC05[16]` (stride `0x11a`).  The trail is pushed by
+   `img 0x23286` (`inc es:[0x4615]` at `0x23293`, `mov es:[bx+0x4612],cl` at
+   `0x2329B`), which scans the `NSC` records for one whose **32-bit cell key**
+   at `+0xf8`/`+0xfa` equals the party cell `es:[0x3824]` (`img 0x23238`..`0x2326D`).
+2. **`+0xf8`/`+0xfa` is written by the monster-placement routine** (`img 0x23095`,
+   `+0xf8` = `[bp-0x14]`), which picks each monster's cell by **randomly walking a
+   4-neighbour path** from a home cell: it draws a `0..3` direction from
+   `lcall 0x2a7d:0x2f6a` (`img 0x22FDF`, arg 4) and advances the candidate cell by
+   `±0x24` (N/S) or `±1` (E/W), rejecting a cell that is occupied
+   (`es:[0x3828]`) or a wall (`es:[bx+0x46d8] == 7/8`).  The draw comes from the
+   game's RNG, seeded from the BIOS tick counter (`img 0x47A6`: `int 0x1a; add
+   cx,dx`), so placement varies run to run.
+3. **Measured: the party-cell record is seed-dependent.**  Four runs of the same
+   recipe (Temple spawn, one forward step):
+   - seed `0x0B` (twice) -> party-cell record **16** (`Lizard warrior`, `+0x48`=25 -> `CH25`);
+   - seed `0x4321` -> record **16** (same);
+   - seed `0x7777` -> record **35** (`Ogre`, `+0x48`=40 -> `CH40`).
+   Same seed reproduces the placement **byte-identically**; a different seed moves
+   the record that lands on the party cell, hence the view sprite changes.
+4. **The 78-byte disk record does not carry the cell** (fields `+0x29/+0x2c/+0x2d/
+   +0x2e/+0x30/+0x39/+0x48/+0x4c` are present; `+0xf8`/`+0xfa` are runtime-only),
+   so the port cannot derive the placement from `SYST/NSC05` alone.
+
+**Consequence.**  `dungeon_encounter_id()` cannot be ported faithfully as a pure
+function of the save, because the engine's id depends on RNG-seeded monster
+placement.  The port already reproduces the engine's *view* correctly via the
+depth march (BLK-A001/G-006); the `es:[0x259]` id only *coincides* with that
+sprite for the D5/Temple save.  BLK-A005 should be **closed as
+not-portable-by-data**: implementing the RNG placement would reproduce a
+non-deterministic choice, not the game's observable behaviour for a given save.
+The faithful model is the depth march (what the port does); the encounter-id
+producer is an internal, RNG-driven detail.  G-007's scenario-5 pin can be
+**generalised to a depth-keyed rule** (depth 2 -> bank sprite A, depth ≥3 -> bank
+sprite B) since that is the observable, save-independent behaviour; whether the
+exact `CHnn` is scenario-specific is the only residue.

@@ -19,7 +19,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 | BLK-A002 | A (dungeons) | Maintainer | Medium | **Resolved** (2026-11-12) | — |
 | BLK-A003 | A (dungeons) | Agent A | Medium | **Resolved** (2026-11-08) | — |
 | BLK-A004 | A (dungeons) | Maintainer | Medium | Resolved | — |
-| BLK-A005 | A (dungeons) | Maintainer | Medium | **Partially resolved** (2026-11-18: producer now runs on a walk step; port pending) | — |
+| BLK-A005 | A (dungeons) | Maintainer | Medium | **Resolved** (2026-11-18: closed as not-portable-by-data — producer input is RNG-seeded monster placement) | — |
 
 ---
 
@@ -28,7 +28,10 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 - **Blocked lane:** A (dungeons)
 - **Responsible:** Agent A
 - **Priority:** Medium
-- **Status:** Open (viewport-composite half **resolved** 2026-11-17)
+- **Status:** **Resolved (2026-11-18)** — closed as *not-portable-by-data*: the
+  producer's input is RNG-seeded monster placement, so the id is not a function of
+  the save.  See the Round 51 log below.  (The viewport-composite half was
+  resolved 2026-11-17.)
 - **Dependencies:** —
 
 **Description & unblock action.** The consumer half of the encounter-sprite
@@ -90,6 +93,23 @@ mode + per-record flags (confirming Round 46b). Outline:
 scenario-5 special case (G-007). Verify by comparing the emulator's `es:[0x259]`
 after a scripted step against the port's computation for several DNG05 cells.
 The consumer half is already delivered. Detail: `docs/notes-a.md` Round 50.
+
+**Log.** 2026-11-18 Maintainer (Round 51) — **RESOLVED, closed as
+not-portable-by-data.**  Capturing the producer's *input* with the new one-shot
+`LOF_CAP` hook (at the producer entry `313F:63DA` / linear `0x377CA`) shows its
+`es:[0x4612]` array is a **trail of NSC record indices** pushed by `img 0x23286`
+from the record whose runtime **cell key** `+0xf8`/`+0xfa` equals the party cell
+`es:[0x3824]`.  That key is written by the **monster-placement routine**
+(`img 0x23095`), which walks each monster to a random 4-neighbour cell using the
+game RNG (BIOS-tick seeded, `img 0x47A6`).  Measured across four runs of the same
+Temple recipe: seed `0x0B` (twice) and `0x4321` put record 16 (`CH25`) on the
+party cell, but seed `0x7777` put record 35 (`Ogre`, `CH40`) there — same seed is
+byte-identical, a different seed changes the sprite.  So `es:[0x259]` is **not a
+function of the save**; the 78-byte disk record carries no cell field.  The port
+already reproduces the engine's observable view via the depth march (BLK-A001 /
+G-006), which is the faithful, save-independent model; implementing the RNG
+placement would reproduce a non-deterministic internal choice, not observable
+behaviour.  No port change is warranted.  Detail: `docs/notes-a.md` Round 51.
 
 **Log.** 2026-11-17 Maintainer (Round 49) — **RESOLVED (viewport-composite half).**
 The 472-px residue is a **second `CHAR2/CH25` blit**: the corridor view is the
