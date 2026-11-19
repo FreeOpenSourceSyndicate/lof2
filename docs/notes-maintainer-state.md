@@ -5,6 +5,37 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-18 (thirty-first session) — TL;DR
+
+Environment **HEALTHY**. Followed up the decoder fix by clearing the guesses it
+invalidated (Rule 4) and adding a second-creature guard.
+
+- **G-008 RESOLVED (encounter sprite placement).**  The old note said the
+  monster cell was "tiled (120,-1) at origin (56,3), vertical origin varies
+  (56,9 for CH26)".  That was the byte-11 decoder truncation again: with the
+  fixed decoder the creature cell is a full 120x119 image blitted **plainly at
+  (10,11)**.  Verified for two sprites, and (10,11) is the *unique* best offset
+  (brute-force search: only offset ≥ 0.9999 for each):
+  * `ref/oracle/combat.png` → `CHAR0/CH24` (Mercenary): 1.0000;
+  * second encounter → `CHAR0/CH26` (Elven officer): 1.0000.
+  The second frame is now committed as `ref/oracle/combat_ch26.png`
+  (deterministic: `LOF_TICK=0x7777` + `LOF_NO_TIMER=1`, repeat md5-identical).
+- **New guard:** `tests/port_encounter_test.py` renders the CH26 encounter and
+  asserts its viewport equals `CHAR0/CH26` at (10,11) (floor 0.9999).  Verified
+  it fails when the blit is shifted +3 px.  `MIN_VIEWPORT` raised 0.99 → 0.999.
+- **G-006 also moved to resolved** (its `(58,27)`/`(-14,28)` offsets are the
+  same decoder artefact); G-007's offset sentence corrected.  Register now: 0
+  awaiting owner, **3 on the watchlist** (G-004 item labels, G-005 wall set,
+  G-007 `CHnn` labels).
+- **Docs corrected** (they had gone stale): `AGENTS.md` (both the encounter and
+  the first-person viewport sections described the deleted tiling /
+  `DungeonView::tile`), `docs/HANDOFF.md` queue row 3, `docs/blockers/A.md`
+  BLK-A001 status header (was "In progress", now Resolved), and the encounter
+  test docstring.  `ref/oracle/README.md` documents both encounter captures.
+- **Env note:** the container reset had dropped `numpy`/`Pillow`; reinstalled
+  per `AGENTS.md` (`pip install numpy pillow`).  All 11 `port_*` tests pass;
+  `make test` passes.
+
 ## Session 2026-11-18 (thirtieth session) — TL;DR
 
 Environment **HEALTHY**. Fixed the **EGA image decoder payload-offset bug** (the
