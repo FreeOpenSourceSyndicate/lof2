@@ -164,6 +164,14 @@ apt-get install -y libsdl2-dev pkg-config   # optional: live window
 pip install numpy pillow                     # required by the frame tests
 ```
 
+`tests/golden_test.sh` (the `golden` target, run by `check.sh`) is the emulator
+regression sweep: 12 independent, deterministic scenarios.  They run
+concurrently on `GOLDEN_JOBS` workers (default `nproc`), so a sweep takes a few
+minutes instead of ~25; `GOLDEN_JOBS=1` forces the old serial order.  The
+recorded hashes in `tests/golden.txt` are emitted in a fixed order either way,
+so parallelism does not change what is asserted.  Re-record only after an
+intended change: `./tests/golden_test.sh --record`.
+
 ## Run (analysis emulator — dev aid only)
 
 ```sh

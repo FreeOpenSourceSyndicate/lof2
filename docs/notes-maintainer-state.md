@@ -35,6 +35,23 @@ screen, first met from the wilderness).
 - **`make check` is not hanging** — it runs the ~12-scenario emulator sweep
   (`tests/golden_test.sh`, up to 300 s per scenario); give it a long timeout.
   The predecessor's "TIMED OUT" was an under-sized timeout, not a defect.
+- **Golden sweep made ~2.3× faster (615 s vs ~1450 s).**  The 12 scenarios are
+  independent and deterministic, so `golden_test.sh` now runs them on
+  `GOLDEN_JOBS` workers (default `nproc`, dispatched longest-first) and emits
+  the hashes in the recorded order — `tests/golden.txt` is byte-identical, and
+  the assertions are unchanged in strength (same 12 hashes).  Verified the whole
+  set in parallel *and* serially (`GOLDEN_JOBS=1`), plus the timeout path.
+  Measured: O3/`-march=native` gives **no** speedup (the interpreter is
+  memory-bound), and lowering the frame counts is **not** safe — the `town`
+  frame is only stable from ~1300 frames, so trimming would weaken the oracle.
+  Also fixed a latent bug: the fixed 300 s per-run ceiling had just 53 s of
+  headroom over the 247 s `temple` run, so a loaded box silently produced a
+  bogus empty-dump hash; the ceiling now scales with pool width and a timed-out
+  run reports `FAILED(timeout=Ns)`.
+- **Env note:** `numpy`/`Pillow` vanished from `/usr/local/bin/python3` mid-session
+  (they were present at session start), which made `golden-port` fail with
+  `ModuleNotFoundError`.  Reinstall with `pip install numpy pillow`; `check.sh`
+  correctly reports this as a problem rather than silently passing.
 
 ## Session 2026-11-18 (twenty-eighth session) — TL;DR
 
