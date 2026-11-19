@@ -5,6 +5,47 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-18 (thirtieth session) — TL;DR
+
+Environment **HEALTHY**. Fixed the **EGA image decoder payload-offset bug** (the
+item the predecessor was mid-experiment on) and removed the viewport workarounds
+it had forced.
+
+- **Root cause.** The decoder read the RLE stream from file byte 11.  But the
+  engine's loader (image `0x1C70`) leaves `si` on the `0x1234` magic and the
+  blitter reads the pattern at `[si+0xa]`, and the header's size field is
+  `4*w*h + 10` — so the decoded buffer begins with the ten header bytes and the
+  pattern starts at decoded offset 10.  The correct decode is therefore **from
+  file byte 1, dropping the first ten decoded bytes** (the predecessor's
+  "decode from byte 1, payload at `[10:]`").  Decoding from byte 11 truncates any
+  run that straddles the header boundary: `CH25` decoded to 6888 of 7140 bytes,
+  `CH24`/`CH40` were similarly short.  This is why the menu matched with the
+  byte-1 decode while the "old" viewport code (byte 11) needed scroll/tile
+  offsets — those offsets were compensating for the truncation, not reproducing
+  engine behaviour.
+- **The one exception is the font strips.**  `CHR1`/`CHR2` are 40x24 and are
+  addressed at file offset 11 directly: the DOSBox party-panel glyphs match the
+  byte-11 decode exactly (the byte-1 decode shifts them down two rows).  So
+  `load_ega_image` decodes images from byte 1/skip 10 and fonts from byte 11.
+- **Viewport workarounds removed.**  With the complete decode every first-person
+  cell is a full **120x119** image, so all viewport tiles blit plainly at the
+  origin `(10,11)`:
+  * menu / Temple / building tiles: `blit_ega(..., kViewportX, kViewportY)`
+    instead of the scrolled `blit_wrapped_viewport` (deleted);
+  * dungeon depth-2/>=3 sprites: `CHAR2/CH40` and `CHAR2/CH25` at `(10,11)`
+    instead of `(58,27)`/`(-14,28)` + x-stride-120 tiling (`DungeonView::tile`
+    deleted).  `CH25` at `(10,11)` matches the oracle **1.0000**;
+  * encounter sprite: `CHAR0/CH24` at `(10,11)` instead of the diagonal tile —
+    **1.0000** (the tiled rule scored 0.279).
+- **Scores improved:** menu **diff 14 -> 0** (pixel-exact), encounter viewport
+  **99.4% -> 100.0%**, inn residue **14 -> 0**, dungeon moved window **99.9%**.
+  All 11 `port_*` tests pass; `make test` passes (new `ega_decode_test`).
+- **New guard:** `tests/ega_decode_test.cpp` (registered in `tests/local.mk`)
+  pins the image byte-1/skip-10 path, the font byte-11 path, and a
+  header-straddling run — it fails on the byte-11 regression.
+- **Docs:** `tools/ega.py` mirrors the same split (used by `port_vor_test` and
+  `dngs.py`); `docs/blockers/A.md` BLK-A005/A001 carry a decode-correction log.
+
 ## Session 2026-11-18 (twenty-ninth session) — TL;DR
 
 Environment **HEALTHY**. Worked the **encounter screen** (the wandering-monster

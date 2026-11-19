@@ -245,27 +245,11 @@ static bool compose_encounter_screen(const std::string& dir, const char* intro,
     s.clear(0);
     if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
 
-    // Monster sprite: tiled diagonal first-person cell (EGA/CHAR0/CH<nn>).
-    EgaImage mon;
+    // Monster sprite: the creature's 120x119 first-person cell
+    // (EGA/CHAR0/CH<nn>) blitted at the viewport origin.
     char spath[64];
     snprintf(spath, sizeof spath, "%s/EGA/CHAR0/CH%02d", dir.c_str(), sprite_ch);
-    if (load_ega_image(spath, mon, &err)) {
-        int wb = mon.width_bytes, h = mon.height;
-        size_t pl = (size_t)wb * h;
-        int sw = wb * 8;
-        for (int wx = 0; wx < kViewportW; wx++) {
-            int scol = ((wx - 56) % sw + sw) % sw;
-            int sxb = scol >> 3, sh = 7 - (scol & 7);
-            for (int wy = 0; wy < kViewportH; wy++) {
-                int srow = ((wy - 3 - (wx < 56 ? 1 : 0)) % h + h) % h;
-                const uint8_t* p = mon.planes.data() + (size_t)srow * wb + sxb;
-                uint8_t v = (uint8_t)(((p[0] >> sh) & 1) | (((p[pl] >> sh) & 1) << 1) |
-                                      (((p[2 * pl] >> sh) & 1) << 2) |
-                                      (((p[3 * pl] >> sh) & 1) << 3));
-                s.put(kViewportX + wx, kViewportY + wy, v);
-            }
-        }
-    }
+    if (!blit_ega(s, spath, kViewportX, kViewportY, &err)) return false;
 
     if (!draw_party_and_status(s, dir, sg, have_sg, err)) return false;
 
@@ -306,28 +290,7 @@ static bool compose_menu_screen(const std::string& dir, Screen& menu, std::strin
     menu.resize(320, 200);
     menu.clear(0);
     if (!blit_ega(menu, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
-    // Left viewport (118x119).  The town scene EGA/TWN/TWN03 is scrolled so
-    // that its column 0 lands at screen x=26; the 14 columns that scroll off
-    // the left edge (TWN03 columns 106..119) wrap back in at x=12..25.  The
-    // wrapped strip is painted one scanline higher, matching the engine's
-    // two-tile blit (verified pixel-for-pixel against a DOSBox capture).
-    EgaImage twn;
-    if (load_ega_image(dir + "/EGA/TWN/TWN03", twn, nullptr)) {
-        int th = twn.height;
-        size_t pl = (size_t)twn.width_bytes * th;
-        auto px = [&](int x, int y) -> uint8_t {
-            int xb = x >> 3, s = 7 - (x & 7);
-            const uint8_t* p = twn.planes.data() + (size_t)y * twn.width_bytes + xb;
-            return (uint8_t)(((p[0] >> s) & 1) | (((p[pl] >> s) & 1) << 1) |
-                             (((p[2 * pl] >> s) & 1) << 2) | (((p[3 * pl] >> s) & 1) << 3));
-        };
-        for (int sx = 26; sx < 130; sx++)           // main tile at (26,11)
-            for (int y = 0; y < th && 11 + y < 130; y++)
-                menu.put(sx, 11 + y, px(sx - 26, y));
-        for (int sx = 10; sx < 26; sx++)            // wrapped strip at (10,12)
-            for (int y = 0; y < th && 12 + y < 130; y++)
-                menu.put(sx, 12 + y, px(104 + (sx - 10), y));
-    }
+    if (!blit_ega(menu, dir + "/EGA/TWN/TWN03", kViewportX, kViewportY, &err)) return false;
     // Menu text.  The greeting and "(C)ontinue" are drawn white (index 15) on
     // the gray (7) panel, while the option list is black (0).  Entries are on
     // 8px rows at x=139 with a blank row after "(R)est", 6px glyph advance.
@@ -370,32 +333,6 @@ static bool compose_building_screen(const std::string& dir, const char* tile,
     if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
     for (size_t i = 0; i < n; i++)
         font.draw_text(s, 139, rows[i].y, rows[i].text, rows[i].idx);
-    return true;
-}
-
-// Blit a town-scene tile (EGA/TWN/<tile>) into the 120x119 viewport at (10,11)
-// as the engine's scrolled two-tile blit: the tile's column 0 lands at viewport
-// x=`x0`; the columns that scroll off the right edge wrap back in on the left
-// one scanline lower.  `x0` = 0 is a plain blit (the town and the building
-// exteriors); the menu (`x0` = 16) and the Temple (`x0` = 40) are scrolled.
-static bool blit_wrapped_viewport(Screen& s, const std::string& dir,
-                                  const char* tile, int x0, std::string& err) {
-    EgaImage twn;
-    if (!load_ega_image(dir + "/EGA/TWN/" + tile, twn, &err)) return false;
-    size_t pl = (size_t)twn.width_bytes * twn.height;
-    int tile_w = twn.width_bytes * 8;
-    auto px = [&](int x, int y) -> uint8_t {
-        int xb = x >> 3, sh = 7 - (x & 7);
-        const uint8_t* p = twn.planes.data() + (size_t)y * twn.width_bytes + xb;
-        return (uint8_t)(((p[0] >> sh) & 1) | (((p[pl] >> sh) & 1) << 1) |
-                         (((p[2 * pl] >> sh) & 1) << 2) | (((p[3 * pl] >> sh) & 1) << 3));
-    };
-    for (int sx = x0; sx < 120; sx++)           // main tile at (10+x0,11)
-        for (int y = 0; y < twn.height && 11 + y < 130; y++)
-            s.put(10 + sx, 11 + y, px(sx - x0, y));
-    for (int sx = 0; sx < x0; sx++)             // wrapped strip at (10,12)
-        for (int y = 0; y < twn.height && 12 + y < 130; y++)
-            s.put(10 + sx, 12 + y, px(tile_w - x0 + sx, y));
     return true;
 }
 
@@ -498,16 +435,15 @@ static bool compose_house_screen(const std::string& dir, Screen& s, std::string&
 }
 
 // Compose the Temple screen: MSCR + the temple exterior EGA/TWN/TWN05 in the
-// viewport + the priest's greeting and the temple menu.  The viewport is the
-// same scrolled two-tile blit the menu uses but scrolled further (tile column 0
-// lands at viewport x=40); with that scroll the viewport is pixel-exact against
-// the emulator's `temple_bldg` frame.  Strings are the engine's own
+// viewport + the priest's greeting and the temple menu.  The exterior tile is a
+// full 120x119 cell blitted at the viewport origin, pixel-exact against the
+// emulator's `temple_bldg` frame.  Strings are the engine's own
 // (LOF.EXE ds:0x5086/0x5095/0x50a3/0x50b4/0x50ce/0x50de).
 static bool compose_temple_screen(const std::string& dir, Screen& s, std::string& err) {
     s.resize(320, 200);
     s.clear(0);
     if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
-    if (!blit_wrapped_viewport(s, dir, "TWN05", 40, err)) return false;
+    if (!blit_ega(s, dir + "/EGA/TWN/TWN05", kViewportX, kViewportY, &err)) return false;
     Font font;
     if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
     static const TownTextRow kText[] = {
@@ -536,7 +472,7 @@ static bool compose_temple_prompt(const std::string& dir, const char* line0,
     s.resize(320, 200);
     s.clear(0);
     if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
-    if (!blit_wrapped_viewport(s, dir, "TWN05", 40, err)) return false;
+    if (!blit_ega(s, dir + "/EGA/TWN/TWN05", kViewportX, kViewportY, &err)) return false;
     Font font;
     if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
     font.draw_text(s, 139, 92, line0, 15);
@@ -558,7 +494,7 @@ static bool compose_inn_rest_screen(const std::string& dir, Screen& s, std::stri
     s.resize(320, 200);
     s.clear(0);
     if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
-    if (!blit_wrapped_viewport(s, dir, "TWN03", 16, err)) return false;
+    if (!blit_ega(s, dir + "/EGA/TWN/TWN03", kViewportX, kViewportY, &err)) return false;
     Font font;
     if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
     static const TownTextRow kText[] = {

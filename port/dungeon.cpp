@@ -319,11 +319,10 @@ DungeonView dungeon_view_for(const std::string& dir, int dungeon,
     if (dungeon == 5) {
         if (depth == 2) {
             v.path = dir + "/EGA/CHAR2/CH40";
-            v.x = 58; v.y = 27;
+            v.x = kViewportX; v.y = kViewportY;
         } else if (depth >= 3) {
             v.path = dir + "/EGA/CHAR2/CH25";
-            v.x = -14; v.y = 28;
-            v.tile = true;   // corridor: the engine tiles this room sprite
+            v.x = kViewportX; v.y = kViewportY;
         }
     }
     return v;
@@ -361,13 +360,6 @@ bool render_dungeon_play_view(Screen& scr, const std::string& dir, int dungeon,
     DungeonView v = dungeon_view_for(dir, dungeon, d, p);
     EgaImage img;
     if (!load_ega_image(v.path, img, nullptr)) return false;
-    if (v.tile) {
-        // Corridor: tile the sprite across the viewport at x-stride 120 (the
-        // sprite width) and y-stride -1, until the copy starts past the window.
-        for (int k = 0; v.x + 120 * k < kViewportX + kViewportW; k++)
-            blit_clipped_to_window(scr, img, v.x + 120 * k, v.y - k);
-        return true;
-    }
     blit_clipped_to_window(scr, img, v.x, v.y);
     return true;
 }

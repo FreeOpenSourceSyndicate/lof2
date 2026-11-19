@@ -6,15 +6,18 @@ column of cells ahead of the party to the first view-opaque cell (see
 `dungeon_view_for` in port/dungeon.{h,cpp} and docs/notes-a.md Round 47):
 
   * depth 1  -> EGA/D<d>/DP<index> at (10,11)  (the tileset view)
-  * depth 2  -> EGA/CHAR2/CH40     at (58,27)
-  * depth >=3-> EGA/CHAR2/CH25     at (-14,28)
+  * depth 2  -> EGA/CHAR2/CH40     at (10,11)
+  * depth >=3-> EGA/CHAR2/CH25     at (10,11)
+
+Every view cell is a full 120x119 image (the viewport size), so all depths blit
+plainly at the viewport origin.
 
 The D5/Temple save (slot 1) enters at DNG05 (17,3) facing S; the two DOSBox
 oracle captures pin both regimes:
 
   * ref/oracle/dungeon_slot1.png       spawn (wall at depth 1) -> DP001
   * ref/oracle/dungeon_slot1_moved.png after a step (open corridor, wall at
-                                       depth >=3) -> CH25 at (-14,28)
+                                       depth >=3) -> CH25 at (10,11)
 
 `--walk` composes the HUD + party panel and blits that sprite.  This test renders
 the spawn and one-step frames and checks the *viewport window* against each
@@ -42,11 +45,10 @@ MOVED_ORACLE = os.path.join(ROOT, "ref", "oracle", "dungeon_slot1_moved.png")
 VX, VY, VW, VH = 10, 11, 120, 119
 
 # The spawn window carries the engine's live overlay residue; the moved window
-# is now reproduced pixel-exactly as `CHAR2/CH25` tiled across the viewport at
-# x-stride 120 / y-stride -1 (see DungeonView::tile and BLK-A005).  The only
-# residual in the moved window is a 1px diagonal at the top-left corner (the
-# engine's live element, absent from the emulator too), so the floor sits just
-# below 1.0 to catch regressions while tolerating it.
+# is reproduced pixel-exactly as the `CHAR2/CH25` cell blitted at the viewport
+# origin (see BLK-A005).  The only residual in the moved window is a 1px
+# diagonal at the top-left corner (the engine's live element, absent from the
+# emulator too), so the floor sits just below 1.0 to catch regressions.
 SPAWN_MIN = 0.93
 MOVED_MIN = 0.998
 
@@ -88,7 +90,7 @@ def main() -> int:
     m = float((window(load("/tmp/port_dungeon_moved.png"))
                == window(load(MOVED_ORACLE))).all(2).mean())
     if m >= MOVED_MIN:
-        print("port_dungeon_view_test: moved ok (window=%.1f%%, CH25 @ (-14,28))"
+        print("port_dungeon_view_test: moved ok (window=%.1f%%, CH25 @ (10,11))"
               % (100 * m))
     else:
         print("port_dungeon_view_test: FAIL moved (window=%.1f%% < %.0f%%)"

@@ -23,9 +23,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ORACLE = os.path.join(ROOT, "ref", "oracle", "menu.png")
 SHOT = "/tmp/port_menu_test.png"
 
-# With the mouse cursor reproduced (`--cursor 0,0`), the only residue is a
-# ~14-px 1-px seam where the left viewport's wrapped strip meets the town tile
-# (see docs/notes-maintainer-town.md).  Tolerate just that.
+# With the mouse cursor reproduced (`--cursor 0,0`) the frame is pixel-exact;
+# the threshold only tolerates the engine's live cursor blink if it moves.
 THRESHOLD = 20
 
 
