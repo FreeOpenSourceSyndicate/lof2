@@ -65,22 +65,45 @@ bool load_ega_image(const std::string& path, EgaImage& out, std::string* err) {
     int h = d[5] | (d[6] << 8);
 
     // RLE: literals copy through; `esc` introduces (count, value).
+    //
+    // Two decode conventions exist in the engine; the header's size field
+    // (= 4*w*h + 10) pins which one applies.
+    //
+    //  * Images: the loader (image 0x1C70) leaves si on the 0x1234 magic and
+    //    the blitter reads the pattern at [si+0xa].  The decoded buffer is thus
+    //    the ten header bytes followed by the 4*w*h pattern, so decode from
+    //    file byte 1 (byte 0 is the escape) and drop ten.  Decoding from byte
+    //    11 truncates any run straddling the header boundary (CH25 loses 252
+    //    bytes), which is why the old viewport code needed scroll/tile offsets.
+    //
+    //  * Fonts (CHR1/CHR2): addressed at file offset 11 directly; the DOSBox
+    //    party-panel glyphs match the byte-11 decode exactly (the byte-1 decode
+    //    shifts them down two rows), so fonts keep that path.
+    bool font = (w == 40 && h == 24);
     std::vector<uint8_t> planes;
     size_t want = (size_t)w * h * 4;
     planes.reserve(want);
-    size_t i = kHeader;
-    while (i < d.size() && planes.size() < want) {
+    size_t i = font ? kHeader : 1;
+    size_t skip = font ? 0 : 10;
+    while (i < d.size() && planes.size() < want + skip) {
         uint8_t b = d[i++];
+        size_t n = 1;
+        uint8_t val = b;
         if (b == esc) {
             if (i + 1 >= d.size()) break;
-            uint8_t cnt = d[i];
-            uint8_t val = d[i + 1];
+            n = d[i];
+            val = d[i + 1];
             i += 2;
-            size_t room = want - planes.size();
-            planes.insert(planes.end(), cnt < room ? cnt : room, val);
-        } else {
-            planes.push_back(b);
         }
+        if (skip) {
+            size_t s2 = n < skip ? n : skip;
+            skip -= s2;
+            n -= s2;
+            if (n == 0) continue;
+        }
+        size_t room = want - planes.size();
+        if (n > room) n = room;
+        planes.insert(planes.end(), n, val);
     }
     // Some images (e.g. IN/DRAG, IN/CRED) end early with the remaining planes
     // implicitly zero; pad so the blit never reads past the buffer.

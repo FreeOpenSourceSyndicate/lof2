@@ -13,6 +13,13 @@ CHAR_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port \
 # clean up its binary and propagate its status) cannot terminate the recipe and
 # silently skip the agents that follow.  Fail-fast is preserved: a non-zero
 # status short-circuits the `&&`.
+# (Maintainer — shared/engine) EGA image decoder: the byte-1/skip-10 image path
+# and the byte-11 font path, plus a header-straddling run (the CH25 truncation).
+EGA_DECODE_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port \
+    -o ega_decode_test tests/ega_decode_test.cpp port/gfx.cpp && \
+    ./ega_decode_test; rc=$$?; rm -f ega_decode_test; exit $$rc
+
 LOCAL_TEST_CMDS = \
     ( $(DUNGEON_TEST) ) && \
-    ( $(CHAR_TEST) )
+    ( $(CHAR_TEST) ) && \
+    ( $(EGA_DECODE_TEST) )

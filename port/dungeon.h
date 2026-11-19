@@ -329,27 +329,20 @@ bool dungeon_view_opaque(uint8_t code);
 //
 //   depth 1  -> EGA/D<d>/DP<index>  at (10,11)  (tileset sprite, nibble-mapped
 //                                                by dungeon_base_view_index)
-//   depth 2  -> EGA/CHAR2/CH40      at (58,27)
-//   depth >=3-> EGA/CHAR2/CH25      at (-14,28)
+//   depth 2  -> EGA/CHAR2/CH40      at (10,11)
+//   depth >=3-> EGA/CHAR2/CH25      at (10,11)
 //
-// Verified pixel-exact against the DOSBox oracle (ref/oracle/dungeon_slot1.png
-// spawn = DP001; ref/oracle/dungeon_slot1_moved.png = CH25 at (-14,28), 1.0000)
-// for the D5/Temple scenario.  The depth-2/>=3 sprites are the scenario's
-// encounter-sprite bank (`NSC<dd>[id].+0x48`, BLK-A005) and are pinned for D5
-// only; other scenarios still resolve their depth-1 tileset sprite correctly.
+// Every view cell is a full 120x119 image (the viewport size), so all depths
+// blit plainly at the viewport origin.  Verified pixel-exact against the DOSBox
+// oracle (ref/oracle/dungeon_slot1.png spawn = DP001;
+// ref/oracle/dungeon_slot1_moved.png = CH25, 1.0000) for the D5/Temple scenario.
+// The depth-2/>=3 sprites are the scenario's encounter-sprite bank
+// (`NSC<dd>[id].+0x48`, BLK-A005) and are pinned for D5 only; other scenarios
+// still resolve their depth-1 tileset sprite correctly.
 struct DungeonView {
     std::string path;   // e.g. "<dir>/EGA/D5/DP001"
     int x = kViewportX; // screen blit position
     int y = kViewportY;
-
-    // Corridor views (the depth->=3 `CHAR2/CHnn` room sprite) are *tiled*
-    // horizontally across the 120px-wide viewport: the engine blits the same
-    // sprite repeatedly at x-stride 120 (the sprite width) and y-stride -1,
-    // starting at the view's base position.  Measured pixel-exactly against the
-    // emulator framebuffer for the Temple corridor (BLK-A005): the moved window
-    // equals `CH25` at window (-24,17) plus `CH25` at (96,16) with zero
-    // mismatching pixels.  When `tile` is false the view is a single blit.
-    bool tile = false;
 };
 DungeonView dungeon_view_for(const std::string& dir, int dungeon,
                              const Dungeon& d, const DungeonPos& p);

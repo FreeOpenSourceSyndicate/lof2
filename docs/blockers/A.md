@@ -111,6 +111,22 @@ G-006), which is the faithful, save-independent model; implementing the RNG
 placement would reproduce a non-deterministic internal choice, not observable
 behaviour.  No port change is warranted.  Detail: `docs/notes-a.md` Round 51.
 
+**Log.** 2026-11-17 Maintainer (decode correction) — **the tiling model was a
+symptom of a decoder bug, now removed.**  The EGA image decoder was reading the
+RLE stream from file byte 11, but the engine's loader (image `0x1C70`) leaves
+`si` on the `0x1234` magic and the blitter reads the pattern at `[si+0xa]`, so
+the correct decode starts at byte 1 and drops the ten-byte header (the header's
+size field is `4*w*h+10`, confirming it).  Decoding from byte 11 truncates any
+run that straddles the header boundary, so `CH25` decoded to only 6888 of 7140
+bytes — a single 120x119 blit then left the bottom-right unfilled, which is what
+the "tile at x-stride 120 / y-stride -1" workaround was patching.  With the
+correct decode every view cell is a **full 120x119 image** and the depth-2/>=3
+sprites blit **plainly at the viewport origin (10,11)**: `CH25` at (10,11)
+matches the oracle **1.0000**, the encounter `CHAR0/CH24` at (10,11) matches
+**1.0000** (tiled was 0.279).  `DungeonView::tile` and the offsets `(58,27)` /
+`(-14,28)` are gone.  The `es:[0x259]` encounter-id producer remains the only
+open item.
+
 **Log.** 2026-11-17 Maintainer (Round 49) — **RESOLVED (viewport-composite half).**
 The 472-px residue is a **second `CHAR2/CH25` blit**: the corridor view is the
 room sprite *tiled across the viewport* at **x-stride 120 / y-stride -1** (copies
@@ -185,8 +201,12 @@ cells ahead of the party to the first **view-opaque** cell (low nibble NOT in
 | depth | sprite | screen blit |
 |-------|--------|-------------|
 | 1     | `EGA/D<d>/DP<index>` (tileset, `dungeon_base_view_index`) | (10,11) |
-| 2     | `EGA/CHAR2/CH40` | (58,27) |
-| >=3   | `EGA/CHAR2/CH25` | (-14,28) |
+| 2     | `EGA/CHAR2/CH40` | (10,11) |
+| >=3   | `EGA/CHAR2/CH25` | (10,11) |
+
+(All cells are full 120x119 images and blit plainly at the viewport origin; the
+earlier `(58,27)`/`(-14,28)` offsets and the x-stride-120 tiling were a workaround
+for the byte-11 decode bug — see the BLK-A005 decode-correction log.)
 
 Verified **pixel-exact** against the DOSBox oracle: the moved frame
 (`ref/oracle/dungeon_slot1_moved.png`) is `CHAR2/CH25` tiled across the window at

@@ -832,7 +832,7 @@ static void test_walk_real(const std::string& dir) {
 // the party to the first *view-opaque* cell (dungeon_view_opaque /
 // dungeon_view_for, docs/notes-a.md Round 47).  This pins the depth model on
 // synthetic maps and on the real DNG05 entry column (which the DOSBox oracle
-// confirms: spawn -> DP001, after a step -> CHAR2/CH25 at (-14,28)).
+// confirms: spawn -> DP001, after a step -> CHAR2/CH25 at the origin).
 static void test_view_depth(const std::string& dir) {
     // View-opacity is by LOW nibble and is NOT the movement wall set: 3 is
     // walkable but view-opaque, and 0/2/7/8/9 are open.
@@ -863,24 +863,23 @@ static void test_view_depth(const std::string& dir) {
     DungeonView v = view();
     assert(v.path == "/root/EGA/D5/DP060" && v.x == 10 && v.y == 11);
 
-    // Wall at depth 2 -> CHAR2/CH40 at (58,27).
+    // Wall at depth 2 -> CHAR2/CH40 at the viewport origin.  Every view tile
+    // is a full 120x119 cell, so all depths blit plainly at (10,11); the old
+    // (58,27)/(-14,28) offsets compensated for the truncated byte-11 decode.
     d.tiles[6 * kDungeonW + 5] = 0;
     d.tiles[7 * kDungeonW + 5] = 6;
     v = view();
-    assert(v.path == "/root/EGA/CHAR2/CH40" && v.x == 58 && v.y == 27);
+    assert(v.path == "/root/EGA/CHAR2/CH40" && v.x == 10 && v.y == 11);
 
-    // Wall at depth 3 and deeper -> CHAR2/CH25 at (-14,28), tiled across the
-    // viewport (BLK-A005: the corridor sprite repeats at x-stride 120/y-stride -1).
+    // Wall at depth 3 and deeper -> CHAR2/CH25 at the viewport origin.
     d.tiles[7 * kDungeonW + 5] = 0;
     d.tiles[8 * kDungeonW + 5] = 3;              // 3 is view-opaque
     v = view();
-    assert(v.path == "/root/EGA/CHAR2/CH25" && v.x == -14 && v.y == 28);
-    assert(v.tile);
+    assert(v.path == "/root/EGA/CHAR2/CH25" && v.x == 10 && v.y == 11);
     d.tiles[8 * kDungeonW + 5] = 0;
     d.tiles[20 * kDungeonW + 5] = 6;
     v = view();
-    assert(v.path == "/root/EGA/CHAR2/CH25" && v.x == -14 && v.y == 28);
-    assert(v.tile);
+    assert(v.path == "/root/EGA/CHAR2/CH25" && v.x == 10 && v.y == 11);
 
     // An all-open column runs off the map: treated as an opaque wall at the
     // edge (the engine's map is bounded).
@@ -906,7 +905,7 @@ static void test_view_depth(const std::string& dir) {
         assert(sv.path == dir + "/../EGA/D5/DP001" && sv.x == 10 && sv.y == 11);
         DungeonPos q = e; q.y = 4;               // step south into the corridor
         DungeonView qv = dungeon_view_for(dir + "/..", 5, r, q);
-        assert(qv.path == dir + "/../EGA/CHAR2/CH25" && qv.x == -14 && qv.y == 28);
+        assert(qv.path == dir + "/../EGA/CHAR2/CH25" && qv.x == 10 && qv.y == 11);
         std::printf("dungeon_test: depth-march view verified (DNG05 entry)\n");
     }
 }

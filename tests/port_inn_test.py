@@ -14,8 +14,7 @@ frames are byte-identical everywhere except the dynamic party panel.
 
 References are the emulator's `town_inn` (the Inn == menu) and `inn_rest`
 frames, rendered with the standard EGA palette.  The viewport and every text
-row are pixel-exact; the residue is the dynamic party panel and a 14-px seam
-where the viewport's wrapped strip meets the tile (see port_menu_test).
+row are pixel-exact; the residue is the dynamic party panel.
 
 Run via `make golden-port` (or directly).  Needs PIL + numpy and the reference
 PNGs.

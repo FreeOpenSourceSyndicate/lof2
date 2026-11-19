@@ -37,8 +37,13 @@ def decode(path):
     esc = d[0]
     w = struct.unpack('<H', d[3:5])[0]
     h = struct.unpack('<H', d[5:7])[0]
+    # Two decode conventions, mirroring port/gfx.cpp::load_ega_image.  Images
+    # decode from file byte 1 and drop the ten header bytes (the loader 0x1C70
+    # leaves si on the 0x1234 magic; the blitter reads [si+0xa]).  The 40x24
+    # font strips (CHR1/CHR2) are addressed at file offset 11 directly.
+    font = (w == 40 and h == 24)
     out = bytearray()
-    i = HEADER
+    i = HEADER if font else 1
     n = len(d)
     while i < n:
         b = d[i]; i += 1
@@ -49,7 +54,7 @@ def decode(path):
             out += bytes([val]) * cnt
         else:
             out.append(b)
-    return w, h, bytes(out)
+    return w, h, bytes(out if font else out[10:])
 
 
 # Standard EGA 16-colour palette (RGB), used when the game does not override it.
