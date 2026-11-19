@@ -295,9 +295,10 @@ Progress:
       creature sprite into the 120x119 viewport.  The sprite is the monster
       record's `+0x48` art: `SYST/NSC00` record 12 (Mercenary) has `+0x48`=24,
       i.e. **`EGA/CHAR0/CH24`** (the emulator's own open trace for the oracle
-      encounter, `LOF_I21=1`, opens `ega\char0\ch24`).  It is blitted as the
-      engine's **tiled first-person cell** — copies advance by (viewport width,
-      −1) and both axes wrap — which reproduces the oracle viewport at 0.9938.
+      encounter, `LOF_I21=1`, opens `ega\char0\ch24`).  It is a full 120x119
+      cell blitted **plainly at the viewport origin (10,11)**, which reproduces
+      the oracle viewport at **1.0000** (verified for two sprites, `CH24` and
+      `CH26`; the origin is the unique best offset — GUESSWORK G-008).
       Text is `CHR1` at a 6-px pitch, x=139: the intro "You unknowingly meet"
       and "What will you do ?" in colour 8; each group line "4 Mercenaries
       (Rnk 2)" / "6 Mercenaries (Rnk 1)" with its count+name in colour 8 and
@@ -538,14 +539,15 @@ Verified against the DOSBox oracle (`ref/oracle/`):
 
 The viewport is **not** a per-cell composite and **not** a fixed `DP001` blit:
 it is a *single pre-rendered sprite* selected by marching the column of cells
-ahead of the party to the first **view-opaque** cell.  The depth selects both the
-sprite and its screen offset:
+ahead of the party to the first **view-opaque** cell.  The depth selects the
+sprite; **every view cell is a full 120x119 image and blits plainly at the
+viewport origin (10,11)**:
 
 | depth | sprite | screen blit |
 |-------|--------|-------------|
 | 1     | `EGA/D<d>/DP<index>` (`dungeon_base_view_index`) | (10,11) |
-| 2     | `EGA/CHAR2/CH40` | (58,27) |
-| >=3   | `EGA/CHAR2/CH25` | (-14,28) |
+| 2     | `EGA/CHAR2/CH40` | (10,11) |
+| >=3   | `EGA/CHAR2/CH25` | (10,11) |
 
 **View-opaque** is by the tile code's **low nibble**: `0/2/7/8/9` are open (the
 march continues); everything else stops it.  This is **not** the movement wall
@@ -553,19 +555,15 @@ set — code `3` is walkable but view-opaque, so the march stops on it.
 
 Ground truth: the emulator depth sweep (`LOF_EDUMP=` + a `DNGS/DNG05` tile patch)
 and, decisively, the DOSBox oracle.  The moved frame
-(`ref/oracle/dungeon_slot1_moved.png`) is `CHAR2/CH25` **tiled across the
-viewport** at **x-stride 120 (the sprite width) / y-stride -1** — copies at
-screen `(-14,28)`, `(106,27)`, `(226,26)`, ... — matching **1.00000** in the
-emulator framebuffer and **0.9993** vs the oracle (the 10 residual px are the
-engine's live 1px corner diagonal, absent from the emulator too); the spawn
-(`ref/oracle/dungeon_slot1.png`) is `DP001` at (10,11).  The blit is **clipped to
-the viewport window** (CH25's origin is left of it, at x=-14, so it must not spill
-onto the HUD).
+(`ref/oracle/dungeon_slot1_moved.png`) is `CHAR2/CH25` at (10,11) matching
+**1.0000**; the spawn (`ref/oracle/dungeon_slot1.png`) is `DP001` at (10,11).
+The earlier "tiled at x-stride 120 / y-stride -1" reading was a symptom of the
+EGA decoder's byte-11 truncation (fixed — see the decoder note below and
+`docs/blockers/A.md` BLK-A005).
 
 Implemented as `dungeon_view_opaque` + `dungeon_view_for` + `render_dungeon_play_view`
-in `port/dungeon.{h,cpp}` (`DungeonView::tile` drives the tiling); `--walk` and
-`--ui` compose the HUD + panel with no viewport tile and then blit the
-depth-selected sprite.  Guarded by `tests/dungeon_test.cpp::test_view_depth` and
+in `port/dungeon.{h,cpp}`; `--walk` and `--ui` compose the HUD + panel with no
+viewport tile and then blit the depth-selected sprite.  Guarded by `tests/dungeon_test.cpp::test_view_depth` and
 `tests/port_dungeon_view_test.py` (`make golden-port`).
 
 **Still open (BLK-A005).**  The depth-2/≥3 `CHAR2/CHnn` numbers (40, 25) are the

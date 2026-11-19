@@ -37,3 +37,26 @@ So the moved frame is reproduced by *live movement* — the `dungeon_slot1_moved
 state is reachable with keys, not only by patching the DNG tile layer
 (`tools/dngs.py patch game/DNGS/DNG05 17 4 0`), which was the earlier workaround.
 This is the reproducible command BLK-A004 asked for; BLK-A004 is resolved.
+
+## Encounter frames (wilderness)
+
+`combat.png` is the first wilderness encounter (four Mercenaries, `CHAR0/CH24`).
+`combat_ch26.png` is a second encounter (Elven officer, `CHAR0/CH26`), captured
+from the emulator with a different RNG seed so the sprite placement is guarded
+for more than one creature.  Both are deterministic (repeat md5-identical) with
+`LOF_NO_TIMER=1`; the encounter viewport is the creature cell blitted at (10,11).
+
+```sh
+# First encounter -> CHAR0/CH24 (matches ref/oracle/combat.png byte-for-byte).
+LOF_CMDLEN=3 LOF_NO_TIMER=1 \
+  LOF_KEYAUTO=0x18,0x03,0x50,0x48,0x2e LOF_KEYGAP=50 \
+  ./lof-native --dir game --headless --frames 760 --shot combat.png
+
+# Second encounter -> CHAR0/CH26 (seed override selects the creature).
+LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_TICK=0x7777 \
+  LOF_KEYAUTO=0x18,0x03,0x50,0x48,0x2e LOF_KEYGAP=50 \
+  ./lof-native --dir game --headless --frames 760 --shot combat_ch26.png
+```
+
+`tests/port_encounter_test.py` checks the first against `combat.png` (whole
+screen) and the second's viewport against `CHAR0/CH26` at (10,11).

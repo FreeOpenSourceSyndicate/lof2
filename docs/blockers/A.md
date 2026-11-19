@@ -181,7 +181,7 @@ in any captured session.
 - **Blocked lane:** A (dungeons)
 - **Responsible:** Agent A
 - **Priority:** Medium
-- **Status:** In progress
+- **Status:** **Resolved** (2026-11-17; offsets corrected 2026-11-18)
 - **Dependencies:** BLK-A003
 
 **Description & unblock action.** The drop-in's `--walk` viewport draws the

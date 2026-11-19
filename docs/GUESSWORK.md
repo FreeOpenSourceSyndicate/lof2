@@ -67,26 +67,14 @@ How to use each section:
   site).  **Status: partially cleared** — renderer-level `{6,13}` decompiled +
   mask shown harmless; the mover remains oracle-derived.
 
-### G-006 — open-corridor dungeon view falls back to `DP001` (Lane A)
-
-- **Status: RESOLVED (2026-11-17).**  The corridor view is a *depth-marched
-  single-sprite blit*: depth 1 → the tileset `DPnnn`, depth 2 → `CHAR2/CH40` at
-  (58,27), depth ≥3 → `CHAR2/CH25` at (-14,28).  The DOSBox oracle
-  (`ref/oracle/dungeon_slot1_moved.png`) matches `CHAR2/CH25` at (-14,28) at
-  **1.0000** over its coverage.  `dungeon_base_view_index()` is unchanged (it is
-  the depth-1 case); the new `dungeon_view_for()` implements the full march.
-  See `AGENTS.md` "First-person viewport" and `docs/notes-a.md` Round 47.
-- **What it was:** `dungeon_base_view_index()` returned `DP001` for the open-cell
-  ahead codes `0x0/0x2/0x7/0x8/0x9`, because no single `DPnnn` reproduces the
-  corridor case.  It is now handled by the depth march instead of a fallback.
-
 ### G-007 — depth-2/≥3 dungeon view sprite: depth-keyed, `CHnn` residue (Lane A)
 
 - **What:** `dungeon_view_for()` blits `EGA/CHAR2/CH40` (depth 2) / `CHAR2/CH25`
   (depth ≥3) only when the scenario is 5; other scenarios keep the depth-1
   tileset sprite.
 - **Source of truth:** the emulator depth sweep + the DOSBox oracle for the
-  D5/Temple save (slot 1).  The sprites and offsets are exact for that scenario.
+  D5/Temple save (slot 1).  The sprites are exact for that scenario and both blit
+  at the viewport origin (10,11).
 - **Resolved (2026-11-18, Round 51):** BLK-A005 is closed as *not-portable-by-data*
   — the engine's `es:[0x259]` encounter id is RNG-seeded monster placement, not a
   function of the save.  The **observable, save-independent rule is the depth
@@ -99,34 +87,6 @@ How to use each section:
   which offset — is decompiled).
 - **To clear it:** capture a second scenario's depth-2/≥3 view and read its
   `CHnn`; if it differs, table the numbers per scenario.
-
-### G-008 — encounter viewport sprite placement: horizontal origin pinned, vertical origin varies (Lane M)
-
-- **What:** `compose_encounter_screen()` in `port/lof.cpp` blits the encountered
-  monster's `EGA/CHAR0/CH<nn>` sprite as the engine's tiled first-person cell
-  (copies advance by (120,−1), both axes wrap) at origin **(56,3)**.  The
-  horizontal origin 56 and the wrap rule are exact, but the **vertical origin**
-  (3) is the value measured for the pinned oracle sprite (`CH24`, Mercenary).
-- **Source of truth:** the emulator frame `ref/oracle/combat.png` (the first
-  wilderness encounter).  A brute-force origin search over that frame gives
-  `(56,3)` at **1.0000** for `CHAR0/CH24` — so it is recovered, not chosen, *for
-  that sprite*.
-- **Why it is on the watchlist:** a second encounter, forced with a different
-  RNG seed (`LOF_TICK=0x7777`), spawns `Elven soldier/officer` and the engine
-  opens `ega\char0\ch26`; a search over that frame gives **`(56,9)`** at 1.0000.
-  So the vertical origin is **not a fixed constant** — it varies between
-  encounters (the two sprites are both 120×119, so it is not a size effect; the
-  cause is either the sprite's own content or the monster's distance).  The
-  pinned oracle is exact, but the general rule for `dy` is not derived.
-- **Bank confirmed (not part of the guess):** both seeds open the **CHAR0** bank
-  (`ega\char0\ch24`, `ega\char0\ch26`), so `NSC[record].+0x48 -> EGA/CHAR0/CH<nn>`
-  is grounded across two encounters; the `CH` number is RNG-selected by monster
-  placement (see BLK-A005 / the RNG entry in section E), not by the save.
-- **To clear it:** read the encounter-draw routine in `analysis/lof.asm` to find
-  how it computes the sprite's `dy` (the writes go through the shared plane
-  blitter `119D:129F`, so the position is computed earlier); or capture a third
-  encounter and fit the rule.  Until then the port is exact for the pinned
-  oracle and *approximate* for other monsters.
 
 ### G-004 — `item_effect_name()` labels beyond the traced dispatcher values (Lane B)
 
@@ -344,3 +304,45 @@ effect value 34 (lantern) as a light source; recorded under G-004.
     buffer, then the generic blitter (`0x1C70`) draws it. No data-table sprite is
     involved, so this resolves to **D** (data-file/asset) — the fixed overlay is
     the correct reproduction.
+
+### G-008 — encounter viewport sprite placement (Lane M) — RESOLVED
+
+- **Status: RESOLVED (2026-11-18).**  The encounter sprite is blitted **plainly
+  at the viewport origin (10,11)** — no tiling, no (56,3)/(56,9) offset.  Every
+  `EGA/CHAR0/CH<nn>` creature cell is a full 120x119 image.  Both captured
+  encounters are exact at (10,11), and (10,11) is the *unique* best offset in a
+  brute-force search:
+  * `ref/oracle/combat.png` → `CHAR0/CH24` (Mercenary): **1.0000 at (0,0)** window
+    offset (= screen (10,11)), the only offset ≥ 0.9999;
+  * second encounter (`LOF_TICK=0x7777`) → `CHAR0/CH26`: **1.0000 at (0,0)**,
+    the only offset ≥ 0.9999.
+  The earlier "(56,3) tiled / (56,9) varies" reading was a symptom of the
+  byte-11 decoder truncation: `CH24`/`CH26` decoded short, so the missing
+  bottom-right was being "filled" by wrapped copies at a shifted origin.  With
+  the decoder fixed (PR #145) the plain origin is exact for both.  `port/lof.cpp`
+  now does a single `blit_ega(..., kViewportX, kViewportY)`.
+- **Bank confirmed (not part of the guess):** both seeds open the **CHAR0** bank
+  (`ega\char0\ch24`, `ega\char0\ch26`), so `NSC[record].+0x48 -> EGA/CHAR0/CH<nn>`
+  is grounded across two encounters; the `CH` number is RNG-selected by monster
+  placement (see BLK-A005 / the RNG entry in section E), not by the save.
+- **To clear it:** read the encounter-draw routine in `analysis/lof.asm` to find
+  how it computes the sprite's `dy` (the writes go through the shared plane
+  blitter `119D:129F`, so the position is computed earlier); or capture a third
+  encounter and fit the rule.  Until then the port is exact for the pinned
+  oracle and *approximate* for other monsters.
+
+### G-006 — open-corridor dungeon view falls back to `DP001` (Lane A)
+
+- **Status: RESOLVED (2026-11-17).**  The corridor view is a *depth-marched
+  single-sprite blit*: depth 1 → the tileset `DPnnn`, depth 2 → `CHAR2/CH40`,
+  depth ≥3 → `CHAR2/CH25`, **all blitted at the viewport origin (10,11)** (every
+  view cell is a full 120x119 image).  The DOSBox oracle
+  (`ref/oracle/dungeon_slot1_moved.png`) matches `CHAR2/CH25` at (10,11) at
+  **1.0000**.  The earlier `(58,27)`/`(-14,28)` offsets and the x-stride-120
+  tiling were a workaround for the byte-11 decoder truncation, now fixed (see
+  `docs/blockers/A.md` BLK-A005 decode-correction log).  `dungeon_base_view_index()`
+  is unchanged (it is the depth-1 case); `dungeon_view_for()` implements the
+  march.  See `AGENTS.md` "First-person viewport" and `docs/notes-a.md` Round 47.
+- **What it was:** `dungeon_base_view_index()` returned `DP001` for the open-cell
+  ahead codes `0x0/0x2/0x7/0x8/0x9`, because no single `DPnnn` reproduces the
+  corridor case.  It is now handled by the depth march instead of a fallback.
