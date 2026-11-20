@@ -130,9 +130,11 @@ engine never tests.
 - **Blocked lane:** B (characters/items)
 - **Responsible:** Maintainer
 - **Priority:** Medium
-- **Status:** Partly resolved (2026-11-10) — dispatcher + round state grounded;
-  action enum confirmed by live play (2026-11-17); `W P B` column semantics
-  still open (needs decompile of the print routine or a populated-row capture)
+- **Status:** **Resolved (2026-11-18)** — dispatcher + round state grounded;
+  action enum confirmed by live play (2026-11-17); `W P B` column meanings
+  derived from the decompilation (W = weapon damaged, P = shield/armour damaged,
+  B = ability improved, Attack = Passed/Failed).  Owner play corroborated `P`;
+  OT-003 (optional W/B corroboration) closed as not-needed.
 - **Dependencies:** —
 
 **Description & unblock action.** The encounter *screen* is now grounded (see

@@ -308,6 +308,38 @@ Progress:
       the play screen).  `--encounter [rec[:count[:rank]]]` is repeatable (one
       group per line); the bare flag renders the pinned oracle (two Mercenary
       groups).  Guarded by `tests/port_encounter_test.py` (`make golden-port`).
+- [x] Combat decision screen (`--decision`): the per-round prompt "Please make
+      your decision / for the next round!".  It is the **encounter composition
+      with only the right-hand text block replaced** — the two oracles
+      (`ref/oracle/combat.png` and `combat_decision.png`) share their viewport,
+      roster and bottom strip pixel-exactly, which pins that derivation.
+      The rows are the engine's own printf sequence (image `0x18734`):
+      1-based index (`"%ld"`, colour 8, x=139), `"%-10s "` name (x=145), the
+      rank code, the action word (x=235), then `"@ %ld"`.
+      * The rank code is `combat_abbrev_names()[char[+0x24]]` (`KIL`/`ATK`/
+        `DEF`/`RET`, strings at `ds:0x0EB0`, file `0x42BC0`) selected through
+        the 4-entry far-pointer table at image `0x187F0`.  **`+0x24` is the
+        combat rank**, not "body/health state" — the engine spells the four
+        values out in its rank-entry menu: `(1)Enter Kill-Rank` ..
+        `(4)Enter Retreat-Rank` (`ds:0x713C..0x717A`, compared at
+        `0x1913C`/`0x1916C`/`0x1919C`/`0x191CC`), and `0x197F0` stores the
+        pressed digit minus `'1'`.  The older annotation had misread those
+        compares as a dying/dead test.
+      * The action word is `action_names()[char[+0x0f]]` (table `ds:0x0EC0`,
+        file `0x42BD0`: Defends/Attacks/Stalks/Use object/Cast Spell).
+      * The trailing number is `+0x0d + 1` when `+0x16 == 0xff` (guarded at
+        image `0x186F3` on signed `+0x0d` in `0..2` and `+0x0f != 0`), else
+        `+0x16 + 1` (image `0x18880`).  It follows the 10-cell action field, so
+        the cursor is at x=295 and the `@`/space advance 6 px each without
+        inking, leaving the digit at x=307.
+      * A non-zero `+0x49` replaces the action column with `ds:0x6FF2`
+        "is out of action." and suppresses the number (image `0x18839`).
+      * Row filter: slot present and `+0x1f < 5` (image `0x18798`/`0x1879E`).
+      Whole screen matches `ref/oracle/combat_decision.png` at **0.96**
+      (viewport 1.000, text 0.993; the residue is the dynamic party/status
+      values plus the emulator capture's index-12 descender pixels).  Guarded
+      by `tests/port_decision_test.py`; the rank mapping, the row guard and the
+      trailing-field inputs are pinned by `tests/char_test.cpp`.
 
 ### Font / text rendering (decoded)
 

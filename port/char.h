@@ -689,9 +689,17 @@ enum CharOffset : size_t {
     // 0x2D436 (the listing's 27F4E is 0x2D4xx there) and the +50 gate really is
     // `cmp byte es:[bx+0x6a],0`.  These reads pin the offsets; the exact game
     // meaning of each is only partly determined, so the names stay descriptive.
-    kCharBody24    = 0x24,  // byte: body/health state; the builder copies it to
-                            //   the display byte +0x17b, and the death routine
-                            //   (0x1919C/0x191CC) tests it for == 2 / == 3
+    kCharBody24    = 0x24,  // byte: combat rank 0..3, selecting ds:0x0eb0's
+                            //   KIL/ATK/DEF/RET entry (4-entry far-pointer
+                            //   table at image 0x187F0).  Written at 0x197F0
+                            //   from the '(1)Enter Kill-Rank' .. '(4)Enter
+                            //   Retreat-Rank' menu (strings ds:0x713C..0x717A,
+                            //   compared at 0x1913C/0x1916C/0x1919C/0x191CC),
+                            //   read at 0x197C7/0x1D323, and copied verbatim to
+                            //   the display byte +0x17b.  An earlier note read
+                            //   those four compares as a dying/dead test and
+                            //   called the byte 'body/health state'; the menu
+                            //   strings show they are the rank selector.
     kCharFlg5b     = 0x5b,  // byte: attribute modifier; builder shows
                             //   100 - (mod5b + stat1e)
     kCharFlg5c     = 0x5c,  // byte: attribute modifier; builder shows
@@ -768,7 +776,7 @@ struct CharSheet {
     uint8_t  int47 = 0;      // +0x47  Intelligence
     uint8_t  wis48 = 0;      // +0x48  Wisdom
     uint8_t  speed56 = 0;    // +0x56  speed (1..4)
-    uint8_t  body24 = 0;     // +0x24  body/health state (2 dying, 3 dead)
+    uint8_t  body24 = 0;     // +0x24  combat rank 0..3 = KIL/ATK/DEF/RET
     uint8_t  mod5b = 0;      // +0x5b  attribute modifier (100 - (mod5b+stat1e))
     uint8_t  mod5c = 0;      // +0x5c  attribute modifier (mod5c + base1c)
     uint8_t  mod5e = 0;      // +0x5e  attribute modifier (mod5e + Strength)
@@ -810,7 +818,7 @@ struct CharSheet {
     // block; these reproduce each byte from the struct.  See the kCharFlg*
     // notes for the raw-image grounding (builder at image offset 0x2D436).
     //   +0x17a  hp_pct       100 * hp_cur / hp_max
-    //   +0x17b  body24       (verbatim)
+    //   +0x17b  body24       combat rank, verbatim from +0x24
     //   +0x17c  hp_mod       (hp_cur >> 3) + (flag6a ? 50 : 0)
     //   +0x17d  attr_a       100 - (mod5b + stat1e), minus 10 if flag0f == 0
     //   +0x17e  attr_b       mod5c + base1c
@@ -925,7 +933,7 @@ struct PartyRow {
     uint8_t  index    = 0;  // +0x179  party index (the builder also writes it
                             //   at +0x177; +0x176 is the constant in-use marker 2)
     uint8_t  hp_pct   = 0;  // +0x17a  100 * hp_cur / hp_max
-    uint8_t  body24   = 0;  // +0x17b  body/health state (verbatim)
+    uint8_t  body24   = 0;  // +0x17b  combat rank (verbatim from +0x24)
     uint8_t  hp_mod   = 0;  // +0x17c  (hp_cur >> 3) + (flag6a ? 50 : 0)
     uint8_t  attr_a   = 0;  // +0x17d  100 - (mod5b + stat1e), -10 if flag0f == 0
     uint8_t  attr_b   = 0;  // +0x17e  mod5c + base1c

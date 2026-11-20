@@ -971,6 +971,30 @@ static int real_data() {
         assert(panel_stat_text(decode_char(sv.chars[i].raw.data()).stat1e) ==
                kPanelStat[i]);
 
+    // Combat decision screen (image 0x18734): each row's three-letter code is
+    // kCombatAbbrevNames[+0x24], and the action word is
+    // action_names()[+0x0f].  GAME2's six members carry ranks [0,0,1,2,2,2]
+    // and action 1 ("Attacks"), which reproduces the oracle column
+    // KIL KIL ATK DEF DEF DEF.  The row guard is +0x1f < 5; +0x49 overrides
+    // the action column with "is out of action." (image 0x18839).
+    static const uint8_t kRanks[6] = {0, 0, 1, 2, 2, 2};
+    static const char* const kAbbrev[6] = {"KIL", "KIL", "ATK",
+                                           "DEF", "DEF", "DEF"};
+    for (size_t i = 0; i < 6; i++) {
+        const auto& raw = sv2.chars[i].raw;
+        assert(raw[kCharBody24] == kRanks[i]);
+        assert(combat_abbrev_names()[raw[kCharBody24]] ==
+               std::string(kAbbrev[i]));
+        assert(raw[kCharFlg0f] == 1);
+        assert(action_names()[raw[kCharFlg0f]] == "Attacks");
+        assert(raw[0x1f] < 5);
+        // +0x49 is the "is out of action." override; these members are fine.
+        assert(raw[0x49] == 0);
+        // The trailing field: +0x16 == 0xff selects the "+0x0d + 1" branch,
+        // which prints 1 for every row here (so all six show a single '1').
+        assert(raw[0x16] == 0xff && raw[0x0d] + 1 == 1);
+    }
+
     printf("char_test: real SPEC/ROST/SHOP/GAMES/items/spells/names ok\n");
     return 0;
 }

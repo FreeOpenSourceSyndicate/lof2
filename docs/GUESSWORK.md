@@ -30,6 +30,25 @@ How to use each section:
 
 ## B. Unclear — revisit (watchlist)
 
+### G-011 — "is out of action." row rendering is not exercised by any oracle (Lane M)
+
+- **What:** on the combat decision screen a party member with a non-zero `+0x49`
+  gets the action column replaced by the fixed string `ds:0x6FF2`
+  "is out of action." (image `0x18839` → `0x18720`).  The **string**, its
+  **position** (x=235, the action column) and the **suppression of the trailing
+  number** are all derived from the decompilation.
+- **What is not derived:** the **colour**.  The two paths pass *different*
+  flag arguments to the drawer: the action word pushes `0` (`0x18843`
+  `sub ax,ax; push ax`), while the `+0x49` path pushes `1` (`0x18720`
+  `mov ax,1; push ax`).  Whether that flag selects a different palette index is
+  not traced, and no oracle frame exercises the branch.  The port uses index 8
+  (the action word's colour) — inferred, not measured.
+- **To clear it:** capture (or construct) a decision frame with a member marked
+  out of action and diff the column, or trace the drawer's colour global on
+  that path.  Lane M.
+- **Owner impact:** none for the shipped saves (`+0x49 == 0` for all six
+  members in both `GAME1` and `GAME2`), so the reachable screens are unaffected.
+
 ### G-005 — dungeon solid-wall set `{6,13}` is oracle-derived, not decompiled (Lane A)
 
 - **What:** `dungeon_is_solid_tile()` in `port/dungeon.cpp` treats tiles 6 and 13
@@ -161,6 +180,66 @@ How to use each section:
 ---
 
 ## F. Resolved / removed
+
+### G-009 — combat decision screen: source of the `KIL`/`ATK`/`DEF` column (Lane M)
+
+**Resolved 2026-11-20 (thirty-third session) from the decompilation.**  The column is
+`kCombatAbbrevNames[char[+0x24]]`, and `+0x24` **is** the combat rank — the
+previous "body/health state" annotation was the wrong reading of the same byte.
+
+- The row builder at image `0x18734` emits, per party slot: the 1-based index
+  (`"%ld"`, colour 8, x=139), `"%-10s "` name (x=145), then the rank through a
+  **4-entry far-pointer table at image `0x187F0`** indexed by `+0x24`, which
+  selects the strings at `ds:0x0EB0` = `KIL `/`ATK `/`DEF `/`RET `
+  (file `0x42BC0`, four 4-byte slots).
+- `+0x24` read/write sites: read at `0x197C7` and `0x1D323`, written at
+  `0x197F0`, and compared at `0x1913C`/`0x1916C`/`0x1919C`/`0x191CC`.
+  **The engine names the four values itself:** those compares gate the strings
+  `ds:0x713C` `(1)Enter Kill-Rank`, `ds:0x714F` `(2)Enter Attack-Rank`,
+  `ds:0x7164` `(3)Enter Defence-Rank`, `ds:0x717A` `(4)Enter Retreat-Rank`, and
+  the write at `0x197F0` stores the digit that was pressed minus `'1'`.  So
+  `+0x24` is a 0-based rank selecting KIL/ATK/DEF/RET, in the engine's own
+  words — no inference left.
+- The older annotation called `+0x24` "body/health state" and read those four
+  compares as a dying/dead test.  That was wrong: the compares are the
+  rank-entry menu.  `notes-b.md` and `port/char.h` are corrected to match.
+- The save confirms it: GAME2's six members carry `+0x24` =
+  `[0,0,1,2,2,2]`, which is exactly the oracle column `KIL KIL ATK DEF DEF DEF`.
+  The predecessor's inconclusive save-patch experiment is now unnecessary: the
+  table lookup is read straight out of the image, and the shipped save already
+  exercises three of the four entries.
+
+**Fix (this session):** `compose_decision_screen()` (`port/lof.cpp`) indexes
+`combat_abbrev_names()` with `+0x24`; `tests/char_test.cpp` pins the mapping and
+the row guards (`+0x1f < 5`, `+0x49 == 0`) against the real save;
+`tests/port_decision_test.py` pins the rendered frame.  The `kCharBody24`
+annotation in `port/char.h` now reads "combat rank … also the health state".
+
+### G-010 — combat decision screen: meaning of the trailing per-row `1` (Lane M)
+
+**Resolved 2026-11-20 (thirty-third session) from the decompilation.**  The trailing
+number is `+0x0d + 1` (or `+0x16 + 1`), printed by the `"@ %ld"` format
+(`ds:0x6FE6`/`ds:0x6FEC`) that follows the action field.
+
+- Image `0x18880`: `mov al,es:[bx+0x16]; cmp al,0xff; jne .other` — when
+  `+0x16 == 0xff` the engine takes the `ds:0x6FE6` path with `+0x0d + 1`
+  (`mov al,+0x16; cbw; inc ax` at `0x18892` is the `.other` branch, `+0x16+1`).
+- The `+0x0d + 1` branch is guarded (image `0x186F3`) on signed `+0x0d` being in
+  `0..2` **and** `+0x0f != 0`; outside that range nothing is printed.  A
+  non-zero `+0x49` takes a different path (image `0x18839`): the action column
+  is replaced by the fixed string `ds:0x6FF2` "is out of action." and the
+  number is not printed at all.
+- The action word is emitted as a `"%-10s "` field, so the `"@ %ld"` cursor
+  starts 10 cells (60 px) past x=235, i.e. x=295.  `@` and the space advance
+  6 px each but have no glyph, so only the digit inks — at x=307 (measured ink
+  x=308..311), colour 8.  All six GAME2 rows have `+0x0d = 0`, `+0x0f = 1`,
+  `+0x16 = 255`, hence `1` on every row.
+
+**Fix (this session):** the composer reproduces the format arithmetic (cursor at
+`295 + 2*6`, the two uninked cells) and both branches, including the guard and
+the `+0x49` "is out of action." override.
+`tests/port_decision_test.py` pins the digit placement; `tests/char_test.cpp`
+pins the `+0x16 == 0xff`, `+0x0d + 1 == 1` inputs for all six rows.
 
 ### G-001 — town name "Thyn." hardcoded (Lane M)
 

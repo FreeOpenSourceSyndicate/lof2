@@ -230,12 +230,11 @@ struct EncounterGroup {
 // here: the emulator's open trace for the oracle encounter shows
 // `ega\char0\ch24` (LOF_I21=1).
 //
-// The sprite is blitted as the engine's *tiled* first-person cell: copies
-// advance by (viewport width, -1) and both axes wrap, so the viewport pixel
-// (wy,wx) reads sprite row (wy-3-1[wx<56]) mod 119 and column (wx-56) mod 120.
-// Verified against the emulator's encounter frame (ref/oracle/combat.png): the
-// viewport matches at 0.9938 and the whole screen at 0.96 (the residue is the
-// party/status values a save does not carry, as on the play screen).
+// The sprite is a full 120x119 cell blitted plainly at the viewport origin
+// (10,11).  Verified against the emulator's encounter frames: the viewport is
+// 1.0000 for both the Mercenary (ref/oracle/combat.png, CHAR0/CH24) and a
+// second encounter (CHAR0/CH26); the whole-screen residue is only the
+// party/status values a save does not carry, as on the play screen.
 static bool compose_encounter_screen(const std::string& dir, const char* intro,
                                      const std::vector<EncounterGroup>& groups,
                                      const std::vector<SnsRecord>& roster, int sprite_ch,
@@ -278,6 +277,82 @@ static bool compose_encounter_screen(const std::string& dir, const char* intro,
     const std::vector<std::string>& actions = combat_action_names();
     for (size_t i = 0; i < actions.size(); i++)
         font.draw_text(s, 139, 156 + 8 * (int)i, actions[i], 0);
+    return true;
+}
+
+// Compose the per-round combat decision screen.  It is the encounter screen
+// (identical viewport and left panel) with the right-hand text block replaced
+// by the round-decision list.  The row layout is the engine's own printf
+// sequence at image 0x18734 (see docs/notes-maintainer-decision.md):
+//
+//   "%ld"        the 1-based party index, colour 8, x=139, rows 116+8*n
+//   "%-10s "     the name, colour 8, x=145
+//   rank abbrev  the 4-entry far-pointer table at ds:0x0eb0 selected by the
+//                character's +0x24 byte (KIL/ATK/DEF/RET), black, x=211
+//   action word  the 5-entry table at ds:0x0ec0 selected by +0x0f
+//                (Defends/Attacks/Stalks/Use object/Cast Spell), colour 8, x=235
+//   trailing     the engine prints "@ %ld" (ds:0x6fe6/0x6fec) right after the
+//                10-cell action column, i.e. at x=295, with (+0x0d + 1) when
+//                +0x16 == 0xff, else (+0x16 + 1).  '@' and ' ' have no glyph in
+//                the text face but still advance 6 px each, so the number inks
+//                at x=307 (measured ink x308..311), colour 8.
+//
+// The header ("Please make your decision" / "for the next round!") is at y=92
+// and 100; the column header ("Name       HP   W P B Attack" + rule) at y=108
+// and 116 is only drawn on the round-result screen, not here.  The footer is
+// "(A)ttack!" at y=172 and "(Q)uick combat" at y=180, black.
+static bool compose_decision_screen(const std::string& dir, int sprite_ch,
+                                    const SaveGame& sg, bool have_sg, Screen& s,
+                                    std::string& err) {
+    s.resize(320, 200);
+    s.clear(0);
+    if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
+    char spath[64];
+    snprintf(spath, sizeof spath, "%s/EGA/CHAR0/CH%02d", dir.c_str(), sprite_ch);
+    if (!blit_ega(s, spath, kViewportX, kViewportY, &err)) return false;
+    if (!draw_party_and_status(s, dir, sg, have_sg, err)) return false;
+
+    Font font;
+    if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
+    font.draw_text(s, 139, 92, "Please make your decision", 8);
+    font.draw_text(s, 139, 100, "for the next round!", 8);
+
+    const std::vector<std::string> abbrev = combat_abbrev_names();
+    const std::vector<std::string> actions = action_names();
+    for (size_t i = 0; i < sg.chars.size() && i < 6; i++) {
+        const SaveChar& c = sg.chars[i];
+        // Row filter, image 0x18798/0x1879E: slot present and +0x1f < 5.
+        if (!c.present || c.raw[0x1f] >= 5) continue;
+        int y = 116 + 8 * (int)i;
+        font.draw_text(s, 139, y, std::to_string(i + 1), 8);
+        font.draw_text(s, 145, y, c.name, 8);
+        uint8_t rank = c.raw[0x24];
+        if (rank < abbrev.size())
+            font.draw_text(s, 211, y, abbrev[rank], 0);
+        // Image 0x18839: a non-zero +0x49 replaces the action column with the
+        // fixed string ds:0x6ff2 ("is out of action.") and skips the number.
+        if (c.raw[0x49] != 0) {
+            font.draw_text(s, 235, y, "is out of action.", 8);
+            continue;
+        }
+        uint8_t act = c.raw[0x0f];
+        if (act < actions.size())
+            font.draw_text(s, 235, y, actions[act], 8);
+        // The action word is a "%-10s " field, so the trailing "@ %ld" starts
+        // 10 cells (60 px) past x=235; '@' and ' ' advance 6 px uninked each,
+        // leaving the number at x=307.
+        const int kTrailX = 295 + 2 * 6;
+        if (c.raw[0x16] == 0xff) {
+            // Image 0x186f3: only when signed(+0x0d) is in 0..2 and +0x0f != 0.
+            int8_t d = (int8_t)c.raw[0x0d];
+            if (d >= 0 && d <= 2 && c.raw[0x0f] != 0)
+                font.draw_text(s, kTrailX, y, std::to_string(d + 1), 8);
+        } else {
+            font.draw_text(s, kTrailX, y, std::to_string(c.raw[0x16] + 1), 8);
+        }
+    }
+    font.draw_text(s, 139, 172, "(A)ttack!", 0);
+    font.draw_text(s, 139, 180, "(Q)uick combat", 0);
     return true;
 }
 
@@ -822,6 +897,7 @@ int main(int argc, char** argv) {
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
+    bool decision_flag = false;
     std::vector<EncounterGroup> encounter_groups;
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
@@ -834,6 +910,7 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--inn-rest") inn_rest_flag = true;
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
+        else if (std::string(argv[i]) == "--decision") decision_flag = true;
         else if (std::string(argv[i]) == "--encounter") {
             encounter_flag = true;
             // Optional "rec[:count[:rank]]" spec; repeatable for several groups.
@@ -889,6 +966,33 @@ int main(int argc, char** argv) {
         Screen s;
         if (!compose_encounter_screen(dir, intro.c_str(), encounter_groups, roster,
                                       sprite_ch, sg, have_sg, s, err)) {
+            fprintf(stderr, "lof: %s\n", err.c_str());
+            return 1;
+        }
+        if (have_cursor) draw_cursor(s, cur_x, cur_y);
+        if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
+        if (!headless) present_sdl(s, "Legend of Faerghail");
+        return 0;
+    }
+    if (decision_flag) {
+        std::string err;
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) {
+            sg = load_save(save);
+            have_sg = sg.ok;
+        }
+        if (!have_sg) { fprintf(stderr, "lof: --decision needs a valid --save\n"); return 1; }
+        // The encounter that precedes the decision screen: the oracle capture
+        // shows the same viewport as ref/oracle/combat.png (the Mercenary
+        // encounter, SYST/NSC00 record 12 -> CHAR0/CH24).
+        int sprite_ch = dungeon_room_art_number(dir, 0, 12);
+        if (sprite_ch < 0) {
+            fprintf(stderr, "lof: --decision needs SYST/NSC00 record 12\n");
+            return 1;
+        }
+        Screen s;
+        if (!compose_decision_screen(dir, sprite_ch, sg, have_sg, s, err)) {
             fprintf(stderr, "lof: %s\n", err.c_str());
             return 1;
         }
