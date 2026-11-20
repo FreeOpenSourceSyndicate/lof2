@@ -180,9 +180,9 @@ static bool draw_party_and_status(Screen& s, const std::string& dir,
     // The time-of-day word is the save's +0x9b6 index into the engine table
     // ds:0x0f04 (eight 21-char centred strings "Midnight".."Evening"); the
     // morale word is the save's +0x9ba index into ds:0x0f24 ("Good".."Bad").
-    // Both port tables match the engine strings exactly.  Labels and the
-    // title/facing are white (15); the three values (time, morale, rations) are
-    // light gray (7), measured from the DOSBox oracle.
+    // Both port tables match the engine strings exactly.  Measured from the
+    // DOSBox oracle: the time-of-day value is drawn white (index 15, same as the
+    // labels); the morale and rations values are light gray (index 7).
     Font box;
     if (box.load(dir + "/EGA/UP/CHR1", &err)) {
         std::vector<std::string> scen = scenario_names();
@@ -203,7 +203,7 @@ static bool draw_party_and_status(Screen& s, const std::string& dir,
         box.draw_text(s, 6, 176, "Spirits  ", 15);
         // The morale word follows the "Spirits" label.  The engine indexes the
         // ds:0x0f24 table (image 0x2184C) by the save's +0x9ba word; the value is
-        // drawn in gray (index 8) starting one cell after the label's trailing
+        // drawn light gray (index 7) starting one cell after the label's trailing
         // spaces, at x=60.
         if (sg.morale >= 0) {
             std::vector<std::string> morale = morale_names();

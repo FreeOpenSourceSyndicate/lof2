@@ -496,15 +496,16 @@ read the debug field as hex.
 
 ## Town / play-loop flow (oracle for the drop-in)
 
-The save filename the engine opens is `GAMES\GAME%3d` (printf `%3d`), i.e.
-`GAMES/GAME  1` with two padding spaces.  `Machine::resolve()` strips spaces
-(and trailing dots) before matching a host file, because DOS ignores them, so
-the shipped `GAME1`..`GAME5` are found directly — no renamed copies are needed.
-(This was a real bug: an exact-match resolver left `GAME  2` unresolved, the
-load silently no-op'd, and the play screen stayed on the menu.)
+The save filename the engine opens is `GAMES\GAME%d` (no padding; verified by
+the `LOF_I21=1` open trace, which opens `GAMES\GAME1` for slot 1).  There are
+**five** save slots: the load prompt string is `ds:0x7b8a` = `   M  1 2 3 4 5 C`,
+so slots are `1`..`5` only (`M` = menu, `C` = cancel).  An older note claimed
+`%3d` / `GAMES/GAME  1` with two padding spaces and six slots — both wrong.
+`Machine::resolve()` still strips spaces and trailing dots (DOS ignores them),
+so it is harmless either way.
 
 The play loop is entered from the main menu by `O` (Open) then the **digit key**
-of the slot (`1`..`6`, scancodes `0x02`..`0x07`); `Enter` on the dialog does
+of the slot (`1`..`5`, scancodes `0x02`..`0x06`); `Enter` on the dialog does
 nothing.  The load is long and its timing varies, so headless scripts must feed
 the keys adaptively (`LOF_KEYAUTO="0x18,0x02" LOF_KEYGAP=8`), not by frame.
 
@@ -571,10 +572,12 @@ Verified against the DOSBox oracle (`ref/oracle/`):
   table `ds:0x0f04` ("Midnight".."Evening"); the morale word is the save's word
   at `0x9ba` (global `0x3b10`), indexing `ds:0x0f24`
   ("Good"/"Satisfactory"/"Mediocre"/"Alarming"/"Bad").  Rations is the sum of
-  every present member's `+0x70` byte.  All three are drawn light gray (index
-  7); the port matches the oracle pixel-exactly when the save value agrees with
-  the oracle's live moment (GAME2's save says Evening/Good while the oracle
-  shows Midnight/Satisfactory because the clock and morale drift after a save).
+  every present member's `+0x70` byte.  Measured from the oracle: the
+  time-of-day value is drawn white (index 15, same as the labels), while morale
+  and rations are light gray (index 7).  The port matches the oracle
+  pixel-exactly when the save value agrees with the oracle's live moment
+  (GAME2's save says Evening/Good while the oracle shows
+  Midnight/Satisfactory because the clock and morale drift after a save).
   Fields: `SaveGame::time_of_day`/`morale`, `kSaveTimeOfDay`/`kSaveMorale`.
 
 ### First-person viewport — depth-marched single-sprite blit (2026-11-17)

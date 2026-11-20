@@ -196,6 +196,55 @@ def check_out_of_action_any_nonzero() -> int:
             print("port_decision_test: FAIL (+0x49=%d must draw the string: "
                   "image 0x18839 tests != 0)" % value)
             return 1
+
+    rc = check_style1_colour_and_advance(shots[1])
+    if rc != 0:
+        return rc
+    return 0
+
+
+HEADER_ROWS = ((92, 100), (100, 108))
+
+
+def check_style1_colour_and_advance(port: np.ndarray) -> int:
+    """Pin style 1 = 6-px advance and palette index 8, against the oracle.
+
+    The decompilation pushes drawer style `1` for the decision header
+    (`The result of this round:` etc., images 0x1875a/0x1877c/0x1878d) *and*
+    for the out-of-action row (`is out of action.`, image 0x16a15).  So the
+    header is a reachable witness for the row's style: whatever the oracle shows
+    for the header is what the row must look like.
+
+    * Colour: every header glyph pixel is index 8 on the index-7 background.
+    * Advance: `Please make your decision` (25 chars) inks x=139..287, i.e.
+      24 advances of 6 px plus a 5-px glyph -- a 5-px advance would end near
+      x=262, so 6 px is forced.
+    """
+    oracle = to_index(ORACLE, EMU_ATTR)
+    for y0, y1 in HEADER_ROWS:
+        ink = oracle[y0:y1, 139:317] != 7
+        inks = set(np.unique(oracle[y0:y1, 139:317][ink]).tolist())
+        if inks - {8, 12}:        # 12 = emulator descender artefact
+            print("port_decision_test: FAIL (oracle style-1 header inks %s, "
+                  "expected index 8)" % sorted(inks))
+            return 1
+
+    row = oracle[92:100, 139:317]
+    cols = np.where((row != 7).any(0))[0]
+    width = cols.max() - cols.min() + 1
+    if not (144 <= width <= 152):     # 24*6+5 = 149; a 5px advance gives ~124
+        print("port_decision_test: FAIL (style-1 advance: header width=%d, "
+              "expected ~149 for a 6-px advance)" % width)
+        return 1
+
+    # The port must draw the out-of-action row in the same index 8.
+    row_ink = port[ACTION[0], ACTION[1]] != 7
+    if row_ink.any():
+        inks = set(np.unique(port[ACTION[0], ACTION[1]][row_ink]).tolist())
+        if 8 not in inks:
+            print("port_decision_test: FAIL (out-of-action row not drawn in "
+                  "index 8: %s)" % sorted(inks))
+            return 1
     return 0
 
 

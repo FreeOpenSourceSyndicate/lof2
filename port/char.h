@@ -684,21 +684,21 @@ enum CharOffset : size_t {
     // Stun. / Stone / Dead (ds:0x0480..0x04b0) -- then draws that string.  So
     // the word is per character, not a party-wide constant.  Codes 5..7 are the
     // down states (Stun. / Stone / Dead): the decision screen skips any member
-    // whose +0x1f >= 5 (image 0x1879E `cmpb $5` / `jae`), and the round
-    // bookkeeping that ticks +0x49 (below) only runs for +0x1f == 5.
+    // whose +0x1f >= 5 (image 0x1879E `cmpb $5` / `jae`).  One of the two +0x49
+    // decrements (image 0x15C9) is gated on +0x1f == 5; the other (0x18415) is not.
     kCharStatus1f  = 0x1f,  // byte: status code (index into status_short_names())
     // "Out of action" countdown, tested by the combat decision screen (image
-    // 0x18839 `cmpb $0,es:[bx+0x49]` / `je <action word>`): any non-zero value
+    // 0x16b29 `cmpb $0,es:[bx+0x49]` / `je <action word>`): any non-zero value
     // replaces the member's action column with ds:0x6ff2 "is out of action."
-    // and suppresses the trailing number.  The only writer that pairs it with
-    // the down states is the round-end bookkeeping at image 0x1219D, which sets
-    // it from the spell effect id: effect 4 (Paralyze) -> 1, effects 5 and 0x27
-    // -> 5, effect 0x28 -> 3, effect 0x1D -> 0xFF (permanent); equipment that
-    // "breaks down" (image 0x10389) writes 0x14.  The decision screen draws
-    // rows only for +0x1f < 5, so a character only becomes visible as
-    // "out of action." after recovering from Stunned/Stoned while its countdown
-    // is still running.  The countdown itself decrements one step per round,
-    // and only while +0x1f == 5 (image 0x15AA/0x15C9).
+    // and suppresses the trailing number.  The value is a cause code / countdown
+    // set from the spell effect id at round-end bookkeeping (image 0x1219D):
+    // effect 4 (Paralyze) -> 1, effects 5 and 0x27 -> 5, effect 0x28 -> 3,
+    // effect 0x1D -> 0xFF (permanent); equipment that "breaks down" (image
+    // 0x10389) writes 0x14.  There are TWO decrements, so the countdown does
+    // reach drawn rows: image 0x15C9 (gated on `+0x1f == 5`) and image 0x18415
+    // (gated only on `> 0`, at round start, no `+0x1f` gate).  The decision
+    // screen draws rows only for `+0x1f < 5`, so a member shows as "out of
+    // action." after recovering from Stunned/Stoned while its countdown runs.
     kCharOutOfAction49 = 0x49,  // byte: out-of-action countdown / cause code
     // ---- party-status view (grounded in the party-status builder) ----
     // The builder walks the party, reads the fields below from each 410-byte
@@ -924,8 +924,9 @@ constexpr uint8_t kSaveFacingInvalid = 0xff;
 // The status-box routine (image 0x2181C) then indexes the time table at
 // ds:0x0f04 by [0x3b0c] and the morale table at ds:0x0f24 by [0x3b10].
 // Verified against the DOSBox oracle: GAME2 has 0x9b6 = 7 and the oracle prints
-// "Evening"; GAME6 has 0x9ba = 4 and the engine's own movement gate compares
-// that index to 4 before printing "The companions are tired and won't go on".
+// "Evening".  The engine's movement gate compares the morale index [0x3b10] to
+// 4 ("Bad") and, when it matches, prints "The companions are tired and won't go
+// on" (code: `cmpw $0x4,%es:0x3b10` / `jne` / push ds:0x9bc9; image 0x3ab17).
 constexpr size_t kSaveTimeOfDay = 0x9b6;  // dword: time-of-day index (0..7)
 constexpr size_t kSaveMorale = 0x9ba;     // dword: party morale index (0..4)
 

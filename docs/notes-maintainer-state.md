@@ -70,9 +70,12 @@ Work was confined to `G-011` — the last inferred value on the decision screen.
   (`0x9b6`, dword) and `kSaveMorale` (`0x9ba`, word) to `port/char.h`; the parser
   fills `SaveGame::time_of_day`/`morale`; `port/lof.cpp` now draws the
   time-of-day word (y=160) and the morale word (y=176) and the summed rations
-  (y=184) in the status box, all in light gray (index 7, measured from the
-  oracle).  The morale region matches the oracle **100%** when the save value
-  agrees with the oracle's live moment; GAME2's save says Evening(7)/Good(0)
+  (y=184) in the status box.  Measured from the oracle: the time-of-day value is
+  **white (index 15, same as the labels)**; morale and rations are **light gray
+  (index 7)**.  (An earlier draft of this note said all three were index 7; the
+  time value is index 15.)  The morale region matches the oracle **100%** when
+  the save value agrees with the oracle's live moment; GAME2's save says
+  Evening(7)/Good(0)
   while `ref/oracle/play.png` shows Midnight(0)/Satisfactory(1) because the
   engine's clock advanced and morale drifted after the save — a live-state
   difference, not a decode error (proven: patching morale=1 renders the oracle's

@@ -57,11 +57,13 @@ def main() -> int:
         print("port_play_test: FAIL (match=%.1f%% < %.0f%%)" % (100 * match, 100 * MIN_MATCH))
         return 1
 
-    # The lower-left status box must be pixel-exact where the save determines
-    # its text: the scenario title (y=136) and the facing line (y=144) come from
-    # the save's location/facing bytes, and the "Spirits"/"Rations" labels
-    # (x=6..53) are constant.  The time-of-day, morale and rations *values* are
-    # live engine state a save does not carry, so those columns are excluded.
+    # The lower-left status box is pinned where the oracle and this save agree:
+    # the scenario title (y=136) and facing line (y=144) come from the save's
+    # location/facing bytes, and the "Spirits"/"Rations" labels (x=6..53) are
+    # constant.  The time-of-day, morale and rations *values* are save fields
+    # too, but GAME2 was saved a moment earlier than the oracle capture
+    # (Evening/Good vs Midnight/Satisfactory), so those columns legitimately
+    # differ and are not compared here.
     for y in (136, 144):
         if not (port[y:y + 8, 0:140] == oracle[y:y + 8, 0:140]).all():
             print("port_play_test: FAIL (status box line y=%d not exact)" % y)

@@ -30,94 +30,6 @@ How to use each section:
 
 ## B. Unclear — revisit (watchlist)
 
-### G-011 — "is out of action." row rendering is not exercised by any oracle (Lane M)
-
-- **What:** on the combat decision screen a party member with a non-zero `+0x49`
-  gets the action column replaced by the fixed string `ds:0x6FF2`
-  "is out of action." (image `0x18839` → `0x18720`).  The **string**, its
-  **position** (x=235, the action column) and the **suppression of the trailing
-  number** are all derived from the decompilation.
-- **What is not derived:** what the drawer's style argument changes.  The two
-  paths push *different* values: the action word pushes `0` (`0x18843`
-  `sub ax,ax; push ax`), the `+0x49` path pushes `1` (`0x18720` `mov ax,1;
-  push ax`).  The drawer (`0x18d:0x16a8`, image `0x2f78`) stores that argument
-  in `cs:0x1412` (`0x2f8e`) and uses it to index two `cs` tables:
-  `cs:0x1408` = `[6, 5, 12, 12, 10, 10]` (`0x2f95`) and
-  `cs:0x140e` = words `{0x491b, 0x4921, …}` (`0x2fa1`).  The first is a
-  per-character **advance** (6 px for style 0, 5 px for style 1), not a
-  palette index, so the style does **not** select a colour directly.  Where the
-  glyph colour comes from is **not traced**.  The port draws the string at
-  6 px advance, index 8 (same as the action word) — inferred, not measured.
-- **Colour lead for the next session:** `cs:0x140e` (style→descriptor word) is
-  the other style-dependent input; trace how the blitter (`0x18d:0x1418`,
-  image `0x2ce8`) consumes it.  Do **not** change the port's advance/colour on
-  a guess.
-- **To clear it:** capture a decision frame with a member marked out of action
-  from DOSBox (the ground-truth oracle) and diff the column, or trace the
-  blitter's colour global on that path.  Lane M.
-- **Reachable by patching the save (verified 2026-11-20).**  `+0x49` *is* a save
-  field: save record offset `0x49` (i.e. file byte `4 + 0x49 = 77` for member 0,
-  past the 4-byte save header) loads straight into the live record's `+0x49`
-  (confirmed with a marker byte: patching file byte 77 with `0xAB` leaves
-  `0xAB` at the live record's `+0x49`).  **Note the off-by-one trap:** file byte
-  78 is `+0x4a`, *not* `+0x49`.
-- **The draw branch is `!= 0`.**  The draw test at image `0x18839` is
-  `cmp byte es:[bx+0x49],0` / `je <action word>`: **any non-zero value** shows
-  "is out of action.".
-- **CORRECTED (session 34, 2026-11-20): there are TWO `dec` sites of `+0x49`, not
-  one.**  The previous revision claimed a single decrement at image `0x15C9`
-  gated on `+0x1f == 5`, and used that to argue the countdown can never reach a
-  rendered row.  A full sweep of the image finds exactly two decrements of the
-  field:
-  * image `0x15C9` `decb es:0x49(bx+si)` — the per-round tick, gated on
-    `+0x1f == 5` (image `0x15AA`).
-  * image `0x18415` `decb es:(bx)` where `bx` was computed as `record+0x49`
-    (image `0x18403` `add ax,0x49`) — inside the round-start loop at `0x18145`.
-    This one is gated only on the value being `> 0` (image `0x1840F`
-    `cmpb $0 / jle`) and **has no `+0x1f` gate**, so it *can* tick a
-    `+0x1f < 5` member's counter down.
-  So the countdown *does* reach rendered rows.  The "disjoint sets" argument in
-  the earlier revision is **retracted** — it was based on an incomplete sweep.
-  The draw test is still `!= 0`, so the port rule is unchanged; what changes is
-  that the counter is genuinely a countdown that expires over rounds.
-- **What the values mean (derived, image `0x1219D` round-end bookkeeping).**  The
-  field is written from the spell-effect id: effect `4` (Paralyze) → `1`,
-  effects `5` and `0x27` → `5`, effect `0x28` → `3`, effect `0x1D` → `0xFF`
-  (permanent).  A **broken weapon** ("... breaks down!", image `0x10389`) writes
-  `0x14`.  So `+0x49` is a *cause code / countdown*, not a boolean.
-- **Owner answer (see `docs/OWNER-TASKS.md` OT-004):** "out of action" is shown
-  on the **combat decision screen** as the literal words `is out of action.` in
-  the member's **action column** (x=235, where `(A)ttack!`-style action words
-  normally sit), replacing both the action word and its trailing number.  It is
-  reached when the member is paralysed/stunned/petrified (`+0x49 != 0`); the row
-  only draws for `+0x1f < 5`, so it appears on a member who is Stunned/Stoned
-  (`+0x1f == 5/6` are themselves skipped) once recovered enough to be listed but
-  still carrying a running counter.  When *every* present member is out of
-  action the round prints the party message `The companions have all been put
-  out of action. Earliest revival will be at the beginning of the next round.`
-  (ds:0x6F3F, image `0x185CE`).
-- **Emulator A/B is INCONCLUSIVE for the *colour* only — do not cite it for the
-  branch.**  The rendered decision frame is byte-identical for `+0x49=0` and
-  `=1` (0 differing pixels) because the decision screen is only reached with
-  everyone able to act; the branch needs a mid-combat state to be seen.  The
-  colour is therefore still inferred (index 8).  The branch semantics are settled
-  by the decompilation; only the colour needs a DOSBox capture.
-- **Port rule = the decompilation:** `!= 0`.  Since the branch is not
-  oracle-reachable, Rule 1 (decompilation is the source of truth) governs.
-- **Guard:** `tests/port_decision_test.py::check_out_of_action_any_nonzero` pins
-  `!= 0` (values 1 and 2 must both differ from 0 in the action column).  It
-  fails if the threshold is ever changed to `>= 2` again (verified).
-- **Corrected claim.**  An earlier revision of this entry said patching the save
-  "does not reach the branch" and that the record checksum blocks the load.
-  Both were wrong: the first A/B ran without a pinned `LOF_TICK` (combat is
-  tick-seeded, so the two runs were not comparable), and `load_save()` does not
-  verify the record trailer at all — the shipped tails are `0` / `0x06060606`
-  filler and do not match `rost_record_checksum`.
-- **Owner impact:** none for the shipped saves (`+0x49 == 0` for all six
-  members in both `GAME1` and `GAME2`), so the reachable screens are unaffected.
-  The remaining residue is only the **colour**, which needs a DOSBox capture of
-  the branch (the ground-truth oracle) rather than the emulator.
-
 ### G-005 — dungeon solid-wall set `{6,13}` is oracle-derived, not decompiled (Lane A)
 
 - **What:** `dungeon_is_solid_tile()` in `port/dungeon.cpp` treats tiles 6 and 13
@@ -249,6 +161,119 @@ How to use each section:
 ---
 
 ## F. Resolved / removed
+
+### G-011 — "is out of action." row: style, colour and advance (Lane M) — RESOLVED
+
+- **Resolution (2026-11-20):** the row's drawer style (`1`) is the *same* style
+  the decision header uses, and the header is present in every decision frame.
+  Measuring the oracle header settles both unknowns: advance = **6 px** and
+  colour = **index 8**.  The port already draws the row that way, so no code
+  change was needed; a guard (`check_style1_colour_and_advance`) now pins it.
+  Details under "RESOLVED" below.
+- **What:** on the combat decision screen a party member with a non-zero `+0x49`
+  gets the action column replaced by the fixed string `ds:0x6FF2`
+  "is out of action." (image `0x18839` → `0x18720`).  The **string**, its
+  **position** (x=235, the action column) and the **suppression of the trailing
+  number** are all derived from the decompilation.
+- **What is not derived (superseded — now derived, see "RESOLVED" below):** what
+  the drawer's style argument changes.  The two paths push *different* values:
+  the action word pushes `0` (`0x18843` `sub ax,ax; push ax`), the `+0x49` path
+  pushes `1` (`0x18720` `mov ax,1; push ax`).  The drawer (`0x18d:0x16a8`, image
+  `0x2f78`) stores that argument in `cs:0x1412` (`0x2f8e`) and indexes two `cs`
+  tables with it: `cs:0x1408` = `[6, 5, 12, 12, 10, 10]` (`0x2f95`) and
+  `cs:0x140e` = words `{0x491b, 0x4921, …}` (`0x2fa1`).  The earlier reading
+  that `cs:0x1408` is a per-character *advance* (6 px style 0, 5 px style 1) is
+  **wrong** — the oracle header (also style 1) advances 6 px, so that table is
+  not the advance.
+- **Colour lead (obsolete):** `cs:0x140e` (style→descriptor word) was the
+  suspected colour source; it is not needed now that the shared style-1 header
+  pins the colour to index 8 directly.
+- **To clear it (done):** the oracle header rows already use style 1, so no
+  special mid-combat capture was required — measuring the header settled both
+  advance and colour.
+- **Reachable by patching the save (verified 2026-11-20).**  `+0x49` *is* a save
+  field: save record offset `0x49` (i.e. file byte `4 + 0x49 = 77` for member 0,
+  past the 4-byte save header) loads straight into the live record's `+0x49`
+  (confirmed with a marker byte: patching file byte 77 with `0xAB` leaves
+  `0xAB` at the live record's `+0x49`).  **Note the off-by-one trap:** file byte
+  78 is `+0x4a`, *not* `+0x49`.
+- **The draw branch is `!= 0`.**  The draw test at image `0x18839` is
+  `cmp byte es:[bx+0x49],0` / `je <action word>`: **any non-zero value** shows
+  "is out of action.".
+- **CORRECTED (session 34, 2026-11-20): there are TWO `dec` sites of `+0x49`, not
+  one.**  The previous revision claimed a single decrement at image `0x15C9`
+  gated on `+0x1f == 5`, and used that to argue the countdown can never reach a
+  rendered row.  A full sweep of the image finds exactly two decrements of the
+  field:
+  * image `0x15C9` `decb es:0x49(bx+si)` — the per-round tick, gated on
+    `+0x1f == 5` (image `0x15AA`).
+  * image `0x18415` `decb es:(bx)` where `bx` was computed as `record+0x49`
+    (image `0x18403` `add ax,0x49`) — inside the round-start loop at `0x18145`.
+    This one is gated only on the value being `> 0` (image `0x1840F`
+    `cmpb $0 / jle`) and **has no `+0x1f` gate**, so it *can* tick a
+    `+0x1f < 5` member's counter down.
+  So the countdown *does* reach rendered rows.  The "disjoint sets" argument in
+  the earlier revision is **retracted** — it was based on an incomplete sweep.
+  The draw test is still `!= 0`, so the port rule is unchanged; what changes is
+  that the counter is genuinely a countdown that expires over rounds.
+- **RESOLVED (session 34, 2026-11-20): advance and colour are both derived now.**
+  The drawer's style argument does **not** change the advance or the colour; it
+  selects a **font/face**, and both styles render with a **6-px advance** and
+  **palette index 8**.  Evidence:
+  * *Advance = 6 px for style 1.*  The decision prompt `Please make your
+    decision` (25 chars, style 1, image `0x16fb4`) inks x=139..287 in
+    `ref/oracle/combat_decision.png` — 24 advances of 6 px + a 5-px glyph =
+    149 px.  `for the next round!` (19 chars) inks 140..250 (18·6+6).  A 5-px
+    advance would end far short, so the `cs:0x1408` table entry for style 1 is
+    **not** the advance (the earlier reading of that table as an advance was
+    wrong).
+  * *Colour = index 8 for style 1.*  The three header strings (`The result of
+    this round:`, `Name … Gld. Rt Exp. HP …`, the `----` rule — image
+    `0x1875a`/`0x1877c`/`0x1878d`) all push style `1` and are inked at index 8
+    on the index-7 background in the oracle.  `is out of action.` pushes the
+    same style `1`, so it is index 8 too — the port's draw is **measured
+    correct**, not inferred.
+  * The earlier "emulator A/B is INCONCLUSIVE for the colour" reasoning was
+    wrong: it looked for the colour on the *row* path (unreachable) instead of
+    on the *header* path (present in every decision frame, same style).
+- **What the values mean (derived, image `0x1219D` round-end bookkeeping).**  The
+  field is written from the spell-effect id: effect `4` (Paralyze) → `1`,
+  effects `5` and `0x27` → `5`, effect `0x28` → `3`, effect `0x1D` → `0xFF`
+  (permanent).  A **broken weapon** ("... breaks down!", image `0x10389`) writes
+  `0x14`.  So `+0x49` is a *cause code / countdown*, not a boolean.
+- **Owner answer (see `docs/OWNER-TASKS.md` OT-004):** "out of action" is shown
+  on the **combat decision screen** as the literal words `is out of action.` in
+  the member's **action column** (x=235, where `(A)ttack!`-style action words
+  normally sit), replacing both the action word and its trailing number.  It is
+  reached when the member is paralysed/stunned/petrified (`+0x49 != 0`); the row
+  only draws for `+0x1f < 5`, so it appears on a member who is Stunned/Stoned
+  (`+0x1f == 5/6` are themselves skipped) once recovered enough to be listed but
+  still carrying a running counter.  When *every* present member is out of
+  action the round prints the party message `The companions have all been put
+  out of action. Earliest revival will be at the beginning of the next round.`
+  (ds:0x6F3F, image `0x185CE`).
+- **Emulator A/B is INCONCLUSIVE for the *row* path — superseded for the
+  colour.**  The rendered decision frame is byte-identical for `+0x49=0` and
+  `=1` (0 differing pixels) because the decision screen is only reached with
+  everyone able to act; the row branch needs a mid-combat state to be seen.
+  The **colour is nevertheless settled** (index 8) via the shared style-1 header
+  path — see the RESOLVED bullet above.  Only the row *branch* remains
+  oracle-unreachable, and it is settled by the decompilation.
+- **Port rule = the decompilation:** `!= 0`.  Since the branch is not
+  oracle-reachable, Rule 1 (decompilation is the source of truth) governs.
+- **Guard:** `tests/port_decision_test.py::check_out_of_action_any_nonzero` pins
+  `!= 0` (values 1 and 2 must both differ from 0 in the action column).  It
+  fails if the threshold is ever changed to `>= 2` again (verified).
+- **Corrected claim.**  An earlier revision of this entry said patching the save
+  "does not reach the branch" and that the record checksum blocks the load.
+  Both were wrong: the first A/B ran without a pinned `LOF_TICK` (combat is
+  tick-seeded, so the two runs were not comparable), and `load_save()` does not
+  verify the record trailer at all — the shipped tails are `0` / `0x06060606`
+  filler and do not match `rost_record_checksum`.
+- **Owner impact:** none for the shipped saves (`+0x49 == 0` for all six
+  members in both `GAME1` and `GAME2`), so the reachable screens are unaffected.
+  The remaining residue is only the **colour**, which needs a DOSBox capture of
+  the branch (the ground-truth oracle) rather than the emulator.
 
 ### G-009 — combat decision screen: source of the `KIL`/`ATK`/`DEF` column (Lane M)
 

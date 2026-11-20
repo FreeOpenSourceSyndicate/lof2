@@ -17,39 +17,45 @@ Rules for this file:
 
 ## Open
 
-### OT-004 — Confirm the "out of action" indicator colour on a live combat screen
+_None. Every owner task below is resolved; see **Done**. The Maintainer
+re-checks this each session (Rule 8)._
 
-- **Answered this session (2026-11-20):** *What "out of action" means and what
-  shows the state is reached* — see the answer below.  The **only** remaining
-  owner action is to confirm the **text colour**.
-- **The answer (derived from the decompilation, image `0x18839` / `0x18720`):**
+## Done
+
+### OT-004 — What "out of action" means, and what shows the state (ANSWERED, closed)
+
+- **Status: closed — answered from the decompilation; no owner action needed.**
+- **What it means (derived, image `0x18839` / `0x18720`):**
   A party member is "out of action" when its per-character field `+0x49` is
   non-zero.  The **combat decision screen** ("Please make your decision for the
   next round!") then replaces that member's **action column** — normally the
   action word like `Attack` at x=235 — with the literal string
-  **`is out of action.`** and drops the trailing number.  This is the *only*
-  on-screen indicator; there is no separate icon or panel change.
+  **`is out of action.`** (`ds:0x6ff2`) and drops the trailing number.  This is
+  the *only* on-screen indicator; there is no separate icon or panel change.
   * When **every** present member is out of action, the round instead prints the
-    party message
+    party message (`ds:0x6f3f`)
     **`The companions have all been put out of action. Earliest revival will be
     at the beginning of the next round.`**
-  * The state is set by combat effects: Paralyze, Stun, Petrify and similar
-    (spell-effect ids 4/5/0x27/0x28/0x1D), and by a weapon breaking down
-    (`... breaks down!`).  The counter ticks down one step per round.
-- **What only the owner can do:** reach a live combat screen where a member is
-  out of action and report **what colour the `is out of action.` text is** —
-  light gray (like the stat numbers) or dark gray (like the action words).
-  The port currently draws it in index 8 (dark gray) by inference; the
-  decompilation pins the string, position and the suppression of the number, but
-  not the palette index.  A screenshot is not required: a short note
-  ("lighter/darker than the names") is enough.  (Uploads, if any, land in the
-  repo root — but a written answer is fine.)
-- **Why it is owner-only:** the state cannot be reached from a shipped save (all
-  six members of every shipped save have `+0x49 == 0`), so it requires playing
-  combat until the condition occurs.
-- **Unblocks:** closing the last inferred value in G-011 (`docs/GUESSWORK.md`).
-
-## Done
+  * The state is set by combat effects.  The writers of `+0x49` (image
+    `0x104aa`, `0x104ee`, `0x10510`, `0x10532`, `0xe679`) store the effect id
+    into it (`1`, `5`, `0x14`, `3`, `0xff`); `0x16685` and the round boundary
+    clear it to `0` when the member is revived.  The group message says revival
+    is "at the beginning of the next round".
+  * A member that is out of action is also skipped by the action code (the
+    decision routine jumps over its action dispatch when `+0x49 != 0`).
+- **Colour — derived, not guessed:** the `is out of action.` string is drawn
+  with drawer style argument `1` (`push 1`, image `0x16a15`).  The decision
+  screen's own header rows (`The result of this round:`, `Name … Gld. Rt Exp.
+  HP …`, image `0x1875a`/`0x1877c`/`0x1878d`) use the **same** style `1`, and the
+  DOSBox oracle (`ref/oracle/combat_decision.png`) inks them at palette **index
+  8** (dark gray) on the index-7 background.  So style `1` = index 8, and the
+  port's index-8 draw of `is out of action.` is correct.  (An earlier note
+  claimed this colour was unverifiable without the owner; it is verifiable
+  because the string shares the drawer style with the already-verified header.)
+- **Port coverage:** `compose_decision_screen()` renders the per-member row
+  exactly (`tests/port_decision_test.py` pins the out-of-action row).  The
+  all-out-of-action party message is not yet composed (it belongs to the
+  round-result screen, which the port does not draw); filed as follow-up work.
 
 ### OT-003 — Corroborate the `W` and `B` columns of the round-result table
 
@@ -133,4 +139,7 @@ Rules for this file:
   the selector is the 16-bit word at save offset `0x9a4` (`es:[0x460e]`;
   nonzero → "Thyn.", zero → "Cyldane."), and `compose_town_screen()` now takes
   the name from the save instead of hardcoding it.  See `docs/GUESSWORK.md` G-001.
-- **Kept:** the save is preserved at `game/GAMES/GAME4` (and `game/GAMES-owner/`).
+- **Kept:** the save is committed at the repo root as `GAME4` (the only copy
+  not in the archive; `bootstrap.sh` installs it into `game/GAMES/GAME4`).
+  `tests/port_town_test.py` reads it from the repo root, not from the live slot,
+  so a different save dropped into slot 4 cannot break the test.

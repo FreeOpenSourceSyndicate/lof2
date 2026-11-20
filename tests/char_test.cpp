@@ -986,7 +986,7 @@ static int real_data() {
     // action_names()[+0x0f].  GAME2's six members carry ranks [0,0,1,2,2,2]
     // and action 1 ("Attacks"), which reproduces the oracle column
     // KIL KIL ATK DEF DEF DEF.  The row guard is +0x1f < 5; +0x49 overrides
-    // the action column with "is out of action." (image 0x18839).
+    // the action column with "is out of action." (image 0x16b29).
     static const uint8_t kRanks[6] = {0, 0, 1, 2, 2, 2};
     static const char* const kAbbrev[6] = {"KIL", "KIL", "ATK",
                                            "DEF", "DEF", "DEF"};

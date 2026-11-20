@@ -78,10 +78,12 @@ if [ -f GAME1 ]; then
     say "[bootstrap] installed root GAME1 as save slot 1"
 fi
 
-# A GAME4 dropped at the repo root is the owner-supplied *Cyldane* save (the
-# party stands in front of Cyldane, not Thyn).  It is not in the archive, so it
-# must be installed here or it is lost on a workspace reset.  It is what lets
-# lane M trace the town-name selector (G-001/OT-001).
+# GAME4 at the repo root is the owner-supplied *Cyldane* save (the party stands
+# in front of Cyldane, not Thyn).  It is not in the archive, so it must be
+# installed here or it is lost on a workspace reset.  It is what lets the town
+# test pin the town-name selector (G-001/OT-001), so `tests/port_town_test.py`
+# reads it from the repo root directly.  Install it into slot 4 too, for manual
+# play.
 if [ -f GAME4 ]; then
     cp -f GAME4 game/GAMES/GAME4
     say "[bootstrap] installed root GAME4 as save slot 4 (Cyldane)"
@@ -94,17 +96,6 @@ fi
 if [ -f GAME5 ]; then
     cp -f GAME5 game/GAMES/GAME5
     say "[bootstrap] installed root GAME5 as save slot 5 (dungeon, monsters spawn)"
-fi
-
-# A GAME6 dropped at the repo root is the owner-supplied *single-character,
-# bad-spirits* save (one living member, party morale "Bad", so any step prints
-# "The companions are tired and won't go on").  It is the natural experiment
-# that separates party morale from the per-character status word: the panel
-# still reads "Good" because +0x1f is 0.  Not in the archive; install it here or
-# it is lost on a workspace reset.
-if [ -f GAME6 ]; then
-    cp -f GAME6 game/GAMES/GAME6
-    say "[bootstrap] installed root GAME6 as save slot 6 (one member, bad spirits)"
 fi
 
 # --- 2. tooling -------------------------------------------------------------
