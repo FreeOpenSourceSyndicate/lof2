@@ -260,9 +260,11 @@ stays the single source of "what is left".
       emulator capture's index-12 descender pixels).  Guarded by
       `tests/port_decision_test.py`; the rank mapping, the row guards
       (`+0x1f < 5`) and the trailing-field inputs are pinned by
-      `tests/char_test.cpp`.  G-009/G-010 resolved; G-011 now only records the
-      inferred *colour* of the `+0x49` "is out of action." override (the branch
-      itself is reachable by patching the save and is regression-guarded).
+      `tests/char_test.cpp`.  G-009/G-010/G-011 all resolved — G-011's colour
+      and advance are now proven (style 1 = 6 px, palette index 8) via the
+      shared style-1 decision header and pinned by
+      `check_style1_colour_and_advance`; the `+0x49` branch itself is reachable
+      by patching the save and is regression-guarded (`!= 0`).
 - [ ] Dungeon subsystem (`DNGS/`) — **area A**; see the work queue (§4).
 - [ ] Character/items/combat (`SYST/SPEC*`, `ROST/`) — **area B**; see the work
       queue (§4). **Unblocked:** the SPEC/ROST reads now happen in the oracle
