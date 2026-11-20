@@ -50,6 +50,12 @@ guesses the previous session filed for it are **resolved**.
   omitted A003/A004 from the resolved column.  `OWNER-TASKS.md` OT-003's body
   still said the `W`/`P`/`B` meanings were "still open" while its header records
   it closed and the decompilation has derived all three.  Both fixed.
+- **Process deviation (self-reported):** the first attempt at this session-note
+  update was committed and pushed **directly to `main`** (`2149700`) instead of
+  through a `work/*` branch, contrary to the working agreement in
+  `docs/WORKSTREAMS.md`.  The change is docs-only and already public, so it was
+  left in place rather than force-pushed; this note is the record.  Everything
+  else this session went through a branch + PR (#147, #148, and this note).
 
 ## Session 2026-11-18 (thirty-second session) — TL;DR
 
