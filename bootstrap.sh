@@ -78,10 +78,12 @@ if [ -f GAME1 ]; then
     say "[bootstrap] installed root GAME1 as save slot 1"
 fi
 
-# A GAME4 dropped at the repo root is the owner-supplied *Cyldane* save (the
-# party stands in front of Cyldane, not Thyn).  It is not in the archive, so it
-# must be installed here or it is lost on a workspace reset.  It is what lets
-# lane M trace the town-name selector (G-001/OT-001).
+# GAME4 at the repo root is the owner-supplied *Cyldane* save (the party stands
+# in front of Cyldane, not Thyn).  It is not in the archive, so it must be
+# installed here or it is lost on a workspace reset.  It is what lets the town
+# test pin the town-name selector (G-001/OT-001), so `tests/port_town_test.py`
+# reads it from the repo root directly.  Install it into slot 4 too, for manual
+# play.
 if [ -f GAME4 ]; then
     cp -f GAME4 game/GAMES/GAME4
     say "[bootstrap] installed root GAME4 as save slot 4 (Cyldane)"

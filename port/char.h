@@ -678,6 +678,28 @@ enum CharOffset : size_t {
     // party table's "Exp." column.  The 32-bit value is the only field in the
     // struct that pair describes.
     kCharExp6c     = 0x6c,  // dword (low word at 0x6c, high word at 0x6e)
+    // Status code, shown as the white word right of the panel stat.  Image
+    // 0x2EF30 reads `es:[bx+si+0x1f]`, scales it by 4 and indexes the
+    // far-pointer table at ds:0x0e70 -- Good / Mad / Ill / Poisn / Blnd. /
+    // Stun. / Stone / Dead (ds:0x0480..0x04b0) -- then draws that string.  So
+    // the word is per character, not a party-wide constant.  Codes 5..7 are the
+    // down states (Stun. / Stone / Dead): the decision screen skips any member
+    // whose +0x1f >= 5 (image 0x1879E `cmpb $5` / `jae`).  One of the two +0x49
+    // decrements (image 0x15C9) is gated on +0x1f == 5; the other (0x18415) is not.
+    kCharStatus1f  = 0x1f,  // byte: status code (index into status_short_names())
+    // "Out of action" countdown, tested by the combat decision screen (image
+    // 0x16b29 `cmpb $0,es:[bx+0x49]` / `je <action word>`): any non-zero value
+    // replaces the member's action column with ds:0x6ff2 "is out of action."
+    // and suppresses the trailing number.  The value is a cause code / countdown
+    // set from the spell effect id at round-end bookkeeping (image 0x1219D):
+    // effect 4 (Paralyze) -> 1, effects 5 and 0x27 -> 5, effect 0x28 -> 3,
+    // effect 0x1D -> 0xFF (permanent); equipment that "breaks down" (image
+    // 0x10389) writes 0x14.  There are TWO decrements, so the countdown does
+    // reach drawn rows: image 0x15C9 (gated on `+0x1f == 5`) and image 0x18415
+    // (gated only on `> 0`, at round start, no `+0x1f` gate).  The decision
+    // screen draws rows only for `+0x1f < 5`, so a member shows as "out of
+    // action." after recovering from Stunned/Stoned while its countdown runs.
+    kCharOutOfAction49 = 0x49,  // byte: out-of-action countdown / cause code
     // ---- party-status view (grounded in the party-status builder) ----
     // The builder walks the party, reads the fields below from each 410-byte
     // struct, and packs a 12-byte status row per member into the display block
@@ -895,6 +917,19 @@ constexpr size_t kSaveLocTens = 0x9a4;
 constexpr size_t kSaveFacing = 0x9a6;
 constexpr uint8_t kSaveFacingInvalid = 0xff;
 
+// The lower-left status box's "Time of day" and "Spirits" lines are also save
+// fields, not live-only state.  The save loader (image 0x1CA00) copies the
+// 32-bit cell at file offset 0x9b6 into the globals es:[0x3b0c]/[0x3b0e] and the
+// 32-bit cell at 0x9ba into es:[0x3b10]/[0x3b12] (each as two 16-bit moves).
+// The status-box routine (image 0x2181C) then indexes the time table at
+// ds:0x0f04 by [0x3b0c] and the morale table at ds:0x0f24 by [0x3b10].
+// Verified against the DOSBox oracle: GAME2 has 0x9b6 = 7 and the oracle prints
+// "Evening".  The engine's movement gate compares the morale index [0x3b10] to
+// 4 ("Bad") and, when it matches, prints "The companions are tired and won't go
+// on" (code: `cmpw $0x4,%es:0x3b10` / `jne` / push ds:0x9bc9; image 0x3ab17).
+constexpr size_t kSaveTimeOfDay = 0x9b6;  // dword: time-of-day index (0..7)
+constexpr size_t kSaveMorale = 0x9ba;     // dword: party morale index (0..4)
+
 struct SaveChar {
     std::array<uint8_t, 410> raw{};  // one 0x19a character struct
     uint8_t present = 0;             // +0x00  non-zero: slot holds a character
@@ -909,6 +944,8 @@ struct SaveGame {
     uint8_t loc_ones = 0;             // +0x9a2  ones digit of the dungeon id
     uint8_t loc_tens = 0;             // +0x9a4  tens digit of the dungeon id
     uint8_t facing = kSaveFacingInvalid;  // +0x9a6  party facing (0=N..3=W)
+    int time_of_day = -1;             // +0x9b6  index into time_of_day_names()
+    int morale = -1;                  // +0x9ba  index into morale_names()
     std::vector<SaveChar> chars;      // floor((size - 4) / 410) records
     std::vector<uint8_t> trailer;     // any bytes past the last whole record
 };

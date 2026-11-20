@@ -146,18 +146,23 @@ static bool draw_party_and_status(Screen& s, const std::string& dir,
             small.draw_small_cell(s, x + 5, y + 6, 1, 36, 0);
         }
         // Status row: the character's stat (dark gray) at x, then the status
-        // word ("GOOD" for the whole party) in white at x+21.  The stat is the
-        // save record's +0x1e byte, which the engine prints with "%d"
-        // (disassembly 2EEC2) using CHR2 digit cells 27..36, followed by the
-        // '%' glyph, which the engine's glyph table places in band 1 cell 37.
+        // word in white at x+21.  The stat is the save record's +0x1e byte,
+        // which the engine prints with "%d" (disassembly 2EEC2) using CHR2
+        // digit cells 27..36, followed by the '%' glyph, which the engine's
+        // glyph table places in band 1 cell 37.
         int v = c.panel_stat;
         char num[8];
         int n = snprintf(num, sizeof num, "%d", v);
         for (int k = 0; k < n; k++)
             small.draw_small_cell(s, x + 5 * k, y + 12, 0, 27 + (num[k] - '0'), 8);
         small.draw_small_cell(s, x + 5 * n, y + 12, 1, 37, 8);
-        if (!status.empty())
-            small.draw_small(s, x + 21, y + 12, status[0], 15);
+        // The word is the character's own status code: image 0x2EF30 reads
+        // es:[bx+si+0x1f], scales it by 4 and indexes the far-pointer table at
+        // ds:0x0e70 (Good/Mad/Ill/Poisn/Blnd./Stun./Stone/Dead).  It is not a
+        // party-wide constant.
+        size_t si = c.raw[kCharStatus1f];
+        if (si < status.size())
+            small.draw_small(s, x + 21, y + 12, status[si], 15);
         slot++;
     }
 
@@ -170,13 +175,14 @@ static bool draw_party_and_status(Screen& s, const std::string& dir,
     //   line 6  "Spirits"  + the party's morale
     //   line 7  "Rations"  + the party's rations
     //
-    // Only the first two are recoverable from a save file: the title is the
-    // location's scenario (the ones digit indexes `scenario_names()`) and the
-    // facing is the save's +0x9a6 digit byte.  The time of day, morale and
-    // rations are *live* engine state (the clock, the party's mood and the
-    // per-character ration count the engine accumulates at run time) that a
-    // save alone does not carry, so the port draws their labels only, which is
-    // exactly what the engine itself shows before those values are set.
+    // The title is the location's scenario (the ones digit indexes
+    // `scenario_names()`) and the facing is the save's +0x9a6 digit byte.
+    // The time-of-day word is the save's +0x9b6 index into the engine table
+    // ds:0x0f04 (eight 21-char centred strings "Midnight".."Evening"); the
+    // morale word is the save's +0x9ba index into ds:0x0f24 ("Good".."Bad").
+    // Both port tables match the engine strings exactly.  Measured from the
+    // DOSBox oracle: the time-of-day value is drawn white (index 15, same as the
+    // labels); the morale and rations values are light gray (index 7).
     Font box;
     if (box.load(dir + "/EGA/UP/CHR1", &err)) {
         std::vector<std::string> scen = scenario_names();
@@ -189,8 +195,32 @@ static bool draw_party_and_status(Screen& s, const std::string& dir,
         std::string heading = (sg.facing < face.size())
                                   ? face[sg.facing] : "    Direction !!     ";
         box.draw_text(s, 6, 144, heading, 15);
+        if (sg.time_of_day >= 0) {
+            std::vector<std::string> tod = time_of_day_names();
+            if (sg.time_of_day < (int)tod.size())
+                box.draw_text(s, 6, 160, tod[sg.time_of_day], 15);
+        }
         box.draw_text(s, 6, 176, "Spirits  ", 15);
+        // The morale word follows the "Spirits" label.  The engine indexes the
+        // ds:0x0f24 table (image 0x2184C) by the save's +0x9ba word; the value is
+        // drawn light gray (index 7) starting one cell after the label's trailing
+        // spaces, at x=60.
+        if (sg.morale >= 0) {
+            std::vector<std::string> morale = morale_names();
+            if (sg.morale < (int)morale.size())
+                box.draw_text(s, 60, 176, morale[sg.morale], 7);
+        }
         box.draw_text(s, 6, 184, "Rations  ", 15);
+        // The rations figure is the sum of every present character's +0x70 byte
+        // (image 0x21743 accumulates es:0x70(%bx) over the six party slots and
+        // prints it with "%ld" at x=60).  A save's copy is the value at save time;
+        // the engine consumes rations as the party travels.
+        {
+            long total = 0;
+            for (const SaveChar& c : sg.chars)
+                if (c.present) total += c.raw[kCharRations70];
+            box.draw_text(s, 60, 184, std::to_string(total), 7);
+        }
     }
     return true;
 }
@@ -322,7 +352,7 @@ static bool compose_decision_screen(const std::string& dir, int sprite_ch,
     for (size_t i = 0; i < sg.chars.size() && i < 6; i++) {
         const SaveChar& c = sg.chars[i];
         // Row filter, image 0x18798/0x1879E: slot present and +0x1f < 5.
-        if (!c.present || c.raw[0x1f] >= 5) continue;
+        if (!c.present || c.raw[kCharStatus1f] >= 5) continue;
         int y = 116 + 8 * (int)i;
         font.draw_text(s, 139, y, std::to_string(i + 1), 8);
         font.draw_text(s, 145, y, c.name, 8);
@@ -332,7 +362,7 @@ static bool compose_decision_screen(const std::string& dir, int sprite_ch,
         // Image 0x18839: `cmp byte es:[bx+0x49],0 / je <action word>` — any
         // non-zero +0x49 replaces the action column with the fixed string
         // ds:0x6ff2 ("is out of action.") and skips the number.
-        if (c.raw[0x49] != 0) {
+        if (c.raw[kCharOutOfAction49] != 0) {
             font.draw_text(s, 235, y, "is out of action.", 8);
             continue;
         }

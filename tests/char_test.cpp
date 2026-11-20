@@ -524,6 +524,16 @@ static int real_data() {
     assert(dungeon_view_dir(8).empty());     // no EGA/D8
     assert(dungeon_map_name(100).empty());   // out of range
 
+    // Time-of-day and morale are stored in the save: the dword at 0x9b6 is the
+    // time index and the word at 0x9ba the morale index.  The loader copies
+    // 0x9b6 -> global 0x3b0c and 0x9ba -> global 0x3b10 (image 0x1c952 /
+    // 0x1c9xx region), and the status box indexes ds:0x0f04 / ds:0x0f24 with
+    // them.  GAME2 stores 7 (Evening) and 0 (Good).
+    assert(sv2.time_of_day == 7);
+    assert(sv2.morale == 0);
+    assert(time_of_day_names()[sv2.time_of_day] == "       Evening");
+    assert(morale_names()[sv2.morale] == "Good");
+
     // The party's facing is a separate digit byte at save offset 0x9a6 (0=N,
     // 1=E, 2=S, 3=W), printed by the status box with facing_names().  GAME1
     // faces South and GAME2 North; the DOSBox play capture (slot 2) shows
@@ -976,7 +986,7 @@ static int real_data() {
     // action_names()[+0x0f].  GAME2's six members carry ranks [0,0,1,2,2,2]
     // and action 1 ("Attacks"), which reproduces the oracle column
     // KIL KIL ATK DEF DEF DEF.  The row guard is +0x1f < 5; +0x49 overrides
-    // the action column with "is out of action." (image 0x18839).
+    // the action column with "is out of action." (image 0x16b29).
     static const uint8_t kRanks[6] = {0, 0, 1, 2, 2, 2};
     static const char* const kAbbrev[6] = {"KIL", "KIL", "ATK",
                                            "DEF", "DEF", "DEF"};

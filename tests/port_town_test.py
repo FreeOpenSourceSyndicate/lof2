@@ -14,8 +14,12 @@ pins the layout recovered from that frame:
 
 The town *name* is not hardcoded: the engine (image 0x53E0) selects "Thyn." or
 "Cyldane." from the 16-bit word at save offset 0x9a4 (nonzero -> Thyn), so the
-test also pins that selector using the owner-supplied Cyldane save (GAME4) and
-its oracle frame (ref/oracle/town_cyldane.png).
+test also pins that selector using the owner-supplied Cyldane save and its
+oracle frame (ref/oracle/town_cyldane.png).
+
+The Cyldane fixture is read from the *committed* root save `GAME4`, not from
+`game/GAMES/GAME4`: the owner also drops experimental saves into slot 4, and a
+test fixture must not depend on whatever a slot happens to hold.
 
 The static screen is pixel-exact except for the dynamic party panel the engine
 draws from the loaded save.  The 16x16 top-left patch is the engine's software
@@ -34,7 +38,7 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME = os.path.join(ROOT, "game")
 ORACLE = os.path.join(ROOT, "ref", "oracle", "town.png")
-CYLDANE_SAVE = os.path.join(GAME, "GAMES", "GAME4")
+CYLDANE_SAVE = os.path.join(ROOT, "GAME4")
 CYLDANE_ORACLE = os.path.join(ROOT, "ref", "oracle", "town_cyldane.png")
 SHOT = "/tmp/port_town_test.png"
 SHOT_CYLDANE = "/tmp/port_town_test_cyldane.png"

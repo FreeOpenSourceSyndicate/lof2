@@ -8,6 +8,15 @@ cpu_test
 downloads/
 game/
 *.zip
+# Owner-supplied save files dropped at the repo root (proprietary game data;
+# bootstrap.sh installs them into game/GAMES/).  Never commit these.
+#
+# NOTE: GAME1, GAME4 and GAME5 are *already* tracked in history (a pre-existing
+# exception, see docs/OWNER-TASKS.md OT-001).  `.gitignore` does not untrack
+# them, and the Cyldane fixture GAME4 is not in the archive, so it must stay
+# committed or the only copy is lost.  This pattern still guards against
+# *new* GAME* drops being committed by accident.
+/GAME[0-9]*
 
 # Python cache
 __pycache__/
