@@ -1533,6 +1533,51 @@ here are `/tmp/round*.mem` (ephemeral) — regenerate with the command above.
   2/3/4).
 - The per-column semantics of the round table (`W P B`, `Attack`).
 
+## Round resolution — located, not yet derived (2026-11-20, session 37)
+
+The decision screen only *collects* the actions; the round is resolved by a
+separate routine, and the flow is now pinned end to end:
+
+| step | site | what |
+|---|---|---|
+| 1 | image `0x1865A` | `lcall 0x212f:0x6c24` = image **`0x27F14`** — rebuild the party-status rows (the builder `docs/char` describes) |
+| 2 | image `0x18663` | `call 0x17982` with one arg `[bp+6]` — **the round resolution** |
+| 3 | image `0x18669` | if `es:[0x3de9] == 0` skip the table (`jmp 0x18A7D`), else draw the round-result table |
+
+`0x17982` (arg `[bp+6]`: **0 = normal round, 1 = quick combat**):
+
+- Normal (`0x179BB`): for each party row `i` (0..5) at `0x17A2B`, **verified**
+  byte-level steps:
+  * actor record = `[0xafa6]:0x30 + 0x19a * es:[0xafda]:(i*12+0x177)` (the
+    status row's `+0x177` record index)
+  * `[bp-0xc] = char[+0x0d]` (sign-extended), `[bp-0x4] = -1` (target row)
+  * `char[+0x0f] == 3` (use object) / `== 4` (cast spell) branch to `0x17B0B`;
+    otherwise `[bp-0x10] = char[+0x0e]`, and for action 3 the byte
+    `[0xafa8]:0xfd4 + 32*char[+0x0e]` replaces it
+  * the item byte `[0xafae]:0x2712 + 36*[bp-0x10]` is tested: if
+    `(byte & 3) || (byte & 4)` then `[bp-0xc] = 0`, `[bp-0x4] = 0`,
+    `[bp-0xa] = 1` (an unusable/empty item → unarmed attack)
+  * with `[bp-0x4] == -1`, scan rows `j = 0..5` at
+    `[0xafc4]:0x258 + 72*[bp-0xc] + 12*j` for `+0x258 == 1 && +0x262 != 0`
+    (the first live defender) and take `[bp-0x4] = j`
+  * if a target exists: `call 0x1370C(attacker = 0x367e:(12*i+0x176),
+    target = 0x367e:(0x258 + 72*[bp-0xc] + 12*[bp-0x4]), flag [bp-0xa])` —
+    **the per-attack routine**
+- Quick (`0x17BAA`) — a different loop, not yet read.
+
+**Hypothesis (not proven):** the `72 * [bp-0xc]` factor means `char[+0x0d]` is
+the target *monster group* (6 rows × 12 bytes) and `char[+0x0e]` the slot in
+it; that would also explain the decision row's `@ %ld` value.  Do not build on
+it until `0x1370C` is read.
+
+So the remaining derivation for a playable round is **`0x1370C`** (to-hit, damage,
+the W/P/B setters and the HP write) plus the quick-combat loop at `0x17BAA` and
+the monster-turn pass.  The actor/defender rows are 12-byte structures in
+segment **`0x367e`**, party at `+0x176`, defenders at `+0x258`, and the status
+builder `0x27F14` writes the same shape (`+0x176` marker, `+0x177` record
+index, `+0x178` class, `+0x17c` hp/8), so `port/char.cpp`'s `PartyRow` is the
+right model.
+
 ## BLK-B004 — the round-result printer FOUND (2026-11-17, twenty-first session)
 
 **The `W P B` columns are decoded structurally.** The printer for the melee

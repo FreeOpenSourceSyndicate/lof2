@@ -43,6 +43,13 @@ decoded, implemented, verified and documented it.
   *decision-screen* branch and is blocked on the message colour (no engine frame
   reaches it yet; patching `+0x49` in a save prevents the party from leaving
   town, so the oracle needs a mid-encounter state).
+- **Started the next queue item (combat, item 4):** located the round
+  resolution and recorded the map in `docs/notes-b.md` ("Round resolution —
+  located"): decision `0x1810E` → status rebuild `0x212f:0x6c24` (= image
+  `0x27F14`) → `call 0x17982` (arg 0 normal / 1 quick) → round-result table.
+  The per-attack routine is **`0x1370C(attacker, target, flag)`**, still to be
+  derived; rows are 12-byte structs at `0x367e:+0x176` (party) and `+0x258`
+  (defenders, 72 bytes per group).  Item 4's text now carries the same map.
 
 ## Session 2026-11-20 (thirty-sixth session) — savegame management (Task 2)
 
