@@ -44,6 +44,12 @@ guesses the previous session filed for it are **resolved**.
   `+0x1f < 5` guard and the trailing-field inputs against the real save.
 - Watchlist is now **4 open items**: G-004, G-005, G-007, G-011.
   G-008/G-009/G-010 are resolved.
+- **Merged as PR #147** (squash) after `./check.sh` reported HEALTHY.
+- **Doc hygiene (PR #148, merged):** every blocker in `docs/blockers/{A,B,M}.md`
+  is Resolved, but the hub index still listed BLK-A001/B004/B005 as open and
+  omitted A003/A004 from the resolved column.  `OWNER-TASKS.md` OT-003's body
+  still said the `W`/`P`/`B` meanings were "still open" while its header records
+  it closed and the decompilation has derived all three.  Both fixed.
 
 ## Session 2026-11-18 (thirty-second session) — TL;DR
 
