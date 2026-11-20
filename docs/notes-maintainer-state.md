@@ -5,6 +5,36 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-20 (thirty-fifth session) — TL;DR (Maintainer takeover)
+
+Took over the crashed predecessor's lane. Their uncommitted tree and the
+`m/out-of-action-answer` branch (PR **#151**, still DRAFT) held a good
+"out of action" answer plus the status-box time/morale/rations work. I reviewed
+the committed diff, verified its load-bearing claims against the data/oracle,
+finished the thread, and **squash-merged #151** (`55239e2`); branch deleted, no
+open PRs remain.
+
+What this session changed on top of the predecessor's commit:
+- **G-011 fully closed** (colour *and* advance): the "is out of action." row uses
+  style 1, which is the *same* style as the decision header that appears in
+  every decision frame. Measuring the oracle header gives advance **6 px** and
+  colour **palette index 8**; new guard `check_style1_colour_and_advance` pins it.
+  No owner input needed — OT-004 moved to Done.
+- **Status-box colours corrected in the docs**: time-of-day value is **index 15
+  (white)**, morale and rations are **index 7 (light gray)**. The code already
+  drew them right; three comments (AGENTS.md, port/lof.cpp,
+  notes-maintainer-state.md) wrongly said "all index 7". Verified the note's
+  claim that patching GAME2 morale→1 reproduces the oracle's "Satisfactory".
+- **Save-slot facts corrected (Rule 1, read from `game/LOF.EXE`)**: format is
+  `GAMES\GAME%d` (file off `0x498cd`, no padding) and the prompt at `0x4989a` is
+  `   M  1 2 3 4 5 C` = **five** slots. Fixed the `%3d`/six-slot claim and
+  dropped the fabricated `GAME6` references.
+- **`check.sh` false pass noted**: it reports "no unpushed commits" when the
+  branch has no upstream ref (`@{u}` empty), so it can pass while commits are
+  unpushed. Push explicitly and verify with `git log FETCH_HEAD..HEAD`.
+- **Open items now:** only work-queue item 11 (all-out-of-action party message;
+  the round-result screen is not composed yet). No open owner tasks, no open PRs.
+
 ## Session 2026-11-20 (thirty-fourth session) — TL;DR
 
 Took over from the crashed predecessor with `docs/HANDOFF.md` and the
