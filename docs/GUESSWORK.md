@@ -46,6 +46,18 @@ How to use each section:
 - **To clear it:** capture (or construct) a decision frame with a member marked
   out of action and diff the column, or trace the drawer's colour global on
   that path.  Lane M.
+- **Tried and failed (2026-11-20): patching the save does not reach the branch.**
+  Setting `+0x49` on GAME2's member 1 to `1` (record base `0x4`, stride `0x19a`)
+  and re-running the decision-screen capture gave a frame **byte-identical** to
+  the unpatched run, so the engine recomputes `+0x49` on load rather than
+  trusting the file.  Zeroing the member's current HP (`+0x22`) does not help
+  either: it breaks the ROST record checksum (`port/char.cpp`
+  `rost_record_checksum`), the load fails, and the capture lands on an unrelated
+  screen.  A future attempt must either reach the state through play (wound a
+  member to 0 HP in combat, then read the next round's decision list) or read
+  the drawer's colour table directly — the caller passes `0` for the action
+  word and `1` for the out-of-action string, so the argument is a *style* index
+  into a table, not a raw palette index.
 - **Owner impact:** none for the shipped saves (`+0x49 == 0` for all six
   members in both `GAME1` and `GAME2`), so the reachable screens are unaffected.
 
