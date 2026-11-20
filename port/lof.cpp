@@ -387,6 +387,78 @@ static bool compose_decision_screen(const std::string& dir, int sprite_ch,
     return true;
 }
 
+// One row of the round-result table: the values the engine's combat resolver
+// produces for a party member.  These are the engine's four per-round arrays
+// (docs/notes-b.md, "The four per-character arrays"): W = party_seg[i*2+0x5608],
+// P = [i*2+0x5609], B = [i+0x224], Attack = [i+0x3d48] unless char +0x49 != 0,
+// which is the out-of-action "-".
+struct RoundRow {
+    int  hp_delta = 0;
+    bool w = false, p = false, b = false;
+    int  attack = 1;
+};
+
+// Compose the round-result screen ("The result of this round:").  It is the
+// encounter chrome (MSCR + the creature cell + the party/status panel) with the
+// melee table in the right-hand text block.  Layout is the engine's own draw
+// sequence at image 0x1867D..0x189F6 (docs/notes-b.md, "round-result printer"):
+//
+//   "The result of this round:"             newline 1, colour 8
+//   "Name       HP   W P B Attack"          newline 1, colour 0
+//   "---------- ---- - - - -------"         newline 1, colour 0
+//   per present member i, starting at the row after the rule (y=124+8i):
+//     "%-10s "  the name                    colour 8, x=139 (11 cells -> x=205)
+//     "%4ld "   the HP change               colour 8, right-aligned in 4 cells
+//     "* "/"- " W, P, B                     colour 8, x=235/247/259
+//     "Passed"/"Failed"/"-"                 colour 8, x=271
+//   "(C)ontinue"                            colour 0, y=180
+//
+// The three leading arguments of the drawer (lcall 0x18d,0x16a8) are
+// (offset, segment, newline); the "style" values in the listing are the
+// newline flag, not a colour or a face.  The colour is a separate global set by
+// lcall 0x18d,0x175a (image 0x302A, table cs:0x174c).  Rows advance because the
+// row's last draw ("Passed"/"Failed"/"-") sets newline=1.
+static bool compose_round_result_screen(const std::string& dir, int sprite_ch,
+                                        const SaveGame& sg, bool have_sg,
+                                        const std::vector<RoundRow>& rows,
+                                        Screen& s, std::string& err) {
+    s.resize(320, 200);
+    s.clear(0);
+    if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
+    char spath[64];
+    snprintf(spath, sizeof spath, "%s/EGA/CHAR0/CH%02d", dir.c_str(), sprite_ch);
+    if (!blit_ega(s, spath, kViewportX, kViewportY, &err)) return false;
+    if (!draw_party_and_status(s, dir, sg, have_sg, err)) return false;
+
+    Font font;
+    if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
+    font.draw_text(s, 139, 92, "The result of this round:", 8);
+    font.draw_text(s, 139, 108, "Name       HP   W P B Attack", 0);
+    font.draw_text(s, 139, 116, "---------- ---- - - - -------", 0);
+
+    size_t r = 0;
+    for (size_t i = 0; i < sg.chars.size() && i < 6; i++) {
+        if (!sg.chars[i].present) continue;
+        const RoundRow row = r < rows.size() ? rows[r] : RoundRow();
+        r++;
+        int y = 124 + 8 * (int)i;
+        font.draw_text(s, 139, y, sg.chars[i].name, 8);
+        // "%4ld " field: right-aligned in four 6-px cells.
+        std::string hp = std::to_string(row.hp_delta);
+        int hx = 205 + 6 * (4 - (int)hp.size());
+        if (hx < 205) hx = 205;
+        font.draw_text(s, hx, y, hp, 8);
+        font.draw_text(s, 235, y, row.w ? "*" : "-", 8);
+        font.draw_text(s, 247, y, row.p ? "*" : "-", 8);
+        font.draw_text(s, 259, y, row.b ? "*" : "-", 8);
+        font.draw_text(s, 271, y,
+                       row.attack == 0 ? "Failed"
+                                       : (row.attack == 1 ? "Passed" : "-"), 8);
+    }
+    font.draw_text(s, 139, 180, "(C)ontinue", 0);
+    return true;
+}
+
 // Compose the main menu screen: the static artwork EGA/UP/MSCR (the full
 // 320x200 background, which already contains the menu frame), the town scene
 // painted into the left viewport, and the menu text in the engine's own font.
@@ -929,7 +1001,9 @@ int main(int argc, char** argv) {
     bool temple_revive_flag = false;
     bool encounter_flag = false;
     bool decision_flag = false;
+    bool round_result_flag = false;
     std::vector<EncounterGroup> encounter_groups;
+    std::vector<RoundRow> round_rows;
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
         else if (std::string(argv[i]) == "--save" && i + 1 < argc) save = argv[++i];
@@ -942,6 +1016,25 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
+        else if (std::string(argv[i]) == "--round-result") {
+            round_result_flag = true;
+            // Optional "delta:w:p:b:a" row specs (w/p/b 0|1, a 0=Failed
+            // 1=Passed 2=out-of-action), one per present member.  Consecutive
+            // specs are consumed; anything that is not a spec ends the list.
+            while (i + 1 < argc) {
+                int delta = 0, w = 0, p = 0, b = 0, a = 1;
+                char junk = 0;
+                int n = sscanf(argv[i + 1], "%d:%d:%d:%d:%d%c",
+                               &delta, &w, &p, &b, &a, &junk);
+                if (n < 1 || n > 5) break;
+                i++;
+                RoundRow row;
+                row.hp_delta = delta;
+                row.w = w != 0; row.p = p != 0; row.b = b != 0;
+                row.attack = (a < 0 || a > 2) ? 1 : a;
+                round_rows.push_back(row);
+            }
+        }
         else if (std::string(argv[i]) == "--encounter") {
             encounter_flag = true;
             // Optional "rec[:count[:rank]]" spec; repeatable for several groups.
@@ -958,6 +1051,17 @@ int main(int argc, char** argv) {
     if (encounter_flag && encounter_groups.empty()) {
         encounter_groups.push_back({12, 4, 2});
         encounter_groups.push_back({12, 6, 1});
+    }
+    // Bare --round-result renders the pinned oracle frame
+    // (ref/oracle/round_result.png): the six GAME2 members, Handy's weapon
+    // damaged and its action failed, Cassandra down 7 HP.
+    if (round_result_flag && round_rows.empty()) {
+        round_rows.push_back({0, false, false, false, 1});
+        round_rows.push_back({0, false, false, false, 1});
+        round_rows.push_back({0, true,  false, false, 0});
+        round_rows.push_back({0, false, false, false, 1});
+        round_rows.push_back({-7, false, false, false, 1});
+        round_rows.push_back({0, false, false, false, 1});
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||
         inn_rest_flag || temple_heal_flag || temple_revive_flag) {
@@ -1024,6 +1128,33 @@ int main(int argc, char** argv) {
         }
         Screen s;
         if (!compose_decision_screen(dir, sprite_ch, sg, have_sg, s, err)) {
+            fprintf(stderr, "lof: %s\n", err.c_str());
+            return 1;
+        }
+        if (have_cursor) draw_cursor(s, cur_x, cur_y);
+        if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
+        if (!headless) present_sdl(s, "Legend of Faerghail");
+        return 0;
+    }
+    if (round_result_flag) {
+        std::string err;
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) {
+            sg = load_save(save);
+            have_sg = sg.ok;
+        }
+        if (!have_sg) { fprintf(stderr, "lof: --round-result needs a valid --save\n"); return 1; }
+        // The table is drawn over the encounter that produced the round; the
+        // oracle frame follows the same Mercenary encounter as --decision.
+        int sprite_ch = dungeon_room_art_number(dir, 0, 12);
+        if (sprite_ch < 0) {
+            fprintf(stderr, "lof: --round-result needs SYST/NSC00 record 12\n");
+            return 1;
+        }
+        Screen s;
+        if (!compose_round_result_screen(dir, sprite_ch, sg, have_sg, round_rows,
+                                         s, err)) {
             fprintf(stderr, "lof: %s\n", err.c_str());
             return 1;
         }

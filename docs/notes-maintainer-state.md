@@ -5,6 +5,45 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-20 (thirty-seventh session) — combat round-result screen
+
+Lane M. The predecessor's round-result work was in `/tmp` only; this session
+decoded, implemented, verified and documented it.
+
+- **`--round-result` implemented** (`compose_round_result_screen()`): the
+  encounter chrome plus `The result of this round:` (y=92, colour 8), the
+  header (y=108) and rule (y=116, colour 0), one row per **present** member at
+  y=124+8n, and `(C)ontinue` (y=180, colour 0).  Columns are the engine's own
+  printf formats, so they follow from the cell widths: `%-10s ` (11 cells →
+  x=205), `%4ld ` right-aligned in four 6-px cells, `* `/`- ` at x=235/247/259,
+  `Passed`/`Failed`/`-` at x=271.  Values are the engine's four per-round
+  arrays, not save fields; `--round-result delta:w:p:b:a` feeds them per
+  present member, the bare flag renders the pinned oracle round.
+- **Oracle committed:** `ref/oracle/round_result.png`, captured deterministically
+  from the emulator with the documented `LOF_KEYAT` drive (md5 verified twice).
+  The port's text block matches its **ink mask 1.0000** (the ~0.5% residual
+  index-12 pixels are the emulator's text artefact — the same residue exists in
+  `combat.png`/`combat_decision.png` and it is absent from DOSBox).
+- **Derivation corrected:** the text drawer's third argument is a **newline**
+  flag, not a "style" — the drawer saves CX and calls the newline routine when
+  it is non-zero (image `0x2F88`/`0x2FC5`).  The face is `cs:0x1412` (set by
+  `lcall 0x18d:0x1787`, call sites `0x1B32E` face 0 / `0x2ED2C` face 1) and the
+  colour is `cs:0x1414` (set by `lcall 0x18d:0x175a`).  Written up as a
+  correction in GUESSWORK G-011; the measured 6-px/index-8 rendering stands.
+- **Font:** `:` (CHR1 band 1 cell 37) and `*` (band 1 cell 30) were missing from
+  `port/font.cpp`; both added and pinned in `tests/font_test.cpp`.  Without
+  them the title's colon and the W column rendered blank.
+- **Tests:** `tests/port_round_result_test.py` (text ink exact; header/rule/
+  footer exact in index space; `:` and `*` cells; roster identical to the
+  encounter screen; row inputs actually drive the columns and touch nothing
+  else) wired into `make golden-port`.  `make test` and the full
+  `make golden-port` sweep are green.
+- **Queue:** HANDOFF item 12 added (done); item 11 (all-out message) now has its
+  trigger decoded (`[bp-0x36]`, image `0x18449`) and remains todo — it is a
+  *decision-screen* branch and is blocked on the message colour (no engine frame
+  reaches it yet; patching `+0x49` in a save prevents the party from leaving
+  town, so the oracle needs a mid-encounter state).
+
 ## Session 2026-11-20 (thirty-sixth session) — savegame management (Task 2)
 
 Owner's second task: several savegames were committed at the repo root, and a

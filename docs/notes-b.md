@@ -1479,6 +1479,43 @@ present in the frame: `Decker`…`Cassandra`). The withdraw table (`0x49048`) li
 "Meaning of the columns" below (W = weapon damaged, P = shield/armour damaged,
 B = an ability improved, Attack = Passed/Failed).
 
+**IMPLEMENTED (session 37, 2026-11-20) — `--round-result`.**  Composed by
+`compose_round_result_screen()` in `port/lof.cpp` and guarded by
+`tests/port_round_result_test.py` against the committed oracle
+`ref/oracle/round_result.png` (text **ink mask 1.0000**; the residual
+index-12 pixels are the emulator's text artefact, present in every text oracle
+and absent from DOSBox).  The oracle is deterministic; capture with:
+
+```
+LOF_CMDLEN=3 LOF_NO_TIMER=1 \
+LOF_KEYAT="50:0x18,100:0x03,150:0x50,200:0x48,250:0x2e,650:0x1e,780:0x02,900:0x20,1020:0x2e" \
+  ./lof-native --dir game --headless --frames 1200 --shot /tmp/round_result.png
+```
+
+Layout (image `0x1867D`..`0x189F6`), all measured on that frame and explained
+by the drawer's newline flag (see GUESSWORK G-011 correction):
+
+| element | y | x | colour |
+|---|---|---|---|
+| `The result of this round:` | 92 | 139 | 8 |
+| `Name       HP   W P B Attack` | 108 | 139 | 0 |
+| `---------- ---- - - - -------` | 116 (ink 119) | 139 | 0 |
+| row *n* (one per **present** member, slot order) | 124+8n | 139 | 8 |
+| `(C)ontinue` | 180 | 139 | 0 |
+
+The row is the engine's `printf` sequence, so the columns fall out of the
+formats: `"%-10s "` name (11 cells → x=205), `"%4ld "` HP change right-aligned
+in four 6-px cells, `"* "`/`"- "` for W/P/B at x=235/247/259, and
+`"Passed"`/`"Failed"`/`"-"` at x=271 (the `-` is the out-of-action case,
+`char +0x49 != 0`).  Row values are the engine's four per-round arrays (see
+below), **not** save fields; `--round-result delta:w:p:b:a` takes them per
+present member (a = 0 Failed, 1 Passed, 2 out-of-action) and the bare flag
+renders the pinned oracle round.
+
+**Font cells recovered by this screen:** `:` = CHR1 band 1 cell 37 and
+`*` = band 1 cell 30 (both were missing from `port/font.cpp`; pinned by
+`tests/font_test.cpp`).
+
 ### 5. Reproduce / verify
 
 Deterministic: the whole path is md5-stable (`LOF_DUMP` identical across runs)

@@ -170,6 +170,23 @@ How to use each section:
   colour = **index 8**.  The port already draws the row that way, so no code
   change was needed; a guard (`check_style1_colour_and_advance`) now pins it.
   Details under "RESOLVED" below.
+- **CORRECTION (session 37, 2026-11-20) — the third drawer argument is a
+  NEWLINE flag, not a "style".**  The measured rendering above (6 px, index 8)
+  stands, but the *explanation* was wrong.  Reading the drawer end to end:
+  `lcall 0x18d:0x16a8` (image `0x2F78`) takes **three** pushed words —
+  `(offset, segment, newline)`.  The argument helper `0x5008` returns them in
+  AX/BX/CX (`[bp+8]`, `[bp+0xa]`, `[bp+0xc]`); the drawer saves CX at `0x2F88`
+  and at `0x2FC5` does `pop bx; cmp bx,0; je skip; call 0x18d:0x13be` — i.e. a
+  non-zero third argument advances to the next text row *after* the string.
+  That is why the round-result table's rows are 8 px apart: each row's last
+  draw ("Passed"/"Failed"/"-") passes newline=1.  The *face* is the separate
+  global `cs:0x1412`, set by `lcall 0x18d:0x1787` (image `0x3057`, verified at
+  the call sites `0x1B32E` face 0 and `0x2ED2C` face 1); `cs:0x1408` /
+  `cs:0x140e` are indexed by **that face** (face 0 → advance 6, face 1 → 5,
+  matching `draw_text`/`draw_small`).  The *colour* is a third global,
+  `cs:0x1414`, set by `lcall 0x18d:0x175a` (image `0x302A`) from the byte table
+  at `cs:0x174c`.  The port needs no change (its round-result frame matches the
+  engine's ink exactly), but do not cite "style 1" as the colour/advance source.
 - **What:** on the combat decision screen a party member with a non-zero `+0x49`
   gets the action column replaced by the fixed string `ds:0x6FF2`
   "is out of action." (image `0x18839` → `0x18720`).  The **string**, its
