@@ -145,6 +145,9 @@ Open file, ...
 
 ## Build
 
+> Full build guide (prerequisites, every target, SDL2 vs head-less, running,
+> troubleshooting): **[`docs/BUILD.md`](docs/BUILD.md)**.  The short version:
+
 ```sh
 make            # SDL2 window build if SDL2 present, else falls back
 make headless   # no SDL2 (used for CI / headless debugging)
@@ -660,7 +663,10 @@ do not expect `LOF_HOUR` to gate the exit.
 
 ## Game data (not committed)
 
-`downloads/` and `game/` are git-ignored (proprietary).  To restore:
+`downloads/` and `game/` are git-ignored (proprietary).  **Save games are the
+exception:** a save the *user created* with the game is not proprietary — it is a
+project asset (Rule 12, `docs/RULES.md`) and lives, committed, in `saves/` (see
+`saves/README.md`).  To restore the proprietary game data:
 
 - `downloads/lof_msdos.zip` — the **DOS** release (use this one).  It is
   byte-identical to archive.org item `msdos_Legend_of_Faerghail_1990`

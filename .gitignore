@@ -8,15 +8,17 @@ cpu_test
 downloads/
 game/
 *.zip
-# Owner-supplied saves live in saves/ (content-addressed, see saves/README.md)
-# and ARE committed: they are the only copy of some fixtures (e.g. the Cyldane
-# save used by tests/port_town_test.py).  saves/inbox/ is the transient drop
-# zone -- files there are filed into saves/ by tools/ingest-save.sh and the
-# originals need not be committed.
+# Owner-supplied saves live in saves/ (content-addressed, see saves/README.md).
+# Per RULES.md Rule 12 a user-created save is a project asset, NOT proprietary
+# game data, so these ARE committed: they are the only copy of some fixtures
+# (e.g. the Cyldane save used by tests/port_town_test.py).  saves/inbox/ is the
+# transient drop zone -- files there are filed into saves/ by
+# tools/ingest-save.sh and the originals need not be committed.
 /saves/inbox/*
 !/saves/inbox/.gitkeep
 # A save dropped at the repo root (any GAME<n>, GAME<n>.SAV) is transient: it is
-# ingested into saves/ by tools/ingest-save.sh, so never commit it here.
+# ingested into saves/ by tools/ingest-save.sh, so never commit it here.  This is
+# hygiene (avoid a second, un-hashed copy), not a proprietary-data rule.
 /GAME[0-9]*
 
 # Python cache
