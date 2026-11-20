@@ -206,9 +206,10 @@ that read the game *data* files and never touch `LOF.EXE` / `VOR.EXE`.
 Both accept `--dir DIR`, `--headless`, `--shot FILE.png` (for verification).
 `lof` additionally accepts `--screen NAME` (render one named screen, e.g.
 `--screen CRED`, `--screen UP/MSCR`, `--screen EGA/UP/MENU`), `--play SUB/DPNNN`
-(compose the in-game play screen, see below), `--ui` (run the interactive
-front-end, see below) and `--shot-frame N` (which frame of the intro sequence
-`--shot` captures; default = last).
+(compose the in-game play screen, see below), `--encounter`, `--decision`,
+`--round-result`, `--ui` (run the interactive front-end, see below) and
+`--shot-frame N` (which frame of the intro sequence `--shot` captures;
+default = last).
 
 Progress:
 
@@ -343,6 +344,28 @@ Progress:
       values plus the emulator capture's index-12 descender pixels).  Guarded
       by `tests/port_decision_test.py`; the rank mapping, the row guard and the
       trailing-field inputs are pinned by `tests/char_test.cpp`.
+- [x] Combat **round-result** screen (`--round-result`): `The result of this
+      round:` + the melee table `Name       HP   W P B Attack`.  It is the same
+      encounter chrome as `--decision` with the table replacing the decision
+      block.  Layout (image `0x1867D`..`0x189F6`): title y=92 (colour 8),
+      header y=108 and rule y=116 (colour 0), one row per **present** member at
+      y=124+8n (colour 8), `(C)ontinue` at y=180 (colour 0).  The columns fall
+      out of the engine's printf formats: `"%-10s "` name (x=139, 11 cells),
+      `"%4ld "` HP change right-aligned in four 6-px cells (x=205), `"* "/"- "`
+      W/P/B at x=235/247/259, `Passed`/`Failed`/`-` at x=271 (the `-` is
+      `char +0x49 != 0`).  The row values are the engine's **four per-round
+      arrays**, not save fields (`--round-result delta:w:p:b:a` takes them per
+      member; the bare flag renders the pinned oracle round).  The oracle
+      `ref/oracle/round_result.png` is deterministic; the port's text **ink
+      mask matches 1.0000** (the residual index-12 pixels are the emulator's
+      text artefact — present in `combat*.png` too, absent from DOSBox).
+      Guarded by `tests/port_round_result_test.py` (`make golden-port`).
+      Deriving the layout also settled **what the text drawer's third argument
+      is**: a *newline* flag, not a "style" — see the GUESSWORK G-011
+      correction (face = `cs:0x1412` via `lcall 0x18d:0x1787`, colour =
+      `cs:0x1414` via `lcall 0x18d:0x175a`).  Two font cells were missing and
+      are now mapped: `:` = CHR1 band 1 cell 37, `*` = band 1 cell 30
+      (`tests/font_test.cpp`).
 
 ### Font / text rendering (decoded)
 

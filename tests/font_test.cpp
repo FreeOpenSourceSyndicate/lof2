@@ -55,6 +55,20 @@ int main() {
     assert(f2.draw(s2, 0, 0, "\x01", 7) == 8);
     for (uint8_t v : s2.pixels) assert(v == 0);
 
+    // ':' -> band 1 cell 37, '*' -> band 1 cell 30 (recovered from the
+    // round-result frame).  Both go through the 6-px text face.
+    Font f3;
+    f3.ok = true;
+    set_glyph(f3, 1, 37, 1, 0x30);
+    set_glyph(f3, 1, 30, 3, 0x20);
+    Screen s4;
+    s4.resize(32, 8);
+    s4.clear(0);
+    assert(f3.draw_text(s4, 0, 0, ":*", 7) == 12);
+    assert(s4.pixels[1 * 32 + 2] == 7);  // ':' left dot
+    assert(s4.pixels[1 * 32 + 3] == 7);  // ':' right dot
+    assert(s4.pixels[3 * 32 + 6 + 2] == 7);  // '*' at the second cell
+
     // draw() on an unloaded font is a no-op but still advances.
     Font empty;
     Screen s3;
