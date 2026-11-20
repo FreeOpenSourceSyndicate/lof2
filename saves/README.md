@@ -1,9 +1,10 @@
 # saves/ — owner-supplied save games (content-addressed)
 
 This directory holds the save games the owner provides for testing, plus the
-fixtures the test suite depends on.  Saves are proprietary game data, but these
-particular files are committed because some of them are the **only copy** (they
-are not in the Internet Archive release) and the tests read them directly.
+fixtures the test suite depends on.  Per `docs/RULES.md` **Rule 12**, a save the
+user created with the game is **not proprietary** — it is part of this project —
+so these files are committed.  Some of them are also the **only copy** (they are
+not in the Internet Archive release), and the tests read them directly.
 
 ## Why not just `GAME1`, `GAME4`, … at the repo root?
 

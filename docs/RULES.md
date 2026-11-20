@@ -211,6 +211,25 @@ Rules of engagement:
 
 Detail and commands: `docs/HANDOFF.md` "Merging your PR".
 
+## Rule 12 — User-created save games are project assets, not proprietary data.
+
+A save game is **proprietary game data only if it shipped with the original
+game**. A save the *user created* with the help of the game was not distributed
+by reLINE Software; it is the user's own play, and it is therefore **part of this
+project** — treat it like source: it MAY be committed, and it is the right kind
+of file to use as a test fixture.
+
+- **Committed saves are project assets.** They live in `saves/` under
+  content-addressed names (`saves/README.md`) and are safe to commit and to read
+  in tests.
+- **The proprietary rule still covers the original distribution** — `LOF.EXE`,
+  `VOR.EXE`, `EGA/`, `SYST/`, `DNGS/`, `ROST/`, `DSKTAB.DFS` and anything else
+  shipped on the disks (`game/`, `downloads/`). Those stay git-ignored; Rule 1's
+  hard constraint (never run the original binaries) is unaffected.
+- **Do not call a user-created save "proprietary"** in docs, comments, or
+  `.gitignore`. A save dropped at the repo root is transient (it is ingested into
+  `saves/`), but the *reason* is hygiene, not proprietary status.
+
 ---
 
 ## Session checklist (do this at the start of every session)
@@ -235,6 +254,23 @@ Detail and commands: `docs/HANDOFF.md` "Merging your PR".
 ---
 
 ## Changelog (newest first)
+
+### 2026-11-20 — User-created saves are project assets (Rule 12)
+
+- Owner: *"If a save game was not shipped with the original game, it was created
+  by the user with help of the game and is therefore not to be considered
+  proprietary, but is part of the project."*
+- Reconciled (Rule 9): the docs previously described **all** saves as
+  "proprietary game data" — that was wrong for user-created saves. Added
+  **Rule 12** (absent → added): a save is proprietary only if it shipped with
+  the game; a user-created save is a project asset and may be committed and used
+  as a test fixture. The proprietary rule still covers the original distribution
+  (`LOF.EXE`, `VOR.EXE`, `EGA/`, `SYST/`, `DNGS/`, `ROST/`, `DSKTAB.DFS`,
+  `game/`, `downloads/`).
+- Removed the "proprietary" wording from the save docs/comments (`.gitignore`,
+  `README.md`, `AGENTS.md`, `bootstrap.sh`, `saves/README.md`); root-level save
+  drops stay git-ignored for hygiene (they are ingested into `saves/`), not
+  because they are proprietary.
 
 ### 2026-11-16 — Poisoned sibling repo removed; its guards retired
 

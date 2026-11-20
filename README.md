@@ -7,8 +7,13 @@ They never execute the original `LOF.EXE` / `VOR.EXE`.
 
 ```sh
 ./bootstrap.sh      # restore the (git-ignored) game data + build + test
+make port           # build the drop-in binaries ./lof and ./vor
 make check          # health check: build, tests, git hygiene
 ```
+
+Full build instructions — prerequisites, every `make` target, SDL2 vs head-less,
+running the drop-in vs the emulator, and troubleshooting — are in
+**[`docs/BUILD.md`](docs/BUILD.md)**.
 
 ## If you are an agent (or starting one)
 
@@ -39,6 +44,10 @@ rules to an agent's prompt, the paste-in block is
 |------|------------|
 | `src/` | 8086 + EGA **emulator** — an oracle that runs the originals (dev aid only) |
 | `port/` | the **deliverable** — native drop-in that reads data files |
+| `saves/` | user-created save games (project assets, Rule 12; content-addressed) |
 | `tools/` | Python helpers (`ega.py`, `dngs.py`, `compare.py`, `decompile.py`) |
 | `analysis/` | annotated disassembly listings |
+| `docs/` | rules, handover, work queue, and the build guide (`docs/BUILD.md`) |
 | `game/`, `downloads/` | proprietary game data (git-ignored; `bootstrap.sh` restores) |
+
+Build instructions live in **[`docs/BUILD.md`](docs/BUILD.md)**.
