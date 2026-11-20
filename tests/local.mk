@@ -22,4 +22,5 @@ EGA_DECODE_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I p
 LOCAL_TEST_CMDS = \
     ( $(DUNGEON_TEST) ) && \
     ( $(CHAR_TEST) ) && \
-    ( $(EGA_DECODE_TEST) )
+    ( $(EGA_DECODE_TEST) ) && \
+    ( python3 tests/saves_test.py )

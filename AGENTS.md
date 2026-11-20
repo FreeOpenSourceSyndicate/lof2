@@ -517,8 +517,13 @@ Two shipped saves reach the play loop and are both guarded by
 | 1    | `temple` | `a3f719edd43bc692dc230539fdf34705` | the **Temple dungeon**, dark first-person viewport |
 | 2    | `play`   | `585da631a63e2199db7425c5b422ee52` | the wilderness |
 
-A `GAME1` dropped at the repo root is a *working* save (not committed; it is
-proprietary game data).  `bootstrap.sh` installs it as slot 1 when present.
+Owner-supplied saves live in **`saves/`** under content-addressed names
+(`<map>-<party-lead>-<md5[0:8]>.sav`), never under slot names, so a new upload
+can never overwrite an archived save.  `tools/ingest-save.sh` files any save
+dropped in `saves/inbox/` or at the repo root (never overwriting) and rebuilds
+`saves/manifest.tsv`; see `saves/README.md`.  `bootstrap.sh` installs the
+well-known fixtures into slots 1, 4 and 5 for manual play, but tests read the
+archived files directly.
 Slots 1 and 2 now render **differently** (distinct hashes above), each matching
 its own DOSBox oracle (`ref/oracle/dungeon_slot1*.png` for the dungeon,
 `ref/oracle/play.png` for the wilderness).  This was blocked for a long time by

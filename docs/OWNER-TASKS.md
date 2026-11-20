@@ -139,7 +139,9 @@ re-checks this each session (Rule 8)._
   the selector is the 16-bit word at save offset `0x9a4` (`es:[0x460e]`;
   nonzero → "Thyn.", zero → "Cyldane."), and `compose_town_screen()` now takes
   the name from the save instead of hardcoding it.  See `docs/GUESSWORK.md` G-001.
-- **Kept:** the save is committed at the repo root as `GAME4` (the only copy
-  not in the archive; `bootstrap.sh` installs it into `game/GAMES/GAME4`).
-  `tests/port_town_test.py` reads it from the repo root, not from the live slot,
-  so a different save dropped into slot 4 cannot break the test.
+- **Kept:** the save is committed as `saves/dng00-Conan-d8b1cad7.sav` (the
+  only copy not in the archive; `bootstrap.sh` installs it into
+  `game/GAMES/GAME4`).  Saves are stored under content-addressed names in
+  `saves/` so a new upload can never overwrite them (see `saves/README.md`).
+  `tests/port_town_test.py` reads the archived file, not the live slot, so a
+  different save dropped into slot 4 cannot break the test.
