@@ -16,34 +16,47 @@ Work was confined to `G-011` — the last inferred value on the decision screen.
 > and both are corrected below.  The branch *is* reachable by patching the save;
 > the first A/B simply compared the wrong thing.
 
+> **Second correction (later still — retracts the paragraph below).** The
+> `>= 2` / "countdown" conclusion was itself **wrong** and has been reverted;
+> the port tests `!= 0` again.  Two errors compounded: (1) the first A/B patched
+> save **file byte 78**, which is record `+0x4a`, not `+0x49` (the branch field is
+> file byte **77** for member 0), so it never varied the branch field at all;
+> (2) the "countdown" story does not survive the decompilation — the single
+> `dec` of `+0x49` (image `0x15C9`) is gated on `+0x1f == 5` (image `0x15AA`),
+> while the decision row loop only draws members with `+0x1f < 5` (image
+> `0x1879E`).  Disjoint sets: the decrement cannot reach a rendered row.  The
+> draw test (image `0x18839`) is `cmp ...0 / je <action word>`, i.e. **any
+> non-zero** shows the string.  The emulator A/B cannot settle it either: the
+> engine renders `+0x49=1` byte-identically to `=0` (0 px), so the value does
+> not reach the drawn row in that scenario and the clearing path is untraced.
+> Decompilation governs (Rule 1).  See the G-011 register entry; guard is
+> `check_out_of_action_any_nonzero`.
+
 - **Owner tasks: 0 open.** Reminded per Rule 8; nothing to action.
 - **Watchlist: G-004, G-005, G-007 open; G-011 now narrowed to the colour
   only.** See the register entry.
-- **`+0x49` IS a save field, and it is a countdown.**  The engine *decrements*
-  it (`dec byte es:[bx+si+0x49]`, image `0x15C9`) and the decision row tests
-  `cmp byte es:[bx+0x49],0` (image `0x18839`) afterwards.  So the value the row
-  reads is `save_value - 1`:
+- **`+0x49` IS a save field; the row branch is `!= 0` (no countdown).**  Save
+  record offset `0x49` (file byte `4 + 0x49 = 77` for member 0) loads straight
+  into the live record.  The decision row tests
+  `cmp byte es:[bx+0x49],0` / `je <action word>` (image `0x18839`), so:
   - `+0x49 = 0` → normal action word;
-  - `+0x49 = 1` → **decremented to 0, so still the normal action word**;
-  - `+0x49 >= 2` → the out-of-action string.
-  Measured on the emulator with a fixed RNG seed (`LOF_TICK=0x0B`, which makes
-  runs byte-reproducible — verified: two identical runs diff 0 px):
-  `+0x49=1` is byte-identical to `+0x49=0`; `+0x49=2`, `=3` and `=20` are all
-  byte-identical *to each other* and differ from `=0` by 20150 px.
-- **Bug found and fixed in the port.**  `compose_decision_screen()` tested
-  `+0x49 != 0`, so it printed "is out of action." for `+0x49 == 1`, which the
-  engine does not.  Now `>= 2`, with a regression check in
-  `tests/port_decision_test.py` (`check_out_of_action_threshold`): it asserts
-  `+0x49=1` matches `+0x49=0` in the action column and `+0x49=2` does not.
-  Verified the check *fails* on the old `!= 0` code and passes on the fix.
-- **Why the earlier "negative result" was wrong.**  The comparison used
-  `LOF_NO_TIMER=1` but *not* a pinned `LOF_TICK`, and combat is tick-seeded, so
-  the two runs were not the same experiment.  Re-run with `LOF_TICK=0x0B` the
-  effect is clean and deterministic.  The "ROST checksum" claim was also
-  mistaken: `load_save()` does not verify the trailer at all (only
-  `load_rost()` computes `intact`), and the shipped records carry tail `0` /
-  `0x06060606` filler — neither matches `rost_record_checksum`, so the trailer
-  is not a gate on the save path.  Zeroing HP likewise does not "fail the load".
+  - `+0x49 != 0` → the out-of-action string.
+  The one `dec` (image `0x15C9`) needs `+0x1f == 5` and so never touches a
+  drawn row (`+0x1f < 5`).  Off-by-one trap: file byte 78 is `+0x4a`.
+- **Port was already correct.**  `compose_decision_screen()` tests `!= 0`.
+  Commit `1800710` wrongly changed it to `>= 2`; that is reverted here.  The
+  regression check is `tests/port_decision_test.py::check_out_of_action_any_nonzero`:
+  it asserts `+0x49=1` and `=2` both differ from `=0` in the action column, and
+  it *fails* if the threshold is changed to `>= 2` (verified).
+- **Why the two earlier conclusions were wrong.**  The first "negative result"
+  A/B ran without a pinned `LOF_TICK` (combat is tick-seeded), so the two runs
+  were not the same experiment.  The second A/B pinned the seed but patched the
+  wrong save byte (78 = `+0x4a`), so it never varied `+0x49`.  The "ROST
+  checksum" claim was also mistaken: `load_save()` does not verify the trailer at
+  all (only `load_rost()` computes `intact`), and the shipped records carry tail
+  `0` / `0x06060606` filler — neither matches `rost_record_checksum`, so the
+  trailer is not a gate on the save path.  Zeroing HP likewise does not "fail the
+  load".
 - **Still open (the actual G-011 residue): the colour.**  The drawer is called
   with `0` for the action word and `1` for the out-of-action string, and the
   rank column passes `3`/`4`; that argument is a *style* index, not a raw

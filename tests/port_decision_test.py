@@ -142,7 +142,7 @@ def main() -> int:
 
     tmatch = float((port[TEXT] == oracle[TEXT]).mean())
 
-    rc = check_out_of_action_threshold()
+    rc = check_out_of_action_any_nonzero()
     if rc != 0:
         return rc
 
@@ -155,22 +155,26 @@ def main() -> int:
 ACTION = (slice(116, 124), slice(235, 319))
 
 
-def check_out_of_action_threshold() -> int:
-    """`+0x49 == 1` must render the normal action word, not the out-of-action
-    string.
+def check_out_of_action_any_nonzero() -> int:
+    """Pin the decompiled rule: any non-zero `+0x49` draws the string.
 
-    The engine decrements `+0x49` (image 0x15c9) before the decision-row test
-    `cmp byte es:[bx+0x49],0` (image 0x18839), so a value of 1 has already
-    fallen to 0 by the time the branch is taken.  Measured against the
-    emulator with a fixed RNG seed: `+0x49=1` is byte-identical to `+0x49=0`,
-    while `+0x49>=2` renders a different screen.  The port used to test
-    `!= 0` and printed the string for `+0x49 == 1`.
+    Image 0x18839 is `cmp byte es:[bx+0x49],0 / je <action word>`; the branch to
+    ds:0x6ff2 ("is out of action.", drawn at 0x18720) is taken for *every*
+    non-zero value.  The one decrement of the field (image 0x15C9) is gated on
+    `+0x1f == 5` (0x15AA) while this row loop only draws `+0x1f < 5` (0x1879E),
+    so the decrement cannot change what a drawn row sees.
+
+    This guards the port against the `>= 2` "countdown" reading (commit
+    1800710).  It does NOT assert oracle agreement: the original engine renders
+    `+0x49=1` identically to `=0` (measured 0 px), because in the real flow the
+    field is cleared before the row is drawn — that path is not traced, so the
+    decompilation governs the port.
     """
     src = open(SAVE, "rb").read()
-    # Member 0 is at header(4) + 0*410; +0x49 is the out-of-action countdown.
+    # Member 0 is at header(4) + 0*410; +0x49 is the out-of-action field.
     off = 4 + 0x49
     if src[off] != 0:
-        print("port_decision_test: SKIP (+0x49 threshold: fixture not 0)")
+        print("port_decision_test: SKIP (+0x49 branch: fixture not 0)")
         return 0
 
     shots = {}
@@ -187,14 +191,11 @@ def check_out_of_action_threshold() -> int:
                        stderr=subprocess.DEVNULL)
         shots[value] = to_index(shot, STOCK_ATTR)
 
-    if not (shots[1][ACTION] == shots[0][ACTION]).all():
-        print("port_decision_test: FAIL (+0x49=1 must match +0x49=0 in the "
-              "action column)")
-        return 1
-    if (shots[2][ACTION] == shots[0][ACTION]).all():
-        print("port_decision_test: FAIL (+0x49=2 must differ from +0x49=0 in "
-              "the action column)")
-        return 1
+    for value in (1, 2):
+        if (shots[value][ACTION] == shots[0][ACTION]).all():
+            print("port_decision_test: FAIL (+0x49=%d must draw the string: "
+                  "image 0x18839 tests != 0)" % value)
+            return 1
     return 0
 
 

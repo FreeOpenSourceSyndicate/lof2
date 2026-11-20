@@ -37,26 +37,59 @@ How to use each section:
   "is out of action." (image `0x18839` → `0x18720`).  The **string**, its
   **position** (x=235, the action column) and the **suppression of the trailing
   number** are all derived from the decompilation.
-- **What is not derived:** the **colour**.  The two paths pass *different*
-  flag arguments to the drawer: the action word pushes `0` (`0x18843`
-  `sub ax,ax; push ax`), while the `+0x49` path pushes `1` (`0x18720`
-  `mov ax,1; push ax`).  Whether that flag selects a different palette index is
-  not traced, and no oracle frame exercises the branch.  The port uses index 8
-  (the action word's colour) — inferred, not measured.
-- **To clear it:** capture (or construct) a decision frame with a member marked
-  out of action and diff the column, or trace the drawer's colour global on
-  that path.  Lane M.
+- **What is not derived:** what the drawer's style argument changes.  The two
+  paths push *different* values: the action word pushes `0` (`0x18843`
+  `sub ax,ax; push ax`), the `+0x49` path pushes `1` (`0x18720` `mov ax,1;
+  push ax`).  The drawer (`0x18d:0x16a8`, image `0x2f78`) stores that argument
+  in `cs:0x1412` (`0x2f8e`) and uses it to index two `cs` tables:
+  `cs:0x1408` = `[6, 5, 12, 12, 10, 10]` (`0x2f95`) and
+  `cs:0x140e` = words `{0x491b, 0x4921, …}` (`0x2fa1`).  The first is a
+  per-character **advance** (6 px for style 0, 5 px for style 1), not a
+  palette index, so the style does **not** select a colour directly.  Where the
+  glyph colour comes from is **not traced**.  The port draws the string at
+  6 px advance, index 8 (same as the action word) — inferred, not measured.
+- **Colour lead for the next session:** `cs:0x140e` (style→descriptor word) is
+  the other style-dependent input; trace how the blitter (`0x18d:0x1418`,
+  image `0x2ce8`) consumes it.  Do **not** change the port's advance/colour on
+  a guess.
+- **To clear it:** capture a decision frame with a member marked out of action
+  from DOSBox (the ground-truth oracle) and diff the column, or trace the
+  blitter's colour global on that path.  Lane M.
 - **Reachable by patching the save (verified 2026-11-20).**  `+0x49` *is* a save
-  field and it is a **countdown**: the engine decrements it (image `0x15C9`
-  `dec byte es:[bx+si+0x49]`) before the decision row tests it (image `0x18839`
-  `cmp byte es:[bx+0x49],0`), so the row sees `save_value - 1`:
-  `0` and `1` → the normal action word, `>= 2` → "is out of action.".
-  Measured on the emulator at a pinned seed (`LOF_TICK=0x0B`; two identical runs
-  diff 0 px, so it is reproducible): `+0x49=1` is byte-identical to `+0x49=0`,
-  while `+0x49=2`, `=3` and `=20` are byte-identical to each other and differ
-  from `=0` by 20150 px.  **The port had this wrong** (`!= 0` instead of
-  `>= 2`) and is now fixed, guarded by
-  `tests/port_decision_test.py::check_out_of_action_threshold`.
+  field: save record offset `0x49` (i.e. file byte `4 + 0x49 = 77` for member 0,
+  past the 4-byte save header) loads straight into the live record's `+0x49`
+  (confirmed with a marker byte: patching file byte 77 with `0xAB` leaves
+  `0xAB` at the live record's `+0x49`).  **Note the off-by-one trap:** file byte
+  78 is `+0x4a`, *not* `+0x49`.
+- **The branch is `!= 0` — there is no countdown in the row path.**  The single
+  `dec` of `+0x49` in the whole image (image `0x15C9`) is gated on
+  `+0x1f == 5` (image `0x15AA` `cmp byte es:[bx+0x1f],5` / `jne` skips the
+  `dec`), while the decision row loop only draws members with `+0x1f < 5`
+  (image `0x1879E` `cmpb $5` / `jae` skips the row).  Those sets are disjoint,
+  so the decrement can never reach a rendered row.  The draw test at image
+  `0x18839` is `cmp byte es:[bx+0x49],0` / `je <action word>`: **any non-zero
+  value** shows "is out of action.".
+- **Retracted claim (commit `1800710`).**  That commit changed the port from
+  `!= 0` to `>= 2` and claimed the row "sees `save_value - 1`".  The claim is
+  not supported by the decompilation (see the disjoint-gate argument above) and
+  the change is reverted.
+- **The emulator A/B is INCONCLUSIVE — do not cite it either way.**  Save record
+  offset `0x49` does load into the record (marker byte `0xAB` at file byte 77
+  appears at `+0x49` in the loaded copy), but the rendered decision frame is
+  **byte-identical for `+0x49=0` and `+0x49=1`** (measured: 0 differing pixels),
+  so the value demonstrably does not reach the row the renderer draws in this
+  scenario.  Which copy the row loop reads, and what clears the field before the
+  draw, is **not traced**.  The earlier "`+0x49=1` differs by 259 px in the
+  action column" note was **wrong** — that 259 px is part of the 20150-px
+  whole-screen difference seen at `+0x49=2`, not a `=1` measurement.
+  `+0x49=2` changes 20150 px across the whole screen (viewport match drops to
+  0.13), i.e. the combat state itself advances — it is a different game state,
+  not a swapped action word, and says nothing about the row branch.
+- **Port rule = the decompilation:** `!= 0`.  Since the branch is not
+  oracle-reachable, Rule 1 (decompilation is the source of truth) governs.
+- **Guard:** `tests/port_decision_test.py::check_out_of_action_any_nonzero` pins
+  `!= 0` (values 1 and 2 must both differ from 0 in the action column).  It
+  fails if the threshold is ever changed to `>= 2` again (verified).
 - **Corrected claim.**  An earlier revision of this entry said patching the save
   "does not reach the branch" and that the record checksum blocks the load.
   Both were wrong: the first A/B ran without a pinned `LOF_TICK` (combat is
