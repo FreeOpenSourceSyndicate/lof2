@@ -5,6 +5,107 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-20 (thirty-third session) — TL;DR
+
+Environment was **reset** (fresh clone, no `numpy`/`Pillow`, scratch dumps gone);
+reinstalled the Python test deps and re-verified everything green.
+**The combat decision screen is now implemented** (`--decision`), and the two
+guesses the previous session filed for it are **resolved**.
+
+- **Implemented `--decision`** (`compose_decision_screen()`, `port/lof.cpp`).
+  It is the encounter composition with only the right-hand text block replaced —
+  proven by the two oracles sharing viewport/roster/bottom **pixel-exactly**
+  (1.0000 each).  Match vs `ref/oracle/combat_decision.png`: **0.96**
+  (viewport 1.000, text 0.993).  New test `tests/port_decision_test.py`, wired
+  into `make golden-port`; full sweep EXIT=0.
+- **G-009 RESOLVED.** The `KIL`/`ATK`/`DEF`/`RET` column is
+  `combat_abbrev_names()[char[+0x24]]` via the 4-entry far-pointer table at image
+  `0x187F0`.  `+0x24` **is** the combat rank: the engine's own rank-entry menu
+  prints `(1)Enter Kill-Rank` / `(2)Enter Attack-Rank` / `(3)Enter
+  Defence-Rank` / `(4)Enter Retreat-Rank` (`ds:0x713C`/`0x714F`/`0x7164`/
+  `0x717A`, compared at `0x1913C`/`0x1916C`/`0x1919C`/`0x191CC`) and the write
+  at `0x197F0` stores the pressed digit minus `'1'`.
+- **G-010 RESOLVED.** The trailing per-row `1` is `+0x0d + 1` when
+  `+0x16 == 0xff` (guard at `0x186F3`: signed `+0x0d` in `0..2` and
+  `+0x0f != 0`), else `+0x16 + 1`; it is printed by `"@ %ld"` after the 10-cell
+  action field, so the digit lands at x=307.  All six GAME2 rows give `1`.
+- **Corrected a wrong claim from the previous session.** The notes said the
+  `0x1919C`/`0x191CC` compares were "death tests" (rank 2 = dying, 3 = dead) and
+  that `+0x24` was "body/health state".  Those compares are the rank-entry menu
+  (verified by disassembling `0x190E0..0x191F8` and reading the four strings).
+  Fixed in `docs/notes-b.md`, `port/char.h` (`kCharBody24`, `CharSheet::body24`,
+  `PartyRow::body24`) and the session docs.
+- **New watchlist item G-011:** the `+0x49` "is out of action." override on the
+  decision screen (string/position/suppression derived; the **colour** is
+  inferred because no oracle frame exercises the branch).  All shipped saves
+  have `+0x49 == 0`, so no reachable screen is affected.
+- **New C++ assertions** in `tests/char_test.cpp` pin the rank mapping
+  (`[0,0,1,2,2,2]` -> `KIL KIL ATK DEF DEF DEF`), the action index, the
+  `+0x1f < 5` guard and the trailing-field inputs against the real save.
+- Watchlist is now **4 open items**: G-004, G-005, G-007, G-011.
+  G-008/G-009/G-010 are resolved.
+
+## Session 2026-11-18 (thirty-second session) — TL;DR
+
+Environment **HEALTHY**. Merged the G-008 work (PR #146), then found and
+documented a **new, unimplemented screen**: the combat *decision* screen.
+
+- **PR #146 merged** (`m/encounter-placement-resolved`): G-008 resolved, CH26
+  placement guard added, `ref/oracle/combat_ch26.png` committed.  No CI is
+  configured on this repo, so the local suites are the gate: `make test` green,
+  all 11 `port_*` tests green, `check.sh` HEALTHY.
+- **Stale model text fixed in code:** `compose_encounter_screen()`'s comment
+  still described the deleted `(120,-1)` tiling.  Now states the plain
+  `(10,11)` blit and the 1.0000 viewport result for both sprites.
+- **BLK-B004 body status** still read "Partly resolved" while its summary row
+  and `HANDOFF.md` said Resolved.  Body corrected to match (Rule 4 hygiene).
+- **NEW FINDING — the combat decision screen (not implemented).**  Replaying
+  the documented deterministic path
+
+  ```
+  LOF_CMDLEN=3 LOF_NO_TIMER=1 \
+    LOF_KEYAT="50:0x18,100:0x03,150:0x50,200:0x48,250:0x2e,650:0x1e" \
+    ./lof-native --dir game --headless --frames 820 --shot /tmp/cfg.png
+  ```
+
+  (`O`, `2`, `Down`, `Up`, then `A` = `0x1e`) yields a frame that is **not**
+  the encounter screen and **not** the config menu `docs/notes-b.md` §3
+  describes.  It is the round *decision* screen:
+
+  | y | colour | text | source |
+  |---|---|---|---|
+  | 92 | 8 | `Please make your decision` | image `0x437cd` (file `0x48cbd`) |
+  | 100 | 8 | `for the next round!` | image `0x437e7` (file `0x48cd7`) |
+  | 116..156 | 8 | `<n>` + name + action word | party roster |
+  | 116..156 | 0 | `KIL`/`ATK`/`DEF` per row | `kCombatAbbrevNames`, image `0x3cd00` |
+  | 172 | 0 | `(A)ttack!` | image `0x43824` (file `0x48d14`) |
+  | 180 | 0 | `(Q)uick combat` | image `0x4382e` (file `0x48d1e`) |
+
+  All six strings are **grounded** (EXE bytes + CHR1 glyphs, template match
+  1.000 for the pinned tokens).  Positions: text x=139 (6-px pitch); per-row
+  index digit ~x=139, name x=145, action word x=235, abbreviation x=211.
+  Committed as `ref/oracle/combat_decision.png` (md5 `a00f0e0c…`, deterministic
+  across repeat runs).
+
+  **Not implemented.**  Two of the three columns are now derived from the save,
+  the third is filed as a guess rather than invented:
+  * the action word column **is derived**: `Attacks` is `kActionNames[1]`, and
+    all six party members carry `+0x0f == 1` in `GAMES/GAME2` (and in the
+    runtime dump at the decision screen), so `+0x0f` -> `kActionNames[]`
+    reproduces the column.  This confirms `docs/notes-b.md` §2 on the real
+    party rather than by inference;
+  * the `KIL`/`ATK`/`DEF` column is **not yet derived** — see **G-009**
+    (`+0x24` matches the observed pattern exactly but is documented as the
+    body/health byte, so it is filed, not adopted);
+  * the rightmost column is CHR1 `'1'` at **x=307**, pixel-exact on all six
+    rows (1.0000 — it is *not* a compact-face glyph).  What the number *means*
+    is underived; filed as **G-010**.
+
+  The screen is queued as `docs/HANDOFF.md` row 10 (Area M), and its two
+  underived columns are filed as **G-009** (the `KIL`/`ATK`/`DEF` source) and
+  **G-010** (the trailing `1`), so the watchlist is now **5 items**
+  (G-004, G-005, G-007, G-009, G-010).
+
 ## Session 2026-11-18 (thirty-first session) — TL;DR
 
 Environment **HEALTHY**. Followed up the decoder fix by clearing the guesses it

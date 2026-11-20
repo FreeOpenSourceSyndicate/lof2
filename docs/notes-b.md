@@ -742,7 +742,7 @@ Display row (offsets into the display block), all read straight from the
 | `+0x178` | `2D484` | `[+0x18]` | class flag (verbatim) |
 | `+0x179` | `2D570` | loop idx | party index (again) |
 | `+0x17a` | `2D55C` | `[+0x22]`,`[+0x20]` | `100 * hp_cur / hp_max` |
-| `+0x17b` | `2D4F7` | `[+0x24]` | body/health state (verbatim) |
+| `+0x17b` | `2D4F7` | `[+0x24]` | combat rank, verbatim (see below) |
 | `+0x17c` | `2D49B` | `[+0x22]` | `hp_cur >> 3` (sar 3, `+0x32` if `+0x6a`) |
 | `+0x17d` | `2D50B` | `[+0x5b]`,`[+0x1e]` | `100 - (mod5b + stat1e)`, `-0xa` if `[+0x0f]==0` |
 | `+0x17e` | `2D523` | `[+0x5c]`,`[+0x1c]` | `mod5c + base1c` |
@@ -754,7 +754,7 @@ Grounded struct reads (all directly from the 410-byte struct):
 
 | off | builder (image) | arithmetic | meaning (bounded) |
 |----:|-----------------|------------|-------------------|
-| `+0x24` | `2D4F7` | copied to display `+0x17b` | body/health state; the death routine (`1919C`/`191CC`) tests it `== 2` / `== 3` |
+| `+0x24` | `2D4F7` | copied to display `+0x17b` | **combat rank 0..3** = KIL/ATK/DEF/RET. Written at `197F0` from the `(1)Enter Kill-Rank`..`(4)Enter Retreat-Rank` menu (`ds:0x713C..0x717A`, compared at `1913C`/`1916C`/`1919C`/`191CC`); read at `197C7`/`1D323`. (An earlier version of this row read those compares as a dying/dead test — wrong.) |
 | `+0x22` | `2D49B`/`2D547`/`2D55C` | `100*[+0x22]/[+0x20]`, `>>3` | current HP |
 | `+0x20` | `2D560` | divisor of the HP percentage | maximum HP (already known) |
 | `+0x5b` | `2D50B` | `100 - ([+0x5b]+[+0x1e])` -> `+0x17d` | attribute modifier |
