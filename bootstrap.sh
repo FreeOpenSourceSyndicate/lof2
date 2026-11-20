@@ -65,37 +65,37 @@ else
     fi
 fi
 
-# The engine opens saves as GAMES\GAME%3d (printf "%3d"), e.g. "GAME  2" with
-# two padding spaces.  The emulator's path resolver strips those spaces (DOS
-# ignores them), so the shipped GAME1..GAME5 are found directly and no renamed
-# copies are needed.
+# --- Owner-supplied saves ---------------------------------------------------
+# Owner saves live in saves/ under content-addressed names
+# (<map>-<party-lead>-<md5>.sav); see saves/README.md.  They are *not* named
+# after a slot, so uploading a new GAME<n> can never overwrite an archived one.
 #
-# A GAME1 dropped at the repo root is a *working* save (slot 1 = the Temple
-# dungeon, slot 2 = the wilderness); it is NOT committed because saves are
-# proprietary game data.  Install it as slot 1 when present.
-if [ -f GAME1 ]; then
-    cp -f GAME1 game/GAMES/GAME1
-    say "[bootstrap] installed root GAME1 as save slot 1"
+# Any new save the owner drops in saves/inbox/ or at the repo root is filed
+# into saves/ first (never overwriting anything), then installed into a slot.
+if [ -d saves ]; then
+    mkdir -p saves/inbox
+    if [ "$CHECK" = 1 ]; then
+        tools/ingest-save.sh --check || true
+    else
+        tools/ingest-save.sh || say "[bootstrap] WARNING: save ingest reported a problem"
+    fi
 fi
 
-# GAME4 at the repo root is the owner-supplied *Cyldane* save (the party stands
-# in front of Cyldane, not Thyn).  It is not in the archive, so it must be
-# installed here or it is lost on a workspace reset.  It is what lets the town
-# test pin the town-name selector (G-001/OT-001), so `tests/port_town_test.py`
-# reads it from the repo root directly.  Install it into slot 4 too, for manual
-# play.
-if [ -f GAME4 ]; then
-    cp -f GAME4 game/GAMES/GAME4
-    say "[bootstrap] installed root GAME4 as save slot 4 (Cyldane)"
-fi
-
-# A GAME5 dropped at the repo root is the owner-supplied *dungeon* save (a full
-# six-character party standing in a dungeon where wandering monsters spawn, so
-# it is the reliable way to trigger combat).  It is not in the archive, so it
-# must be installed here or it is lost on a workspace reset.
-if [ -f GAME5 ]; then
-    cp -f GAME5 game/GAMES/GAME5
-    say "[bootstrap] installed root GAME5 as save slot 5 (dungeon, monsters spawn)"
+# Install archived saves into game/GAMES/ slots for manual play.  These copies
+# are a convenience only; tests read the archived files directly, so a slot is
+# free to hold whatever the owner last uploaded.
+install_slot() {  # <archive-file> <slot-number> <label>
+    if [ -f "$1" ]; then
+        mkdir -p game/GAMES
+        cp -f "$1" "game/GAMES/GAME$2"
+        say "[bootstrap] installed $1 as save slot $2 ($3)"
+    fi
+}
+# Stable, well-known fixtures by content hash (see saves/manifest.tsv):
+if [ "$CHECK" = 0 ]; then
+    install_slot saves/dng05-Decker-3cf7cace.sav 1 "Temple start (archive GAME1)"
+    install_slot saves/dng00-Conan-d8b1cad7.sav  4 "Cyldane (OT-001 fixture)"
+    install_slot saves/dng05-Conan-e6c8c8bb.sav  5 "dungeon, monsters spawn"
 fi
 
 # --- 2. tooling -------------------------------------------------------------

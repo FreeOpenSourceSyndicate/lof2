@@ -5,6 +5,35 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-20 (thirty-sixth session) — savegame management (Task 2)
+
+Owner's second task: several savegames were committed at the repo root, and a
+slot upload **overwrote** an existing file. What I found and did:
+
+- **The overwrite was real, and I recovered the lost copy.** `GAME4` at the root
+  had two distinct contents over time: `d8b1cad7` (Conan/Siegmund/Lara/Laladil/
+  Joanna/Gandalf, standing at **Cyldane**) and `b2b765be` (Gonk/Conan/Laladil/
+  Bilbo/Helena/Elena, in the **Temple**). The owner's upload replaced the second
+  with the first. The committed fixture (HEAD) is `d8b1cad7`, so git was fine;
+  the *uncommitted working copy* `b2b765be` was what got clobbered. It still
+  survived in the git-ignored `game/GAMES/GAME4`, so both variants are now
+  archived and distinct.
+- **New layout: `saves/`.** Root `GAME1/GAME4/GAME5` moved (git `R`, history
+  kept) and renamed **content-addressed**: `<map>-<party-lead>-<md5[0:8]>.sav`.
+  Both GAME4 variants now coexist (`dng00-Conan-d8b1cad7`, `dng05-Gonk-b2b765be`),
+  plus the recovered solo `GAME6` (`dng00-Cassandra-6c114403`).
+- **No-overwrite scheme.** `tools/ingest-save.sh` files any save dropped in
+  `saves/inbox/` or at the root: identical bytes → skipped, different save for
+  the same slot → filed under its md5 suffix (old file untouched), non-save →
+  rejected. It rebuilds `saves/manifest.tsv` from disk. `tools/saveinfo.py`
+  derives the name/metadata from the save bytes (same offsets as `port/char.h`).
+- **Tests read the archive, not slots.** `port_town_test.py` now reads
+  `saves/dng00-Conan-d8b1cad7.sav`; `bootstrap.sh` installs fixtures into slots
+  1/4/5 for manual play only. New `tests/saves_test.py` (in `make test`) guards
+  the scheme: content-addressing, fixture hashes, manifest freshness, and the
+  never-overwrite behaviour (run against a temp tree). Mutation-checked.
+- **Docs:** `saves/README.md` documents the scheme; AGENTS.md, OT-001 updated.
+
 ## Session 2026-11-20 (thirty-fifth session) — TL;DR (Maintainer takeover)
 
 Took over the crashed predecessor's lane. Their uncommitted tree and the
