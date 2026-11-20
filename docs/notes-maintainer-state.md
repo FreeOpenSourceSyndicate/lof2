@@ -32,22 +32,51 @@ Work was confined to `G-011` — the last inferred value on the decision screen.
 > Decompilation governs (Rule 1).  See the G-011 register entry; guard is
 > `check_out_of_action_any_nonzero`.
 
-- **Owner tasks: 0 open.** Reminded per Rule 8; nothing to action.
-- **Watchlist: G-004, G-005, G-007 open; G-011 now narrowed to the colour
-  only.** See the register entry.
-- **`+0x49` IS a save field; the row branch is `!= 0` (no countdown).**  Save
+- **Owner tasks: 1 open (OT-004).** Reminded per Rule 8.  The owner's question
+  this session — *what "out of action" means and what shows it* — is **answered**
+  in OT-004; only the **text colour** needs a live-combat confirmation.
+- **Watchlist: G-004, G-005, G-007 open; G-011 narrowed to the colour only and
+  its branch semantics now fully derived.** See the register entry.
+- **`+0x49` IS a save field; the row branch is `!= 0`.**  Save
   record offset `0x49` (file byte `4 + 0x49 = 77` for member 0) loads straight
   into the live record.  The decision row tests
   `cmp byte es:[bx+0x49],0` / `je <action word>` (image `0x18839`), so:
   - `+0x49 = 0` → normal action word;
   - `+0x49 != 0` → the out-of-action string.
-  The one `dec` (image `0x15C9`) needs `+0x1f == 5` and so never touches a
-  drawn row (`+0x1f < 5`).  Off-by-one trap: file byte 78 is `+0x4a`.
+  Off-by-one trap: file byte 78 is `+0x4a`.
+- **CORRECTION (this session, later): there are TWO `dec` sites, not one.**  The
+  earlier text in this note said the countdown "never touches a drawn row"
+  because the only `dec` (image `0x15C9`) needs `+0x1f == 5`.  A full image sweep
+  finds a **second** decrement at image `0x18415` (`decb es:(bx)` with
+  `bx = record+0x49`, computed at `0x18403`), gated only on `> 0`
+  (`0x1840F`) and **without** a `+0x1f` gate.  So the counter *does* tick down on
+  a `+0x1f < 5` member.  The "disjoint sets" argument is retracted; the draw
+  rule (`!= 0`) is unchanged.  G-011 updated.
+- **What the `+0x49` values mean (derived, image `0x1219D`).**  Written from the
+  spell-effect id: 4 (Paralyze)→1, 5 and 0x27→5, 0x28→3, 0x1D→0xFF (permanent);
+  a broken weapon ("... breaks down!", image `0x10389`) writes 0x14.  So it is a
+  *cause code / countdown*, not a boolean.
+- **"All out of action" party message.**  When no present member can act the
+  round prints `The companions have all been put out of action. Earliest revival
+  will be at the beginning of the next round.` (ds:0x6F3F, image `0x185CE`),
+  gated by the flag at `-0x36(bp)` (init 0 at `0x1811B`, set 1 at `0x18449` when
+  a member with `+0x49 == 0`, present, `+0x1f < 3` exists).
 - **Port was already correct.**  `compose_decision_screen()` tests `!= 0`.
-  Commit `1800710` wrongly changed it to `>= 2`; that is reverted here.  The
+  Commit `1800710` wrongly changed it to `>= 2`; that is reverted.  The
   regression check is `tests/port_decision_test.py::check_out_of_action_any_nonzero`:
   it asserts `+0x49=1` and `=2` both differ from `=0` in the action column, and
   it *fails* if the threshold is changed to `>= 2` (verified).
+- **Status/morale/time save fields (this session).**  Added `kSaveTimeOfDay`
+  (`0x9b6`, dword) and `kSaveMorale` (`0x9ba`, word) to `port/char.h`; the parser
+  fills `SaveGame::time_of_day`/`morale`; `port/lof.cpp` now draws the
+  time-of-day word (y=160) and the morale word (y=176) and the summed rations
+  (y=184) in the status box, all in light gray (index 7, measured from the
+  oracle).  The morale region matches the oracle **100%** when the save value
+  agrees with the oracle's live moment; GAME2's save says Evening(7)/Good(0)
+  while `ref/oracle/play.png` shows Midnight(0)/Satisfactory(1) because the
+  engine's clock advanced and morale drifted after the save — a live-state
+  difference, not a decode error (proven: patching morale=1 renders the oracle's
+  `Satisfactory` pixel-exactly).
 - **Why the two earlier conclusions were wrong.**  The first "negative result"
   A/B ran without a pinned `LOF_TICK` (combat is tick-seeded), so the two runs
   were not the same experiment.  The second A/B pinned the seed but patched the
@@ -62,7 +91,8 @@ Work was confined to `G-011` — the last inferred value on the decision screen.
   rank column passes `3`/`4`; that argument is a *style* index, not a raw
   palette index.  No committed oracle exercises the branch, so the port keeps
   index 8.  To clear it: capture the out-of-action frame from DOSBox (the
-  ground-truth oracle) rather than the emulator.
+  ground-truth oracle) rather than the emulator — or have the owner report the
+  colour (OT-004).
 - **Merged as PR #150** (squash, `fd6d976`), branch deleted.  This correction
   is a follow-up commit.
 - **Caution for the next session:** patching `game/GAMES/*` is safe only if you

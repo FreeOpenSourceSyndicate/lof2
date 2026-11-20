@@ -8,6 +8,9 @@ cpu_test
 downloads/
 game/
 *.zip
+# Owner-supplied save files dropped at the repo root (proprietary game data;
+# bootstrap.sh installs them into game/GAMES/).  Never commit these.
+/GAME[0-9]*
 
 # Python cache
 __pycache__/

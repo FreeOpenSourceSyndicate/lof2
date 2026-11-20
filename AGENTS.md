@@ -566,6 +566,16 @@ Verified against the DOSBox oracle (`ref/oracle/`):
   not a full-screen asset.
 * The status fields read `Direction`, `Time of day`, `Spirits`, `Rations`
   (e.g. `Spirits Good`, `Rations 19`).
+* **Status box values are save-derived (2026-11-20).**  The time-of-day word is
+  the save's dword at `0x9b6` (loaded into global `0x3b0c`), indexing the engine
+  table `ds:0x0f04` ("Midnight".."Evening"); the morale word is the save's word
+  at `0x9ba` (global `0x3b10`), indexing `ds:0x0f24`
+  ("Good"/"Satisfactory"/"Mediocre"/"Alarming"/"Bad").  Rations is the sum of
+  every present member's `+0x70` byte.  All three are drawn light gray (index
+  7); the port matches the oracle pixel-exactly when the save value agrees with
+  the oracle's live moment (GAME2's save says Evening/Good while the oracle
+  shows Midnight/Satisfactory because the clock and morale drift after a save).
+  Fields: `SaveGame::time_of_day`/`morale`, `kSaveTimeOfDay`/`kSaveMorale`.
 
 ### First-person viewport — depth-marched single-sprite blit (2026-11-17)
 

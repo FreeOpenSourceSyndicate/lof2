@@ -96,6 +96,17 @@ if [ -f GAME5 ]; then
     say "[bootstrap] installed root GAME5 as save slot 5 (dungeon, monsters spawn)"
 fi
 
+# A GAME6 dropped at the repo root is the owner-supplied *single-character,
+# bad-spirits* save (one living member, party morale "Bad", so any step prints
+# "The companions are tired and won't go on").  It is the natural experiment
+# that separates party morale from the per-character status word: the panel
+# still reads "Good" because +0x1f is 0.  Not in the archive; install it here or
+# it is lost on a workspace reset.
+if [ -f GAME6 ]; then
+    cp -f GAME6 game/GAMES/GAME6
+    say "[bootstrap] installed root GAME6 as save slot 6 (one member, bad spirits)"
+fi
+
 # --- 2. tooling -------------------------------------------------------------
 # The verification tests (`make golden-port`, `check.sh`) need Python numpy +
 # Pillow; the interactive front-end builds an SDL2 window when libsdl2-dev is

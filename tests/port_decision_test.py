@@ -160,15 +160,15 @@ def check_out_of_action_any_nonzero() -> int:
 
     Image 0x18839 is `cmp byte es:[bx+0x49],0 / je <action word>`; the branch to
     ds:0x6ff2 ("is out of action.", drawn at 0x18720) is taken for *every*
-    non-zero value.  The one decrement of the field (image 0x15C9) is gated on
-    `+0x1f == 5` (0x15AA) while this row loop only draws `+0x1f < 5` (0x1879E),
-    so the decrement cannot change what a drawn row sees.
+    non-zero value.
 
-    This guards the port against the `>= 2` "countdown" reading (commit
-    1800710).  It does NOT assert oracle agreement: the original engine renders
-    `+0x49=1` identically to `=0` (measured 0 px), because in the real flow the
-    field is cleared before the row is drawn — that path is not traced, so the
-    decompilation governs the port.
+    There are two decrements of the field (images 0x15C9, gated on `+0x1f == 5`,
+    and 0x18415, gated only on `> 0`), so the counter does tick down on drawn
+    rows; the draw rule is still `!= 0`.  This guards the port against the
+    `>= 2` "countdown" reading (commit 1800710).
+
+    It does NOT assert oracle agreement: no committed frame reaches the branch
+    (all shipped saves have `+0x49 == 0`), so the decompilation governs the port.
     """
     src = open(SAVE, "rb").read()
     # Member 0 is at header(4) + 0*410; +0x49 is the out-of-action field.

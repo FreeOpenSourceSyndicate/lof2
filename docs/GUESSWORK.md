@@ -61,30 +61,47 @@ How to use each section:
   (confirmed with a marker byte: patching file byte 77 with `0xAB` leaves
   `0xAB` at the live record's `+0x49`).  **Note the off-by-one trap:** file byte
   78 is `+0x4a`, *not* `+0x49`.
-- **The branch is `!= 0` — there is no countdown in the row path.**  The single
-  `dec` of `+0x49` in the whole image (image `0x15C9`) is gated on
-  `+0x1f == 5` (image `0x15AA` `cmp byte es:[bx+0x1f],5` / `jne` skips the
-  `dec`), while the decision row loop only draws members with `+0x1f < 5`
-  (image `0x1879E` `cmpb $5` / `jae` skips the row).  Those sets are disjoint,
-  so the decrement can never reach a rendered row.  The draw test at image
-  `0x18839` is `cmp byte es:[bx+0x49],0` / `je <action word>`: **any non-zero
-  value** shows "is out of action.".
-- **Retracted claim (commit `1800710`).**  That commit changed the port from
-  `!= 0` to `>= 2` and claimed the row "sees `save_value - 1`".  The claim is
-  not supported by the decompilation (see the disjoint-gate argument above) and
-  the change is reverted.
-- **The emulator A/B is INCONCLUSIVE — do not cite it either way.**  Save record
-  offset `0x49` does load into the record (marker byte `0xAB` at file byte 77
-  appears at `+0x49` in the loaded copy), but the rendered decision frame is
-  **byte-identical for `+0x49=0` and `+0x49=1`** (measured: 0 differing pixels),
-  so the value demonstrably does not reach the row the renderer draws in this
-  scenario.  Which copy the row loop reads, and what clears the field before the
-  draw, is **not traced**.  The earlier "`+0x49=1` differs by 259 px in the
-  action column" note was **wrong** — that 259 px is part of the 20150-px
-  whole-screen difference seen at `+0x49=2`, not a `=1` measurement.
-  `+0x49=2` changes 20150 px across the whole screen (viewport match drops to
-  0.13), i.e. the combat state itself advances — it is a different game state,
-  not a swapped action word, and says nothing about the row branch.
+- **The draw branch is `!= 0`.**  The draw test at image `0x18839` is
+  `cmp byte es:[bx+0x49],0` / `je <action word>`: **any non-zero value** shows
+  "is out of action.".
+- **CORRECTED (session 34, 2026-11-20): there are TWO `dec` sites of `+0x49`, not
+  one.**  The previous revision claimed a single decrement at image `0x15C9`
+  gated on `+0x1f == 5`, and used that to argue the countdown can never reach a
+  rendered row.  A full sweep of the image finds exactly two decrements of the
+  field:
+  * image `0x15C9` `decb es:0x49(bx+si)` — the per-round tick, gated on
+    `+0x1f == 5` (image `0x15AA`).
+  * image `0x18415` `decb es:(bx)` where `bx` was computed as `record+0x49`
+    (image `0x18403` `add ax,0x49`) — inside the round-start loop at `0x18145`.
+    This one is gated only on the value being `> 0` (image `0x1840F`
+    `cmpb $0 / jle`) and **has no `+0x1f` gate**, so it *can* tick a
+    `+0x1f < 5` member's counter down.
+  So the countdown *does* reach rendered rows.  The "disjoint sets" argument in
+  the earlier revision is **retracted** — it was based on an incomplete sweep.
+  The draw test is still `!= 0`, so the port rule is unchanged; what changes is
+  that the counter is genuinely a countdown that expires over rounds.
+- **What the values mean (derived, image `0x1219D` round-end bookkeeping).**  The
+  field is written from the spell-effect id: effect `4` (Paralyze) → `1`,
+  effects `5` and `0x27` → `5`, effect `0x28` → `3`, effect `0x1D` → `0xFF`
+  (permanent).  A **broken weapon** ("... breaks down!", image `0x10389`) writes
+  `0x14`.  So `+0x49` is a *cause code / countdown*, not a boolean.
+- **Owner answer (see `docs/OWNER-TASKS.md` OT-004):** "out of action" is shown
+  on the **combat decision screen** as the literal words `is out of action.` in
+  the member's **action column** (x=235, where `(A)ttack!`-style action words
+  normally sit), replacing both the action word and its trailing number.  It is
+  reached when the member is paralysed/stunned/petrified (`+0x49 != 0`); the row
+  only draws for `+0x1f < 5`, so it appears on a member who is Stunned/Stoned
+  (`+0x1f == 5/6` are themselves skipped) once recovered enough to be listed but
+  still carrying a running counter.  When *every* present member is out of
+  action the round prints the party message `The companions have all been put
+  out of action. Earliest revival will be at the beginning of the next round.`
+  (ds:0x6F3F, image `0x185CE`).
+- **Emulator A/B is INCONCLUSIVE for the *colour* only — do not cite it for the
+  branch.**  The rendered decision frame is byte-identical for `+0x49=0` and
+  `=1` (0 differing pixels) because the decision screen is only reached with
+  everyone able to act; the branch needs a mid-combat state to be seen.  The
+  colour is therefore still inferred (index 8).  The branch semantics are settled
+  by the decompilation; only the colour needs a DOSBox capture.
 - **Port rule = the decompilation:** `!= 0`.  Since the branch is not
   oracle-reachable, Rule 1 (decompilation is the source of truth) governs.
 - **Guard:** `tests/port_decision_test.py::check_out_of_action_any_nonzero` pins

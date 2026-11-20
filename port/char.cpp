@@ -125,6 +125,23 @@ SaveGame load_save(const std::string& path) {
     if (d.size() > kSaveLocOnes) g.loc_ones = d[kSaveLocOnes];
     if (d.size() > kSaveLocTens) g.loc_tens = d[kSaveLocTens];
     if (d.size() > kSaveFacing) g.facing = d[kSaveFacing];
+    // Both fields are dwords in the save: the loader copies 0x9b6 -> global
+    // 0x3b0c and 0x9ba -> global 0x3b10 (image 0x1ca00 / 0x1ca1a, two 16-bit
+    // moves each).  The status box indexes the tables by the low word.
+    if (d.size() > kSaveTimeOfDay + 3) {
+        uint32_t t = (uint32_t)d[kSaveTimeOfDay] |
+                     ((uint32_t)d[kSaveTimeOfDay + 1] << 8) |
+                     ((uint32_t)d[kSaveTimeOfDay + 2] << 16) |
+                     ((uint32_t)d[kSaveTimeOfDay + 3] << 24);
+        g.time_of_day = (int)t;
+    }
+    if (d.size() > kSaveMorale + 3) {
+        uint32_t m = (uint32_t)d[kSaveMorale] |
+                     ((uint32_t)d[kSaveMorale + 1] << 8) |
+                     ((uint32_t)d[kSaveMorale + 2] << 16) |
+                     ((uint32_t)d[kSaveMorale + 3] << 24);
+        g.morale = (int)m;
+    }
     size_t n = (d.size() - kSaveHeaderSize) / 410;
     for (size_t i = 0; i < n; i++) {
         const uint8_t* r = d.data() + kSaveHeaderSize + i * 410;

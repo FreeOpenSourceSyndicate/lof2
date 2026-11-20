@@ -17,7 +17,37 @@ Rules for this file:
 
 ## Open
 
-*(none)*
+### OT-004 — Confirm the "out of action" indicator colour on a live combat screen
+
+- **Answered this session (2026-11-20):** *What "out of action" means and what
+  shows the state is reached* — see the answer below.  The **only** remaining
+  owner action is to confirm the **text colour**.
+- **The answer (derived from the decompilation, image `0x18839` / `0x18720`):**
+  A party member is "out of action" when its per-character field `+0x49` is
+  non-zero.  The **combat decision screen** ("Please make your decision for the
+  next round!") then replaces that member's **action column** — normally the
+  action word like `Attack` at x=235 — with the literal string
+  **`is out of action.`** and drops the trailing number.  This is the *only*
+  on-screen indicator; there is no separate icon or panel change.
+  * When **every** present member is out of action, the round instead prints the
+    party message
+    **`The companions have all been put out of action. Earliest revival will be
+    at the beginning of the next round.`**
+  * The state is set by combat effects: Paralyze, Stun, Petrify and similar
+    (spell-effect ids 4/5/0x27/0x28/0x1D), and by a weapon breaking down
+    (`... breaks down!`).  The counter ticks down one step per round.
+- **What only the owner can do:** reach a live combat screen where a member is
+  out of action and report **what colour the `is out of action.` text is** —
+  light gray (like the stat numbers) or dark gray (like the action words).
+  The port currently draws it in index 8 (dark gray) by inference; the
+  decompilation pins the string, position and the suppression of the number, but
+  not the palette index.  A screenshot is not required: a short note
+  ("lighter/darker than the names") is enough.  (Uploads, if any, land in the
+  repo root — but a written answer is fine.)
+- **Why it is owner-only:** the state cannot be reached from a shipped save (all
+  six members of every shipped save have `+0x49 == 0`), so it requires playing
+  combat until the condition occurs.
+- **Unblocks:** closing the last inferred value in G-011 (`docs/GUESSWORK.md`).
 
 ## Done
 
