@@ -81,13 +81,15 @@ Rules for this file:
   literals, so the `Attack` column is a boolean Passed/Failed. The owner was
   **unsure** about `W P B`: "I think 'W' stands for weapon and 'P' for armour
   ((P)anzerung in German). But I have no idea what the 'B' may stand for."
-- **Still open (narrowed):** the exact meaning of the `W P B` columns is *not*
-  yet confirmed (owner could not resolve `B`; the header text alone does not
-  name the values). It stays open in **BLK-B004** (`docs/blockers/B.md`) — to be
-  settled by decompiling the round-table print routine, or by a follow-up owner
-  observation of a populated `W P B` row.
-- **Unblocked:** BLK-B004's action enum (`+0x0f`) is now confirmed by live play
-  for Sneak/Use/Magic (2/3/4); only the `W P B` column semantics remain.
+- **Settled (2026-11-18) by the decompilation:** `W` = the character's weapon was
+  damaged this round, `P` = a protective item (shield/armour) was damaged,
+  `B` = an ability improved. Each `W`/`P` setter is followed by a per-slot
+  condition write on the same character, and the rust dispatch names the slot
+  (`"The weapon rusts!"` / `"The shield rusts!"` / `"The armour rusts!"`); the
+  three `B` setters print `(Defensive ability grows!)` / `(Sneaking ability
+  improves!)` / `(Concentration improves!)`. See BLK-B004 in `docs/blockers/B.md`
+  and `docs/notes-b.md`. This task (OT-003) is closed; the owner was not asked
+  again.
 
 ### OT-001 — Provide a save that stands the party in a town other than Thyn (e.g. Cyldane)
 
