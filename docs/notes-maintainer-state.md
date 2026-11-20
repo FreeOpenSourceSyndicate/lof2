@@ -5,6 +5,58 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-20 (thirty-fourth session) — TL;DR
+
+Took over from the crashed predecessor with `docs/HANDOFF.md` and the
+session-33 summary; the tree was clean at `84dc550` and `./check.sh` healthy.
+Work was confined to `G-011` — the last inferred value on the decision screen.
+
+> **Correction (same session, later).** The first pass of this section recorded
+> G-011 as an unresolvable "negative result".  That was **wrong on two counts**
+> and both are corrected below.  The branch *is* reachable by patching the save;
+> the first A/B simply compared the wrong thing.
+
+- **Owner tasks: 0 open.** Reminded per Rule 8; nothing to action.
+- **Watchlist: G-004, G-005, G-007 open; G-011 now narrowed to the colour
+  only.** See the register entry.
+- **`+0x49` IS a save field, and it is a countdown.**  The engine *decrements*
+  it (`dec byte es:[bx+si+0x49]`, image `0x15C9`) and the decision row tests
+  `cmp byte es:[bx+0x49],0` (image `0x18839`) afterwards.  So the value the row
+  reads is `save_value - 1`:
+  - `+0x49 = 0` → normal action word;
+  - `+0x49 = 1` → **decremented to 0, so still the normal action word**;
+  - `+0x49 >= 2` → the out-of-action string.
+  Measured on the emulator with a fixed RNG seed (`LOF_TICK=0x0B`, which makes
+  runs byte-reproducible — verified: two identical runs diff 0 px):
+  `+0x49=1` is byte-identical to `+0x49=0`; `+0x49=2`, `=3` and `=20` are all
+  byte-identical *to each other* and differ from `=0` by 20150 px.
+- **Bug found and fixed in the port.**  `compose_decision_screen()` tested
+  `+0x49 != 0`, so it printed "is out of action." for `+0x49 == 1`, which the
+  engine does not.  Now `>= 2`, with a regression check in
+  `tests/port_decision_test.py` (`check_out_of_action_threshold`): it asserts
+  `+0x49=1` matches `+0x49=0` in the action column and `+0x49=2` does not.
+  Verified the check *fails* on the old `!= 0` code and passes on the fix.
+- **Why the earlier "negative result" was wrong.**  The comparison used
+  `LOF_NO_TIMER=1` but *not* a pinned `LOF_TICK`, and combat is tick-seeded, so
+  the two runs were not the same experiment.  Re-run with `LOF_TICK=0x0B` the
+  effect is clean and deterministic.  The "ROST checksum" claim was also
+  mistaken: `load_save()` does not verify the trailer at all (only
+  `load_rost()` computes `intact`), and the shipped records carry tail `0` /
+  `0x06060606` filler — neither matches `rost_record_checksum`, so the trailer
+  is not a gate on the save path.  Zeroing HP likewise does not "fail the load".
+- **Still open (the actual G-011 residue): the colour.**  The drawer is called
+  with `0` for the action word and `1` for the out-of-action string, and the
+  rank column passes `3`/`4`; that argument is a *style* index, not a raw
+  palette index.  No committed oracle exercises the branch, so the port keeps
+  index 8.  To clear it: capture the out-of-action frame from DOSBox (the
+  ground-truth oracle) rather than the emulator.
+- **Merged as PR #150** (squash, `fd6d976`), branch deleted.  This correction
+  is a follow-up commit.
+- **Caution for the next session:** patching `game/GAMES/*` is safe only if you
+  restore it — the saves are git-ignored, so a corrupted save is silent in
+  `git status` and only shows up as a broken golden test.  Back up to `/tmp`
+  and verify with `cmp`; prefer that pattern (or a copied game tree).
+
 ## Session 2026-11-20 (thirty-third session) — TL;DR
 
 Environment was **reset** (fresh clone, no `numpy`/`Pillow`, scratch dumps gone);

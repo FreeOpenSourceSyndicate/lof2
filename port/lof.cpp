@@ -331,7 +331,10 @@ static bool compose_decision_screen(const std::string& dir, int sprite_ch,
             font.draw_text(s, 211, y, abbrev[rank], 0);
         // Image 0x18839: a non-zero +0x49 replaces the action column with the
         // fixed string ds:0x6ff2 ("is out of action.") and skips the number.
-        if (c.raw[0x49] != 0) {
+        // The engine decrements +0x49 before this test, so a value of 1 has
+        // already fallen to 0 and renders the normal action word (measured:
+        // +0x49=1 is byte-identical to +0x49=0, +0x49>=2 is not).
+        if (c.raw[0x49] >= 2) {
             font.draw_text(s, 235, y, "is out of action.", 8);
             continue;
         }

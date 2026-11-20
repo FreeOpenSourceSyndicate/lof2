@@ -141,9 +141,60 @@ def main() -> int:
             return 1
 
     tmatch = float((port[TEXT] == oracle[TEXT]).mean())
+
+    rc = check_out_of_action_threshold()
+    if rc != 0:
+        return rc
+
     print("port_decision_test: ok (match=%.1f%%, viewport=%.1f%%, "
           "text=%.1f%%, text ink exact)" % (100 * match, 100 * vmatch,
                                             100 * tmatch))
+    return 0
+
+
+ACTION = (slice(116, 124), slice(235, 319))
+
+
+def check_out_of_action_threshold() -> int:
+    """`+0x49 == 1` must render the normal action word, not the out-of-action
+    string.
+
+    The engine decrements `+0x49` (image 0x15c9) before the decision-row test
+    `cmp byte es:[bx+0x49],0` (image 0x18839), so a value of 1 has already
+    fallen to 0 by the time the branch is taken.  Measured against the
+    emulator with a fixed RNG seed: `+0x49=1` is byte-identical to `+0x49=0`,
+    while `+0x49>=2` renders a different screen.  The port used to test
+    `!= 0` and printed the string for `+0x49 == 1`.
+    """
+    src = open(SAVE, "rb").read()
+    # Member 0 is at header(4) + 0*410; +0x49 is the out-of-action countdown.
+    off = 4 + 0x49
+    if src[off] != 0:
+        print("port_decision_test: SKIP (+0x49 threshold: fixture not 0)")
+        return 0
+
+    shots = {}
+    for value in (0, 1, 2):
+        patched = bytearray(src)
+        patched[off] = value
+        path = "/tmp/port_decision_test_49_%d.sav" % value
+        with open(path, "wb") as fh:
+            fh.write(patched)
+        shot = "/tmp/port_decision_test_49_%d.png" % value
+        subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--decision", "--save", path, "--shot", shot],
+                       check=True, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL)
+        shots[value] = to_index(shot, STOCK_ATTR)
+
+    if not (shots[1][ACTION] == shots[0][ACTION]).all():
+        print("port_decision_test: FAIL (+0x49=1 must match +0x49=0 in the "
+              "action column)")
+        return 1
+    if (shots[2][ACTION] == shots[0][ACTION]).all():
+        print("port_decision_test: FAIL (+0x49=2 must differ from +0x49=0 in "
+              "the action column)")
+        return 1
     return 0
 
 

@@ -46,20 +46,27 @@ How to use each section:
 - **To clear it:** capture (or construct) a decision frame with a member marked
   out of action and diff the column, or trace the drawer's colour global on
   that path.  Lane M.
-- **Tried and failed (2026-11-20): patching the save does not reach the branch.**
-  Setting `+0x49` on GAME2's member 1 to `1` (record base `0x4`, stride `0x19a`)
-  and re-running the decision-screen capture gave a frame **byte-identical** to
-  the unpatched run, so the engine recomputes `+0x49` on load rather than
-  trusting the file.  Zeroing the member's current HP (`+0x22`) does not help
-  either: it breaks the ROST record checksum (`port/char.cpp`
-  `rost_record_checksum`), the load fails, and the capture lands on an unrelated
-  screen.  A future attempt must either reach the state through play (wound a
-  member to 0 HP in combat, then read the next round's decision list) or read
-  the drawer's colour table directly — the caller passes `0` for the action
-  word and `1` for the out-of-action string, so the argument is a *style* index
-  into a table, not a raw palette index.
+- **Reachable by patching the save (verified 2026-11-20).**  `+0x49` *is* a save
+  field and it is a **countdown**: the engine decrements it (image `0x15C9`
+  `dec byte es:[bx+si+0x49]`) before the decision row tests it (image `0x18839`
+  `cmp byte es:[bx+0x49],0`), so the row sees `save_value - 1`:
+  `0` and `1` → the normal action word, `>= 2` → "is out of action.".
+  Measured on the emulator at a pinned seed (`LOF_TICK=0x0B`; two identical runs
+  diff 0 px, so it is reproducible): `+0x49=1` is byte-identical to `+0x49=0`,
+  while `+0x49=2`, `=3` and `=20` are byte-identical to each other and differ
+  from `=0` by 20150 px.  **The port had this wrong** (`!= 0` instead of
+  `>= 2`) and is now fixed, guarded by
+  `tests/port_decision_test.py::check_out_of_action_threshold`.
+- **Corrected claim.**  An earlier revision of this entry said patching the save
+  "does not reach the branch" and that the record checksum blocks the load.
+  Both were wrong: the first A/B ran without a pinned `LOF_TICK` (combat is
+  tick-seeded, so the two runs were not comparable), and `load_save()` does not
+  verify the record trailer at all — the shipped tails are `0` / `0x06060606`
+  filler and do not match `rost_record_checksum`.
 - **Owner impact:** none for the shipped saves (`+0x49 == 0` for all six
   members in both `GAME1` and `GAME2`), so the reachable screens are unaffected.
+  The remaining residue is only the **colour**, which needs a DOSBox capture of
+  the branch (the ground-truth oracle) rather than the emulator.
 
 ### G-005 — dungeon solid-wall set `{6,13}` is oracle-derived, not decompiled (Lane A)
 
