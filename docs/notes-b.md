@@ -1544,39 +1544,71 @@ separate routine, and the flow is now pinned end to end:
 | 2 | image `0x18663` | `call 0x17982` with one arg `[bp+6]` — **the round resolution** |
 | 3 | image `0x18669` | if `es:[0x3de9] == 0` skip the table (`jmp 0x18A7D`), else draw the round-result table |
 
-`0x17982` (arg `[bp+6]`: **0 = normal round, 1 = quick combat**):
+### The combat rows (verified from a live capture, 2026-11-20)
 
-- Normal (`0x179BB`): for each party row `i` (0..5) at `0x17A2B`, **verified**
-  byte-level steps:
-  * actor record = `[0xafa6]:0x30 + 0x19a * es:[0xafda]:(i*12+0x177)` (the
-    status row's `+0x177` record index)
-  * `[bp-0xc] = char[+0x0d]` (sign-extended), `[bp-0x4] = -1` (target row)
-  * `char[+0x0f] == 3` (use object) / `== 4` (cast spell) branch to `0x17B0B`;
-    otherwise `[bp-0x10] = char[+0x0e]`, and for action 3 the byte
-    `[0xafa8]:0xfd4 + 32*char[+0x0e]` replaces it
-  * the item byte `[0xafae]:0x2712 + 36*[bp-0x10]` is tested: if
-    `(byte & 3) || (byte & 4)` then `[bp-0xc] = 0`, `[bp-0x4] = 0`,
-    `[bp-0xa] = 1` (an unusable/empty item → unarmed attack)
-  * with `[bp-0x4] == -1`, scan rows `j = 0..5` at
-    `[0xafc4]:0x258 + 72*[bp-0xc] + 12*j` for `+0x258 == 1 && +0x262 != 0`
-    (the first live defender) and take `[bp-0x4] = j`
-  * if a target exists: `call 0x1370C(attacker = 0x367e:(12*i+0x176),
-    target = 0x367e:(0x258 + 72*[bp-0xc] + 12*[bp-0x4]), flag [bp-0xa])` —
-    **the per-attack routine**
-- Quick (`0x17BAA`) — a different loop, not yet read.
+`0x17982` and its per-attack callee `0x1370C` work on two blocks of **12-byte
+rows** in the *character segment* `es = [ds:0xafa6]` (= `0x468E` in the shipped
+build):
 
-**Hypothesis (not proven):** the `72 * [bp-0xc]` factor means `char[+0x0d]` is
-the target *monster group* (6 rows × 12 bytes) and `char[+0x0e]` the slot in
-it; that would also explain the decision row's `@ %ld` value.  Do not build on
-it until `0x1370C` is read.
+* party rows: `es:[0x176 + 12*i]`, `i = 0..5`
+* defender rows: `es:[0x258 + 72*g + 12*j]` (6 rows per group `g`)
 
-So the remaining derivation for a playable round is **`0x1370C`** (to-hit, damage,
-the W/P/B setters and the HP write) plus the quick-combat loop at `0x17BAA` and
-the monster-turn pass.  The actor/defender rows are 12-byte structures in
-segment **`0x367e`**, party at `+0x176`, defenders at `+0x258`, and the status
-builder `0x27F14` writes the same shape (`+0x176` marker, `+0x177` record
-index, `+0x178` class, `+0x17c` hp/8), so `port/char.cpp`'s `PartyRow` is the
-right model.
+Captured with `LOF_TRACE_IP=27a82 LOF_CAP=…` (see the address trap in
+`AGENTS.md`; the resolution entry is image `0x17982` + `0x10100`) and read out of
+the 1 MB dump.  Field meanings verified against `GAME2`:
+
+| off | meaning | evidence |
+|---|---|---|
+| +0x00 | marker: `2` = party, `1` = defender, `0` = empty | the six party rows carry 2, the mercenaries 1 |
+| +0x01 | character-record index (`0x19a` stride from `[0xafa6]:0x30`) | 0..5 for the party; 12 = the Mercenary record |
+| +0x02 | class (`1` PC, `0` for two of the party rows) | matches `char[+0x18]` |
+| +0x04 | power (weapon damage), e.g. 100, 81 | per-member |
+| +0x05 | rank term used by the to-hit formula (0,0,1,2,2,2) | per-member |
+| +0x07 | defence, e.g. 40, 10, 50, 80, 60, 35 | per-member |
+| +0x08 | offence, e.g. 100, 65 | per-member |
+| +0x0a | **current HP** (word) | Decker 10, Siegurd 96, Handy 9, Merlin 5, Cassandra 14, Assanla 13 — exactly `GAME2`'s `+0x22` |
+
+The captured defender rows for the Mercenary encounter were
+`01 0c 01 00 32 01 ec 14 64 01 08 00` and `01 0c 01 00 64 01 ec 14 64 01 10 00`
+(idx 12, class 1, hp 8 and 16), so the encounter builder fills the same layout.
+
+### `0x1370C(attacker, target, flag)` — what is derived
+
+Called from `0x17982` (`0x17D13`, quick path `0x17B8F`) as
+`push seg; push off` twice, then `push cs; call`.  The callee sees
+`[bp+6]:[bp+8]` = **attacker** far pointer, `[bp+0xa]:[bp+0xc]` = **target**,
+`[bp+0xe]` = flag (non-zero = the forced/unarmed path at `0x137BD`).  Returns
+AX: `1` when the attacker's action `+0x0f == 0`, `0` when a marker/HP guard
+fails.
+
+Prelude (all verified byte-level):
+
+```
+roll       [bp-0x6]  = rand(100) + 1                     (0x13744)
+base       [bp-0x3a] = 120 - 20*(atk[+0x05] + tgt[+0x05]), clamped >= 1
+attack     [bp-0xa]  = atk[+0x08] - tgt[+0x07],          clamped >= 1
+power      [bp-0x32] = atk[+0x04],                        clamped >= 1
+```
+
+Then the item/skill pass (`0x13B29`..`0x13B8E`):
+
+```
+[bp-0x32] *= 25 or 50 (percent)   ; via the 32-bit helper 0x1b83:0x5fe
+si = atk_record[+0x5e] + atk_record[+0x45]   ; strength bonus
+if si > 15: [bp-0xa] -= 5*si - 75
+hit  [bp-0x2e] = ([bp-0xa] + [bp-0x32] + [bp-0x3a]) / 3
+```
+
+Hit test (`0x14183`): `cmp [bp-0x2e], roll` → `jge` = hit; then
+`call 0x1c40:0x12c` draws the hit/miss line.  The `+0x0f == 3/4` (use object /
+cast spell) branch instead calls **`0x1299E(attacker, target, …)`** at `0x145F4`
+with `(base+power)/2 / record[+0x55]` as the magnitude.
+
+**Still open:** the plain-damage path (after a hit, `0x1423F`..), `0x1299E`, the
+monster path at `0x159F8`, the quick loop at `0x17BAA`, and the W/P/B array
+writes.  With the row layout and the prelude now pinned, these can be derived
+one at a time and checked against the same capture technique.
+
 
 ## BLK-B004 — the round-result printer FOUND (2026-11-17, twenty-first session)
 
