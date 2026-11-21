@@ -194,7 +194,17 @@ bool dungeon_place_cell(const Dungeon& d, DungeonPos& p, int cell, int facing) {
 
 // LOF.EXE ds:0xa546: portal destinations, 4 bytes per dungeon number, laid out
 // as [dest dungeon, 0, dest cell lo, dest cell hi].  The handler indexes it with
-// `si = dungeon << 2` and reads ds:[si-0x5aba] / ds:[si-0x5ab8].
+// `si = [0x37fe] << 2` and reads ds:[si-0x5aba] / ds:[si-0x5ab8].
+//
+// The index is the **second digit of the DNGS file name** (location % 10), not
+// the group digit: the file name is built as `DNGS\DNG%01ld%01ld` (image
+// 0x46645), and `[0x37fe]` is compared against 7 both here and for the
+// stairs/hole wording, which only makes sense if it is the level digit -- the
+// shipped levels have group digits 0,1,2,3,5,6 (DNG66) and level digits 0..7.
+// The data settles it: both shipped portals sit on level 3 (DNG03, DNG43), and
+// entry 3 gives DNG13 cell 757, a walkable cell.  Indexing by the group digit
+// instead gives DNG03 *no* destination (entry 0 is all zero) and DNG43 a
+// destination inside a wall (entry 4 -> DNG13 cell 104, tile 6).
 static const uint8_t kPortalTable[8][4] = {
     {0, 0, 0x00, 0x00},   // dungeon 0
     {0, 0, 0xfd, 0x03},   // dungeon 1
@@ -223,21 +233,27 @@ bool dungeon_is_portal(uint8_t code) {
     return dungeon_is_stair(code) && (code >> 4) == kTilePortal;
 }
 
-int dungeon_stair_dungeon(uint8_t code, int dungeon) {
-    if (dungeon_is_portal(code))
-        return (dungeon >= 0 && dungeon < 8) ? kPortalTable[dungeon][0] : 0;
+// `location` is the full save location (`group*10 + level`).  A portal is
+// looked up with the level digit, everything else takes its destination dungeon
+// from the tile's high nibble.
+int dungeon_stair_dungeon(uint8_t code, int location) {
+    if (dungeon_is_portal(code)) {
+        int level = location % 10;
+        return (level >= 0 && level < 8) ? kPortalTable[level][0] : 0;
+    }
     return code >> 4;
 }
 
-bool dungeon_stair_target(const Dungeon& d, int x, int y, int dungeon,
+bool dungeon_stair_target(const Dungeon& d, int x, int y, int location,
                           DungeonLink* out) {
     uint8_t code = d.tile(x, y);
     if (!dungeon_is_stair(code)) return false;
     DungeonLink l;
-    l.dungeon = dungeon_stair_dungeon(code, dungeon);
+    l.dungeon = dungeon_stair_dungeon(code, location);
     if (dungeon_is_portal(code)) {
-        if (dungeon < 0 || dungeon >= 8) return false;
-        l.cell = kPortalTable[dungeon][2] | (kPortalTable[dungeon][3] << 8);
+        int level = location % 10;
+        if (level < 0 || level >= 8) return false;
+        l.cell = kPortalTable[level][2] | (kPortalTable[level][3] << 8);
     } else {
         l.cell = d.dest_cell(x, y);
     }
@@ -246,9 +262,14 @@ bool dungeon_stair_target(const Dungeon& d, int x, int y, int dungeon,
     return true;
 }
 
-const char* dungeon_stair_message(uint8_t code, bool hole, bool* portal) {
+// The engine prints "hole" instead of "stairs" on level 7 of a dungeon group:
+// the handler tests the DNGS file-name level digit (`[0x37fe]`) against 7.
+bool dungeon_is_hole_level(int location) { return (location % 10) == 7; }
+
+const char* dungeon_stair_message(uint8_t code, int location, bool* portal) {
     if (portal) *portal = dungeon_is_portal(code);
     if (dungeon_is_portal(code)) return "You enter ";
+    bool hole = dungeon_is_hole_level(location);
     if (dungeon_is_up_stair(code))
         return hole ? "You climb up the hole." : "You climb up the stairs.";
     return hole ? "You climb down the hole." : "You climb down the stairs.";

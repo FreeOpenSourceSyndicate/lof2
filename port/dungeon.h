@@ -227,24 +227,27 @@ bool dungeon_is_down_stair(uint8_t code);
 bool dungeon_is_portal(uint8_t code);
 
 // Dungeon number a stair travels to: the tile's high nibble for 4/5, or the
-// portal table entry for 0xF.  `dungeon` is the current dungeon number (0..6),
-// needed only for the portal case.
-int dungeon_stair_dungeon(uint8_t code, int dungeon);
+// portal table entry for 0xF.  `location` is the full save location
+// (`group*10 + level`); only the portal case uses it, via its level digit.
+int dungeon_stair_dungeon(uint8_t code, int location);
 
 // Where a stair at (x,y) leads.  Returns false when the cell is not a stair.
-// `dungeon` is the current dungeon number (see above).
+// `location` is the current save location (see above).
 struct DungeonLink {
     int dungeon = 0;   // destination dungeon number (0..6)
     int cell = -1;     // destination row-major cell index
 };
-bool dungeon_stair_target(const Dungeon& d, int x, int y, int dungeon,
+bool dungeon_stair_target(const Dungeon& d, int x, int y, int location,
                           DungeonLink* out);
 
-// The message the engine prints when a stair is used (LOF.EXE ds:0xa40c..0xa473).
-// The stairs/hole choice is made at run time from game state that is not yet
-// mapped, so the caller supplies `hole`; `portal` reports the "You enter " form
-// used for the 0xF tiles.
-const char* dungeon_stair_message(uint8_t code, bool hole, bool* portal = nullptr);
+// The message the engine prints when a stair is used (LOF.EXE ds:0xa428..0xa48c,
+// handler at image 0x2e7fa).  It picks "stairs" or "hole" from `[0x37fe] == 7`
+// -- the DNGS file-name level digit (see `dungeon_is_hole_level`).  `location`
+// is the current save location; the portal case prints "You enter " and sets
+// `*portal`.
+bool dungeon_is_hole_level(int location);
+const char* dungeon_stair_message(uint8_t code, int location,
+                                  bool* portal = nullptr);
 
 // Draw a top-down map of the level onto `scr`, `cell` pixels per tile,
 // centred, with the player drawn at (px,py).  Tile codes are colour-coded and

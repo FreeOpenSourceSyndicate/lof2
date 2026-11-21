@@ -805,12 +805,14 @@ static bool walk_key(const std::string& dir, uint16_t& location, Dungeon& dng,
         return true;
     }
 
-    int dungeon = location / 10;
     DungeonLink link;
-    if (!dungeon_stair_target(dng, ahead_x, ahead_y, dungeon, &link)) {
+    if (!dungeon_stair_target(dng, ahead_x, ahead_y, location, &link)) {
         dungeon_step(dng, pos);
         return true;
     }
+    // The engine picks the wording before it moves the party, so it reads the
+    // *current* level digit.
+    const char* stair_msg = dungeon_stair_message(tile, location);
     uint16_t next_loc = (uint16_t)(link.dungeon * 10 + location % 10);
     Dungeon next;
     std::string err;
@@ -822,7 +824,7 @@ static bool walk_key(const std::string& dir, uint16_t& location, Dungeon& dng,
     dng = next;
     dungeon_place_cell(dng, pos, link.cell, pos.facing);
     location = next_loc;
-    msg = dungeon_stair_message(tile, false);
+    msg = stair_msg;
     if (level_changed) *level_changed = true;
     return true;
 }

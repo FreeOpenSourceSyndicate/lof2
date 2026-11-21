@@ -34,3 +34,6 @@ __pycache__/
 font_test
 char_test
 dungeon_test
+
+# Agent scratch space (sweep logs, plane dumps, throwaway scripts)
+.agent_tmp/

@@ -924,28 +924,35 @@ static void test_stairs(const std::string& dir) {
     assert(dungeon_is_stair(0xf4) && dungeon_is_up_stair(0xf4) &&
            dungeon_is_portal(0xf4));
     assert(!dungeon_is_portal(0x04) && !dungeon_is_portal(0x15));
-    // High nibble is the destination dungeon.
+    // High nibble is the destination dungeon (location only matters for 0xF).
     assert(dungeon_stair_dungeon(0x15, 0) == 1);
     assert(dungeon_stair_dungeon(0x04, 5) == 0);
     assert(dungeon_stair_dungeon(0x65, 1) == 6);
     assert(dungeon_stair_dungeon(0x84, 1) == 8);
 
-    // The portal table (ds:0xa546) is indexed by the *current* dungeon.
-    assert(dungeon_stair_dungeon(0xf4, 5) == 1);
-    assert(dungeon_stair_dungeon(0xf4, 3) == 1);
-    assert(dungeon_stair_dungeon(0xf4, 0) == 0);
+    // The portal table (ds:0xa546) is indexed by the DNGS file-name **level**
+    // digit (location % 10), not by the dungeon group.  Both shipped portals
+    // live on level 3 (DNG03 and DNG43), so both must resolve through entry 3.
+    assert(dungeon_stair_dungeon(0xf4, 13) == 1);   // DNG13 -> entry 3
+    assert(dungeon_stair_dungeon(0xf4, 43) == 1);   // DNG43 -> entry 3
+    assert(dungeon_stair_dungeon(0xf4, 5) == 1);    // DNG05 -> entry 5
+    assert(dungeon_stair_dungeon(0xf4, 0) == 0);    // entry 0 is all zero
 
-    // Messages.
+    // Messages.  The stairs/hole wording is selected by the level digit:
+    // the handler compares `[0x37fe] == 7`, and [0x37fe] is the level digit.
     bool portal = true;
-    assert(std::string(dungeon_stair_message(0x15, false)) ==
+    assert(std::string(dungeon_stair_message(0x15, 2)) ==
            "You climb down the stairs.");
-    assert(std::string(dungeon_stair_message(0x15, true)) ==
+    assert(std::string(dungeon_stair_message(0x15, 7)) ==
            "You climb down the hole.");
-    assert(std::string(dungeon_stair_message(0x04, false)) ==
+    assert(std::string(dungeon_stair_message(0x04, 2)) ==
            "You climb up the stairs.");
-    assert(std::string(dungeon_stair_message(0x04, true)) ==
+    assert(std::string(dungeon_stair_message(0x04, 7)) ==
            "You climb up the hole.");
-    assert(std::string(dungeon_stair_message(0xf4, false, &portal)) ==
+    assert(!dungeon_is_hole_level(2) && !dungeon_is_hole_level(16) &&
+           dungeon_is_hole_level(7) && dungeon_is_hole_level(37) &&
+           dungeon_is_hole_level(17));
+    assert(std::string(dungeon_stair_message(0xf4, 3, &portal)) ==
            "You enter ");
     assert(portal);
 
@@ -1003,7 +1010,8 @@ static void test_stairs(const std::string& dir) {
     int portal_resolved = 0;
     for (size_t k = 0; k < lv.size(); k++) {
         const Dungeon& m = lv[k];
-        int cur = id[k].first;
+        int group = id[k].first, level = id[k].second;
+        int cur = group * 10 + level;   // full save location, as the engine has it
         for (int y = 0; y < kDungeonH; y++) {
             for (int x = 0; x < kDungeonW; x++) {
                 uint8_t code = m.tile(x, y);
@@ -1013,9 +1021,13 @@ static void test_stairs(const std::string& dir) {
                 bool is_portal = dungeon_is_portal(code);
                 if (is_portal) portals++;
                 if (!dungeon_stair_target(m, x, y, cur, &l)) continue;
-                const Dungeon* dst = find(l.dungeon, id[k].second);
+                const Dungeon* dst = find(l.dungeon, level);
                 if (is_portal) {
-                    if (dst && l.cell >= 0 && l.cell < kDungeonTiles)
+                    // A portal destination must be a real, walkable cell: the
+                    // group-digit reading puts DNG43's portal inside a wall.
+                    if (dst && l.cell >= 0 && l.cell < kDungeonTiles &&
+                        !dungeon_is_solid_tile(dst->tile(l.cell % kDungeonW,
+                                                l.cell / kDungeonW)))
                         portal_resolved++;
                     continue;
                 }

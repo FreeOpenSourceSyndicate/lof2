@@ -2761,3 +2761,64 @@ require the *low* byte of a stair to reach 4. The big-endian reading explains
 both at once — it is the high byte of a cell index below 1296. `dest_cell()`
 additionally refuses non-stair cells and `has_feature()` refuses stair cells, and
 `tests/dungeon_test.cpp` asserts all of the above, so neither reading can drift.
+
+## Round 52 — the stair handler decompiled: portal index and the hole rule
+
+The stair handler at image **`0x2e7fa`** (`ds:0xb0d0` + `[bx+0x46d8]` is the
+tile map) settles the two things Round 46 left as parameters. Read from the
+disassembly, not inferred from data:
+
+```
+al = tile & 0x0F                       ; low nibble
+if al != 4 && al != 5: goto not_a_stair
+al = tile & 0x0F
+if al == 4:                            ; UP
+    if [0x37fe] == 7 && [0x3800] == 0: msg = "You climb up the hole."
+    else:                              msg = "You climb up the stairs."
+else:                                  ; DOWN
+    if [0x37fe] == 7 && [0x3800] == 0: msg = "You climb down the hole."
+    else:                              msg = "You climb down the stairs."
+print(msg)
+al = tile >> 4
+if al != 0xF:                          ; ordinary stair
+    [0x460e] = al                      ; destination dungeon = high nibble
+    [0x4610] = 0
+    [0x3824] = objects[bx]             ; destination cell
+else:                                  ; portal
+    si = [0x37fe] << 2
+    [0x460e] = ds:[si - 0x5aba]        ; dest dungeon   (ds:0xa546)
+    [0x4610] = ds:[si - 0x5ab8]        ; dest cell      (ds:0xa548)
+    [0x3824] = ds:[si - 0x5ab8]
+```
+
+**1. `[0x37fe]` is the DNGS file-name *level* digit, not the dungeon group.**
+The file name is built from the format string `DNGS\DNG%01ld%01ld` (image
+`0x46645`), and both `[0x37fe]` writers (`0x2141d`, `0x21550`) store a `long`
+passed in from the loader. The `cmp [0x37fe],7` above only makes sense on the
+level digit: the shipped levels have group digits 0,1,2,3,5,6 but level digits
+0..7, and a "hole" at level 7 exists in every group (`DNG07`, `DNG17`, `DNG37`,
+`DNG47`...).
+
+**2. The portal table is therefore indexed by `location % 10`.** The data proves
+it independently. Both shipped portals sit on level 3 (`DNG03` cell 106, `DNG43`
+cell 208), so both must use entry 3:
+
+| reading | DNG03 -> | DNG43 -> | walkable |
+|---------|----------|----------|----------|
+| group digit (`location/10`) | entry 0 = all zero, **no destination** | DNG13 cell 104, tile 6 = **wall** | 0/2 |
+| level digit (`location%10`) | DNG13 cell 757, tile 0 | DNG13 cell 757, tile 0 | **2/2** |
+
+The port previously used the group digit, so **using either portal in game put
+the party inside a wall or nowhere**. Fixed in `port/dungeon.cpp`
+(`kPortalTable` index and `dungeon_stair_dungeon`); `location` (not `dungeon`)
+is now the parameter, and `tests/dungeon_test.cpp` asserts entry 3 for both
+`13` and `43` plus a *walkability* check on the portal destination (the old test
+only checked the cell was in range, which is why it passed with the bug).
+
+**3. The stairs/hole wording is decoded, so it is no longer a caller
+parameter.** `dungeon_stair_message(code, location)` now derives it from
+`dungeon_is_hole_level(location) == (location % 10 == 7)`. `walk_key()` was
+passing a hardcoded `false`, so the port could never print the "hole" variants
+even though the strings were already present. Note the handler prints the
+message *before* it moves the party, so the wording reads the **current** level
+digit, not the destination's -- `walk_key()` now does the same.
