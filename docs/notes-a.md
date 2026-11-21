@@ -2923,9 +2923,14 @@ That rule is measured on four cells and is now implemented in
 mutation: reverting it fails the test).
 
 **What is still not derived:** the doorway (`0x0a`) view.  Cell 95 matches
-`D0/DP002` only 0.5569, so the engine composes it from more than one sprite;
-the port still draws a single DPnnn there.  The open-cell (`CHAR2/CHnn` room)
-cases are likewise still `DP001` fallbacks.
+`D0/DP002` only 0.5569 and no other D0 sprite beats that; adding the horizon
+pieces makes it *worse* (0.5136), so it is not the same composite.  The decisive
+difference is opacity: the doorway frame has **no colour-0 pixel at all**
+(14280/14280 inked, every one of the 119 rows fully inked), while every D0
+sprite is mostly transparent (`DP002` leaves 6327 pixels at colour 0).  So the
+engine fills the window before drawing, and the port's transparent-blit model
+cannot reproduce that frame.  The open-cell (`CHAR2/CHnn` room) cases are
+likewise still `DP001` fallbacks.
 
 **A retraction.**  An earlier draft of this round claimed cell 42 "matched
 `CHAR3/CH02` at 1.0000" and concluded the outdoor view was not tile-selected at

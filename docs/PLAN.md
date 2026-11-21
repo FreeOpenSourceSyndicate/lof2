@@ -12,7 +12,7 @@ Last refreshed: 2026-11-21 (session of agent lof2/M-5, sole active agent).
 ## 1. Overall project completion — ~80 %
 
 Weighted by player-visible subsystem, not by line count.  The table below sums
-to **81.0 %** (weights total 100); it is rounded to ~80 % because the two largest
+to **81.7 %** (weights total 100); it is rounded to ~80 % because the two largest
 open items — outdoor scenery and the save writer — are the ones most likely to
 hide extra work.  The previous revision said ~75 % while its own table summed to
 78.5 %; the arithmetic is now stated so the figure can be checked.
@@ -31,7 +31,7 @@ there is still no save writer at all.
 | Boot → menu | 100 % | 6 | `EGA/UP/MSCR` + `MENU`, font |
 | Town (Thyn, Cyldane) + buildings | 100 % | 10 | inn, shop/emporium, bank, house, temple (+ heal/revive/rest prompts) |
 | DNGS decode (all 29 levels) | 100 % | 5 | tiles + object layer + header |
-| **Dungeon first-person view** | **70 %** | 14 | Temple (`D5`) depth march is pixel-exact. The outdoor (`D0`) composite is pixel-exact **for one cell only**; a sealed-patch sweep shows the scenery piece set is overfit (**G-013**), so *scored against the game* this is not 85 % — it is exact on the oracle and approximate elsewhere. Remaining: the scenery-selection rule (A-6) and non-`DP001` outdoor bases |
+| **Dungeon first-person view** | **75 %** | 14 | Temple (`D5`) depth march is pixel-exact. The outdoor (`D0`) composite is pixel-exact **for one cell only**; a sealed-patch sweep shows the scenery piece set is overfit (**G-013**), so *scored against the game* this is not 85 % — it is exact on the oracle and approximate elsewhere. The outdoor **wall** case is now derived and tested (`DP036` at the map edge, `DP001` otherwise). Remaining: the doorway/opaque-fill view and the `CHAR2` room cases (A-6) |
 | **Object/feature semantics** | **40 %** | 8 | stairs/portals decoded (A-2); door-like signature proven; door/trap/item dispatch not decoded |
 | **Level transitions (stairs)** | **85 %** | 4 | stairs/portals/level changes work and are decompiled (A-2 done, image `0x2e7fa`); open: the non-stair object codes (doors/traps) |
 | Encounter screen | 100 % | 5 | `SYST/NSCnn` record → `CHAR0/CHnn` |
