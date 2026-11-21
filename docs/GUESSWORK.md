@@ -172,10 +172,15 @@ How to use each section:
      `CombatRoundRow::w`; the roll is taken on every landed hit while a weapon
      is held (so the RNG sequence matches), and `-1` disables it.
   3c. **`P` (shield/armour damaged) and `B` (ability improved) — still open.**
-     `P` is the paired `sub …+0x85, 2` on the shield (`[bp-0x30]`) / armour
-     (`[bp-0x3e]`) slots (`0x17658`/`0x1777A`) plus the rust variant
+     The **round-flag array is at `[0xafdc] + 0x5608`, one byte per flag per
+     member with a 2-byte stride**: `+0x5608` = `W` (`0x15955`), `+0x5609` =
+     `P` (`0x17658`), so `B` is presumably `+0x560A`.  `P` is set together with
+     a `sub …+0x85, 2` on the shield (`[bp-0x30]`, `0x17658`) or armour
+     (`[bp-0x3e]`, `0x1777A`) slot, plus the rust variant that zeroes the slot
      (`0x17290`); `B` is the three ability messages (`0x12846`, `0x13D7D`,
-     `0x1471C`).  Their guards are not decoded, so the port leaves both false.
+     `0x1471C`).  **Their guards are not decoded**, so the port leaves both
+     false — the next step is to read back from `0x1764F`/`0x1777A` to the
+     branch that reaches them.
   4. **The defender rows** (`+0x258 + 72*group + 12*member`) — **DERIVED
      2026-11-21.**  Builder at image `0x27A1E`: `row[+0x01]` = monster index,
      `+0x02` = `combat[+0x4c]`, `+0x04` = `100*hp/(8*combat[+0x2c])`,
