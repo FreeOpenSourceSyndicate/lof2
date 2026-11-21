@@ -2546,3 +2546,49 @@ producer is an internal, RNG-driven detail.  G-007's scenario-5 pin can be
 **generalised to a depth-keyed rule** (depth 2 -> bank sprite A, depth ≥3 -> bank
 sprite B) since that is the observable, save-independent behaviour; whether the
 exact `CHnn` is scenario-specific is the only residue.
+
+### Round 23 — the save's party position drives the spawn (M-4 fixed)
+
+**`0x9a0` is the party's cell and `0x9a6` its facing; the port now reads both.**
+Round 22 pinned the *encoding* (`y*36 + x`, facing 0..3) but the port still
+called `dungeon_place_entry()`, i.e. it used the DNG header's entry cell.  Those
+two only agree when the save was written at the level entry:
+
+| save | stored `0x9a0` | cell | facing | DNG header entry | |
+|------|----------------|------|--------|------------------|---|
+| `dng05-Decker-3cf7cace` | 125 | (17,3) | 2 | 125 / 2 | match |
+| `dng05-Gonk-b2b765be` | 455 | (23,12) | 1 | 125 / 2 | **differ** |
+| `dng05-Conan-e6c8c8bb` | 269 | (17,7) | 2 | 125 / 2 | **differ** |
+| `dng00-Conan-d8b1cad7` | 368 | (8,10) | 3 | 718 / 3 | **differ** |
+| `dng00-Cassandra-6c114403` | 353 | (29,9) | 1 | 718 / 3 | **differ** |
+
+Four of the five archived saves differ, so the header is the fallback, not the
+source.  `0x9a0` is also exactly `4 + 6*410` — the six party records are the
+whole character block and the world state starts immediately after them, which
+is why `0x9a2` (location) and `0x9a6` (facing) sit in the same run.
+
+**Measured proof that `0x9a0` is what the engine reads.**  Patching the *loaded*
+save file `GAMES/GAME  1` (not `GAMES/GAME1` — see the trap below) from 125 to
+455 and re-running the emulator moves the first-person viewport from **1.0000**
+to **0.0380** against `ref/oracle/dungeon_slot1.png`; the facing byte alone does
+not change the viewport, only the party marker.
+
+**Fix.**  `load_save()` now reads `0x9a0` into `SaveGame::party_pos` (rejecting
+an index past the 36x36 grid as absent) and `port/lof.cpp` places the party with
+the new `dungeon_place_cell(d, pos, cell, facing)`, falling back to
+`dungeon_place_entry()` when the word is missing.  Verified end-to-end against
+the emulator: on the Gonk save the port's viewport agreement rose **0.2415 ->
+0.5088** (whole screen 0.6230 -> 0.6826).  The remaining gap is the outdoor
+viewport renderer (A-1), not placement — both sides now render cell 455 facing
+E.
+
+**Trap that cost several runs (worth remembering).**  The engine opens the
+8.3-padded name **`GAMES/GAME  1`** (two spaces); `bootstrap.sh` also installs
+unpadded `GAMES/GAME1`.  Patching `GAME1` changes nothing, so three "different"
+saves produced byte-identical frames (`fce8cbfe…`) and a null result looked like
+evidence that `0x9a0` did not drive the view.  Always confirm the output md5
+actually changed before drawing a conclusion from a null result.
+
+Regression coverage: `tests/port_walk_test.py` now asserts the Gonk save spawns
+at (23,12) facing E — not the header's (17,3) — so the save-over-header
+precedence cannot silently regress.

@@ -929,6 +929,22 @@ constexpr uint8_t kSaveMagic[4] = {0x00, 'F', 'O', 'L'};
 constexpr size_t kSaveLocOnes = 0x9a2;
 constexpr size_t kSaveLocTens = 0x9a4;
 
+// The party's *cell* on the current level: a 16-bit little-endian row-major
+// index `y*36 + x` into the DNG tile map, at file offset 0x9a0.  It sits at
+// `4 + 6*410`, i.e. immediately after the six party records, and the world
+// state (location, facing, clock) follows it.  Verified by patching: changing
+// 125 -> 455 in GAMES/GAME  1 moves the emulator's first-person viewport from
+// 1.0000 to 0.0380 against `ref/oracle/dungeon_slot1.png`, so this field — not
+// the DNG header — is where the engine reads the party from.
+//
+// The DNG header carries the same encoding as the level's *entry* cell, so a
+// save taken at the entry happens to agree with it (GAME1/Decker: both 125).
+// Four of the five archived saves do not, which is why the port must prefer
+// this field and fall back to the header only when it is absent.
+constexpr size_t kSavePartyPos = 0x9a0;
+// Sentinel for a save with no position word (a short file).
+constexpr uint16_t kSavePartyPosInvalid = 0xffff;
+
 // The party's facing is a separate digit byte at file offset 0x9a6: 0=N, 1=E,
 // 2=S, 3=W (verified by diffing the two shipped saves -- GAME1 faces South
 // where GAME2 faces North -- and by the DOSBox dungeon oracle, whose status box
@@ -964,6 +980,7 @@ struct SaveGame {
     uint8_t header[4] = {0, 0, 0, 0};
     uint8_t loc_ones = 0;             // +0x9a2  ones digit of the dungeon id
     uint8_t loc_tens = 0;             // +0x9a4  tens digit of the dungeon id
+    uint16_t party_pos = kSavePartyPosInvalid;  // +0x9a0  party cell (y*36+x)
     uint8_t facing = kSaveFacingInvalid;  // +0x9a6  party facing (0=N..3=W)
     int time_of_day = -1;             // +0x9b6  index into time_of_day_names()
     int morale = -1;                  // +0x9ba  index into morale_names()

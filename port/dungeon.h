@@ -150,6 +150,13 @@ bool dungeon_place(const Dungeon& d, DungeonPos& p, int x, int y);
 // header gives (17,3) facing 2, which is exactly GAME1's saved position/facing.
 bool dungeon_place_entry(const Dungeon& d, DungeonPos& p);
 
+// Place the party at a row-major cell index (`y*36 + x`) and facing, which is
+// how the save stores the party position (`kSavePartyPos` / `kSaveFacing`).
+// Falls back to the nearest passable cell exactly like `dungeon_place()`, so a
+// save written on a cell that has since become solid still loads.  Returns
+// false only if no passable cell exists at all.
+bool dungeon_place_cell(const Dungeon& d, DungeonPos& p, int cell, int facing);
+
 // Draw a top-down map of the level onto `scr`, `cell` pixels per tile,
 // centred, with the player drawn at (px,py).  Tile codes are colour-coded and
 // a cell with an object code is marked.  Intended for headless verification

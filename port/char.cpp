@@ -124,6 +124,13 @@ SaveGame load_save(const std::string& path) {
     if (!g.ok) return g;
     if (d.size() > kSaveLocOnes) g.loc_ones = d[kSaveLocOnes];
     if (d.size() > kSaveLocTens) g.loc_tens = d[kSaveLocTens];
+    if (d.size() > kSavePartyPos + 1) {
+        g.party_pos = (uint16_t)((uint16_t)d[kSavePartyPos] |
+                                 ((uint16_t)d[kSavePartyPos + 1] << 8));
+        // A cell index past the 36x36 grid cannot be a position; treat it as
+        // absent so the caller falls back to the level's entry cell.
+        if (g.party_pos >= 36 * 36) g.party_pos = kSavePartyPosInvalid;
+    }
     if (d.size() > kSaveFacing) g.facing = d[kSaveFacing];
     // Both fields are dwords in the save: the loader copies 0x9b6 -> global
     // 0x3b0c and 0x9ba -> global 0x3b10 (image 0x1ca00 / 0x1ca1a, two 16-bit

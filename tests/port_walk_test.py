@@ -9,10 +9,13 @@ then renders the play screen with the level map in the viewport.  It reads only
 game data -- DNGS/ and GAMES/ -- and never executes an original binary.
 
 The test drives the loop head-lessly and asserts the printed position against the
-walk model's own contract.  The party spawns at the **level's entry cell** (the
-DNG header's `entry_pos`/`entry_facing`, pinned in docs/notes-a.md Round 22 and
-equal to the save's `0x9a0`/`0x9a6`); for the Temple save (`GAME1`, `DNG05`) that
-is (17,3) facing S (2).  From there:
+walk model's own contract.  The party spawns at **the cell the save stored**
+(`0x9a0`/`0x9a6`, verified by patching: 125->455 moves the emulator viewport
+from 1.0000 to 0.0380 vs `dungeon_slot1.png`), falling back to the level's entry
+cell (the DNG header's `entry_pos`/`entry_facing`) only when the save has no
+position word.  The two agree for the Temple save (`GAME1` was written at the
+entry, cell 125 = (17,3) facing S), so that save's cases are unchanged.  From
+there:
 
   * a turn left yields facing E (1) and a turn right yields W (3) (facing S);
   * a step is taken only when the cell ahead is passable, so the party stays put
@@ -75,6 +78,25 @@ def main() -> int:
     # Turn 180 to face N (0), step to (17,2), then the next cell (17,1) is tile 3
     # (open) and (17,0) is tile 6 (a wall): the party stops at (17,1).
     expect("0x50,0x48,0x48,0x48", (17, 1, 0), "blocked at north wall")
+
+    # A save taken away from the level entry must spawn at *its* cell, not at
+    # the DNG header's.  dng05-Gonk stores cell 455 = (23,12) facing E (1) while
+    # DNG05's header says 125 = (17,3) facing S (2), so this pins the
+    # save-over-header precedence that the emulator was measured to obey.
+    gonk = os.path.join(ROOT, "saves", "dng05-Gonk-b2b765be.sav")
+    if os.path.exists(gonk):
+        out = subprocess.run(
+            [os.path.join(ROOT, "lof"), "--dir", GAME, "--headless", "--walk",
+             "--save", gonk], check=True, capture_output=True, text=True).stdout
+        m = re.search(r"walk: x=(-?\d+) y=(-?\d+) facing=(\d+)", out)
+        got = tuple(int(g) for g in m.groups()) if m else None
+        if got == (23, 12, 1):
+            print("port_walk_test: save position ok (Gonk spawns at (23,12), "
+                  "not the header's (17,3))")
+        else:
+            print("port_walk_test: FAIL save position (got %s, want (23, 12, 1))"
+                  % (got,))
+            rc = 1
 
     # The walk viewport must differ from the static play composition.
     walk_shot = "/tmp/port_walk_test.png"

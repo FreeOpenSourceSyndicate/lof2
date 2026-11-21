@@ -853,6 +853,19 @@ static std::vector<Combatant> build_defenders(int count, int hp) {
     return v;
 }
 
+// Place the party where the save left it: the save's own cell/facing
+// (`kSavePartyPos`/`kSaveFacing`) when present, else the level's entry cell.
+// The DNG header only matches the save when the save was taken at the entry, so
+// the header is the fallback, not the primary source.
+static void place_party_from_save(const Dungeon& d, const SaveGame& sg,
+                                  DungeonPos& pos) {
+    if (sg.party_pos != kSavePartyPosInvalid &&
+        dungeon_place_cell(d, pos, sg.party_pos,
+                           sg.facing == kSaveFacingInvalid ? 0 : sg.facing))
+        return;
+    dungeon_place_entry(d, pos);
+}
+
 static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                    const std::string& save_path, const std::vector<int>& keys,
                    const std::string& shot) {
@@ -898,7 +911,8 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                 SaveGame sg = load_save(save_path);
                 if (sg.ok && load_dungeon(
                                  dir + "/DNGS/" + dungeon_map_name(save_location(sg)),
-                                 dng, &err) && dungeon_place_entry(dng, pos)) {
+                                 dng, &err)) {
+                    place_party_from_save(dng, sg, pos);
                     play_sg = sg;
                     play_dungeon = save_location(sg);
                     have_dng = true;
@@ -980,7 +994,7 @@ static bool walk_loop(const std::string& dir, const std::string& save,
         fprintf(stderr, "lof: %s: %s\n", path.c_str(), err.c_str());
         return false;
     }
-    dungeon_place_entry(d, pos);
+    place_party_from_save(d, sg, pos);
     for (int k : keys) walk_apply_key(d, pos, k);
     // Compose the HUD + party panel with no viewport tile, then blit the
     // depth-selected first-person view sprite into the window (its offset

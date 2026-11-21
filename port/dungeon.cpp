@@ -184,6 +184,12 @@ bool dungeon_place_entry(const Dungeon& d, DungeonPos& p) {
     return dungeon_place(d, p, d.entry_x(), d.entry_y());
 }
 
+bool dungeon_place_cell(const Dungeon& d, DungeonPos& p, int cell, int facing) {
+    if (cell < 0 || cell >= kDungeonW * kDungeonH) return false;
+    p.facing = facing & 3;
+    return dungeon_place(d, p, cell % kDungeonW, cell / kDungeonW);
+}
+
 // Colour per tile code (EGA 16-colour indices).
 static uint8_t tile_colour(uint8_t v) {
     switch (v) {

@@ -60,7 +60,7 @@ Rule 1 forbids guessing.
 | M-1 | **Save writer** — no writer exists. Serialise the party + world state back to `GAMES/GAMEn` so play persists. | 8–12 h | round-trip a shipped save: read → write → byte-identical (and ROST checksum recomputed) | `port/char.{h,cpp}`, `port/lof.cpp`, `tests/saves_test.py` |
 | M-2 | **Character-sheet screen** — oracle mismatch (17 837/64 000 px; palette lacks the oracle's red/yellow). | 6–10 h | `ref/oracle/charsheet.png` (recipe in `docs/notes-maintainer-town.md`) | `port/lof.cpp`, `port/char.*` |
 | M-3 | **All-out-of-action message** (HANDOFF item 11) — trigger decoded (`[bp-0x36]`, image `0x18449`), blocked on the message colour. | 2–4 h | needs a mid-encounter oracle frame | `port/lof.cpp` |
-| M-4 | **Party position must come from the save, not the `DNG` header** — **PROVEN DEFECT.** `--walk` calls `dungeon_place_entry()`, which uses the level's *entry* cell, so the port renders the wrong cell for any save that was taken away from the level entry. Measured on `dng05-Gonk-b2b765be` (stored cell 455, DNG05 header 125): the emulator renders cell 455, the port renders 125, viewport agreement **0.2415** (whole screen 0.6230). `load_save()` does not read `0x9a0`/`0x9a6` at all (only `0x9a2`/`0x9a4` ones/tens); add both and prefer them, falling back to the header when absent. | 2–3 h | `0x9a0` is the party cell and `0x9a6` the facing — **verified by patching**: 125→455 in `GAMES/GAME  1` moves the emulator viewport from 1.0000 to 0.0380 vs `dungeon_slot1.png`. Verify the fix against the emulator loading each archived save | `port/char.{h,cpp}`, `port/lof.cpp`, `tests/port_walk_test.py` |
+| M-4 | ✅ **DONE** — **Party position comes from the save, not the `DNG` header.** `load_save()` now reads `0x9a0` (cell) and `0x9a6` (facing); `dungeon_place_cell()` places the party there and the DNG header is only the fallback when the word is absent. Four of the five archived saves store a cell that differs from their level header, so the header was the wrong source. | done | **Emulator-verified:** patching `0x9a0` 125→455 in `GAMES/GAME  1` moves the emulator viewport 1.0000→0.0380 vs `dungeon_slot1.png`. Port vs emulator on the Gonk save: viewport 0.2415 → 0.5088, whole screen 0.6230 → 0.6826; all five saves now spawn at their stored cell/facing. | `port/char.{h,cpp}`, `port/dungeon.{h,cpp}`, `port/lof.cpp`, `tests/port_walk_test.py` |
 
 ### Area B — characters, items, combat
 
@@ -74,10 +74,9 @@ Rule 1 forbids guessing.
 
 ## 3. Recommended order
 
-1. **A-1** (outdoor viewport) — biggest single visual gap, has a byte-exact
+1. ~~**M-4** (save position)~~ — **done**, viewport comparisons are now honest.
+2. **A-1** (outdoor viewport) — biggest single visual gap, has a byte-exact
    oracle, and is squarely Area A.
-2. **M-4** (save position) — small, and it makes A-1's oracle comparison honest
-   (otherwise the port is at the wrong cell and every diff is contaminated).
 3. **A-2** (stairs) — without it the dungeons are single-room demos.
 4. **M-1** (save writer) — without it nothing a player does persists.
 5. Then A-3, B-1, A-4/A-5, M-2, M-3, B-2, B-3.
