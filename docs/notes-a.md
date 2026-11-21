@@ -2904,24 +2904,43 @@ Round 24's tile-code → sprite table was measured on **D5** (the Temple
 tileset).  Applying it to the outdoor bank (D0) is what `dungeon_base_view_index`
 does, and two sealed-patch captures show that is wrong for D0:
 
-| cell | DNG10 own / ahead | ahead nibble | best full-size match |
-|------|-------------------|--------------|----------------------|
-| 39 | 0x00 / 0x06 | **6 (wall)** | `D0/DP036` **0.9648** |
-| 42 | 0x00 / 0x06 | **6 (wall)** | `CHAR3/CH02` **1.0000** |
+| cell | facing | own / ahead | behind the wall | best match |
+|------|--------|-------------|-----------------|------------|
+| 37 | N | 0x0c / **0x06** | off-map (y=0) | `D0/DP036` **0.9648** |
+| 38 | N | 0x0c / **0x06** | off-map (y=0) | `D0/DP036` **0.9648** |
+| 39 | N | 0x00 / **0x06** | off-map (y=0) | `D0/DP036` **0.9648** |
+| 10 | W | 0x0c / **0x06** | `0x06 0x06 0x06` | `D0/DP001` **0.9499** |
+| 95 | S | 0x00 / **0x0a** | 0x00 x3 | `D0/DP002` 0.5569 (composite) |
 
-Two cells in the *same* wall-ahead situation render **different** views, and
-neither is `DP001` (the port's fallback) nor `DP060` (Round 24's D5 answer).
-So for D0 the selection is not a function of the ahead cell at all.  It is
-probably the cell's object/feature record or a per-region "landscape" table —
-the outdoor bank appears to be scenery-picture driven, which also explains why
-the horizon pieces differ per cell (G-013).
+So the ahead-nibble rule **does** hold outdoors; what was missing is that D0
+ships no `DP060`, and the wall nibble splits by what is behind the wall:
 
-**Consequence for the port:** the D0 path is a *documented approximation*, not
-a derived rule.  It is exact for the one oracle cell (745 → DP001 + pieces,
-1.0000) and wrong elsewhere.  It must not be described as derived.  A-6 is
-therefore the real work item and is larger than first estimated (**10–16 h**,
-not 6–10 h): it needs the outdoor draw routine located in `analysis/lof.asm`.
+* wall that **ends the map** -> `D0/DP036` (the map-border backdrop);
+* wall with **more wall behind it** -> `D0/DP001`.
 
-**Method note.** `0x3B72` (cited in the first G-013 draft as the draw path) is a
-**data-table offset** (`b8723b / push ds / push ax / lcall 0x18d,0x16a8` — a
-string printer), not code.  Do not chase it as the renderer.
+That rule is measured on four cells and is now implemented in
+`dungeon_base_view_index` and pinned by `tests/dungeon_test.cpp` (verified by
+mutation: reverting it fails the test).
+
+**What is still not derived:** the doorway (`0x0a`) view.  Cell 95 matches
+`D0/DP002` only 0.5569, so the engine composes it from more than one sprite;
+the port still draws a single DPnnn there.  The open-cell (`CHAR2/CHnn` room)
+cases are likewise still `DP001` fallbacks.
+
+**A retraction.**  An earlier draft of this round claimed cell 42 "matched
+`CHAR3/CH02` at 1.0000" and concluded the outdoor view was not tile-selected at
+all.  That capture was **degenerate** — ink 5795 against a normal 14280, i.e.
+the run never reached the viewport and the "match" was a character portrait
+against a mostly-empty window.  It is not evidence and is withdrawn; cell 42
+was facing a doorway, not a wall, so it never was a counterexample.
+
+**Method note 1.** `0x3B72` (cited in the first G-013 draft as the draw path) is
+a **data offset** — `ega\d0\dp007` inside the outdoor path table — not code.
+The full table `ega\d0\dp000`..`ega\d0\dp069` sits at image `0x361E1`
+(file `0x3B6D1`), 70 NUL-terminated 13-byte entries; **only D0 has one**
+(D1..D7 are built from a stem at run time).  That table is the place to look
+for the remaining D0 work.
+
+**Method note 2.** Check `ink` before believing a match.  A normal viewport
+frame is 14280 non-zero pixels; a frame that scores a "perfect" 1.0000 against
+a character sprite is a failed capture, not a discovery.

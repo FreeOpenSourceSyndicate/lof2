@@ -567,6 +567,35 @@ static void test_base_view(const std::string& dir) {
     p = DungeonPos{5, 0, 0};
     assert(dungeon_base_view_index(d, p) == 1);
 
+    // The outdoor bank (D0) has no DP058..DP060, so the passage/wall nibbles
+    // fall back.  A wall that *ends the map* draws DP036 instead of DP001:
+    // measured on DNG10, cells 37/38 facing N (wall at y=0) score 0.9648 against
+    // D0/DP036, while cell 10 facing W (wall with more wall behind it) scores
+    // 0.9499 against D0/DP001.  notes-a.md Round 50b.
+    {
+        Dungeon o;
+        o.tiles.assign(kDungeonTiles, 6);
+        o.objects.assign(kDungeonTiles, 0);
+        DungeonPos q{3, 1, 0};                    // facing N, ahead (3,0)
+        assert(dungeon_base_view_index(o, q, false) == 36);
+        o.tiles[0 * kDungeonW + 3] = 0x0d;        // the 0xd wall variant too
+        assert(dungeon_base_view_index(o, q, false) == 36);
+        q = DungeonPos{10, 2, 0};                 // wall at (10,1), map continues
+        o.tiles[1 * kDungeonW + 10] = 6;
+        assert(dungeon_base_view_index(o, q, false) == 1);
+        // The dungeon banks keep the decompiled DP060 for the same nibble.
+        assert(dungeon_base_view_index(o, q, true) == 60);
+        // A wall at the map edge on any axis triggers DP036.
+        q = DungeonPos{0, 20, 3};                 // facing W, ahead (-1,20)
+        assert(!dungeon_ahead_cell(o, q, ax, ay));
+        o.tiles[20 * kDungeonW + 0] = 6;          // party cell, ahead off-map
+        q = DungeonPos{35, 20, 1};                // facing E, ahead (36,20)
+        assert(dungeon_base_view_index(o, q, false) == 1);  // off-map -> 1
+        o.tiles[20 * kDungeonW + 34] = 6;
+        q = DungeonPos{34, 20, 1};                // wall at x=35, behind off-map
+        assert(dungeon_base_view_index(o, q, false) == 36);
+    }
+
     // Real DNG05: entry (17,3) facing 2 (S) -> ahead (17,4) is tile 3 -> wall;
     // turned to face N the ahead cell (17,2) is tile 7 -> the corridor case,
     // which has no single sprite and so also falls back to the wall view.

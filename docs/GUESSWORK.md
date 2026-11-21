@@ -669,12 +669,23 @@ effect value 34 (lantern) as a light source; recorded under G-004.
   second cell where the *same* piece set is confirmed, so any generalisation
   would be a guess.  The port keeps the measured set and stays pixel-exact for
   the pinned oracle.
-- **Stronger evidence (Round 50b):** the outdoor selection is not a function of
-  the ahead tile at all.  Cells 39 and 42 both face a wall (DNG10 ahead `0x06`)
-  yet render **different** views: cell 39 matches `D0/DP036` at 0.9648 and cell
-  42 matches `CHAR3/CH02` at **1.0000**.  Neither is `DP001` (the fallback) nor
-  `DP060` (the D5 answer).  So the port's D0 path is a documented approximation,
-  exact only for the pinned oracle cell.
+- **Refined by Round 50b (partial answer, still not fully derived).**  The
+  ahead-nibble rule *does* apply outdoors, but D0 has no `DP060`, so the wall
+  nibble needs a D0-specific target and there are two of them:
+
+  | cell (DNG10) | facing | ahead | behind the wall | best match |
+  |--------------|--------|-------|-----------------|------------|
+  | 37 | N | `0x06` | off-map (y=0) | `D0/DP036` **0.9648** |
+  | 38 | N | `0x06` | off-map (y=0) | `D0/DP036` **0.9648** |
+  | 39 | N | `0x06` | off-map (y=0) | `D0/DP036` **0.9648** |
+  | 10 | W | `0x06` | more wall (`0x06`x3) | `D0/DP001` **0.9499** |
+
+  So "wall that ends the map -> `DP036`, wall with depth behind it -> `DP001`"
+  is measured on four cells and is now implemented (and pinned by
+  `tests/dungeon_test.cpp`).  What is **not** settled is the rest of the D0
+  table: a doorway (`0x0a`, cell 95) matches `D0/DP002` only 0.5569, i.e. it is
+  a composite the port does not build, and the open-cell cases are still
+  `DP001` fallbacks.
 - **To settle it:** locate the outdoor draw routine in `analysis/lof.asm` and
   read which table supplies the base sprite and the scenery.  Note `0x3B72` is
   **not** it — that is a data offset passed to the string printer

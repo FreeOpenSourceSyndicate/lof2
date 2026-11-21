@@ -372,7 +372,17 @@ int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p,
         case 0x5: if (bank_has_passage_sprites) return 59; return 1;
         case 0x6: case 0xd:
             if (bank_has_passage_sprites) return 60;
-            return 1;                    // D0: no flat-wall-face sprite
+            // D0 has no DP060.  It has two flat wall faces, and which one is
+            // drawn depends on the depth column: measured on DNG10, a wall with
+            // more wall behind it gives DP001 (cell 10 f3: 0.9499), a wall that
+            // ends the map gives DP036 (cells 37/38 f0: 0.9648 both).  DP036 is
+            // the map-border backdrop.  Notes-a Round 50b.
+            if (x + dungeon_facing_dx(p.facing) < 0 ||
+                y + dungeon_facing_dy(p.facing) < 0 ||
+                x + dungeon_facing_dx(p.facing) >= kDungeonW ||
+                y + dungeon_facing_dy(p.facing) >= kDungeonH)
+                return 36;
+            return 1;
         case 0xa: return 14;             // doorway
         // 0x1/0x3/0xb/0xc render DP001 (a textured wall/room view).
         case 0x1: case 0x3: case 0xb: case 0xc: return 1;
