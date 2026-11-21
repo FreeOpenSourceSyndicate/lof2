@@ -1642,6 +1642,45 @@ Two HP write sites: `0x15822` `dec word record[+0x22]` (one point, followed by
 `dec word attacker_row[+0x0a]` at `0x15834` — the branch that has not been
 reached yet) and the kill's `victim[+0x0a] = 0`.
 
+### Melee path — `0x14740` (verified 2026-11-20)
+
+The action dispatch is at `0x1453E`: `record[+0x0f]` 4 or 3 → the cast/use
+routine `0x1299E`; **anything else (1 = Attack) → `0x14740`**, the melee path.
+(The `0x14112`..`0x14151` block described above belongs to the *cast* path, not
+melee — an earlier note of mine had that wrong.)
+
+```
+14740: if record[+0x16] == 0xff  -> 0x14943        ; no weapon / unarmed guard
+       if [bp-0x38] < 0          -> 0x14943        ; no item slot
+       dmg = [0xafa8]:0xfd5 + 32*record[+0x82 + 4*[bp-0x38]]   ; weapon damage byte
+       dmg = rand(dmg) + 1
+       str = record[+0x45] / record[+0x55] + record[+0x5e]
+       if str > 15: dmg += str - 15
+       roll = rand(100) + 1
+       if record[+0x27] / record[+0x55] >= roll:      ; "clean hit"
+           dmg += (record[+0x5f] + record[+0x17]) * (dmg / 10)
+14888: roll = rand(100) + 1
+       if (100 * record[+0x17]) / 15 >= roll: 0x14918  ; CRITICAL -> dmg = victim HP
+       else level scaling: lvl < 5 -> dmg *= 2; < 10 -> *= 3; < 15 -> *= 4
+14922: clamp dmg to the victim's HP
+14935: if [bp-0x4a] == 0 -> dmg = 0
+```
+
+`[bp-0x4a]` is set to 1 at `0x13806` for a party attacker and cleared at
+`0x13AFB`, so it is the "this side is the acting party" flag.
+
+Messages: normal `<name> hits <target> for N .` (`0x6901`, `0x6908`, `0x6930`,
+`0x6935`); backstab `<name> creeps up on <target> and injures <target> badly!`
+(`0x6975`, `0x6984`, `0x6993`, `0x699B`, `0x69AA`, `0x69B9`), taken when the
+victim's combat record `+0x37 == 0x15` and the weapon's item byte `+0xfdb`
+is `0x0d` (`0x14A2B`..`0x14A61`).
+
+**HP writes found so far:** the kill's `victim[+0x0a] = 0` (`0x142D1`) and
+`dec word record[+0x22]` / `dec word [bp+6][+0x0a]` at `0x15822`/`0x15834`
+(a one-point-at-a-time block that is **not reached** with `GAME2`).  Where the
+melee tail applies the multi-point damage is still open — that is the next
+thing to read (`0x14B4A`..`0x14D80`), together with the `0x159F8` monster entry.
+
 ### Traps found while capturing (do not repeat)
 
 * The character records are at the **far pointer stored at `[ds:0xafa6]:0x30`**
@@ -1650,14 +1689,10 @@ reached yet) and the kill's `victim[+0x0a] = 0`.
 * At the resolution entry for the standard script
   (`0x18,0x03,0x50,0x48,0x2e,0x1e,0x02,0x20,0x2e`) the actions are
   `Decker = 0` (Defends), the other five `= 1` (Attacks) — so actions *are* set.
-* **The melee damage clamp is not reached with `GAME2`.**  Measured: `0x13C10`
-  (the `record[+0x0f] == 4` cast branch) hits twice, `0x14151` (the clamp)
-  never.  The capture also shows `word record[+0x10]` is `0xFFFF` for Decker,
-  Handy, Merlin, Cassandra, Assanla and `0x0000` for Siegurd (whose
-  `+0x142 + 2*n` table is empty), so the `0x1385B`..`0x138D1` "auto-cast" scan
-  is **not** the explanation for the other four.  Next step: trace the region
-  `0x13D00`..`0x14160` on one member to find the actual divergence (the block
-  that computes `[bp-0x2e]` at `0x14112`..`0x14144` is entered from above it).
+* `0x14151` (the *cast* path's damage clamp) is never reached with `GAME2`, and
+  `0x13C10` hits only twice — the party's `Attack` actions go through
+  `0x14546` → `0x14740` (melee), not the cast block.  Do not use `0x14151` as a
+  melee probe.
 
 ## BLK-B004 — the round-result printer FOUND (2026-11-17, twenty-first session)
 
