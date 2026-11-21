@@ -120,6 +120,43 @@ How to use each section:
 
 ---
 
+### G-012 — combat round model: four values the port must take as parameters (Lane M)
+
+- **What:** `port/combat.{h,cpp}` implements the derived melee round (see
+  `docs/notes-b.md`, "Fallback melee path 0x14D80"), but four inputs are *not*
+  derived from the disassembly and are therefore explicit parameters, defaulted
+  for the CLI only:
+  1. **`hit_score`** — the prelude's
+     `((attack + power + base)/3 [+25% when +0x1a==2]) / +0x55`.  The combat
+     rows' `+0x04` (power), `+0x05` (rank), `+0x07` (defence), `+0x08` (offence)
+     are *read* by the prelude (image `0x13778`..`0x13820`), but the builder
+     that fills them from the character record (the round-setup routine around
+     `0x27F14`) is not decoded.  `--fight` passes `--hit-score` (default 100,
+     "always hits"), which is a *test* value, not a game value.
+  2. **The wielded item** — at image `0x13A43` the engine picks one of two hand
+     slots with `rand(2)` and takes that slot's item damage byte
+     (`[0xafa8]:0xfd5 + 32*item`, i.e. `ItemRecord::damage`).  Which two slots
+     are the "hands" is not decoded, so the port uses damage 0 (bare hands),
+     which is exactly the engine's own fallback (`rand(0)+1 = 1`).
+  3. **`xp_mult`** — the XP award multiplies the damage by
+     `[0xafc6]:0xf37 + victim_combat[+0x2c]` (image `0x1549D`); the table's
+     contents and the `+0x2c` per-monster index are not decoded, so the port
+     uses 1.
+  4. **The W/P/B columns** of the round-result table — the printer is derived
+     (which column takes `*` vs `-` is not), so the round model leaves them
+     false.
+- **Status:** OPEN.  Each is isolated behind a named field
+  (`MeleeInputs::hit_score`, `::weapon_damage`, `::xp_mult`,
+  `CombatRoundRow::w/p/b`), so clearing any one is a local change.
+- **To clear it:** decode the round-setup builder at `0x27F14` (fills the combat
+  rows), the hand-slot pair, and the `[0xafc6]` table; then the printer's W/P/B
+  sources (the three `*`/`-` draws in `0x1867D`..`0x189F6`).
+- **Also not derived:** the row state for a party member with *no live target*
+  (all defenders down).  The engine's loop simply finds no target; the port
+  prints "Passed" rather than "Failed", because "Failed" is the miss flag
+  (`[0xafd6]:[record+0x3d48] == 1`, image `0x14295`), which an attack that never
+  ran cannot set.
+
 ## C. Owner-authorised guesses
 
 *(none)*

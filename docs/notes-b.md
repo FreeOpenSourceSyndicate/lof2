@@ -1675,11 +1675,88 @@ Messages: normal `<name> hits <target> for N .` (`0x6901`, `0x6908`, `0x6930`,
 victim's combat record `+0x37 == 0x15` and the weapon's item byte `+0xfdb`
 is `0x0d` (`0x14A2B`..`0x14A61`).
 
-**HP writes found so far:** the kill's `victim[+0x0a] = 0` (`0x142D1`) and
-`dec word record[+0x22]` / `dec word [bp+6][+0x0a]` at `0x15822`/`0x15834`
-(a one-point-at-a-time block that is **not reached** with `GAME2`).  Where the
-melee tail applies the multi-point damage is still open — that is the next
-thing to read (`0x14B4A`..`0x14D80`), together with the `0x159F8` monster entry.
+**HP writes:** the kill's `victim[+0x0a] = 0` (`0x142D1`), the weapon path's
+`sub word victim[+0x0a],ax` (`0x14C88`) and the fallback path's
+`sub word victim[+0x0a],ax` (`0x1547E`) — see the next section.  The
+`dec word record[+0x22]` / `dec word [bp+6][+0x0a]` pair at
+`0x15822`/`0x15834` is a one-point-at-a-time block that is **not reached** with
+`GAME2`.
+
+### Fallback melee path — `0x14D80` (derived 2026-11-20, closes the damage question)
+
+The trace settles which branch a real attack takes.  `LOF_TRACE_IP=24840:24a60`
+(linear `0x24840` = image `0x14740`) with the standard script prints, for every
+member, exactly:
+
+```
+14740 14743 14746 14748 1474C 14751 14756 14758 -> 14943 14947 14949 -> 14D80
+```
+
+i.e. `record[+0x16] == 0xff` for all six `GAME2` characters, so the weapon block
+is **skipped** and the attack lands in the fallback path at `0x14D80`.  That is
+where the multi-point damage is applied:
+
+```
+14D80: clear ten words at [bp-0x20]                  ; per-attack damage array
+       n = (record[+0x5d] + record[+0x56]) / record[+0x55]   ; attacks this round
+       for i = 0 .. min(n,10)-1:                     ; 0x14F58 / 0x14F5D cap
+         dmg = 0
+         if record[+0x10] != -1 -> 0x14EC4: dmg = rand(word record[+0x14] / +0x55) + 1
+         else if [bp-0x38] >= 0: dmg = [0xafa8]:0xfd5 + 32*slot_item   ; weapon byte
+         dmg = rand(dmg) + 1
+         str = record[+0x45] / record[+0x55] + record[+0x5e]
+         if str > 15: dmg += str - 15
+         roll = rand(100) + 1
+         if record[+0x27] / record[+0x55] >= roll:
+             dmg += (record[+0x5f] + record[+0x17]) * (dmg / 10)
+         roll = rand(100) + 1
+         if roll >= [bp-0x2e] -> miss (no entry in the array, no success)
+         else  damage[i] = dmg; successes++
+14F70: total = sum(damage[0..9])                     ; the whole round's damage
+14F84: if record32[+0x4e] < 100:                      ; 32-bit percentage
+           scale = 100 / record32[+0x4e]              ; 32-bit divide helper 0x1E62
+           total *= scale; successes *= scale
+           if total == 0 -> 1; if successes == 0 -> 1
+15060: successes /= record[+0x55]
+15070: if total > 99 -> 99                            ; hard damage cap
+1507B: if [bp-0x4a] == 0 -> total = successes = 0
+1508B: if [bp-0x38] >= 0 and victim_combat[+0x37] == 0x15 -> backstab block
+15478: victim[+0x0a] -= total                         ; the HP write
+1549D: attacker[+0x6c] += total * [0xafc6]:0xf37+victim_combat[+0x2c]  ; 32-bit XP
+```
+
+So `[bp-0x2e]` is the **hit score** (the prelude's
+`((attack+power+base)/3 [+25% when +0x1a==2]) / +0x55`, image
+`0x13778`..`0x13820`), the round makes up to **ten** attack rolls per character,
+and each roll is an independent hit test — this is why the prelude's
+`rand(100)+1 >= [bp-0x2e] -> 0x15822` branch looked like a one-point block: it
+is the *single*-attack path, taken when the ten-attack loop yields nothing.
+
+`record[+0x55]` is **1 for every shipped character** (measured in the capture),
+so the divisors are inert; `+0x4e` is 100 for all six (no percentage scaling).
+
+Measured `GAME2` inputs (from `/tmp/round_in.mem`, character base `5C92:3794`):
+
+| member | lvl `+0x17` | `+0x27` | str `+0x45` | `+0x4e` | `+0x55` | spd `+0x56` | `+0x5d` | `+0x5e` | `+0x5f` | `+0x16` |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Decker | 1 | 9 | 19 | 100 | 1 | 1 | 0 | 0 | 0 | 0xFF |
+| Siegurd | 0 | 0 | 0 | 100 | 1 | 4 | 0 | 0 | 0 | 0xFF |
+| Handy | 1 | 5 | 19 | 100 | 1 | 1 | 0 | 0 | 0 | 0xFF |
+| Merlin | 1 | 5 | 17 | 100 | 1 | 1 | 0 | 0 | 0 | 0xFF |
+| Cassandra | 1 | 5 | 11 | 100 | 1 | 1 | 0 | 0 | 0 | 0xFF |
+| Assanla | 1 | 6 | 13 | 100 | 1 | 1 | 0 | 0 | 0 | 0xFF |
+
+So `GAME2`'s round is: 1 attack each (Siegurd 4), damage 1 + `max(0, str-15)`
+(Decker/Handy 5, Merlin 3, others 1), no skill bonus (skill 5..9 vs `rand(100)`),
+hit score from the prelude.
+
+**Implemented** in `port/combat.{h,cpp}` (`CombatRng`, `melee_round`,
+`resolve_round`) with `tests/combat_test.cpp` pinning the generator sequence, the
+formula (hand-computed cases), the attack count, the percentage scaling, the
+99 cap and a round.  `lof --fight` runs one round for a save's party and renders
+it with the derived printer; `--ui` wires play → decision → round result → play
+(`C` in play).  Four inputs are still parameters (see GUESSWORK G-012): the hit
+score, the hand-slot weapon pick, the XP multiplier and the W/P/B columns.
 
 ### Traps found while capturing (do not repeat)
 

@@ -19,8 +19,14 @@ EGA_DECODE_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I p
     -o ega_decode_test tests/ega_decode_test.cpp port/gfx.cpp && \
     ./ega_decode_test; rc=$$?; rm -f ega_decode_test; exit $$rc
 
+# (Maintainer — combat) the derived melee formula, generator and round model.
+COMBAT_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port \
+    -o combat_test tests/combat_test.cpp port/combat.cpp && \
+    ./combat_test; rc=$$?; rm -f combat_test; exit $$rc
+
 LOCAL_TEST_CMDS = \
     ( $(DUNGEON_TEST) ) && \
     ( $(CHAR_TEST) ) && \
     ( $(EGA_DECODE_TEST) ) && \
+    ( $(COMBAT_TEST) ) && \
     ( python3 tests/saves_test.py )
