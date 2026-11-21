@@ -1609,6 +1609,55 @@ monster path at `0x159F8`, the quick loop at `0x17BAA`, and the W/P/B array
 writes.  With the row layout and the prelude now pinned, these can be derived
 one at a time and checked against the same capture technique.
 
+### Damage chain, kill path and miss flag (verified 2026-11-20)
+
+`[bp-0x2e]` is the **damage**, not a hit score: after the 25/50 % scaling it is
+adjusted by the character's `+0x1a == 2` (+25 %, `0x14112`) and then divided by
+`record[+0x55]` (`0x1413E`).  `[bp-0x48]` starts as that damage and is clamped to
+the victim's current HP (`0x14151`: `if victim[+0x0a] < [bp-0x48] then
+[bp-0x48] = victim[+0x0a]`).  The **same** value is then compared with
+`roll = rand(100)+1` at `0x14290` — so the engine's "to hit" is
+`damage >= roll`, which is why a strong party hits almost always.
+
+Branches after `0x14290`:
+
+* **miss** (`0x14295`): print `ds:0x68f3` `", but misses."` and set
+  `[0xafd6]:[record+0x3d48] = 1` — this byte is the source of the round table's
+  `Attack` column (`Failed`).
+* **kill** (`0x142C2`): if the damage equals the victim's remaining HP →
+  `victim[+0x0a] = 0`, `victim[+0x00] = 0` (row emptied), the per-group counter
+  `[0xafca]:0x3d48 + 3*group` is decremented, and the rewards are paid:
+  `[0xafcc]:0x3740 += rand([0x5ee8 + 2*victim[+0x46]]) + 1` (gold),
+  `[0xafd0]:0x16e += victim[+0x31]` (score),
+  `attacker_record[+0x6c] += victim[+0x44]` (experience).
+* **hit, survives** (`0x1443C`): prints `" and hits "`/`" hits "`, `"for "`, the
+  number, then multiplies by the damage-type factor
+  `[0xafc6]:0xf37 + target_combat_record[+0x2c]` (`0x144DD`).
+
+Messages read from the file (`ds` = `0x4C92`, so file = `ds_operand + 0x41D10`):
+`0x68E7` `" shoots at "`, `0x68F3` `", but misses."`, `0x6901` `" hits "`,
+`0x6908`/`0x692B` `"for "`, `0x6920` `" and hits "`, `0x6935` `"."`.
+
+Two HP write sites: `0x15822` `dec word record[+0x22]` (one point, followed by
+`dec word attacker_row[+0x0a]` at `0x15834` — the branch that has not been
+reached yet) and the kill's `victim[+0x0a] = 0`.
+
+### Traps found while capturing (do not repeat)
+
+* The character records are at the **far pointer stored at `[ds:0xafa6]:0x30`**
+  (`les bx,DWORD PTR es:0x30`), not at `[0xafa6]+0x30`; in the shipped build it
+  is `5C92:3794`.  Reading `0x468E:0x30` as an offset yields garbage.
+* At the resolution entry for the standard script
+  (`0x18,0x03,0x50,0x48,0x2e,0x1e,0x02,0x20,0x2e`) the actions are
+  `Decker = 0` (Defends), the other five `= 1` (Attacks) — so actions *are* set.
+* **The melee damage clamp is not reached with `GAME2`.**  Measured: `0x13C10`
+  (the `record[+0x0f] == 4` cast branch) hits twice, `0x14151` (the clamp)
+  never.  The capture also shows `word record[+0x10]` is `0xFFFF` for Decker,
+  Handy, Merlin, Cassandra, Assanla and `0x0000` for Siegurd (whose
+  `+0x142 + 2*n` table is empty), so the `0x1385B`..`0x138D1` "auto-cast" scan
+  is **not** the explanation for the other four.  Next step: trace the region
+  `0x13D00`..`0x14160` on one member to find the actual divergence (the block
+  that computes `[bp-0x2e]` at `0x14112`..`0x14144` is entered from above it).
 
 ## BLK-B004 — the round-result printer FOUND (2026-11-17, twenty-first session)
 
