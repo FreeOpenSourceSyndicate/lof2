@@ -783,4 +783,33 @@ uint8_t defense_from_items(const CharSheet& c) {
     return (uint8_t)total;
 }
 
+namespace {
+
+// The engine's item-scan helper (image 0x21D2): the first inventory slot at or
+// after `from` whose item's class byte equals `cls`; -1 when none.
+int find_slot_of_class(const CharSheet& c, int cls, int from) {
+    for (int s = from; s < (int)kCharInvCount; ++s) {
+        if (c.inv[s].item == 0) continue;
+        const ItemRecord* it = item_by_index(c.inv[s].item);
+        if (it && it->item_class == cls) return s;
+    }
+    return -1;
+}
+
+}  // namespace
+
+WeaponSlots weapon_slots(const CharSheet& c) {
+    WeaponSlots w;
+    w.slot[0] = find_slot_of_class(c, 1, 0);            // 0x1398B, class 1
+    if (w.slot[0] < 0) w.slot[0] = find_slot_of_class(c, 5, 0);  // 0x13A15
+    if (w.slot[0] < 0) return w;
+    w.slot[1] = find_slot_of_class(c, 1, w.slot[0] + 1);         // 0x139AA
+    for (int h = 0; h < 2; ++h) {
+        if (w.slot[h] < 0) continue;
+        const ItemRecord* it = item_by_index(c.inv[w.slot[h]].item);
+        w.damage[h] = it ? it->damage : 0;
+    }
+    return w;
+}
+
 }  // namespace lofport

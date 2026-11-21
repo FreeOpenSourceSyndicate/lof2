@@ -440,6 +440,43 @@ static int real_data() {
     assert(defense_from_items(decode_char(roster[7].raw.data())) == 20);
     assert(defense_from_items(connar) == 10);
 
+    // Weapon hand slots (image 0x1398B..0x13A5D): the scan takes the first
+    // class-1 (melee) item, then the next class-1 item as the second hand, and
+    // falls back to class 5 (staff) when there is no melee weapon at all.
+    {
+        int melee1 = -1, melee2 = -1, staff = -1;
+        for (size_t i = 1; i <= items().size(); ++i) {
+            const ItemRecord* it = item_by_index((int)i);
+            if (!it) continue;
+            if (it->item_class == 1) {
+                if (melee1 < 0) melee1 = (int)i;
+                else if (melee2 < 0) melee2 = (int)i;
+            } else if (it->item_class == 5 && staff < 0) {
+                staff = (int)i;
+            }
+        }
+        assert(melee1 > 0 && melee2 > 0 && staff > 0);
+
+        CharSheet w = siegurd;               // empty inventory
+        assert(!weapon_slots(w).has_weapon());
+
+        w.inv[0].item = (uint8_t)melee1;     // one melee weapon
+        WeaponSlots ws = weapon_slots(w);
+        assert(ws.slot[0] == 0 && ws.slot[1] == -1);
+        assert(ws.damage[0] == item_by_index(melee1)->damage);
+
+        w.inv[2].item = (uint8_t)melee2;     // both hands
+        ws = weapon_slots(w);
+        assert(ws.slot[0] == 0 && ws.slot[1] == 2);
+        assert(ws.damage[1] == item_by_index(melee2)->damage);
+
+        CharSheet s2 = siegurd;              // staff fallback, no second hand
+        s2.inv[1].item = (uint8_t)staff;
+        ws = weapon_slots(s2);
+        assert(ws.slot[0] == 1 && ws.slot[1] == -1);
+        assert(ws.damage[0] == item_by_index(staff)->damage);
+    }
+
     // Profession (+0x1b): an index into kProfessionNames; the display routine
     // (image 0x2FB4A) rejects values > 0x0b, and the init routine seeds 0x0c
     // ("no profession"), so 12 must map to an empty name.  Verified against the

@@ -40,9 +40,20 @@ MeleeResult melee_round(CombatRng& rng, const MeleeInputs& in) {
     if (attacks < 0) attacks = 0;
     out.attacks = attacks;
 
+    // The hand pick is made once per round, before the attack loop (0x13A43),
+    // and only when both hands hold a weapon.
+    int weapon = in.weapon_damage;
+    if (weapon < 0) {
+        weapon = 0;
+        if (in.weapon_slot[0] >= 0)
+            weapon = (in.weapon_slot[1] >= 0 && rng.below(2) == 1)
+                         ? in.weapon_damage_slot[1]
+                         : in.weapon_damage_slot[0];
+    }
+
     int total = 0;
     for (int i = 0; i < attacks; i++) {
-        int dmg = rng.below(in.weapon_damage) + 1;             // 0x14DFA
+        int dmg = rng.below(weapon) + 1;                        // 0x14DFA
         int str = in.str45 / divisor + in.mod5e;               // 0x14E29
         if (str > 15) dmg += str - 15;                         // 0x14E3E
         int roll = rng.below(100) + 1;                         // 0x14E63

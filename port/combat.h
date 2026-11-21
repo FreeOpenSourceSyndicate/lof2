@@ -46,7 +46,12 @@ enum CombatAction : uint8_t {
 // bytes (or item-table bytes) with the offsets the engine reads.
 struct MeleeInputs {
     int hit_score = 0;      // prelude: ((atk+power+base)/3 [+25% if +0x1a==2]) / +0x55
-    int weapon_damage = 0;  // ItemRecord::damage of the wielded item (0 = bare hands)
+    int weapon_damage = -1;  // < 0: use the hand slots below
+    // The two hand slots the engine's weapon scan finds (image 0x1398B) and
+    // their item damage bytes.  When both are filled `rand(2)` picks the hand
+    // that attacks, once per round (0x13A43).
+    int weapon_slot[2] = {-1, -1};
+    int weapon_damage_slot[2] = {0, 0};  // ItemRecord::damage of the wielded item (0 = bare hands)
     int speed56 = 0;        // +0x56  speed (1..4)
     int attacks5d = 0;      // +0x5d  extra attacks
     int divisor55 = 1;      // +0x55  attack divisor (1 for every shipped character)

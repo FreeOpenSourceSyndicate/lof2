@@ -384,8 +384,11 @@ Progress:
       `resolve_round`); `--fight [hp[:count]]` prints one round for a save's
       party and renders it through the *same* `--round-result` printer (pinned
       byte-identical by the test), and `--ui` wires play → decision → round
-      result → play.  Four inputs are still parameters, not derived (hit score,
-      hand-slot weapon pick, XP multiplier, W/P/B columns) — GUESSWORK G-012.
+      result → play.  The weapon damage is the engine's own scan
+      (`weapon_slots()`: class-1 items in either hand, `rand(2)` hand pick,
+      class-5 staff fallback) and the hit score is derived from the combat rows
+      (`hit_score()`).  Two inputs are still parameters (the XP multiplier's
+      per-monster index and the W/P/B columns) — GUESSWORK G-012.
       Guarded by `tests/combat_test.cpp` (`make test`) and
       `tests/port_fight_test.py`.
 

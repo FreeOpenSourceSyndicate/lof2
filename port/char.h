@@ -885,6 +885,24 @@ uint32_t weight_base(const CharSheet& c);
 // authoritative.  Use this helper when +0x1e may be stale.
 uint8_t defense_from_items(const CharSheet& c);
 
+// The two "hand" weapon slots and their damage bytes, as the melee prelude
+// selects them (image 0x1398B..0x13A5D, 0x14DC6..0x14DF7):
+//
+//   slot[0] = first inventory slot holding an item of class 1 (melee),
+//             falling back to class 5 (staff) when there is none;
+//   slot[1] = the *next* slot after slot[0] holding a class-1 item (the second
+//             hand) — -1 when there is only one;
+//   damage  = ItemRecord::damage of that slot's item.
+//
+// When both hands hold a weapon the engine draws `rand(2)` once per round to
+// pick the hand that attacks (`0x13A43`); see `port/combat.cpp`.
+struct WeaponSlots {
+    int slot[2] = {-1, -1};
+    int damage[2] = {0, 0};
+    bool has_weapon() const { return slot[0] >= 0; }
+};
+WeaponSlots weapon_slots(const CharSheet& c);
+
 // char +0x1d as derived from the Dexterity at +0x46 by the routine at 1BA40: a
 // character below Dexterity 16 keeps 10; from 16 up it is 5*dex - 65 (dex 16 ->
 // 15, 19 -> 30).  Verified against every live save character.

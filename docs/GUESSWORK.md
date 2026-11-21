@@ -134,15 +134,24 @@ How to use each section:
      that fills them from the character record (the round-setup routine around
      `0x27F14`) is not decoded.  `--fight` passes `--hit-score` (default 100,
      "always hits"), which is a *test* value, not a game value.
-  2. **The wielded item** — at image `0x13A43` the engine picks one of two hand
-     slots with `rand(2)` and takes that slot's item damage byte
-     (`[0xafa8]:0xfd5 + 32*item`, i.e. `ItemRecord::damage`).  Which two slots
-     are the "hands" is not decoded, so the port uses damage 0 (bare hands),
-     which is exactly the engine's own fallback (`rand(0)+1 = 1`).
-  3. **`xp_mult`** — the XP award multiplies the damage by
-     `[0xafc6]:0xf37 + victim_combat[+0x2c]` (image `0x1549D`); the table's
-     contents and the `+0x2c` per-monster index are not decoded, so the port
-     uses 1.
+  2. **The wielded item** — **DERIVED 2026-11-21.**  The prelude's item scan
+     (`0x1398B`..`0x13A5D`) walks the inventory with the engine's helper
+     `0x21D2(char, class, from)`: first a **class 1 (melee)** item, then the
+     next class-1 item (the second hand), falling back to **class 5 (staff)**
+     when there is no melee weapon.  With both hands filled it draws `rand(2)`
+     once per round to pick the hand (`0x13A43`); the damage is that slot's
+     item `damage` byte (`ItemRecord::damage`, `[0xafa8]:0xfd5 + 32*item`) and
+     the roll is `rand(damage)+1` (`0x14DF0`/`0x14DFA`).  Implemented as
+     `weapon_slots()` (`port/char.cpp`) + the hand pick in `melee_round`
+     (`port/combat.cpp`).
+  3. **`xp_mult`** — the XP award multiplies the damage by the **byte table at
+     `[0xafc6]:0xf37`** indexed by `victim_combat[+0x2c]` (image `0x15493`
+     `mov bl, es:[bx+si+0x2c]` / `0x1549D` `mov al, es:[bx+0xf37]` / `0x154A4`
+     `mul word [bp-0x48]`), accumulated into the attacker's 32-bit `+0x6c`
+     (`0x154C0`).  Measured contents (`4c92:0f37`): `76,1,2,4,8,10,10,12,14,18,
+     20,20,25,...`.  The per-monster `+0x2c` byte belongs to the **0x11a-byte
+     combat record**, which is built from the `NSC` record by a routine that is
+     not yet decoded, so the port still uses 1.
   4. **The W/P/B columns** of the round-result table — the printer is derived
      (which column takes `*` vs `-` is not), so the round model leaves them
      false.

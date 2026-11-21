@@ -3,6 +3,8 @@
 // The formulas are transcribed from LOF.EXE (see port/combat.h and
 // docs/notes-b.md).  Every expected value below is computed by hand from the
 // disassembly, not from the implementation.
+#include <cassert>
+
 #include "combat.h"
 
 #include <cstdio>
@@ -218,6 +220,42 @@ static void test_hit_score() {
     check(hit_score(a2, t2, 0, 1) == 1, "hit score clamps to 1");
 }
 
+// The hand pick (image 0x13A43): with both hands filled the round draws
+// rand(2) once and uses that hand's damage; with one hand it draws nothing.
+static void test_hand_pick() {
+    MeleeInputs in;
+    in.attacks5d = 1; in.speed56 = 0; in.divisor55 = 1;
+    in.str45 = 10; in.mod5e = 0; in.mod5f = 0; in.level17 = 0;
+    in.skill27 = 0; in.pct4e = 100; in.hit_score = 100;
+
+    // One hand: identical to the fixed-damage override for the same value.
+    MeleeInputs one = in;
+    one.weapon_damage = -1;
+    one.weapon_slot[0] = 3; one.weapon_damage_slot[0] = 6;
+    MeleeInputs fixed = in;
+    fixed.weapon_damage = 6;
+    CombatRng a; a.seed = 1;
+    CombatRng b; b.seed = 1;
+    assert(melee_round(a, one).damage == melee_round(b, fixed).damage);
+
+    // Both hands: the extra rand(2) shifts the sequence, so the same seed gives
+    // a different roll than the single-hand case.
+    MeleeInputs two = one;
+    two.weapon_slot[1] = 5; two.weapon_damage_slot[1] = 1;
+    CombatRng c; c.seed = 1;
+    CombatRng d; d.seed = 1;
+    int one_dmg = melee_round(c, one).damage;
+    int two_dmg = melee_round(d, two).damage;
+    assert(one_dmg != two_dmg);
+
+    // Swapping which hand holds which weapon changes the damage taken.
+    MeleeInputs swap = two;
+    swap.weapon_damage_slot[0] = 1;
+    swap.weapon_damage_slot[1] = 6;
+    CombatRng e; e.seed = 1;
+    assert(melee_round(e, swap).damage != two_dmg);
+}
+
 int main() {
     test_rng();
     test_single_attack();
@@ -226,12 +264,13 @@ int main() {
     test_attack_count();
     test_pct_and_cap();
     test_hit_score();
+    test_hand_pick();
     test_round();
     if (failures) {
         fprintf(stderr, "combat_test: %d failure(s)\n", failures);
         return 1;
     }
     printf("combat_test: ok (rng sequence, melee formula, attack count, pct, cap, "
-           "hit score, round)\n");
+           "hit score, hand pick, round)\n");
     return 0;
 }

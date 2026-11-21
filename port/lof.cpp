@@ -801,7 +801,13 @@ static std::vector<Combatant> build_party_combatants(const SaveGame& sg,
         k.melee.hit_score = hit_override < 0
                                 ? hit_score(atk, def_row, r[0x1a], k.melee.divisor55)
                                 : hit_override;
-        k.melee.weapon_damage = 0;
+        // The engine's weapon scan: class-1 items in either hand (fallback
+        // class 5), picked with rand(2) per round (image 0x1398B/0x13A43).
+        WeaponSlots w = weapon_slots(decode_char(r));
+        for (int h = 0; h < 2; ++h) {
+            k.melee.weapon_slot[h] = w.slot[h];
+            k.melee.weapon_damage_slot[h] = w.damage[h];
+        }
         k.melee.speed56 = r[0x56];
         k.melee.attacks5d = r[0x5d];
         k.melee.divisor55 = r[0x55] ? r[0x55] : 1;
