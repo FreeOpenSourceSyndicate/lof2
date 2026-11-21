@@ -37,6 +37,7 @@ golden-port:
 	python3 tests/port_encounter_test.py
 	python3 tests/port_decision_test.py
 	python3 tests/port_round_result_test.py
+	python3 tests/port_fight_test.py
 	python3 tests/port_town_test.py
 	python3 tests/port_building_test.py
 	python3 tests/port_inn_test.py
@@ -76,8 +77,8 @@ endif
 
 port: lof vor
 
-lof: port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp port/char.cpp port/dungeon.cpp port/gfx.h port/data.h port/screens.h port/font.h port/char.h port/dungeon.h
-	$(CXX) $(PORT_CFLAGS) -o $@ port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp port/char.cpp port/dungeon.cpp $(PORT_LIBS)
+lof: port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp port/char.cpp port/dungeon.cpp port/combat.cpp port/gfx.h port/data.h port/screens.h port/font.h port/char.h port/dungeon.h port/combat.h
+	$(CXX) $(PORT_CFLAGS) -o $@ port/lof.cpp port/gfx.cpp port/data.cpp port/screens.cpp port/font.cpp port/char.cpp port/dungeon.cpp port/combat.cpp $(PORT_LIBS)
 
 vor: port/vor.cpp port/gfx.cpp port/screens.cpp port/font.cpp port/gfx.h port/screens.h port/font.h
 	$(CXX) $(PORT_CFLAGS) -o $@ port/vor.cpp port/gfx.cpp port/screens.cpp port/font.cpp $(PORT_LIBS)

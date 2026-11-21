@@ -207,7 +207,8 @@ Both accept `--dir DIR`, `--headless`, `--shot FILE.png` (for verification).
 `lof` additionally accepts `--screen NAME` (render one named screen, e.g.
 `--screen CRED`, `--screen UP/MSCR`, `--screen EGA/UP/MENU`), `--play SUB/DPNNN`
 (compose the in-game play screen, see below), `--encounter`, `--decision`,
-`--round-result`, `--ui` (run the interactive front-end, see below) and
+`--round-result`, `--fight` (resolve one derived combat round, see below),
+`--ui` (run the interactive front-end, see below) and
 `--shot-frame N` (which frame of the intro sequence `--shot` captures;
 default = last).
 
@@ -366,6 +367,27 @@ Progress:
       `cs:0x1414` via `lcall 0x18d:0x175a`).  Two font cells were missing and
       are now mapped: `:` = CHR1 band 1 cell 37, `*` = band 1 cell 30
       (`tests/font_test.cpp`).
+
+- [x] Combat **round model** (`--fight`, and `C` in `--ui`): the engine's melee
+      round, transcribed from the fallback path at image `0x14D80` (the branch
+      every shipped `GAME2` attack actually takes: `record[+0x16] == 0xff` for
+      all six, verified with `LOF_TRACE_IP=24840:24a60`).  Per attacker it rolls
+      `min(10, (record[+0x5d]+record[+0x56])/record[+0x55])` attacks; each is
+      `rand(weapon damage)+1` + `max(0, str/+0x55 + +0x5e - 15)`, plus
+      `(+0x5f + level) * (dmg/10)` when `rand(100)+1 <= +0x27/+0x55`, then a hit
+      test `rand(100)+1 < hit_score`; the hits are summed, scaled by
+      `100/record32[+0x4e]` when that is below 100, divided by `+0x55`, **capped
+      at 99**, and applied with `sub word victim[+0x0a],ax` (`0x1547E`) plus the
+      XP award `+= dmg * [0xafc6]:0xf37+victim[+0x2c]`.  The generator is the
+      MS-C LCG at `0x30ECC` (`seed*0x343FD+0x269EC3`, output `>>16 & 0x7FFF`).
+      `port/combat.{h,cpp}` implements it (`CombatRng`, `melee_round`,
+      `resolve_round`); `--fight [hp[:count]]` prints one round for a save's
+      party and renders it through the *same* `--round-result` printer (pinned
+      byte-identical by the test), and `--ui` wires play → decision → round
+      result → play.  Four inputs are still parameters, not derived (hit score,
+      hand-slot weapon pick, XP multiplier, W/P/B columns) — GUESSWORK G-012.
+      Guarded by `tests/combat_test.cpp` (`make test`) and
+      `tests/port_fight_test.py`.
 
 ### Font / text rendering (decoded)
 

@@ -9,6 +9,7 @@
 #include "font.h"
 #include "char.h"
 #include "dungeon.h"
+#include "combat.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -761,6 +762,70 @@ static bool walk_apply_key(Dungeon& d, DungeonPos& p, int key) {
 // are presented through an SDL window; without SDL2 there is no input source,
 // so the loop exits immediately (headless builds still exercise the composition
 // code through the scripted entry points --screen/--play/--shot).
+// Build the combat rows for a save's party.  The per-character inputs are the
+// record bytes the melee routine reads (port/combat.h); the two values the
+// engine derives elsewhere are taken as parameters: `hit_score` is the
+// prelude's ((attack+power+base)/3 [+25%]) / +0x55 built from the combat rows'
+// +0x04/+0x05/+0x07/+0x08 bytes (the builder that fills them is not derived),
+// and the weapon damage byte is 0 because the engine picks the wielded item
+// from one of two hand slots at random (0x13A43) and that choice is not
+// derived.  With no weapon the engine takes the fallback path at 0x14D80,
+// which is exactly what melee_round() implements.
+static std::vector<Combatant> build_party_combatants(const SaveGame& sg, int hit_score) {
+    std::vector<Combatant> v;
+    for (size_t i = 0; i < sg.chars.size() && i < 6; i++) {
+        const SaveChar& c = sg.chars[i];
+        if (!c.present) continue;
+        const uint8_t* r = c.raw.data();
+        Combatant k;
+        k.marker = 2;
+        k.index = (int)i;
+        k.name = c.name;
+        k.group = 0;
+        k.hp = r[0x22] | (r[0x23] << 8);
+        k.max_hp = r[0x20] | (r[0x21] << 8);
+        k.action = r[0x0f];
+        k.target = r[0x0e];
+        k.exp = (uint32_t)r[0x6c] | ((uint32_t)r[0x6d] << 8) |
+                ((uint32_t)r[0x6e] << 16) | ((uint32_t)r[0x6f] << 24);
+        k.melee.hit_score = hit_score;
+        k.melee.weapon_damage = 0;
+        k.melee.speed56 = r[0x56];
+        k.melee.attacks5d = r[0x5d];
+        k.melee.divisor55 = r[0x55] ? r[0x55] : 1;
+        k.melee.skill27 = r[0x27];
+        k.melee.str45 = r[0x45];
+        k.melee.mod5e = r[0x5e];
+        k.melee.mod5f = r[0x5f];
+        k.melee.level17 = r[0x17];
+        int pct = r[0x4e] | (r[0x4f] << 8);
+        k.melee.pct4e = pct > 0 ? pct : 100;
+        k.melee.xp_mult = 1;  // victim-side table byte; not derived
+        v.push_back(k);
+    }
+    return v;
+}
+
+// The defenders for a synthetic encounter: `count` identical rows of `hp`.
+static std::vector<Combatant> build_defenders(int count, int hp) {
+    std::vector<Combatant> v;
+    for (int i = 0; i < count; i++) {
+        Combatant d;
+        d.marker = 1;
+        d.index = 12;  // SYST/NSC00 record 12 (Mercenary), the pinned encounter
+        d.name = "Mercenary";
+        d.group = 0;
+        d.hp = d.max_hp = hp;
+        d.action = kActAttack;
+        d.melee.hit_score = 100;
+        d.melee.speed56 = 1;
+        d.melee.divisor55 = 1;
+        d.melee.xp_mult = 1;
+        v.push_back(d);
+    }
+    return v;
+}
+
 static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                    const std::string& save_path, const std::vector<int>& keys,
                    const std::string& shot) {
@@ -768,7 +833,14 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
     win.open("Legend of Faerghail", 320, 200);
     win.script(keys);
     std::string err;
-    enum { INTRO, PLAY } state = INTRO;
+    // PLAY -> DECISION -> RESULT -> PLAY is the engine's combat entry: the
+    // decision prompt (image 0x1810E) then the round resolution (0x17982) and
+    // its table.  `C` in play opens a round against the pinned Mercenary group.
+    enum { INTRO, PLAY, DECISION, RESULT } state = INTRO;
+    Screen combat_screen;
+    std::vector<Combatant> combat_party, combat_monsters;
+    CombatRng combat_rng;
+    combat_rng.seed = 1;
     size_t frame = 0;
     Screen play_screen;
     bool have_play = false;
@@ -788,6 +860,7 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
     };
     for (;;) {
         if (state == INTRO) win.present(intro[frame]);
+        else if (state == DECISION || state == RESULT) win.present(combat_screen);
         else if (have_play) win.present(play_screen);
         int key = -1; bool quit = false;
         if (!win.wait_key(&key, &quit)) break;   // no SDL: nothing to drive it
@@ -813,14 +886,50 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
             }
         } else if (state == PLAY) {
             if (key == 'Q') break;
+            if (key == 'C' && have_play) {
+                combat_party = build_party_combatants(play_sg, 100);
+                combat_monsters = build_defenders(2, 8);
+                if (!compose_decision_screen(dir, 24, play_sg, true, combat_screen,
+                                             err)) {
+                    fprintf(stderr, "lof: %s\n", err.c_str());
+                    break;
+                }
+                state = DECISION;
+                continue;
+            }
             // Arrow keys walk the party; recompose the viewport after a move.
             if (have_dng && walk_apply_key(dng, pos, key))
                 redraw_play();
+        } else if (state == DECISION) {
+            // Any key commits the round: resolve it, then show the table.
+            RoundResult rr = resolve_round(combat_rng, combat_party, combat_monsters);
+            std::vector<RoundRow> rows;
+            for (const CombatRoundRow& cr : rr.rows) {
+                RoundRow row;
+                row.hp_delta = cr.hp_delta;
+                row.w = cr.w;
+                row.p = cr.p;
+                row.b = cr.b;
+                row.attack = cr.attack;
+                rows.push_back(row);
+            }
+            if (!compose_round_result_screen(dir, 24, play_sg, true, rows,
+                                             combat_screen, err)) {
+                fprintf(stderr, "lof: %s\n", err.c_str());
+                break;
+            }
+            state = RESULT;
+        } else if (state == RESULT) {
+            // The engine returns to the play screen for the next round.
+            redraw_play();
+            state = PLAY;
         }
     }
     win.close();
     if (!shot.empty()) {
-        const Screen& s = have_play ? play_screen : intro[frame];
+        const Screen& s = (state == DECISION || state == RESULT)
+                              ? combat_screen
+                              : (have_play ? play_screen : intro[frame]);
         if (!save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return false; }
     }
     return true;
@@ -1002,6 +1111,10 @@ int main(int argc, char** argv) {
     bool encounter_flag = false;
     bool decision_flag = false;
     bool round_result_flag = false;
+    bool fight_flag = false;
+    int fight_hp = 8, fight_count = 2;
+    int fight_hit_score = 100;
+    uint32_t fight_seed = 1;
     std::vector<EncounterGroup> encounter_groups;
     std::vector<RoundRow> round_rows;
     for (int i = 1; i < argc; i++) {
@@ -1016,6 +1129,22 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
+        else if (std::string(argv[i]) == "--fight") {
+            fight_flag = true;
+            // Optional "hp[:count]" defender spec.
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                unsigned hp = 8, count = 2;
+                int n = sscanf(argv[++i], "%u:%u", &hp, &count);
+                if (n >= 1) fight_hp = (int)hp;
+                if (n >= 2) fight_count = (int)count;
+            }
+        }
+        else if (std::string(argv[i]) == "--seed") {
+            if (i + 1 < argc) fight_seed = (uint32_t)strtoul(argv[++i], nullptr, 0);
+        }
+        else if (std::string(argv[i]) == "--hit-score") {
+            if (i + 1 < argc) fight_hit_score = atoi(argv[++i]);
+        }
         else if (std::string(argv[i]) == "--round-result") {
             round_result_flag = true;
             // Optional "delta:w:p:b:a" row specs (w/p/b 0|1, a 0=Failed
@@ -1107,6 +1236,53 @@ int main(int argc, char** argv) {
         if (have_cursor) draw_cursor(s, cur_x, cur_y);
         if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
         if (!headless) present_sdl(s, "Legend of Faerghail");
+        return 0;
+    }
+    // --fight: resolve one melee round for the save's party against a synthetic
+    // defender group, print the table and (with --shot) render it.  The round
+    // model is the derived one (port/combat.h).
+    if (fight_flag) {
+        std::string err;
+        if (save.empty()) { fprintf(stderr, "lof: --fight needs --save\n"); return 1; }
+        SaveGame sg = load_save(save);
+        if (!sg.ok) { fprintf(stderr, "lof: --fight needs a valid --save\n"); return 1; }
+        std::vector<Combatant> party = build_party_combatants(sg, fight_hit_score);
+        std::vector<Combatant> defenders = build_defenders(fight_count, fight_hp);
+        CombatRng rng;
+        rng.seed = fight_seed;
+        RoundResult rr = resolve_round(rng, party, defenders);
+        printf("round seed=%u defenders=%d hp=%d\n", fight_seed, fight_count, fight_hp);
+        for (size_t i = 0; i < party.size(); i++) {
+            const CombatRoundRow& r = rr.rows[i];
+            printf("  %d %-10s hp %3d/%3d  %+4d  %s\n", (int)i + 1,
+                   party[i].name.c_str(), party[i].hp, party[i].max_hp,
+                   r.hp_delta,
+                   r.attack == 2 ? "out of action"
+                                 : (r.attack == 1 ? "Passed" : "Failed"));
+        }
+        for (const Combatant& d : defenders)
+            printf("  defender %-10s hp %3d/%3d %s\n", d.name.c_str(), d.hp,
+                   d.max_hp, d.hp > 0 ? "" : "(down)");
+        if (!shot.empty()) {
+            std::vector<RoundRow> rows;
+            for (const CombatRoundRow& cr : rr.rows) {
+                RoundRow row;
+                row.hp_delta = cr.hp_delta;
+                row.w = cr.w;
+                row.p = cr.p;
+                row.b = cr.b;
+                row.attack = cr.attack;
+                rows.push_back(row);
+            }
+            int sprite_ch = dungeon_room_art_number(dir, 0, 12);
+            if (sprite_ch < 0) sprite_ch = 24;
+            Screen s;
+            if (!compose_round_result_screen(dir, sprite_ch, sg, true, rows, s, err)) {
+                fprintf(stderr, "lof: %s\n", err.c_str());
+                return 1;
+            }
+            if (!save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
+        }
         return 0;
     }
     if (decision_flag) {
