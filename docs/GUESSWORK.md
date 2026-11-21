@@ -126,7 +126,8 @@ How to use each section:
   `docs/notes-b.md`, "Fallback melee path 0x14D80"), but four inputs are *not*
   derived from the disassembly and are therefore explicit parameters, defaulted
   for the CLI only:
-  1. **`hit_score`** — the prelude's
+  1. **`hit_score`** — **DERIVED 2026-11-21 for the party side** (see below);
+     the entry below records the history.  The prelude's
      `((attack + power + base)/3 [+25% when +0x1a==2]) / +0x55`.  The combat
      rows' `+0x04` (power), `+0x05` (rank), `+0x07` (defence), `+0x08` (offence)
      are *read* by the prelude (image `0x13778`..`0x13820`), but the builder
@@ -145,7 +146,21 @@ How to use each section:
   4. **The W/P/B columns** of the round-result table — the printer is derived
      (which column takes `*` vs `-` is not), so the round model leaves them
      false.
-- **Status:** OPEN.  Each is isolated behind a named field
+- **Progress (2026-11-21):** item 1 is now derived.  The "combat rows" ARE the
+  party-status rows the builder at image `0x27F14` fills (already ported as
+  `party_row()`): `+0x04` = `hp_pct`, `+0x05` = `+0x24` (combat rank),
+  `+0x07` = `attr_a`, `+0x08` = `attr_b` — confirmed against a live capture
+  (party rows and the two Mercenary defender rows).  The prelude at
+  `0x13744`..`0x13806` then gives
+  `base = 120 - 20*(atk_rank + tgt_rank)`, `attack = atk_attr_b - tgt_attr_a`,
+  `power = atk_hp_pct` (each clamped >= 1), `hit = (attack+power+base)/3`,
+  `hit += hit/4` when `+0x1a == 2`, `hit /= +0x55`.
+  `port/combat.cpp::hit_score()` implements it and `--fight`/`--ui` use it.
+  **Still unverified:** the exact rounding of the `+0x1a` bonus (`hit/4` vs
+  `hit*5/4`) and the sum's final division site (the combination itself is
+  recorded from the previous session's derivation, not re-read instruction by
+  instruction).  Items 2-4 remain open.
+- **Status:** OPEN (items 2-4).  Each is isolated behind a named field
   (`MeleeInputs::hit_score`, `::weapon_damage`, `::xp_mult`,
   `CombatRoundRow::w/p/b`), so clearing any one is a local change.
 - **To clear it:** decode the round-setup builder at `0x27F14` (fills the combat

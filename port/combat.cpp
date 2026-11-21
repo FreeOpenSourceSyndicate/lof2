@@ -12,6 +12,20 @@ int CombatRng::below(int n) {
     return rand15() % n;
 }
 
+int hit_score(const PartyRow& atk, const PartyRow& tgt, int char1a,
+              int divisor55) {
+    int base = 120 - 20 * (int)(atk.body24 + tgt.body24);
+    int attack = (int)atk.attr_b - (int)tgt.attr_a;
+    int power = atk.hp_pct;
+    if (base < 1) base = 1;
+    if (attack < 1) attack = 1;
+    if (power < 1) power = 1;
+    int hit = (attack + power + base) / 3;
+    if (char1a == 2) hit += hit / 4;
+    if (divisor55 > 0) hit /= divisor55;
+    return hit;
+}
+
 // Fallback melee path, image 0x14D80..0x15086.  The engine rolls up to ten
 // attacks (`(record[+0x5d] + record[+0x56]) / record[+0x55]`, hard-capped at
 // ten), sums the ones that beat the prelude's hit score, applies the +0x4e

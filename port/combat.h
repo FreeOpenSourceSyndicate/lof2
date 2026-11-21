@@ -18,6 +18,8 @@
 
 #include <cstdint>
 #include <string>
+
+#include "char.h"
 #include <vector>
 
 namespace lofport {
@@ -62,6 +64,19 @@ struct MeleeResult {
     int hits = 0;     // rolls that beat the hit score
     int damage = 0;   // total damage applied (capped at 99 by the engine)
 };
+
+// The prelude's hit score (image 0x13744..0x13806): with the attacker's and the
+// target's combat rows (the same 12-byte rows the party panel builder at
+// 0x27F14 fills, exposed as `PartyRow`),
+//
+//   base   = 120 - 20 * (atk.body24 + tgt.body24)        ; 0x13756, clamped >= 1
+//   attack = atk.attr_b - tgt.attr_a                     ; 0x13777, clamped >= 1
+//   power  = atk.hp_pct                                  ; 0x1378e, clamped >= 1
+//   hit    = (attack + power + base) / 3                 ; notes-b.md
+//
+// and `hit += hit / 4` when the attacker's +0x1a is 2, then `/ divisor55`.
+int hit_score(const PartyRow& atk, const PartyRow& tgt, int char1a,
+              int divisor55);
 
 // One melee round for one attacker: the fallback path (0x14D80) with the
 // weapon-damage byte of the wielded item.

@@ -771,7 +771,13 @@ static bool walk_apply_key(Dungeon& d, DungeonPos& p, int key) {
 // from one of two hand slots at random (0x13A43) and that choice is not
 // derived.  With no weapon the engine takes the fallback path at 0x14D80,
 // which is exactly what melee_round() implements.
-static std::vector<Combatant> build_party_combatants(const SaveGame& sg, int hit_score) {
+static std::vector<Combatant> build_party_combatants(const SaveGame& sg,
+                                                     int hit_override) {
+    PartyRow def_row;  // the Mercenary row measured in the live capture
+    def_row.hp_pct = 100;
+    def_row.body24 = 1;
+    def_row.attr_a = 236;
+    def_row.attr_b = 20;
     std::vector<Combatant> v;
     for (size_t i = 0; i < sg.chars.size() && i < 6; i++) {
         const SaveChar& c = sg.chars[i];
@@ -788,7 +794,13 @@ static std::vector<Combatant> build_party_combatants(const SaveGame& sg, int hit
         k.target = r[0x0e];
         k.exp = (uint32_t)r[0x6c] | ((uint32_t)r[0x6d] << 8) |
                 ((uint32_t)r[0x6e] << 16) | ((uint32_t)r[0x6f] << 24);
-        k.melee.hit_score = hit_score;
+        // The prelude's hit score, from this member's combat row and the
+        // defender row (defaults: the measured Mercenary row).  `--hit-score`
+        // overrides it for experiments.
+        PartyRow atk = party_row(decode_char(r), (uint8_t)i);
+        k.melee.hit_score = hit_override < 0
+                                ? hit_score(atk, def_row, r[0x1a], k.melee.divisor55)
+                                : hit_override;
         k.melee.weapon_damage = 0;
         k.melee.speed56 = r[0x56];
         k.melee.attacks5d = r[0x5d];
@@ -887,7 +899,7 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
         } else if (state == PLAY) {
             if (key == 'Q') break;
             if (key == 'C' && have_play) {
-                combat_party = build_party_combatants(play_sg, 100);
+                combat_party = build_party_combatants(play_sg, -1);  // derive the hit score
                 combat_monsters = build_defenders(2, 8);
                 if (!compose_decision_screen(dir, 24, play_sg, true, combat_screen,
                                              err)) {
@@ -1113,7 +1125,7 @@ int main(int argc, char** argv) {
     bool round_result_flag = false;
     bool fight_flag = false;
     int fight_hp = 8, fight_count = 2;
-    int fight_hit_score = 100;
+    int fight_hit_score = -1;  // -1: derive it from the combat rows
     uint32_t fight_seed = 1;
     std::vector<EncounterGroup> encounter_groups;
     std::vector<RoundRow> round_rows;

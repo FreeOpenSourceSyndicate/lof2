@@ -202,6 +202,22 @@ static void test_round() {
     check(res2.rows[0].hp_delta == 0, "no damage with no defenders");
 }
 
+// The prelude's hit score (image 0x13744..0x13806), hand-computed.
+static void test_hit_score() {
+    PartyRow atk, tgt;
+    atk.hp_pct = 100; atk.body24 = 0; atk.attr_a = 40; atk.attr_b = 100;
+    tgt.hp_pct = 100; tgt.body24 = 1; tgt.attr_a = 236; tgt.attr_b = 20;
+    // base = 120-20*(0+1) = 100; attack = 100-236 -> 1; power = 100
+    check(hit_score(atk, tgt, 0, 1) == (1 + 100 + 100) / 3, "hit score 67");
+    check(hit_score(atk, tgt, 2, 1) == 67 + 67 / 4, "hit score +25% for +0x1a==2");
+    check(hit_score(atk, tgt, 0, 2) == 67 / 2, "hit score divided by +0x55");
+
+    PartyRow a2, t2;  // every term clamps to 1
+    a2.hp_pct = 0; a2.body24 = 4; a2.attr_a = 0; a2.attr_b = 0;
+    t2.hp_pct = 0; t2.body24 = 4; t2.attr_a = 0; t2.attr_b = 0;
+    check(hit_score(a2, t2, 0, 1) == 1, "hit score clamps to 1");
+}
+
 int main() {
     test_rng();
     test_single_attack();
@@ -209,11 +225,13 @@ int main() {
     test_skill_bonus();
     test_attack_count();
     test_pct_and_cap();
+    test_hit_score();
     test_round();
     if (failures) {
         fprintf(stderr, "combat_test: %d failure(s)\n", failures);
         return 1;
     }
-    printf("combat_test: ok (rng sequence, melee formula, attack count, pct, cap, round)\n");
+    printf("combat_test: ok (rng sequence, melee formula, attack count, pct, cap, "
+           "hit score, round)\n");
     return 0;
 }
