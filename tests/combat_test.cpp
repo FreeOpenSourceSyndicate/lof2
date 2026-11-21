@@ -256,6 +256,19 @@ static void test_hand_pick() {
     assert(melee_round(e, swap).damage != two_dmg);
 }
 
+// The XP table (image 0x1549D, measured at 4c92:0f37) and its bounds.
+static void test_xp_table() {
+    assert(xp_per_damage(0) == 76);
+    assert(xp_per_damage(1) == 1);
+    assert(xp_per_damage(2) == 2);
+    assert(xp_per_damage(3) == 4);
+    assert(xp_per_damage(5) == 10);
+    assert(xp_per_damage(8) == 14);
+    assert(xp_per_damage(12) == 25);
+    assert(xp_per_damage(-1) == 1);   // out of range falls back to 1
+    assert(xp_per_damage(99) == 1);
+}
+
 int main() {
     test_rng();
     test_single_attack();
@@ -265,12 +278,13 @@ int main() {
     test_pct_and_cap();
     test_hit_score();
     test_hand_pick();
+    test_xp_table();
     test_round();
     if (failures) {
         fprintf(stderr, "combat_test: %d failure(s)\n", failures);
         return 1;
     }
     printf("combat_test: ok (rng sequence, melee formula, attack count, pct, cap, "
-           "hit score, hand pick, round)\n");
+           "hit score, hand pick, xp table, round)\n");
     return 0;
 }

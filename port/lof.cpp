@@ -1132,6 +1132,7 @@ int main(int argc, char** argv) {
     bool fight_flag = false;
     int fight_hp = 8, fight_count = 2;
     int fight_hit_score = -1;  // -1: derive it from the combat rows
+    int fight_monster_scen = 0, fight_monster_rec = 12;  // pinned Mercenary
     uint32_t fight_seed = 1;
     std::vector<EncounterGroup> encounter_groups;
     std::vector<RoundRow> round_rows;
@@ -1159,6 +1160,10 @@ int main(int argc, char** argv) {
         }
         else if (std::string(argv[i]) == "--seed") {
             if (i + 1 < argc) fight_seed = (uint32_t)strtoul(argv[++i], nullptr, 0);
+        }
+        else if (std::string(argv[i]) == "--monster") {
+            if (i + 1 < argc) sscanf(argv[++i], "%d:%d", &fight_monster_scen,
+                                     &fight_monster_rec);
         }
         else if (std::string(argv[i]) == "--hit-score") {
             if (i + 1 < argc) fight_hit_score = atoi(argv[++i]);
@@ -1266,6 +1271,22 @@ int main(int argc, char** argv) {
         if (!sg.ok) { fprintf(stderr, "lof: --fight needs a valid --save\n"); return 1; }
         std::vector<Combatant> party = build_party_combatants(sg, fight_hit_score);
         std::vector<Combatant> defenders = build_defenders(fight_count, fight_hp);
+        // The defenders' XP multiplier is their NSC record's +0x2c byte (the
+        // builder at 0x1195A copies the 78-byte record into the combat record,
+        // so +0x2c == stats[6]).  `--monster SCEN:REC` selects the record;
+        // the default is the pinned oracle's Mercenary (NSC00 record 12).
+        {
+            char p[32];
+            snprintf(p, sizeof p, "/SYST/NSC%02d", fight_monster_scen);
+            auto recs = load_nsc(dir + p);
+            if (fight_monster_rec >= 1 &&
+                fight_monster_rec <= (int)recs.size()) {
+                int xm = xp_per_damage(recs[fight_monster_rec - 1].stats[6]);
+                for (Combatant& d : defenders) d.melee.xp_mult = xm;
+            }
+        }
+        std::vector<uint32_t> exp_before;
+        for (const Combatant& m : party) exp_before.push_back(m.exp);
         CombatRng rng;
         rng.seed = fight_seed;
         RoundResult rr = resolve_round(rng, party, defenders);
@@ -1281,6 +1302,10 @@ int main(int argc, char** argv) {
         for (const Combatant& d : defenders)
             printf("  defender %-10s hp %3d/%3d %s\n", d.name.c_str(), d.hp,
                    d.max_hp, d.hp > 0 ? "" : "(down)");
+        for (size_t i = 0; i < party.size(); i++)
+            if (party[i].exp != exp_before[i])
+                printf("  xp %-10s +%u\n", party[i].name.c_str(),
+                       (unsigned)(party[i].exp - exp_before[i]));
         if (!shot.empty()) {
             std::vector<RoundRow> rows;
             for (const CombatRoundRow& cr : rr.rows) {

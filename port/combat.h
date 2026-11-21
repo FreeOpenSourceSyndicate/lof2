@@ -61,7 +61,7 @@ struct MeleeInputs {
     int mod5f = 0;          // +0x5f  attribute modifier
     int level17 = 0;        // +0x17  level
     int pct4e = 100;        // 32-bit +0x4e; < 100 multiplies damage by 100/pct
-    int xp_mult = 0;        // victim's combat record +0x2c -> table byte at [0xf37]
+    int xp_mult = 0;        // xp_per_damage(victim's combat record +0x2c)
 };
 
 struct MeleeResult {
@@ -82,6 +82,18 @@ struct MeleeResult {
 // and `hit += hit / 4` when the attacker's +0x1a is 2, then `/ divisor55`.
 int hit_score(const PartyRow& atk, const PartyRow& tgt, int char1a,
               int divisor55);
+
+// XP awarded per point of damage (image 0x15493..0x154C0):
+//
+//   attacker[+0x6c] += xp_per_damage(victim_combat[+0x2c]) * damage
+//
+// The multiplier is the byte table at `[0xafc6]:0xf37` (measured `4c92:0f37`:
+// `76,1,2,4,8,10,10,12,14,18,20,20,25`), indexed by the victim's combat-record
+// byte +0x2c.  That byte is copied verbatim from the `SYST/NSCnn` record: the
+// builder at image 0x1195A does `rep movsw` of 0x27 words (the whole 78-byte
+// NSC record) into `[0xafc0]:[0x52] + 0x11a*index`, so
+// `combat[+0x2c] == nsc.stats[0x2c - 0x26] == nsc.stats[6]`.
+int xp_per_damage(int combat_record_2c);
 
 // One melee round for one attacker: the fallback path (0x14D80) with the
 // weapon-damage byte of the wielded item.

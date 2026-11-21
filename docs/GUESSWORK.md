@@ -152,6 +152,14 @@ How to use each section:
      20,20,25,...`.  The per-monster `+0x2c` byte belongs to the **0x11a-byte
      combat record**, which is built from the `NSC` record by a routine that is
      not yet decoded, so the port still uses 1.
+     **CLOSED 2026-11-21:** the builder is image **`0x1195A`** — it copies the
+     whole 78-byte `SYST/NSCnn` record into the combat record with
+     `rep movsw` of `0x27` words (`es=[0xafc0]`, `les di, es:[0x52]`,
+     `lea di,[bx+di]` with `bx = 0x11a*index`), so the first 78 bytes of the
+     combat record ARE the NSC record and `+0x2c == nsc.stats[6]`.  Shipped
+     NSC records use `+0x2c` values 1..8.  `port/combat.cpp::xp_per_damage()`
+     carries the measured table and `--fight` takes the index from
+     `--monster SCEN:REC` (default the pinned Mercenary, NSC00 record 12).
   4. **The W/P/B columns** of the round-result table — the printer is derived
      (which column takes `*` vs `-` is not), so the round model leaves them
      false.

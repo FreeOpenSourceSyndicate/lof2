@@ -12,6 +12,17 @@ int CombatRng::below(int n) {
     return rand15() % n;
 }
 
+int xp_per_damage(int combat_record_2c) {
+    // The engine's table at [0xafc6]:0xf37 (see combat.h).  Indices past the
+    // measured 13 bytes are not read by any shipped NSC record (+0x2c <= 8).
+    static const uint8_t kXpPerDamage[] = {76, 1, 2,  4,  8,  10, 10,
+                                           12, 14, 18, 20, 20, 25};
+    if (combat_record_2c < 0 ||
+        combat_record_2c >= (int)(sizeof kXpPerDamage / sizeof kXpPerDamage[0]))
+        return 1;
+    return kXpPerDamage[combat_record_2c];
+}
+
 int hit_score(const PartyRow& atk, const PartyRow& tgt, int char1a,
               int divisor55) {
     int base = 120 - 20 * (int)(atk.body24 + tgt.body24);
