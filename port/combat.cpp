@@ -54,13 +54,16 @@ MeleeResult melee_round(CombatRng& rng, const MeleeInputs& in) {
     // The hand pick is made once per round, before the attack loop (0x13A43),
     // and only when both hands hold a weapon.
     int weapon = in.weapon_damage;
+    int hand = 0;
     if (weapon < 0) {
         weapon = 0;
-        if (in.weapon_slot[0] >= 0)
-            weapon = (in.weapon_slot[1] >= 0 && rng.below(2) == 1)
-                         ? in.weapon_damage_slot[1]
-                         : in.weapon_damage_slot[0];
+        if (in.weapon_slot[0] >= 0) {
+            if (in.weapon_slot[1] >= 0 && rng.below(2) == 1) hand = 1;
+            weapon = in.weapon_damage_slot[hand];
+        }
     }
+    bool in_break_hand = false;
+    (void)in_break_hand;
 
     int total = 0;
     for (int i = 0; i < attacks; i++) {
@@ -74,6 +77,9 @@ MeleeResult melee_round(CombatRng& rng, const MeleeInputs& in) {
         if (hit_roll < in.hit_score) {                         // 0x14F0D
             total += dmg;
             out.hits++;
+            // 0x15852: the wielded weapon may break on a landed hit.
+            int f0 = in.weapon_f0[hand];
+            if (f0 >= 0 && f0 >= rng.below(100) + 1) out.weapon_broken = true;
         }
     }
 
@@ -116,6 +122,7 @@ RoundResult resolve_round(CombatRng& rng, std::vector<Combatant>& party,
     for (const auto& m : party) before.push_back(m.hp);
     std::vector<int> connected(party.size(), 0);  // damage dealt per member
     std::vector<int> engaged(party.size(), 0);    // had a live target
+    std::vector<int> broke(party.size(), 0);      // weapon broke (the W column)
 
     // Party phase: every live member whose action is Attack.
     for (size_t i = 0; i < party.size(); i++) {
@@ -130,6 +137,7 @@ RoundResult resolve_round(CombatRng& rng, std::vector<Combatant>& party,
         MeleeResult r = melee_round(rng, in);
         tgt->hp -= r.damage;
         m.exp += (uint32_t)(r.damage * in.xp_mult);
+        broke[i] = r.weapon_broken;
         connected[i] = r.damage;
         if (tgt->hp <= 0) res.defenders_down++;
     }
@@ -149,6 +157,7 @@ RoundResult resolve_round(CombatRng& rng, std::vector<Combatant>& party,
     for (size_t i = 0; i < party.size(); i++) {
         CombatRoundRow& row = res.rows[i];
         row.hp_delta = party[i].hp - before[i];
+        row.w = broke[i] != 0;
         if (before[i] <= 0)
             row.attack = 2;                       // out of action
         else if (party[i].action != kActAttack)

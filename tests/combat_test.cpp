@@ -269,6 +269,35 @@ static void test_xp_table() {
     assert(xp_per_damage(99) == 1);
 }
 
+// The weapon-break check (image 0x15852..0x15899): after a landed hit the
+// engine rolls rand(100)+1 and breaks the weapon when item f0 >= the roll.
+static void test_weapon_break() {
+    MeleeInputs in;
+    in.attacks5d = 4; in.speed56 = 0; in.divisor55 = 1;
+    in.str45 = 10; in.mod5e = 0; in.mod5f = 0; in.level17 = 0;
+    in.skill27 = 0; in.pct4e = 100; in.hit_score = 100;
+    in.weapon_damage = 6;                 // fixed damage: no hand pick draw
+
+    MeleeInputs never = in;               // f0 0 can never reach a roll of 1
+    never.weapon_f0[0] = 0;
+    CombatRng a; a.seed = 7;
+    assert(!melee_round(a, never).weapon_broken);
+
+    MeleeInputs always = in;              // f0 100 >= every possible roll
+    always.weapon_f0[0] = 100;
+    CombatRng b; b.seed = 7;
+    assert(melee_round(b, always).weapon_broken);
+
+    MeleeInputs off = in;                 // -1 disables the check entirely
+    off.weapon_f0[0] = -1;
+    CombatRng c; c.seed = 7;
+    assert(!melee_round(c, off).weapon_broken);
+    // A held weapon always costs the roll, even when it cannot break, so the
+    // sequence (and hence the damage) differs from the disabled case.
+    CombatRng d; d.seed = 7;
+    assert(melee_round(d, off).damage != melee_round(a, never).damage);
+}
+
 int main() {
     test_rng();
     test_single_attack();
@@ -279,6 +308,7 @@ int main() {
     test_hit_score();
     test_hand_pick();
     test_xp_table();
+    test_weapon_break();
     test_round();
     if (failures) {
         fprintf(stderr, "combat_test: %d failure(s)\n", failures);

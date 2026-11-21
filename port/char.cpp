@@ -808,6 +808,7 @@ WeaponSlots weapon_slots(const CharSheet& c) {
         if (w.slot[h] < 0) continue;
         const ItemRecord* it = item_by_index(c.inv[w.slot[h]].item);
         w.damage[h] = it ? it->damage : 0;
+        w.f0[h] = it ? it->f0 : -1;
     }
     return w;
 }

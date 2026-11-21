@@ -390,8 +390,9 @@ Progress:
       (`hit_score()`), and the XP award is `xp_per_damage(NSC+0x2c) * damage`
       (the builder at `0x1195A` copies the 78-byte NSC record into the combat
       record, so `+0x2c == nsc.stats[6]`).  Defender rows are built from the
-      same record by `defender_row()` (builder `0x27A1E`).  One input is still a
-      parameter (the W/P/B columns) — GUESSWORK G-012.
+      same record by `defender_row()` (builder `0x27A1E`), and the `W` column
+      is the derived weapon-break check (`weapon_f0` / `weapon_broken`,
+      `0x15852`).  `P`/`B` are still parameters — GUESSWORK G-012.
       Guarded by `tests/combat_test.cpp` (`make test`) and
       `tests/port_fight_test.py`.
 

@@ -160,6 +160,22 @@ How to use each section:
      NSC records use `+0x2c` values 1..8.  `port/combat.cpp::xp_per_damage()`
      carries the measured table and `--fight` takes the index from
      `--monster SCEN:REC` (default the pinned Mercenary, NSC00 record 12).
+  3b. **The `W` column — DERIVED 2026-11-21.**  Image `0x15849`..`0x15975`
+     (the landed-hit path): if the attacker holds a weapon (`[bp-0x38] >= 0`)
+     the engine rolls `rand(100)+1` (`0x15852`), reads the wielded item's `+0x10`
+     byte (`mov cl, es:[bx+0xfcc]`, `0x1588E`) and, when that byte is `>=` the
+     roll, prints "Unfortunately, the weapon … is not durable enough, and
+     breaks with a loud bang!", sets the round's `W` flag at
+     `[0xafdc]+0x5608+2*index` and zeroes the slot's condition byte
+     (`char[+0x85 + 4*slot] = 0`, `0x15975`).  Implemented as
+     `MeleeInputs::weapon_f0` / `MeleeResult::weapon_broken` /
+     `CombatRoundRow::w`; the roll is taken on every landed hit while a weapon
+     is held (so the RNG sequence matches), and `-1` disables it.
+  3c. **`P` (shield/armour damaged) and `B` (ability improved) — still open.**
+     `P` is the paired `sub …+0x85, 2` on the shield (`[bp-0x30]`) / armour
+     (`[bp-0x3e]`) slots (`0x17658`/`0x1777A`) plus the rust variant
+     (`0x17290`); `B` is the three ability messages (`0x12846`, `0x13D7D`,
+     `0x1471C`).  Their guards are not decoded, so the port leaves both false.
   4. **The defender rows** (`+0x258 + 72*group + 12*member`) — **DERIVED
      2026-11-21.**  Builder at image `0x27A1E`: `row[+0x01]` = monster index,
      `+0x02` = `combat[+0x4c]`, `+0x04` = `100*hp/(8*combat[+0x2c])`,

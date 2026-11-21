@@ -892,13 +892,16 @@ uint8_t defense_from_items(const CharSheet& c);
 //             falling back to class 5 (staff) when there is none;
 //   slot[1] = the *next* slot after slot[0] holding a class-1 item (the second
 //             hand) — -1 when there is only one;
-//   damage  = ItemRecord::damage of that slot's item.
+//   damage  = ItemRecord::damage of that slot's item;
+//   f0      = ItemRecord::f0, the durability rating the break check uses
+//             (image 0x1588E `mov cl, es:[bx+0xfcc]`).
 //
 // When both hands hold a weapon the engine draws `rand(2)` once per round to
 // pick the hand that attacks (`0x13A43`); see `port/combat.cpp`.
 struct WeaponSlots {
     int slot[2] = {-1, -1};
     int damage[2] = {0, 0};
+    int f0[2] = {-1, -1};   // item +0x10, the break-check rating (see below)
     bool has_weapon() const { return slot[0] >= 0; }
 };
 WeaponSlots weapon_slots(const CharSheet& c);

@@ -815,6 +815,7 @@ static std::vector<Combatant> build_party_combatants(const SaveGame& sg,
         for (int h = 0; h < 2; ++h) {
             k.melee.weapon_slot[h] = w.slot[h];
             k.melee.weapon_damage_slot[h] = w.damage[h];
+            k.melee.weapon_f0[h] = w.f0[h];
         }
         k.melee.speed56 = r[0x56];
         k.melee.attacks5d = r[0x5d];
@@ -1309,11 +1310,12 @@ int main(int argc, char** argv) {
         printf("round seed=%u defenders=%d hp=%d\n", fight_seed, fight_count, fight_hp);
         for (size_t i = 0; i < party.size(); i++) {
             const CombatRoundRow& r = rr.rows[i];
-            printf("  %d %-10s hp %3d/%3d  %+4d  %s\n", (int)i + 1,
+            printf("  %d %-10s hp %3d/%3d  %+4d  %s  WPB=%d%d%d\n", (int)i + 1,
                    party[i].name.c_str(), party[i].hp, party[i].max_hp,
                    r.hp_delta,
                    r.attack == 2 ? "out of action"
-                                 : (r.attack == 1 ? "Passed" : "Failed"));
+                                 : (r.attack == 1 ? "Passed" : "Failed"),
+                   r.w ? 1 : 0, r.p ? 1 : 0, r.b ? 1 : 0);
         }
         for (const Combatant& d : defenders)
             printf("  defender %-10s hp %3d/%3d %s\n", d.name.c_str(), d.hp,

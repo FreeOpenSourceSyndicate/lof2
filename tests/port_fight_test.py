@@ -43,23 +43,27 @@ def parse(out):
     for line in out.splitlines():
         m = re.match(r"\s+(\d) (\S+)\s+hp\s+(-?\d+)/(\s*\d+)\s+([+-]\d+)\s+(\S.*)$", line)
         if m:
+            wpb = re.search(r"WPB=(\d)(\d)(\d)", line)
+            status = re.sub(r"\s*WPB=\d\d\d$", "", m.group(6))
             rows.append({
+                "wpb": tuple(int(x) for x in wpb.groups()) if wpb else (0, 0, 0),
                 "idx": int(m.group(1)),
                 "name": m.group(2),
                 "hp": int(m.group(3)),
                 "max": int(m.group(4)),
                 "delta": int(m.group(5)),
-                "status": m.group(6).strip(),
+                "status": re.sub(r"\s*WPB=\d\d\d$", "", m.group(6)).strip(),
             })
     return rows
 
 
 def spec(rows):
-    """`delta:w:p:b:a` specs for --round-result (w/p/b are 0 here)."""
+    """`delta:w:p:b:a` specs for --round-result, using the round's own W/P/B."""
     out = []
     for r in rows:
         a = {"Failed": 0, "Passed": 1}.get(r["status"], 2)
-        out.append(f"{r['delta']}:0:0:0:{a}")
+        w, p, b = r.get("wpb", (0, 0, 0))
+        out.append(f"{r['delta']}:{w}:{p}:{b}:{a}")
     return out
 
 

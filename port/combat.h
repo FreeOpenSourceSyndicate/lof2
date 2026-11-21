@@ -62,9 +62,15 @@ struct MeleeInputs {
     int level17 = 0;        // +0x17  level
     int pct4e = 100;        // 32-bit +0x4e; < 100 multiplies damage by 100/pct
     int xp_mult = 0;        // xp_per_damage(victim's combat record +0x2c)
+    // Break check (image 0x15852..0x15899): after a hit lands the engine rolls
+    // rand(100)+1 and breaks the wielded weapon when the item's +0x10 byte
+    // (`f0`) is >= the roll, setting the round's `W` flag and the slot's
+    // condition byte to 0.  -1 disables the check (tests / no weapon).
+    int weapon_f0[2] = {-1, -1};
 };
 
 struct MeleeResult {
+    bool weapon_broken = false;  // the W flag (see MeleeInputs::weapon_f0)
     int attacks = 0;  // attack rolls made
     int hits = 0;     // rolls that beat the hit score
     int damage = 0;   // total damage applied (capped at 99 by the engine)
