@@ -4,6 +4,7 @@
 // record layout and field decoding.  When the game data is present it also
 // checks the real SYST/SPEC0 and ROST/ROST files against known values.
 #include "char.h"
+#include "data.h"
 
 #include <cassert>
 #include <cstdio>
@@ -475,6 +476,27 @@ static int real_data() {
         ws = weapon_slots(s2);
         assert(ws.slot[0] == 1 && ws.slot[1] == -1);
         assert(ws.damage[0] == item_by_index(staff)->damage);
+    }
+
+    // Defender rows (builder 0x27A1E): the row is copied field by field from
+    // the monster's combat record, i.e. the 78-byte SYST/NSC00 record.
+    {
+        auto recs = load_nsc(std::string(dir) + "/SYST/NSC00");
+        assert(recs.size() > 12);
+        const SnsRecord& merc = recs[12];           // "Mercenary"
+        assert(merc.singular == "Mercenary");
+        assert(merc.stats[6] == 2);                 // +0x2c, the XP index
+        PartyRow d = defender_row(merc, 0, 8, 8);
+        assert(d.body24 == 1);                      // +0x05 = group + 1
+        assert(d.attr_a == merc.stats[7]);          // +0x07 = record +0x2d = 20
+        assert(d.attr_a == 20);
+        assert(d.attr_b == merc.stats[8]);          // +0x08 = record +0x2e = 100
+        assert(d.attr_b == 100);
+        assert(d.attr_c == merc.stats[10]);         // +0x09 = record +0x30
+        assert(d.hp_cur == 8);
+        assert(d.hp_pct == 50);                     // 100*8 / (8*2)
+        PartyRow g2 = defender_row(merc, 1, 16, 16);
+        assert(g2.body24 == 2 && g2.hp_pct == 100);
     }
 
     // Profession (+0x1b): an index into kProfessionNames; the display routine

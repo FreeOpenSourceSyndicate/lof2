@@ -812,4 +812,19 @@ WeaponSlots weapon_slots(const CharSheet& c) {
     return w;
 }
 
+PartyRow defender_row(const SnsRecord& rec, int group, int hp, int hp_max) {
+    PartyRow r;
+    r.index = 0;
+    r.hp_pct = rec.stats[0x2c - 0x26] ? (uint8_t)(100 * hp / (8 * rec.stats[0x2c - 0x26]))
+                                      : 0;
+    r.body24 = (uint8_t)(group + 1);
+    r.hp_mod = rec.stats[0x39 - 0x26] ? 0x32 : 0;
+    r.attr_a = rec.stats[0x2d - 0x26];
+    r.attr_b = rec.stats[0x2e - 0x26];
+    r.attr_c = rec.stats[0x30 - 0x26];
+    r.hp_cur = (uint16_t)hp;
+    (void)hp_max;
+    return r;
+}
+
 }  // namespace lofport

@@ -984,6 +984,8 @@ SaveGame load_save(const std::string& path);
 // One member's row in the party-status display block the town/play loop builds
 // (segment [0xb0b0], at es:[si+0x179..0x184]).  Reproduced byte-for-byte from
 // the builder at image offset 0x2D436; see `CharSheet::hp_pct()` etc.
+struct SnsRecord;
+
 struct PartyRow {
     uint8_t  index    = 0;  // +0x179  party index (the builder also writes it
                             //   at +0x177; +0x176 is the constant in-use marker 2)
@@ -998,6 +1000,30 @@ struct PartyRow {
 
 // Project a decoded character into its party-status row.
 PartyRow party_row(const CharSheet& c, uint8_t index);
+
+// Project one defender into its combat row.  The defender row builder is image
+// 0x27A1E (per group `[bp-0x34]`, per member `[bp-0x3a]`, row address
+// `0x48*group + 12*member` added to the row base +0x258); it copies the
+// monster's *combat record* (the 78-byte `SYST/NSCnn` record, see
+// `xp_per_damage`) field by field:
+//
+//   row +0x00 = 1                        marker ("defender")
+//   row +0x01 = the monster index        (the encounter's per-group id list)
+//   row +0x02 = combat[+0x4c]
+//   row +0x04 = 100 * hp / (8 * combat[+0x2c])      (0x27B27..0x27B35)
+//   row +0x05 = group + 1                            (0x27A6F)
+//   row +0x06 = 0, +0x32 when combat[+0x39] != 0     (0x27B60/0x27B98; the
+//              live capture reads 236 there, so a later write also lands on
+//              this byte — it is not read by the hit score)
+//   row +0x07 = combat[+0x2d]                        (0x27AA9)
+//   row +0x08 = combat[+0x2e]                        (0x27ABF)
+//   row +0x09 = combat[+0x30]                        (0x27AD5)
+//   row +0x0a = hp (word)                            (0x27B00/0x27B09)
+//
+// `hp`/`hp_max` are the monster's rolled hit points (the word the builder
+// reads from the monster instance), so `hp_pct` here is the builder's own
+// `row[+0x04]`, not a 0..100 percentage.
+PartyRow defender_row(const SnsRecord& rec, int group, int hp, int hp_max);
 
 // Project a whole save's live party (slots with `present == 1`, in order).
 std::vector<PartyRow> party_status(const SaveGame& sv);

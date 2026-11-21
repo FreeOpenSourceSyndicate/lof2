@@ -160,6 +160,16 @@ How to use each section:
      NSC records use `+0x2c` values 1..8.  `port/combat.cpp::xp_per_damage()`
      carries the measured table and `--fight` takes the index from
      `--monster SCEN:REC` (default the pinned Mercenary, NSC00 record 12).
+  4. **The defender rows** (`+0x258 + 72*group + 12*member`) — **DERIVED
+     2026-11-21.**  Builder at image `0x27A1E`: `row[+0x01]` = monster index,
+     `+0x02` = `combat[+0x4c]`, `+0x04` = `100*hp/(8*combat[+0x2c])`,
+     `+0x05` = group+1, `+0x07` = `combat[+0x2d]`, `+0x08` = `combat[+0x2e]`,
+     `+0x09` = `combat[+0x30]`, `+0x0a` = hp.  Implemented as
+     `defender_row()` (`port/char.cpp`); for the Mercenary that is
+     `+0x07` = 20, `+0x08` = 100, `+0x09` = 1, `hp_pct` = 50 at 8 HP — which
+     is exactly what the live capture holds, and it *corrects* the earlier
+     measured constants (the capture's `+0x06` = 236 is written by code that
+     is not decoded yet; the hit score does not read it).
   4. **The W/P/B columns** of the round-result table — the printer is derived
      (which column takes `*` vs `-` is not), so the round model leaves them
      false.

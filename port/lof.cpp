@@ -771,13 +771,21 @@ static bool walk_apply_key(Dungeon& d, DungeonPos& p, int key) {
 // from one of two hand slots at random (0x13A43) and that choice is not
 // derived.  With no weapon the engine takes the fallback path at 0x14D80,
 // which is exactly what melee_round() implements.
+// The encounter's defender row: NSC00 record 12 (the pinned Mercenary), whose
+// combat record the defender-row builder (0x27A1E) copies field by field.
+static PartyRow encounter_defender_row(const std::string& dir, int scen, int rec,
+                                       int hp) {
+    char p[32];
+    snprintf(p, sizeof p, "/SYST/NSC%02d", scen);
+    auto recs = load_nsc(dir + p);
+    if (rec >= 1 && rec <= (int)recs.size())
+        return defender_row(recs[rec - 1], 0, hp, hp);
+    return PartyRow{};
+}
+
 static std::vector<Combatant> build_party_combatants(const SaveGame& sg,
-                                                     int hit_override) {
-    PartyRow def_row;  // the Mercenary row measured in the live capture
-    def_row.hp_pct = 100;
-    def_row.body24 = 1;
-    def_row.attr_a = 236;
-    def_row.attr_b = 20;
+                                                     int hit_override,
+                                                     const PartyRow& def_row) {
     std::vector<Combatant> v;
     for (size_t i = 0; i < sg.chars.size() && i < 6; i++) {
         const SaveChar& c = sg.chars[i];
@@ -905,7 +913,8 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
         } else if (state == PLAY) {
             if (key == 'Q') break;
             if (key == 'C' && have_play) {
-                combat_party = build_party_combatants(play_sg, -1);  // derive the hit score
+                combat_party = build_party_combatants(
+                    play_sg, -1, encounter_defender_row(dir, 0, 12, 8));
                 combat_monsters = build_defenders(2, 8);
                 if (!compose_decision_screen(dir, 24, play_sg, true, combat_screen,
                                              err)) {
@@ -1269,8 +1278,15 @@ int main(int argc, char** argv) {
         if (save.empty()) { fprintf(stderr, "lof: --fight needs --save\n"); return 1; }
         SaveGame sg = load_save(save);
         if (!sg.ok) { fprintf(stderr, "lof: --fight needs a valid --save\n"); return 1; }
-        std::vector<Combatant> party = build_party_combatants(sg, fight_hit_score);
+        // The defender row comes from the NSC record's own combat record
+        // (defender_row(), builder 0x27A1E), so the hit score uses the
+        // engine's data instead of a measured constant.
+        PartyRow def_row = encounter_defender_row(dir, fight_monster_scen,
+                                                 fight_monster_rec, fight_hp);
+        std::vector<Combatant> party =
+            build_party_combatants(sg, fight_hit_score, def_row);
         std::vector<Combatant> defenders = build_defenders(fight_count, fight_hp);
+        for (Combatant& d : defenders) d.melee.xp_mult = 0;
         // The defenders' XP multiplier is their NSC record's +0x2c byte (the
         // builder at 0x1195A copies the 78-byte record into the combat record,
         // so +0x2c == stats[6]).  `--monster SCEN:REC` selects the record;
