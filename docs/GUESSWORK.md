@@ -645,12 +645,12 @@ effect value 34 (lantern) as a light source; recorded under G-004.
   one oracle frame (`ref/oracle/play.png`, cell 745) at 1.0000, but a re-sealed
   save sweep (notes-a Round 50) shows it does **not** hold for other cells:
 
-  | cell | ahead nibble | vs DP001 | vs shipped composite |
-  |------|--------------|----------|----------------------|
-  | 745 (oracle) | 0 | 0.9076 | **0.9926 / 1.0000** |
-  | 636 | 0 | 0.8931 | 0.9463 |
-  | 673 | 0 | **0.9168** | 0.9265 |
-  | 492 | 6 (wall) | 0.7975 | 0.7842 |
+  | cell | DNG10 tile | depth | vs DP001 | vs shipped composite |
+  |------|-----------|-------|----------|----------------------|
+  | 745 (oracle) | 0x00 | 2 | 0.9076 | **0.9926** |
+  | 636 | 0x0c | 3 | 0.8931 | 0.9463 |
+  | 673 | 0x03 | 9 | **0.9168** | 0.9265 |
+  | 492 | 0x0c | 2 | 0.7975 | 0.7842 |
 
   (composite scores use the port's transparent-overlay rule; the 745 column also
   shows the opaque-paste score, which is what the naive comparison used.)
@@ -660,10 +660,10 @@ effect value 34 (lantern) as a light source; recorded under G-004.
   D0 bank; cells 636 and 673 are *closer to bare DP001* than to the 745 piece
   set, so the pieces are not a fixed overlay.
 - **What is not established:** which map property selects the scenery.  The
-  obvious candidate (the ahead cell's tile code) does not separate them: 745,
-  636 and 673 all have an open ahead cell.  The remaining possibilities are the
-  cell's object/feature record, the surrounding tile pattern, or a scenario
-  table.
+  obvious candidate (the ahead cell's tile code) does not separate them: the
+  depth march gives 2, 3 and 9 for 745, 636 and 673 respectively, yet all three
+  draw the base view.  The remaining possibilities are the cell's object/feature
+  record, the surrounding tile pattern, or a scenario table.
 - **Why it is not a normal task yet:** the piece rectangles are identified by
   template match against one frame; there is no decoded rule (Rule 1) and no
   second cell where the *same* piece set is confirmed, so any generalisation

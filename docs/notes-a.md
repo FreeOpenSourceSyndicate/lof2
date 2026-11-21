@@ -2839,14 +2839,22 @@ control that proves the fold is the one being enforced.
 **The sweep.** With sealed patches the emulator renders distinct frames per
 cell, so the outdoor viewport can finally be measured beyond cell 745.
 
-| cell | own tile | ahead nibble | ink | vs DP001 | vs shipped composite |
-|------|----------|--------------|-----|----------|----------------------|
-| 745 (oracle) | 0 | 0 | 14280 | 0.9076 | **0.9926** |
-| 636 | 0 | 0 | 14280 | 0.8931 | 0.9463 |
-| 673 | 0 | 0 | 14280 | **0.9168** | 0.9265 |
-| 492 | 5 | **6 (wall)** | 14280 | 0.7975 | 0.7842 |
-| 529 / 710 | 0 | 0 | 7545 | 0.0057 | 0.0346 |
-| 420 / 457 | 6 (solid) | -- | 14280 | clamped | clamped |
+| cell | DNG10 own tile | depth (march) | ink | vs DP001 | vs shipped composite |
+|------|----------------|---------------|-----|----------|----------------------|
+| 745 (oracle) | 0x00 | 2 | 14280 | 0.9076 | **0.9926** |
+| 636 | 0x0c | 3 | 14280 | 0.8931 | 0.9463 |
+| 673 | 0x03 | 9 | 14280 | **0.9168** | 0.9265 |
+| 492 | 0x0c | 2 | 14280 | 0.7975 | 0.7842 |
+| 529 / 710 | 0x00 | 5 / 1 | 7545 | 0.0057 | 0.0346 |
+| 420 / 457 | (clamped) | -- | 14280 | not that cell's view | -- |
+
+**Correction to the first version of this table.**  It listed an "ahead nibble"
+per cell taken from `GAME  2` bytes `11838..13133`.  That range is **not** the
+tile map: it is the save's own per-cell array, 1256 of whose 1296 cells are
+`0x06`, and it differs from `DNGS/DNG10` in 1188 cells.  The engine opens
+`DNG10` (confirmed with `LOF_I21=1`), so the tile codes and depths above come
+from `DNGS/DNG10`, which is the correct source.  The cell *values* in that save
+array are what the game had written there; do not read them as terrain.
 
 Composite scores use the port's **transparent**-overlay rule (`index 0` leaves
 the base untouched).  A naive opaque paste scores 745 at only 0.9225, so the
@@ -2854,8 +2862,8 @@ transparency rule is load-bearing and must not be dropped.
 
 Two things fall out.
 
-1. **Cells 420 and 457 are solid walls**, so the engine clamps the party and the
-   frame is not that cell's view at all -- they are excluded from the sweep
+1. **Cells 420 and 457 could not be used.**  The engine clamped the party, so
+   the frame is not that cell's view at all; they are excluded from the sweep
    rather than interpreted.
 2. **Facing does not change the frame.** All four facings at cell 745 produce
    byte-identical output, because 745 is open in every direction and nibbles 0
@@ -2864,7 +2872,7 @@ Two things fall out.
 
 **The piece set is NOT cell-independent.** Two independent signs:
 
-- Cell 492 (wall ahead, nibble 6) draws DP001 plus a *different* mid-band.
+- Cell 492 (DNG10 tile `0x0c`, depth 2) draws DP001 plus a *different* mid-band.
   `DP003` at (31,30) and `DP006` at (60,30) are **not present anywhere inside
   DP001** (checked exhaustively), so they are genuine scenery rather than
   texture self-similarity; adding them lifts the match from 0.7975 to 0.9518.
