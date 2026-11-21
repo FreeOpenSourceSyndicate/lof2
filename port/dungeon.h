@@ -23,6 +23,10 @@ constexpr int kDungeonTiles = kDungeonW * kDungeonH;          // 1296
 constexpr int kDungeonObjects = kDungeonW * kDungeonH * 2;    // 2592
 constexpr int kDungeonDecoded = kDungeonHeader + kDungeonTiles + kDungeonObjects;
 
+// Tile-code predicates for stairs.  Declared here because `Dungeon`'s inline
+// accessors use them; the full model is documented further down.
+bool dungeon_is_stair(uint8_t code);
+
 // One dungeon level.
 struct Dungeon {
     // Header bytes: `[h0, h1, h2, h3]` = `[flag, entry_facing, entry_pos_hi,
@@ -41,13 +45,22 @@ struct Dungeon {
     std::vector<uint8_t> tiles;
 
     // 36x36 per-cell object records, two bytes each, in the same row-major
-    // order as `tiles`.  Read as 1296 words, both bytes are meaningful *per
-    // cell*: the low byte is 0 for 99.2% of cells (otherwise 1..4) while the
-    // high byte is 0 for 91% of cells (otherwise 1..245, 206 distinct values).
-    // Both byte layers are spatially coherent on their own (adj/nz 0.69 / 0.58),
-    // unlike the non-interleaved half-planes (0.04 / 0.03), which is why the
-    // records are read as words.  Stored little-endian; use `obj_low`/`obj_code`
-    // for the two bytes.
+    // order as `tiles`.  The record is ONE big-endian word, and its meaning
+    // depends on the tile:
+    //
+    //  * On a stair cell (tile low nibble 4/5) it is the **destination cell**,
+    //    a big-endian row-major index (see `dest_cell()`).  That is why the
+    //    first byte is 0..4 on such cells -- it is the high byte of an index
+    //    below 1296 -- and a naive little-endian read looks like noise.
+    //  * Elsewhere the first byte is 0 or 1 and the second is a small feature
+    //    code: `(0, n)` and `(1, n)` are authored per-cell features (3572 of
+    //    them across the 29 levels, 263 with the first byte 1).  A first byte
+    //    of 2..4 occurs on **no** non-stair cell in any shipped level, which is
+    //    the invariant that separates the two readings.
+    //
+    // Stored as `disk[0] | disk[1] << 8` so `obj_low` is the first byte and
+    // `obj_code` the second; use `dest_cell()` for stairs and `has_feature()`
+    // for everything else rather than interpreting the raw bytes by hand.
     std::vector<uint16_t> objects;
 
     inline uint8_t obj_low(int x, int y) const {
@@ -57,14 +70,21 @@ struct Dungeon {
         return (uint8_t)(object(x, y) >> 8);
     }
 
-    // Destination cell of a stair / portal on this cell, or -1 if the cell has
-    // none.  The two object bytes are a BIG-endian row-major cell index (the
-    // first byte is always 0..4 because the index is < 1296, the second 0..245),
-    // which is exactly how LOF.EXE stores it.  See dungeon_stair_target().
+    // Destination cell of the stair on this cell, or -1 if the cell has none.
+    // The record is a BIG-endian row-major cell index; only stair cells carry
+    // one (see the `objects` comment above).  Use `dungeon_stair_target()` to
+    // get the destination *level* as well.
     inline int dest_cell(int x, int y) const {
+        if (!dungeon_is_stair(tile(x, y))) return -1;
         uint16_t v = object(x, y);
         int c = (int)((v & 0xFF) << 8) | (int)(v >> 8);
         return c == 0 ? -1 : c;
+    }
+
+    // True if this non-stair cell carries an authored feature record.  Stair
+    // cells use their record as a destination instead (see `dest_cell`).
+    inline bool has_feature(int x, int y) const {
+        return !dungeon_is_stair(tile(x, y)) && object(x, y) != 0;
     }
 
     // Party entry cell from the header (see above).
@@ -197,8 +217,9 @@ constexpr uint8_t kTilePortal = 0x0F;
 
 // True if `code` is an up stair (low nibble 4) or a down stair (low nibble 5).
 // The high nibble says where it goes: the destination dungeon number, or 0xF
-// for a portal (whose target comes from the ds:0xa546 table instead).
-bool dungeon_is_stair(uint8_t code);
+// for a portal (whose target comes from the ds:0xa546 table instead).  (Declared
+// above, before `Dungeon`, so its accessors can use it.)
+
 // True if `code` is specifically an up (4) or a down (5) stair.
 bool dungeon_is_up_stair(uint8_t code);
 bool dungeon_is_down_stair(uint8_t code);

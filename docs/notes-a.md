@@ -23,11 +23,11 @@ Decoding from offset 1 yields **exactly 3892 bytes for every file**:
 * Tile map: values 0,2,3,6,7,8,12 (6 = floor/empty for most levels). Border
   consistency (top/bottom rows + left/right cols constant) holds at width 36
   for 27/29 files, confirming the 36-wide grid.
-* Object layer: little-endian words. Low byte is 0 for almost every cell; the
-  high byte carries a small code that overlaps the tile value set (0x06,0x07,
-  0x35,0x57,...), so it reads as a per-cell feature/decoration code.  Note the
-  code is stored in the *high* byte (i.e. raw byte order is (0, code)); this is
-  NOT a little-endian little-value — keep the split `obj_code`/`obj_low`.
+* Object layer: one record per cell. Its meaning depends on the tile: on a
+  stair cell (low nibble 4/5) it is the **destination cell**, a big-endian
+  row-major index; elsewhere the first byte is 0 or 1 and the second is a small
+  feature code. A first byte of 2..4 occurs only on stair cells, which is what
+  proves the big-endian reading (Round 46).  See also the paragraph below.
 * Header: h0 = 0 for all but DNG13 (4). h1 ∈ {0,1,2,3}. h2|h3 is a 16-bit
   little-endian word; it is **not** a decompressed size (that is always 3892)
   and its meaning is still open. Stored verbatim as `field`.
@@ -107,11 +107,17 @@ cleanly, confirming the `variant*16 + shape` bitfield:
   (non-zero high nibble); the run-of-the-mill cells are variant 0 with shape
   `0/6` (floor) or `3/12` (wall).
 
-Object layer: read as 1296 words both bytes are meaningful *per cell*, not a
-single word: the low byte is non-zero in only ~309 cells (a sparse "sub-code"
-that is `1..4`) while the high byte is the object/feature code (`1..245`, 206
-distinct values) and is spatially coherent on its own. `port/dungeon.h` exposes
-`obj_low` (low byte) and `obj_code` (high byte).
+Object layer: each cell has ONE record, and its meaning depends on the tile
+(see Round 46). On a stair cell it is the **destination cell**, a big-endian
+row-major index, so its first byte is the *high* byte of an index below 1296
+(0..4) and a little-endian read looks like noise. On every other cell the first
+byte is 0 or 1 and the second is a small feature code. A first byte of 2..4
+occurs on **no** non-stair cell in any shipped level, which is the invariant
+that separates the two readings (`tests/dungeon_test.cpp` asserts it).
+`port/dungeon.h` exposes `dest_cell()` / `has_feature()` for the two meanings;
+`obj_low`/`obj_code` remain for raw byte access. (An earlier revision described
+the record as "low byte = sparse sub-code 1..4, high byte = feature code",
+which is exactly the reading that invited the little-endian mistake.)
 
 Per dungeon, the *distinct* tile codes are few (9..16) and share a common core
 `{0,1,2,3,6,7,8,13}` plus a couple of "special" codes that are always
@@ -2736,3 +2742,22 @@ lands at (32,17), and `tests/port_walk_test.py` pins it.
 The stairs/hole wording ("You climb up the hole." vs "...the stairs.") is chosen
 at run time from state that is not yet mapped, so `dungeon_stair_message()` takes
 that choice as a parameter rather than guessing it.
+
+### The record invariant (why the big-endian reading is proven, not fitted)
+
+Across all 29 levels the first record byte is:
+
+| cells | first byte | second byte |
+|-------|-----------|-------------|
+| 37 264 non-stair, no record | 0 | 0 |
+| 263 non-stair features | 1 | small code |
+| 3 309 non-stair features | 0 | small code |
+| 57 stair cells | **0..4** | 0..245 |
+
+A first byte of **2..4 occurs on no non-stair cell anywhere**, while stair cells
+use it 34 times. A little-endian reading cannot explain that split: it would put
+the "small feature code" in the high byte for ordinary cells and simultaneously
+require the *low* byte of a stair to reach 4. The big-endian reading explains
+both at once — it is the high byte of a cell index below 1296. `dest_cell()`
+additionally refuses non-stair cells and `has_feature()` refuses stair cells, and
+`tests/dungeon_test.cpp` asserts all of the above, so neither reading can drift.

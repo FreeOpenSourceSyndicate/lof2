@@ -1038,6 +1038,38 @@ static void test_stairs(const std::string& dir) {
             }
         }
     }
+    // --- The record invariant that separates the two readings --------------
+    // Stair records are big-endian cell indices, so their first byte is 0..4.
+    // Feature records are `(0, code)` or `(1, code)`.  A first byte of 2..4
+    // therefore occurs ONLY on stair cells across all 29 levels -- that is what
+    // proves the big-endian reading rather than merely fitting it.  Also check
+    // `dest_cell()` refuses non-stair cells and `has_feature()` the converse.
+    int stair_hi_2plus = 0, feature_hi_1 = 0, feature_total = 0, bad = 0;
+    for (const Dungeon& m : lv) {
+        for (int y = 0; y < kDungeonH; y++) {
+            for (int x = 0; x < kDungeonW; x++) {
+                uint8_t b0 = m.obj_low(x, y);
+                if (dungeon_is_stair(m.tile(x, y))) {
+                    if (b0 >= 2) stair_hi_2plus++;
+                    if (m.has_feature(x, y)) bad++;
+                    continue;
+                }
+                if (b0 >= 2) bad++;
+                if (m.dest_cell(x, y) != -1) bad++;
+                if (m.object(x, y)) {
+                    feature_total++;
+                    if (b0 == 1) feature_hi_1++;
+                }
+            }
+        }
+    }
+    assert(stair_hi_2plus > 0);
+    assert(bad == 0);
+    assert(feature_total > 3000 && feature_hi_1 > 200);
+    std::printf("dungeon_test: object records ok (%d stair records with a high "
+                "byte >= 2, %d feature records, %d with a high byte of 1)\n",
+                stair_hi_2plus, feature_total, feature_hi_1);
+
     // 57 stair cells ship across the 29 levels, 2 of them portals.
     assert(stairs == 57);
     assert(portals == 2);
