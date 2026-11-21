@@ -669,7 +669,13 @@ effect value 34 (lantern) as a light source; recorded under G-004.
   second cell where the *same* piece set is confirmed, so any generalisation
   would be a guess.  The port keeps the measured set and stays pixel-exact for
   the pinned oracle.
-- **To settle it:** decode the outdoor view routine in `analysis/*.asm` (the
-  draw path behind image `0x3B72`) and read which table supplies the scenery
-  sprites and their offsets; or capture a cell where the same piece set is
-  confirmed independently.
+- **Stronger evidence (Round 50b):** the outdoor selection is not a function of
+  the ahead tile at all.  Cells 39 and 42 both face a wall (DNG10 ahead `0x06`)
+  yet render **different** views: cell 39 matches `D0/DP036` at 0.9648 and cell
+  42 matches `CHAR3/CH02` at **1.0000**.  Neither is `DP001` (the fallback) nor
+  `DP060` (the D5 answer).  So the port's D0 path is a documented approximation,
+  exact only for the pinned oracle cell.
+- **To settle it:** locate the outdoor draw routine in `analysis/lof.asm` and
+  read which table supplies the base sprite and the scenery.  Note `0x3B72` is
+  **not** it — that is a data offset passed to the string printer
+  (`0x18d:0x16a8`).

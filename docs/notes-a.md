@@ -2897,3 +2897,31 @@ regardless of bank, so a D0 cell facing a wall named a missing file and
 `render_dungeon_play_view()` failed, dropping the caller to the synthetic map
 viewport.  `dungeon_base_view_index()` now takes the bank as a parameter and
 falls back to DP001 there; `tests/dungeon_test.cpp` pins both banks.
+
+### Round 50b — the outdoor view is NOT selected by the ahead tile
+
+Round 24's tile-code → sprite table was measured on **D5** (the Temple
+tileset).  Applying it to the outdoor bank (D0) is what `dungeon_base_view_index`
+does, and two sealed-patch captures show that is wrong for D0:
+
+| cell | DNG10 own / ahead | ahead nibble | best full-size match |
+|------|-------------------|--------------|----------------------|
+| 39 | 0x00 / 0x06 | **6 (wall)** | `D0/DP036` **0.9648** |
+| 42 | 0x00 / 0x06 | **6 (wall)** | `CHAR3/CH02` **1.0000** |
+
+Two cells in the *same* wall-ahead situation render **different** views, and
+neither is `DP001` (the port's fallback) nor `DP060` (Round 24's D5 answer).
+So for D0 the selection is not a function of the ahead cell at all.  It is
+probably the cell's object/feature record or a per-region "landscape" table —
+the outdoor bank appears to be scenery-picture driven, which also explains why
+the horizon pieces differ per cell (G-013).
+
+**Consequence for the port:** the D0 path is a *documented approximation*, not
+a derived rule.  It is exact for the one oracle cell (745 → DP001 + pieces,
+1.0000) and wrong elsewhere.  It must not be described as derived.  A-6 is
+therefore the real work item and is larger than first estimated (**10–16 h**,
+not 6–10 h): it needs the outdoor draw routine located in `analysis/lof.asm`.
+
+**Method note.** `0x3B72` (cited in the first G-013 draft as the draw path) is a
+**data-table offset** (`b8723b / push ds / push ax / lcall 0x18d,0x16a8` — a
+string printer), not code.  Do not chase it as the renderer.

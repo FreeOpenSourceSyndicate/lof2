@@ -417,6 +417,13 @@ bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax, int& ay)
 // `bank_has_passage_sprites` is false for the outdoor bank (D0), which does not
 // ship DP058..DP060; those nibbles then fall back to DP001 instead of naming a
 // file that is not there.
+//
+// NOTE (Round 50b): for D0 the whole ahead-tile table below is an
+// APPROXIMATION, not a derived rule.  The table was measured on D5 (Round 24);
+// two D0 cells that both face a wall render *different* views (cell 39 ->
+// `D0/DP036` 0.9648, cell 42 -> `CHAR3/CH02` 1.0000), so the outdoor view is
+// not selected by the ahead cell at all.  It is exact for the one pinned oracle
+// cell (745) and approximate elsewhere; see GUESSWORK G-013 / task A-6.
 int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p);
 int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p,
                             bool bank_has_passage_sprites);
