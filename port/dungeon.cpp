@@ -300,6 +300,38 @@ bool dungeon_view_opaque(uint8_t code) {
     }
 }
 
+// The horizon-band side pieces of the outdoor (D0) view, and the base sprite
+// they belong to.  MEASURED on DNG10 cell 745 (25,20) for facing N (the
+// `ref/oracle/play.png` frame) and facing E: both render base `DP001` plus these
+// three pieces, and the set reproduces the 120x119 window pixel-exactly
+// (notes-a.md Rounds 24-25).  When the base resolves to anything else - e.g.
+// looking back at the town, which draws a different bank entirely - the pieces
+// do not appear, which is also measured.  A wider cell sweep is still needed to
+// prove the rule holds beyond this cell, so it is keyed on the base sprite that
+// was actually observed rather than on guessed geometry.
+struct ViewPiece {
+    int index;  // DPnnn number
+    int x;      // window-relative origin
+    int y;
+};
+static const int kOutdoorBaseViewIndex = 1;  // DP001
+static const ViewPiece kOutdoorPieces[] = {
+    {12, 0, 49},
+    {4, 15, 46},
+    {5, 90, 50},
+};
+
+std::vector<DungeonView::Overlay> dungeon_view_overlays(const std::string& dir,
+                                                        int dungeon, int index) {
+    std::vector<DungeonView::Overlay> out;
+    if (dungeon_view_dir(dungeon) != "D0" || index != kOutdoorBaseViewIndex)
+        return out;
+    for (const ViewPiece& piece : kOutdoorPieces)
+        out.push_back({dungeon_view_path(dir, dungeon, piece.index),
+                       kViewportX + piece.x, kViewportY + piece.y});
+    return out;
+}
+
 DungeonView dungeon_view_for(const std::string& dir, int dungeon,
                              const Dungeon& d, const DungeonPos& p) {
     DungeonView v;
@@ -307,6 +339,12 @@ DungeonView dungeon_view_for(const std::string& dir, int dungeon,
     v.path = dungeon_view_path(dir, dungeon, dungeon_base_view_index(d, p));
     v.x = kViewportX;
     v.y = kViewportY;
+
+    // The outdoor (D0) view is a composite: the base sprite plus the measured
+    // horizon-band side pieces, whenever the base resolves to the sprite those
+    // pieces were measured on.
+    v.overlays = dungeon_view_overlays(dir, dungeon,
+                                       dungeon_base_view_index(d, p));
 
     // March the column of cells ahead to the first view-opaque cell.
     int dx = dungeon_facing_dx(p.facing), dy = dungeon_facing_dy(p.facing);
@@ -336,8 +374,10 @@ DungeonView dungeon_view_for(const std::string& dir, int dungeon,
 
 // Blit an EGA image at (dx,dy) clipped to the viewport window, so a sprite whose
 // origin is left of the window (e.g. CH25 at x=-14) cannot spill onto the HUD.
+// With `transparent`, index 0 leaves the destination untouched: the horizon-band
+// side pieces are overlays and their background must not erase the base view.
 static void blit_clipped_to_window(Screen& scr, const EgaImage& img, int dx,
-                                   int dy) {
+                                   int dy, bool transparent = false) {
     int w = img.width_bytes, h = img.height;
     size_t pl = (size_t)w * h;
     for (int y = 0; y < h; y++) {
@@ -355,6 +395,7 @@ static void blit_clipped_to_window(Screen& scr, const EgaImage& img, int dx,
                 int s = 7 - bit;
                 uint8_t val = (uint8_t)(((b0 >> s) & 1) | (((b1 >> s) & 1) << 1) |
                                         (((b2 >> s) & 1) << 2) | (((b3 >> s) & 1) << 3));
+                if (transparent && val == 0) continue;
                 scr.put(sx, sy, val);
             }
         }
@@ -367,6 +408,11 @@ bool render_dungeon_play_view(Screen& scr, const std::string& dir, int dungeon,
     EgaImage img;
     if (!load_ega_image(v.path, img, nullptr)) return false;
     blit_clipped_to_window(scr, img, v.x, v.y);
+    for (const DungeonView::Overlay& ov : v.overlays) {
+        EgaImage piece;
+        if (load_ega_image(ov.path, piece, nullptr))
+            blit_clipped_to_window(scr, piece, ov.x, ov.y, /*transparent=*/true);
+    }
     return true;
 }
 
@@ -429,8 +475,18 @@ bool render_dungeon_screen(Screen& scr, const std::string& dir, int dungeon,
     EgaImage frame;
     if (!load_ega_image(dir + "/EGA/UP/MSCR", frame, nullptr)) return false;
     blit_image(scr, frame, 0, 0);
-    return render_dungeon_view(scr, dungeon_view_path(dir, dungeon, index),
-                               kViewportX, kViewportY);
+    if (!render_dungeon_view(scr, dungeon_view_path(dir, dungeon, index),
+                             kViewportX, kViewportY))
+        return false;
+    // The outdoor base view is a composite, so `--play D0/DP001` must draw the
+    // same side pieces the play loop does.
+    for (const DungeonView::Overlay& ov :
+         dungeon_view_overlays(dir, dungeon, index)) {
+        EgaImage img;
+        if (load_ega_image(ov.path, img, nullptr))
+            blit_clipped_to_window(scr, img, ov.x, ov.y, /*transparent=*/true);
+    }
+    return true;
 }
 
 bool render_dungeon_play(Screen& scr, const std::string& dir, int dungeon,

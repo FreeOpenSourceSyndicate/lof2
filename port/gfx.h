@@ -63,8 +63,11 @@ bool load_ega_image(const std::string& path, EgaImage& out, std::string* err = n
 // multi-plane images is handled by blit_image below.)
 void blit_mask(Screen& scr, const EgaImage& img, int dx, int dy, uint8_t idx);
 
-// Draw the whole multi-plane image as colour indices at (dx,dy).
-void blit_image(Screen& scr, const EgaImage& img, int dx, int dy);
+// Draw the whole multi-plane image as colour indices at (dx,dy).  With
+// `transparent`, index 0 leaves the destination untouched — used for overlay
+// pieces whose background must not erase what is already drawn.
+void blit_image(Screen& scr, const EgaImage& img, int dx, int dy,
+                bool transparent = false);
 
 // Present the screen in an SDL window (blocking until closed) when built with
 // SDL2; otherwise a no-op.  `title` is the window caption.

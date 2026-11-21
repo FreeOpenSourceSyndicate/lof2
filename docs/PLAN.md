@@ -25,7 +25,7 @@ interactions*, and *saving*.
 | Boot → menu | 100 % | 6 | `EGA/UP/MSCR` + `MENU`, font |
 | Town (Thyn, Cyldane) + buildings | 100 % | 10 | inn, shop/emporium, bank, house, temple (+ heal/revive/rest prompts) |
 | DNGS decode (all 29 levels) | 100 % | 5 | tiles + object layer + header |
-| **Dungeon first-person view** | **70 %** | 14 | Temple (`D5`) depth march is pixel-exact; the **outdoor tileset bank (`D0`) composite is not implemented** (0.64 vs oracle) |
+| **Dungeon first-person view** | **85 %** | 14 | Temple (`D5`) depth march is pixel-exact; the **outdoor (`D0`) composite is now pixel-exact** (A-1 done); remaining: the outdoor map-object layer (a pole/tree sprite outside the `D0` bank) and non-`DP001` outdoor bases |
 | **Object/feature semantics** | **25 %** | 8 | door-like signature proven; door/stairs/trap/item dispatch not decoded |
 | **Level transitions (stairs)** | **0 %** | 4 | no stairs/exit handling anywhere |
 | Encounter screen | 100 % | 5 | `SYST/NSCnn` record → `CHAR0/CHnn` |
@@ -47,7 +47,7 @@ Rule 1 forbids guessing.
 
 | # | Task | Est. | Ground truth / next step | Files |
 |---|------|------|--------------------------|-------|
-| **A-1** | **Outdoor viewport rendering (`D0` bank)** — measured: the port blits a single `DP001` (120×119) and scores **0.6385** against the wilderness viewport; no single sprite in `EGA/D0` (63 files) reaches 0.9 at any offset in ±4 px, so the view is **not** one blit. The bank is a perspective ladder (`120×119`, `64×59`, `32×29`, `24×19`, `16×29`, `16×19`, `8×29`, plus `120×11` floor/ceiling bands, `32×119` door frames) — the composition rule must be *measured*, not assumed. | **8–14 h** | `ref/oracle/wilderness.png` is reproduced **byte-exactly** by the emulator (`LOF_KEYAUTO=0x18,0x03,0x50,0x48,0x2e`, 300 frames), so it is a sound target; find each piece by exhaustive match against the bank, then verify per-region | `port/dungeon.{h,cpp}`, `tests/port_dungeon_view_test.py` |
+| **A-1** | ✅ **DONE** — **Outdoor viewport rendering (`D0` bank)**. The outdoor view is a **composite**, not a sprite ladder: base `D0/DP001` at (0,0) plus three horizon-band pieces `DP012`@(0,49), `DP004`@(15,46), `DP005`@(90,50), each blitted with an index-0 transparent mask. Reproduces the 120×119 window of `ref/oracle/play.png` **pixel-exactly (14280/14280)** and the same set is measured at facing E, so the pieces are the fixed horizon band of the outdoor base, not facing-selected scenery. The rule is keyed on the base resolving to `DP001` in the `D0` bank (a tile-geometry predicate was tested and contradicts the measured topology, so it is not used). Shipped through one helper, `dungeon_view_overlays()`, used by the play loop, `--walk` and `--play D0/DPnnn`; `tests/port_play_test.py` now requires the viewport to be pixel-exact. Open measurement: a full outdoor cell sweep to confirm the pieces are cell-independent (notes-a.md Round 25). | **done** | `ref/oracle/play.png`; emulator facing sweep at DNG10 cell 745 | `port/dungeon.{h,cpp}`, `port/gfx.{h,cpp}`, `port/screens.{h,cpp}`, `tests/port_play_test.py` |
 | **A-2** | **Stairs / level transition** — nothing moves the party between `DNGS` levels. Find the tile/object code that descends, decode the destination rule, implement. | **6–10 h** | emulator: walk onto a stair cell, trace which `DNGnn` it opens (`LOF_I21=1`); the `DNG` header `entry_pos` supplies the landing cell | `port/dungeon.{h,cpp}`, `port/lof.cpp` |
 | **A-3** | **Object-code semantics** (doors, stairs, traps, items) — the object layer's high byte is only proven "door-like" by geometry. Decode the dispatcher's per-code behaviour. | **10–16 h** | the event dispatcher at image `0x1F31E` (already partly disassembled in `docs/notes-a.md` Rounds 16); SPEC record `+0xe2` behaviour type | `port/dungeon.{h,cpp}`, `tools/dngs.py` |
 | **A-4** | **G-007 residue** — depth-2/≥3 bank sprite numbers are scenario-5 values. Capture a second scenario's depth-2/≥3 view and read its `CHnn`; table per scenario if it differs. | **3–5 h** | emulator depth sweep on a non-Temple save | `port/dungeon.cpp`, `docs/GUESSWORK.md` G-007 |
@@ -75,13 +75,13 @@ Rule 1 forbids guessing.
 ## 3. Recommended order
 
 1. ~~**M-4** (save position)~~ — **done**, viewport comparisons are now honest.
-2. **A-1** (outdoor viewport) — biggest single visual gap, has a byte-exact
-   oracle, and is squarely Area A.
+2. ~~**A-1** (outdoor viewport)~~ — **done**, viewport pixel-exact (notes-a.md
+   Round 25).
 3. **A-2** (stairs) — without it the dungeons are single-room demos.
 4. **M-1** (save writer) — without it nothing a player does persists.
 5. Then A-3, B-1, A-4/A-5, M-2, M-3, B-2, B-3.
 
-Total remaining effort: **~85–135 agent-hours**.
+Total remaining effort: **~77–125 agent-hours** (A-1's 8–14 h removed).
 
 ---
 

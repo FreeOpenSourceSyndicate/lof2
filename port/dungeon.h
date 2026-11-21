@@ -350,9 +350,24 @@ struct DungeonView {
     std::string path;   // e.g. "<dir>/EGA/D5/DP001"
     int x = kViewportX; // screen blit position
     int y = kViewportY;
+    // Horizon-band side pieces blitted over the base, in order.  The outdoor
+    // view is a composite, not a single sprite: see notes-a.md Round 24.
+    struct Overlay {
+        std::string path;
+        int x;
+        int y;
+    };
+    std::vector<Overlay> overlays;
 };
 DungeonView dungeon_view_for(const std::string& dir, int dungeon,
                              const Dungeon& d, const DungeonPos& p);
+
+// The horizon-band side pieces that overlay a *named* view sprite, in blit
+// order.  Empty for every view except the outdoor (D0) base view, which is a
+// composite (notes-a.md Rounds 24-25).  Path-based so the `--play` / `--screen`
+// renderers draw exactly what the play loop draws.
+std::vector<DungeonView::Overlay> dungeon_view_overlays(const std::string& dir,
+                                                        int dungeon, int index);
 
 // Convenience: blit the dungeon's canonical view sprite (DP001) at (10,11).
 // This is the base first-person view the engine shows on entry; it is verified

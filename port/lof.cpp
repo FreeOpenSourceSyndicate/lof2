@@ -232,6 +232,23 @@ static bool draw_party_and_status(Screen& s, const std::string& dir,
 // tile path (e.g. "D0/DP001"); `sg` supplies the party when `have_sg` is set.
 // The window geometry, background and panel layout were recovered by matching
 // the decoded assets against a DOSBox capture of save slot 2 (ref/oracle/play.png).
+// Parse a `--play` view name ("D0/DP001") into its dungeon number and sprite
+// index.  Returns false when the name is not of that shape, in which case no
+// composite overlays apply.
+static bool parse_view_name(const std::string& play, int& dungeon, int& index) {
+    if (play.size() < 3 || play[0] != 'D') return false;
+    char* end = nullptr;
+    long d = strtol(play.c_str() + 1, &end, 10);
+    if (end == play.c_str() + 1 || d < 0) return false;
+    const char* dp = strstr(end, "/DP");
+    if (!dp) return false;
+    long i = strtol(dp + 3, &end, 10);
+    if (end == dp + 3 || i < 0) return false;
+    dungeon = (int)d;
+    index = (int)i;
+    return true;
+}
+
 static bool compose_play_screen(const std::string& dir, const std::string& play,
                                 const SaveGame& sg, bool have_sg, Screen& s,
                                 std::string& err, bool with_view = true) {
@@ -239,6 +256,16 @@ static bool compose_play_screen(const std::string& dir, const std::string& play,
     s.clear(0);
     if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
     if (with_view && !blit_ega(s, dir + "/EGA/" + play, 10, 11, &err)) return false;
+    // The outdoor view is a composite, so a named view must carry its side
+    // pieces here too (see dungeon_view_overlays).
+    int dungeon = 0, index = 0;
+    if (with_view && parse_view_name(play, dungeon, index)) {
+        for (const DungeonView::Overlay& ov :
+             dungeon_view_overlays(dir, dungeon, index)) {
+            if (!blit_ega(s, ov.path, ov.x, ov.y, &err, /*transparent=*/true))
+                return false;
+        }
+    }
     return draw_party_and_status(s, dir, sg, have_sg, err);
 }
 

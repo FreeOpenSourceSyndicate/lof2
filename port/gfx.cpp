@@ -137,7 +137,8 @@ void blit_mask(Screen& scr, const EgaImage& img, int dx, int dy, uint8_t idx) {
     }
 }
 
-void blit_image(Screen& scr, const EgaImage& img, int dx, int dy) {
+void blit_image(Screen& scr, const EgaImage& img, int dx, int dy,
+                bool transparent) {
     int w = img.width_bytes, h = img.height;
     size_t pl = (size_t)w * h;
     for (int y = 0; y < h; y++) {
@@ -153,6 +154,7 @@ void blit_image(Screen& scr, const EgaImage& img, int dx, int dy) {
                 int s = 7 - bit;
                 uint8_t v = (uint8_t)(((b0 >> s) & 1) | (((b1 >> s) & 1) << 1) |
                                       (((b2 >> s) & 1) << 2) | (((b3 >> s) & 1) << 3));
+                if (transparent && v == 0) continue;
                 scr.put(dx + xb * 8 + bit, sy, v);
             }
         }

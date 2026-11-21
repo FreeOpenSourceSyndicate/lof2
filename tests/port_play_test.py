@@ -33,7 +33,7 @@ SAVE = os.path.join(GAME, "GAMES", "GAME2")
 # save: name, profession, the +0x1e stat number and the "GOOD" status word)
 # matches the DOSBox capture at ~94.2%; the panel is now pixel-exact and the
 # only residue is the engine's dynamic viewport overlays.  Fail below this.
-MIN_MATCH = 0.94
+MIN_MATCH = 0.97
 
 
 def main() -> int:
@@ -55,6 +55,14 @@ def main() -> int:
     match = float((port == oracle).all(2).mean())
     if match < MIN_MATCH:
         print("port_play_test: FAIL (match=%.1f%% < %.0f%%)" % (100 * match, 100 * MIN_MATCH))
+        return 1
+
+    # The viewport must be pixel-exact.  It is a composite of the base view and
+    # three horizon-band side pieces (notes-a.md Rounds 24-25); a regression in
+    # either the base selection or the piece set shows up here immediately.
+    viewport = (slice(11, 130), slice(10, 130))
+    if not (port[viewport] == oracle[viewport]).all():
+        print("port_play_test: FAIL (viewport not pixel-exact)")
         return 1
 
     # The lower-left status box is pinned where the oracle and this save agree:

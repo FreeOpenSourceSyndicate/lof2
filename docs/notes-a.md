@@ -2639,3 +2639,56 @@ piece set other cells/facings select is not yet measured; a position/facing swee
 through the emulator would give the selection rule.  The safe implementation is
 to blit the measured set for the measured view and leave other views on the base
 only until the sweep is done.
+
+## Round 25 — outdoor composite shipped; the sweep narrows the rule
+
+**Result: A-1 is implemented.**  `dungeon_view_overlays()` is now the single
+place that decides the side pieces, and all three render paths (the play loop,
+`--walk`, and `--play D0/DPnnn`) go through it, so they cannot drift apart.
+Measured agreement against `ref/oracle/play.png`:
+
+| path | before | after |
+|------|--------|-------|
+| play loop / `--walk` | viewport 0.9132 | **viewport 1.0000** |
+| `--play D0/DP001` | viewport 0.9132 | **viewport 1.0000** |
+| whole screen | 0.9545 | 0.9739 |
+
+`tests/port_play_test.py` now requires the viewport to be **pixel-exact** and
+the whole-screen floor moved 0.94 -> 0.97, so this cannot regress silently.
+
+### What the sweep measured
+
+Facing sweep at DNG10 cell 745 (25,20), patching the save's facing byte
+(`0x9a6`) and re-running the emulator, gave a second usable ground truth:
+
+- **facing N** (the `play.png` frame): `DP001` + the three pieces, 1.0000.
+- **facing E**: the **same** `DP001` base and the **same** three pieces at the
+  **same** offsets — 0.9926, residual 106 px.  The pieces are therefore *not*
+  facing-selected scenery; they are the fixed horizon band of this outdoor cell.
+- **facing S / W, and cells (25,19) / (25,21)**: these frames are the *town*
+  view, not an outdoor view — no `DP001` base matches (best 0.221, `DP036`), and
+  no `D0` sprite composite reproduces them.  They are a different bank entirely.
+
+The facing-E residual is a narrow vertical object at x=70..82, y=53..70 (a pole
+or tree).  It is **not** any `D0` sprite at any offset, so it is a map object
+drawn from another bank, not part of the horizon composite.  It stays a
+documented gap rather than being faked into the composite.
+
+### Why the rule is keyed on the base sprite, not on geometry
+
+A tile-based predicate (open cells ahead, opaque cells to the sides) was tried
+and **does not match** the measured topology — the cell has `ahead1=0`,
+`ahead2=3`, `E=0`, `W=0`, `behind=7`, so any "walls to the sides" test is false
+exactly where the pieces are observed.  Guessing a predicate that happened to
+fire on this one cell would be a Rule 1 violation.  The shipped rule is the one
+the measurement actually supports: **the pieces belong to the `DP001` outdoor
+base view**, and they are emitted whenever the base resolves to `DP001` in the
+`D0` bank.  Every other base (town, dungeon wall, doorway, passage) gets the
+bare sprite, which is also what the emulator shows for those frames.
+
+### Remaining gap (not a guess, an open measurement)
+
+The rule is measured on one cell at two facings.  A full cell sweep of the
+outdoor map would confirm the pieces are cell-independent; until then the rule
+is stated in terms of what was observed.  Tracked as an open item, not silently
+assumed.
