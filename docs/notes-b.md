@@ -1959,3 +1959,32 @@ flags at `+0x106`/`+0x108`, a flag at `+0x10e`, and two globals
 (`[0xafca]:0x3d48`, `[0xafc2]:0x3de9`).  Transcribing it needs those globals
 identified first — the next session should start by reading what writes
 `[0xafca]` and `[0xafc2]` and what lives at `0x3d48`/`0x3de9`.
+
+### Monster path globals — resolved to one arena segment (2026-11-21)
+
+Every combat segment global points at the **same arena segment** in the live
+capture (`ds = 0x4C92`):
+
+| global | live value |
+|---|---|
+| `[0xafc0]` `[0xafc2]` `[0xafca]` `[0xafa6]` `[0xafb0]` `[0xb082]` `[0xb0ac]` | `0x468E` |
+| `[0xafae]` `[0xafa8]` `[0xafc6]` | `0x4C92` (the data segment) |
+
+None of them has a direct store anywhere in the image (`mov [disp16],reg` /
+`mov [disp16],imm16` / `mov [disp16],es` all absent) — they are static data
+initialised by the loader, so a port never needs to "compute" them.
+
+Therefore `[0xafca]:0x3d48` is `0x468E:0x3D48` and `[0xafc2]:0x3de9` is
+`0x468E:0x3DE9`.  Measured there: the words at `0x3d48` are
+`0,0,0,6,-20,0,4,-394,1,0,-5536,2` (not an obvious table, and the
+`6*attacker[+0x05]` index for group 1 lands on `4`, so the `<= 1` guard at
+`0x15AB0` falls through), and `0x3de9 = 1` (non-zero → the branch at `0x15ACF`
+goes to `0x15B1E`).
+
+Also confirmed from the capture: the defender row at `+0x258` reads
+`1, 12, 1, 0, 50, 1, **236**, 20, 100, 1, 8, 0`.  The encounter-setup builder
+(`0x27A1E`) writes `+0x06` as 0 or `+0x32`, so **236 must come from a later
+write** — the `+0x258` rows are apparently rebuilt when a round starts, by
+code that has not been read yet.  That rebuild is the thing to find before
+porting the monster path, because it may also own the `+0x106`/`+0x108`/
+`+0x10e` fields the monster path tests.
