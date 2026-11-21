@@ -637,7 +637,7 @@ effect value 34 (lantern) as a light source; recorded under G-004.
   ahead codes `0x0/0x2/0x7/0x8/0x9`, because no single `DPnnn` reproduces the
   corridor case.  It is now handled by the depth march instead of a fallback.
 
-### G-007 — the outdoor horizon-band piece set is measured on one cell only
+### G-013 — the outdoor horizon-band piece set is measured on one cell only
 
 - **Status: UNCLEAR — revisit (owner decision likely needed).**  `kOutdoorPieces`
   in `port/dungeon.cpp` (DP012 at (0,49), DP004 at (15,46), DP005 at (90,50)) is

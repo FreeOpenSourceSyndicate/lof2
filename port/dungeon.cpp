@@ -403,7 +403,7 @@ bool dungeon_view_opaque(uint8_t code) {
 // draws a different bank entirely - the pieces do not appear, which is also
 // measured.
 //
-// OPEN (G-007): this set is confirmed on ONE cell.  A re-sealed save sweep
+// OPEN (G-013): this set is confirmed on ONE cell.  A re-sealed save sweep
 // (notes-a.md Round 50) shows other outdoor cells draw a different mid-band,
 // and cells 636/673 are closer to bare DP001 than to this set.  The horizon band
 // is real but its contents are per-cell scenery; the selecting rule is not

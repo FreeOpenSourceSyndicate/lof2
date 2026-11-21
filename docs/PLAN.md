@@ -5,18 +5,24 @@ The authoritative *technical* queue is `docs/HANDOFF.md` §4; open guesses are i
 `docs/GUESSWORK.md`; rules are in `docs/RULES.md`. This file answers three
 questions: **what is left, in what order, how long, and how done are we?**
 
-Last refreshed: 2026-11-08 (session of agent lof2/M-5, sole active agent).
+Last refreshed: 2026-11-21 (session of agent lof2/M-5, sole active agent).
 
 ---
 
-## 1. Overall project completion — ~75 %
+## 1. Overall project completion — ~80 %
 
-Weighted by player-visible subsystem, not by line count. The drop-in already
-boots, shows the intro, reaches the menu, walks a town, visits every building,
+Weighted by player-visible subsystem, not by line count.  The table below sums
+to **81.0 %** (weights total 100); it is rounded to ~80 % because the two largest
+open items — outdoor scenery and the save writer — are the ones most likely to
+hide extra work.  The previous revision said ~75 % while its own table summed to
+78.5 %; the arithmetic is now stated so the figure can be checked.
+
+The drop-in already boots, shows the intro, reaches the menu, walks a town, visits every building,
 walks the Temple dungeon in first person, meets wandering monsters and resolves
-a combat round. What is missing is concentrated in three places: the *outdoor
-(dungeon-tileset) first-person viewport*, *level transitions / object
-interactions*, and *saving*.
+a combat round.  What is missing is concentrated in three places: the *outdoor
+scenery rule* (the view is exact for one cell and approximate elsewhere), the
+*object interactions* beyond stairs (doors, traps, pickups), and *saving* --
+there is still no save writer at all.
 
 | Subsystem | Done | Weight | Notes |
 |---|---|---|---|
@@ -25,9 +31,9 @@ interactions*, and *saving*.
 | Boot → menu | 100 % | 6 | `EGA/UP/MSCR` + `MENU`, font |
 | Town (Thyn, Cyldane) + buildings | 100 % | 10 | inn, shop/emporium, bank, house, temple (+ heal/revive/rest prompts) |
 | DNGS decode (all 29 levels) | 100 % | 5 | tiles + object layer + header |
-| **Dungeon first-person view** | **85 %** | 14 | Temple (`D5`) depth march is pixel-exact; the **outdoor (`D0`) composite is now pixel-exact** (A-1 done); remaining: the outdoor map-object layer (a pole/tree sprite outside the `D0` bank) and non-`DP001` outdoor bases |
-| **Object/feature semantics** | **25 %** | 8 | door-like signature proven; door/stairs/trap/item dispatch not decoded |
-| **Level transitions (stairs)** | **0 %** | 4 | no stairs/exit handling anywhere |
+| **Dungeon first-person view** | **70 %** | 14 | Temple (`D5`) depth march is pixel-exact. The outdoor (`D0`) composite is pixel-exact **for one cell only**; a sealed-patch sweep shows the scenery piece set is overfit (**G-013**), so *scored against the game* this is not 85 % — it is exact on the oracle and approximate elsewhere. Remaining: the scenery-selection rule (A-6) and non-`DP001` outdoor bases |
+| **Object/feature semantics** | **40 %** | 8 | stairs/portals decoded (A-2); door-like signature proven; door/trap/item dispatch not decoded |
+| **Level transitions (stairs)** | **85 %** | 4 | stairs/portals/level changes work and are decompiled (A-2 done, image `0x2e7fa`); open: the non-stair object codes (doors/traps) |
 | Encounter screen | 100 % | 5 | `SYST/NSCnn` record → `CHAR0/CHnn` |
 | Combat (decision → round → result) | 75 % | 12 | melee round derived; spells, quick-combat loop, monster attack path open |
 | Character data (SPEC/ROST/SNSC) | 90 % | 6 | parse + checksum done; char-sheet *screen* not pixel-matched |
@@ -47,11 +53,12 @@ Rule 1 forbids guessing.
 
 | # | Task | Est. | Ground truth / next step | Files |
 |---|------|------|--------------------------|-------|
-| **A-1** | ✅ **DONE** — **Outdoor viewport rendering (`D0` bank)**. The outdoor view is a **composite**, not a sprite ladder: base `D0/DP001` at (0,0) plus three horizon-band pieces `DP012`@(0,49), `DP004`@(15,46), `DP005`@(90,50), each blitted with an index-0 transparent mask. Reproduces the 120×119 window of `ref/oracle/play.png` **pixel-exactly (14280/14280)** and the same set is measured at facing E, so the pieces are the fixed horizon band of the outdoor base, not facing-selected scenery. The rule is keyed on the base resolving to `DP001` in the `D0` bank (a tile-geometry predicate was tested and contradicts the measured topology, so it is not used). Shipped through one helper, `dungeon_view_overlays()`, used by the play loop, `--walk` and `--play D0/DPnnn`; `tests/port_play_test.py` now requires the viewport to be pixel-exact. Open measurement: a full outdoor cell sweep to confirm the pieces are cell-independent (notes-a.md Round 25). | **done** | `ref/oracle/play.png`; emulator facing sweep at DNG10 cell 745 | `port/dungeon.{h,cpp}`, `port/gfx.{h,cpp}`, `port/screens.{h,cpp}`, `tests/port_play_test.py` |
-| **A-2** | **Stairs / level transition** — nothing moves the party between `DNGS` levels. Find the tile/object code that descends, decode the destination rule, implement. | **6–10 h** | emulator: walk onto a stair cell, trace which `DNGnn` it opens (`LOF_I21=1`); the `DNG` header `entry_pos` supplies the landing cell | `port/dungeon.{h,cpp}`, `port/lof.cpp` |
-| **A-3** | **Object-code semantics** (doors, stairs, traps, items) — the object layer's high byte is only proven "door-like" by geometry. Decode the dispatcher's per-code behaviour. | **10–16 h** | the event dispatcher at image `0x1F31E` (already partly disassembled in `docs/notes-a.md` Rounds 16); SPEC record `+0xe2` behaviour type | `port/dungeon.{h,cpp}`, `tools/dngs.py` |
-| **A-4** | **G-007 residue** — depth-2/≥3 bank sprite numbers are scenario-5 values. Capture a second scenario's depth-2/≥3 view and read its `CHnn`; table per scenario if it differs. | **3–5 h** | emulator depth sweep on a non-Temple save | `port/dungeon.cpp`, `docs/GUESSWORK.md` G-007 |
+| **A-1** | ✅ **DONE, with a caveat** — **Outdoor viewport rendering (`D0` bank)**. The outdoor view is a **composite**: base `D0/DP001` plus horizon-band pieces `DP012`@(0,49), `DP004`@(15,46), `DP005`@(90,50), blitted with an index-0 transparent mask (the mask is load-bearing: an opaque paste scores 0.9225 instead of 0.9926). Reproduces the 120×119 window of `ref/oracle/play.png` **pixel-exactly**, shipped through `dungeon_view_overlays()` for the play loop, `--walk` and `--play D0/DPnnn`; `tests/port_play_test.py` requires the viewport to be pixel-exact. **The earlier 'facing E confirms it' claim is retracted** — facing does not change the frame at cell 745 at all. A re-sealed save sweep (notes-a Round 50) shows the piece set is **overfit to the one oracle cell**: cells 636/673 are closer to bare DP001, and cell 492 draws a different mid-band. Filed as **G-013**; the measured set is kept so the oracle stays exact. **Remaining work: decode the scenery-selection rule** (A-6). | **done (one cell)** | `ref/oracle/play.png`; sealed-patch cell sweep | `port/dungeon.{h,cpp}`, `tests/port_play_test.py` |
+| **A-2** | ✅ **DONE** — **Stairs / level transition.** `walk_key()` moves the party between `DNGS` levels; the destination rule, the portal-table index (`location%10`, not the dungeon group) and the stairs/hole wording (`[0x37fe] == 7`) are all decompiled (image `0x2e7fa`). `tests/dungeon_test.cpp` asserts both portals land on a **walkable** cell. | **done** | stair handler `0x2e7fa`; notes-a Round 52 | `port/dungeon.{h,cpp}`, `port/lof.cpp` |
+| **A-3** | **Object-code semantics** (doors, traps, items) — the object layer's high byte is only proven "door-like" by geometry. Stairs/portals are now decoded (A-2); the remaining codes (doors, traps, item pickups) are not. | **8–12 h** | event dispatcher at image `0x1F31E`; SPEC record `+0xe2` behaviour type | `port/dungeon.{h,cpp}`, `tools/dngs.py` |
+| **A-4** | **G-013 residue** — depth-2/≥3 bank sprite numbers are scenario-5 values. Capture a second scenario's depth-2/≥3 view and read its `CHnn`; table per scenario if it differs. | **3–5 h** | emulator depth sweep on a non-Temple save | `port/dungeon.cpp`, `docs/GUESSWORK.md` G-013 |
 | **A-5** | **G-005 mover half** — the wall *set* `{6,13}` is decompiled at the renderer but the step-rejection test is still oracle-derived. Isolate the collision routine. | **4–6 h** | `analysis/lof.asm` move path; the four trail-shift sites are excluded already | `port/dungeon.cpp`, `docs/GUESSWORK.md` G-005 |
+| **A-6** | **Outdoor scenery-selection rule** (the residue of A-1 / **G-013**) — decode what picks the horizon-band scenery for an outdoor cell, so the view stops being exact for one cell only. The ahead-cell tile code does **not** separate the known cells (745/636/673 all have an open ahead cell), so it is the object/feature record or a scenario table. | **6–10 h** | the outdoor draw path in `analysis/*.asm` (behind image `0x3B72`); a second cell where the same piece set is independently confirmed | `port/dungeon.cpp`, `docs/GUESSWORK.md` G-013 |
 
 ### Area M — engine/front-end (shared; mine too as sole agent)
 
@@ -75,13 +82,15 @@ Rule 1 forbids guessing.
 ## 3. Recommended order
 
 1. ~~**M-4** (save position)~~ — **done**, viewport comparisons are now honest.
-2. ~~**A-1** (outdoor viewport)~~ — **done**, viewport pixel-exact (notes-a.md
-   Round 25).
-3. **A-2** (stairs) — without it the dungeons are single-room demos.
+2. ~~**A-2** (stairs)~~ — **done** (notes-a Round 52).
+3. **A-6** (outdoor scenery rule) — the only thing standing between "exact on one
+   cell" and "exact outdoors".  Highest value per hour in Area A now.
 4. **M-1** (save writer) — without it nothing a player does persists.
 5. Then A-3, B-1, A-4/A-5, M-2, M-3, B-2, B-3.
 
-Total remaining effort: **~77–125 agent-hours** (A-1's 8–14 h removed).
+Total remaining effort: **~75–123 agent-hours**.  A-1's main body is done, but its
+residue (A-6, the scenery rule, 6–10 h) is new work that did not exist before the
+sweep — the sweep converted an assumed-done item into a measured partial one.
 
 ---
 
@@ -105,7 +114,12 @@ Total remaining effort: **~77–125 agent-hours** (A-1's 8–14 h removed).
 
 - The completion percentages are estimates of *player-visible* coverage, not a
   proof of correctness; only the subsystems marked 100 % are oracle-verified.
-- Two items are **not** removable by derivation and are tracked as such:
-  the RNG-seeded monster placement (GUESSWORK G-007, closed as
-  not-portable-by-data) and the descriptive item-effect labels (G-004).
+- Three items are **not** removable by derivation as things stand and are
+  tracked as such: the RNG-seeded monster placement (GUESSWORK G-007, closed as
+  not-portable-by-data), the descriptive item-effect labels (G-004), and the
+  outdoor scenery piece set (G-013, unclear — revisit).
+- **A correction to this plan's own history:** A-1 was recorded as done on the
+  strength of two captures that turned out to be the *same* frame (facing does
+  not change the view at that cell).  The lesson is in §4: a second capture is
+  only evidence if its bytes actually differ.
 - No guess is introduced by this plan. Every task above names a ground truth.

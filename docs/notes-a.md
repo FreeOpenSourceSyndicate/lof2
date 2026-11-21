@@ -2876,7 +2876,7 @@ Two things fall out.
 So `kOutdoorPieces` is overfit to the one oracle cell, exactly as Round 25
 flagged as an open risk.  The horizon band is real, but its contents are
 per-cell scenery selected by a rule that is not yet decoded.  Filed as
-**G-007** in `docs/GUESSWORK.md`; the port keeps the measured set so the pinned
+**G-013** in `docs/GUESSWORK.md`; the port keeps the measured set so the pinned
 oracle stays pixel-exact.
 
 **Caveat on the old "facing E" measurement.**  Because facing does not change
