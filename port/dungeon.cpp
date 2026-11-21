@@ -354,15 +354,25 @@ bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax,
 }
 
 int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p) {
+    return dungeon_base_view_index(d, p, /*bank_has_passage_sprites=*/true);
+}
+
+int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p,
+                            bool bank_has_passage_sprites) {
     int x, y;
     if (!dungeon_ahead_cell(d, p, x, y)) return 1;   // off-map -> wall ahead
     // Only the LOW nibble of the ahead tile code selects the base view; the
     // high nibble is an object/feature class the base blit ignores.  Measured by
     // sweeping the ahead cell of DNG05's spawn (Round 28; see dungeon.h).
     switch (d.tile(x, y) & 0x0f) {
-        case 0x4: return 58;             // side passage
-        case 0x5: return 59;             // side passage variant
-        case 0x6: case 0xd: return 60;   // looking at a wall -> flat wall face
+        // DP058..DP060 ship only in the dungeon banks (D1..D5); D0 has its own
+        // sprite set, so these would name a missing file there.  Fall through to
+        // the always-present DP001 (the same G-004 fallback the open nibbles use).
+        case 0x4: if (bank_has_passage_sprites) return 58; return 1;
+        case 0x5: if (bank_has_passage_sprites) return 59; return 1;
+        case 0x6: case 0xd:
+            if (bank_has_passage_sprites) return 60;
+            return 1;                    // D0: no flat-wall-face sprite
         case 0xa: return 14;             // doorway
         // 0x1/0x3/0xb/0xc render DP001 (a textured wall/room view).
         case 0x1: case 0x3: case 0xb: case 0xc: return 1;
@@ -420,16 +430,20 @@ std::vector<DungeonView::Overlay> dungeon_view_overlays(const std::string& dir,
 DungeonView dungeon_view_for(const std::string& dir, int dungeon,
                              const Dungeon& d, const DungeonPos& p) {
     DungeonView v;
+    // DP058..DP060 are dungeon-bank art; the outdoor bank (D0) has its own set,
+    // so ask for the fallback there rather than a path that does not exist.
+    const bool bank_has_passage =
+        dungeon_view_dir(dungeon) != "D0";
+    int base_index = dungeon_base_view_index(d, p, bank_has_passage);
     // Default: the depth-1 tileset sprite at the viewport origin.
-    v.path = dungeon_view_path(dir, dungeon, dungeon_base_view_index(d, p));
+    v.path = dungeon_view_path(dir, dungeon, base_index);
     v.x = kViewportX;
     v.y = kViewportY;
 
     // The outdoor (D0) view is a composite: the base sprite plus the measured
     // horizon-band side pieces, whenever the base resolves to the sprite those
     // pieces were measured on.
-    v.overlays = dungeon_view_overlays(dir, dungeon,
-                                       dungeon_base_view_index(d, p));
+    v.overlays = dungeon_view_overlays(dir, dungeon, base_index);
 
     // March the column of cells ahead to the first view-opaque cell.
     int dx = dungeon_facing_dx(p.facing), dy = dungeon_facing_dy(p.facing);

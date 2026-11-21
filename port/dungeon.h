@@ -413,7 +413,13 @@ bool dungeon_ahead_cell(const Dungeon& d, const DungeonPos& p, int& ax, int& ay)
 // no effect on the view (Round 29).
 //
 // `index` 0 is never returned: DP000 does not exist on disk.
+//
+// `bank_has_passage_sprites` is false for the outdoor bank (D0), which does not
+// ship DP058..DP060; those nibbles then fall back to DP001 instead of naming a
+// file that is not there.
 int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p);
+int dungeon_base_view_index(const Dungeon& d, const DungeonPos& p,
+                            bool bank_has_passage_sprites);
 
 // A tile is *view-opaque* when the first-person renderer stops marching on it.
 // This is NOT the movement wall set (`dungeon_is_solid_tile`): code 3 is

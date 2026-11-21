@@ -592,6 +592,44 @@ static void test_base_view(const std::string& dir) {
         assert(render_dungeon_screen(b, root, 5, 60));
         assert(a.pixels == b.pixels);
     }
+
+    // The outdoor bank (D0) ships no DP058..DP060, so asking for them would name
+    // a file that is not on disk.  Ground truth (docs/notes-a.md Round 50): the
+    // engine draws DP001 for a wall ahead in D0, not a flat wall face.  The
+    // fallback is therefore a bank property, not a filesystem probe, so this
+    // stays hermetic on a synthetic dungeon.
+    {
+        Dungeon w;
+        w.tiles.assign(kDungeonW * kDungeonH, 0);
+        DungeonPos at{5, 5, 0};
+        w.tiles[4 * kDungeonW + 5] = 6;            // wall directly ahead
+        assert(dungeon_base_view_index(w, at, /*bank_has_passage_sprites=*/true) == 60);
+        assert(dungeon_base_view_index(w, at, /*bank_has_passage_sprites=*/false) == 1);
+        w.tiles[4 * kDungeonW + 5] = 4;            // side passage
+        assert(dungeon_base_view_index(w, at, true) == 58);
+        assert(dungeon_base_view_index(w, at, false) == 1);
+        w.tiles[4 * kDungeonW + 5] = 5;            // side passage variant
+        assert(dungeon_base_view_index(w, at, true) == 59);
+        assert(dungeon_base_view_index(w, at, false) == 1);
+        // The nibbles that are bank-independent keep their answer in both banks.
+        w.tiles[4 * kDungeonW + 5] = 0xa;          // doorway -> DP014 everywhere
+        assert(dungeon_base_view_index(w, at, true) == 14);
+        assert(dungeon_base_view_index(w, at, false) == 14);
+        w.tiles[4 * kDungeonW + 5] = 3;            // textured wall -> DP001
+        assert(dungeon_base_view_index(w, at, true) == 1);
+        assert(dungeon_base_view_index(w, at, false) == 1);
+
+        // Every index the D0 path can now return must exist on disk; DP058..060
+        // are the ones that do not.
+        std::FILE* probe = std::fopen((root + "/EGA/D0/DP060").c_str(), "rb");
+        if (probe) {
+            std::fclose(probe);
+            // Data present: assert the two banks really do differ.
+            assert(!std::fopen((root + "/EGA/D0/DP058").c_str(), "rb"));
+            assert(std::fopen((root + "/EGA/D1/DP058").c_str(), "rb"));
+        }
+        std::printf("dungeon_test: outdoor bank falls back for DP058..DP060\n");
+    }
 }
 
 // `EGA/CHAR<B>/CHnn` is the engine's position-selected encounter/area sprite
