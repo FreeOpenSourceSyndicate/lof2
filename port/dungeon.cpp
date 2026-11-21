@@ -396,14 +396,19 @@ bool dungeon_view_opaque(uint8_t code) {
 }
 
 // The horizon-band side pieces of the outdoor (D0) view, and the base sprite
-// they belong to.  MEASURED on DNG10 cell 745 (25,20) for facing N (the
-// `ref/oracle/play.png` frame) and facing E: both render base `DP001` plus these
-// three pieces, and the set reproduces the 120x119 window pixel-exactly
-// (notes-a.md Rounds 24-25).  When the base resolves to anything else - e.g.
-// looking back at the town, which draws a different bank entirely - the pieces
-// do not appear, which is also measured.  A wider cell sweep is still needed to
-// prove the rule holds beyond this cell, so it is keyed on the base sprite that
-// was actually observed rather than on guessed geometry.
+// they belong to.  MEASURED on DNG10 cell 745 (25,20): base `DP001` plus these
+// three pieces reproduces the 120x119 window pixel-exactly (notes-a.md Rounds
+// 24-25), and the pieces are overlays, so index 0 must leave the base visible.
+// When the base resolves to anything else - e.g. looking back at the town, which
+// draws a different bank entirely - the pieces do not appear, which is also
+// measured.
+//
+// OPEN (G-007): this set is confirmed on ONE cell.  A re-sealed save sweep
+// (notes-a.md Round 50) shows other outdoor cells draw a different mid-band,
+// and cells 636/673 are closer to bare DP001 than to this set.  The horizon band
+// is real but its contents are per-cell scenery; the selecting rule is not
+// decoded yet, so this stays the measured set rather than a guessed predicate.
+// Do not widen it without a second confirmed cell.
 struct ViewPiece {
     int index;  // DPnnn number
     int x;      // window-relative origin

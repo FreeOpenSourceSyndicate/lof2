@@ -636,3 +636,40 @@ effect value 34 (lantern) as a light source; recorded under G-004.
 - **What it was:** `dungeon_base_view_index()` returned `DP001` for the open-cell
   ahead codes `0x0/0x2/0x7/0x8/0x9`, because no single `DPnnn` reproduces the
   corridor case.  It is now handled by the depth march instead of a fallback.
+
+### G-007 — the outdoor horizon-band piece set is measured on one cell only
+
+- **Status: UNCLEAR — revisit (owner decision likely needed).**  `kOutdoorPieces`
+  in `port/dungeon.cpp` (DP012 at (0,49), DP004 at (15,46), DP005 at (90,50)) is
+  applied whenever the outdoor (D0) base resolves to DP001.  It reproduces the
+  one oracle frame (`ref/oracle/play.png`, cell 745) at 1.0000, but a re-sealed
+  save sweep (notes-a Round 50) shows it does **not** hold for other cells:
+
+  | cell | ahead nibble | vs DP001 | vs shipped composite |
+  |------|--------------|----------|----------------------|
+  | 745 (oracle) | 0 | 0.9076 | **0.9926 / 1.0000** |
+  | 636 | 0 | 0.8931 | 0.9463 |
+  | 673 | 0 | **0.9168** | 0.9265 |
+  | 492 | 6 (wall) | 0.7975 | 0.7842 |
+
+  (composite scores use the port's transparent-overlay rule; the 745 column also
+  shows the opaque-paste score, which is what the naive comparison used.)
+
+- **What is established:** the base view for an outdoor cell is DP001; the
+  horizon band carries per-cell scenery (trees/buildings) drawn from the same
+  D0 bank; cells 636 and 673 are *closer to bare DP001* than to the 745 piece
+  set, so the pieces are not a fixed overlay.
+- **What is not established:** which map property selects the scenery.  The
+  obvious candidate (the ahead cell's tile code) does not separate them: 745,
+  636 and 673 all have an open ahead cell.  The remaining possibilities are the
+  cell's object/feature record, the surrounding tile pattern, or a scenario
+  table.
+- **Why it is not a normal task yet:** the piece rectangles are identified by
+  template match against one frame; there is no decoded rule (Rule 1) and no
+  second cell where the *same* piece set is confirmed, so any generalisation
+  would be a guess.  The port keeps the measured set and stays pixel-exact for
+  the pinned oracle.
+- **To settle it:** decode the outdoor view routine in `analysis/*.asm` (the
+  draw path behind image `0x3B72`) and read which table supplies the scenery
+  sprites and their offsets; or capture a cell where the same piece set is
+  confirmed independently.

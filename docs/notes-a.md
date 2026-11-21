@@ -2822,3 +2822,70 @@ passing a hardcoded `false`, so the port could never print the "hole" variants
 even though the strings were already present. Note the handler prints the
 message *before* it moves the party, so the wording reads the **current** level
 digit, not the destination's -- `walk_key()` now does the same.
+
+## Round 50 — the save checksum was silently rejecting every patch; the outdoor sweep finally runs
+
+**The blocker first.** Every "patched save collapses to one frame" result in
+earlier rounds was an artefact, not game behaviour.  A save is
+`11834 bytes (state) + 4-byte checksum + 1296-byte map`; the checksum at
+`0x2E3A` is the lane-B fold (start at 1, `+= b[i]` on even `i`, `^= b[i]` on odd,
+NUL counts as 1) over **the first 11834 bytes**.  The party cell (`0x9A0`),
+location (`0x9A2`) and facing (`0x9A6`) all live inside that range, so a patch
+that does not re-seal the trailer is rejected and the engine shows its
+"very sorry, but ... was caught trying to fraud" page.  Re-sealing an *unedited*
+save reproduces the golden frame byte-for-byte (`d2d01082`), which is the
+control that proves the fold is the one being enforced.
+
+**The sweep.** With sealed patches the emulator renders distinct frames per
+cell, so the outdoor viewport can finally be measured beyond cell 745.
+
+| cell | own tile | ahead nibble | ink | vs DP001 | vs shipped composite |
+|------|----------|--------------|-----|----------|----------------------|
+| 745 (oracle) | 0 | 0 | 14280 | 0.9076 | **0.9926** |
+| 636 | 0 | 0 | 14280 | 0.8931 | 0.9463 |
+| 673 | 0 | 0 | 14280 | **0.9168** | 0.9265 |
+| 492 | 5 | **6 (wall)** | 14280 | 0.7975 | 0.7842 |
+| 529 / 710 | 0 | 0 | 7545 | 0.0057 | 0.0346 |
+| 420 / 457 | 6 (solid) | -- | 14280 | clamped | clamped |
+
+Composite scores use the port's **transparent**-overlay rule (`index 0` leaves
+the base untouched).  A naive opaque paste scores 745 at only 0.9225, so the
+transparency rule is load-bearing and must not be dropped.
+
+Two things fall out.
+
+1. **Cells 420 and 457 are solid walls**, so the engine clamps the party and the
+   frame is not that cell's view at all -- they are excluded from the sweep
+   rather than interpreted.
+2. **Facing does not change the frame.** All four facings at cell 745 produce
+   byte-identical output, because 745 is open in every direction and nibbles 0
+   and 7 both resolve to DP001.  Round 25's "facing E" frame is therefore not a
+   second ground truth for the piece set; it is the same frame.
+
+**The piece set is NOT cell-independent.** Two independent signs:
+
+- Cell 492 (wall ahead, nibble 6) draws DP001 plus a *different* mid-band.
+  `DP003` at (31,30) and `DP006` at (60,30) are **not present anywhere inside
+  DP001** (checked exhaustively), so they are genuine scenery rather than
+  texture self-similarity; adding them lifts the match from 0.7975 to 0.9518.
+- Cells 636 and 673 score **higher against bare DP001** (0.8931, 0.9168) than
+  against the 745 piece set (0.9463, 0.9265 -- i.e. the set helps less, and for
+  673 it actively hurts).  Their left-hand region is byte-identical to the
+  oracle's, so the *side* pieces are stable while the mid-band varies.
+
+So `kOutdoorPieces` is overfit to the one oracle cell, exactly as Round 25
+flagged as an open risk.  The horizon band is real, but its contents are
+per-cell scenery selected by a rule that is not yet decoded.  Filed as
+**G-007** in `docs/GUESSWORK.md`; the port keeps the measured set so the pinned
+oracle stays pixel-exact.
+
+**Caveat on the old "facing E" measurement.**  Because facing does not change
+the frame at cell 745, Round 25's facing-E frame is not a second confirmation of
+the piece set; the only independent cells are the ones above.
+
+**Bank fix shipped.** D0 ships 63 sprites and has **no DP058/DP059/DP060** --
+those are dungeon-bank art (D1..D7).  The port's nibble map returned 58/59/60
+regardless of bank, so a D0 cell facing a wall named a missing file and
+`render_dungeon_play_view()` failed, dropping the caller to the synthetic map
+viewport.  `dungeon_base_view_index()` now takes the bank as a parameter and
+falls back to DP001 there; `tests/dungeon_test.cpp` pins both banks.
