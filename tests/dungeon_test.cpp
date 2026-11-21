@@ -396,6 +396,41 @@ static void test_view_sprite(const std::string& dir) {
     std::printf("dungeon_test: view sprite blit verified (%dx%d)\n", w, img.height);
 }
 
+// A map object in the party's own cell is drawn from the UP bank, not the
+// dungeon bank.  Measured on DNG10 cell 745: without it the outdoor composite is
+// 106 px wrong, with it the window is exact.  The gate is the object record, so
+// a cell with no object must not get the sprite (drawing it there measurably
+// degrades cells 636/673).  See notes-a.md Round 51.
+static void test_outdoor_object(const std::string& dir) {
+    namespace fs = std::filesystem;
+    std::string root = dir + "/..";
+    if (!fs::is_directory(root + "/EGA/UP")) {
+        std::printf("dungeon_test: no EGA/UP, skipping object check\n");
+        return;
+    }
+    Dungeon d;
+    d.tiles.assign(kDungeonTiles, 0);        // open column, no walls
+    d.objects.assign(kDungeonTiles, 0);
+    DungeonPos p{25, 20, 0};
+
+    // No object -> base + band pieces only.
+    auto n_noobj = dungeon_view_for(root, 10, d, p).overlays.size();
+    // An object in the party's own cell -> one extra overlay, from EGA/UP.
+    d.objects[20 * kDungeonW + 25] = 0x0100;
+    auto v = dungeon_view_for(root, 10, d, p);
+    assert(v.overlays.size() == n_noobj + 1);
+    const std::string& last = v.overlays.back().path;
+    assert(last.size() > 8 && last.substr(last.size() - 8) == "/UP/UP22");
+    assert(v.overlays.back().x == kViewportX + 70);
+    assert(v.overlays.back().y == kViewportY + 53);
+
+    // A dungeon bank (not D0) never gets the outdoor overlay set at all.
+    auto vd = dungeon_view_for(root, 5, d, p);
+    for (const auto& o : vd.overlays)
+        assert(o.path.find("/UP/UP22") == std::string::npos);
+    std::printf("dungeon_test: outdoor object overlay gated on the object record\n");
+}
+
 // The seven full-size (120x119) view sprites of a theme, and one duplicate
 // pair among them, pinned from the decode work (docs/notes-a.md Round 19).
 // Guards the tileset inventory against a bad re-extract.
@@ -1175,6 +1210,7 @@ int main(int argc, char** argv) {
     test_viewport();
     test_view_sprite((argc > 1) ? argv[1] : "game/DNGS");
     test_view_inventory((argc > 1) ? argv[1] : "game/DNGS");
+    test_outdoor_object((argc > 1) ? argv[1] : "game/DNGS");
     test_default_views((argc > 1) ? argv[1] : "game/DNGS");
     test_walk();
     test_level_connected((argc > 1) ? argv[1] : "game/DNGS");

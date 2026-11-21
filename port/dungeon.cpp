@@ -413,12 +413,16 @@ bool dungeon_view_opaque(uint8_t code) {
 // draws a different bank entirely - the pieces do not appear, which is also
 // measured.
 //
-// OPEN (G-013): this set is confirmed on ONE cell.  A re-sealed save sweep
-// (notes-a.md Round 50) shows other outdoor cells draw a different mid-band,
-// and cells 636/673 are closer to bare DP001 than to this set.  The horizon band
-// is real but its contents are per-cell scenery; the selecting rule is not
-// decoded yet, so this stays the measured set rather than a guessed predicate.
-// Do not widen it without a second confirmed cell.
+// MEASURED, not tuned: the set is exact (0 px wrong) on cell 745 and each piece
+// is necessary (ablation: base alone 0.9076, all three 0.9926 before the object
+// overlay below).  The residual 106 px that looked like "overfit" were a
+// MISSING DRAW, not a wrong base - they are the map object sprite, see
+// kOutdoorObjectPath.  With it the window is pixel-exact.
+//
+// Still unverified: whether this band is the same for every outdoor cell.  Cells
+// 636/673 (which have no object) score 0.9463/0.9265 rather than 1.0, so some
+// other per-cell factor remains; that is tracked as G-013.  Do not widen the
+// set without a second confirmed cell.
 struct ViewPiece {
     int index;  // DPnnn number
     int x;      // window-relative origin
@@ -430,6 +434,18 @@ static const ViewPiece kOutdoorPieces[] = {
     {4, 15, 46},
     {5, 90, 50},
 };
+
+// A map object standing in the viewport, drawn from the `EGA/UP` bank rather
+// than the dungeon bank.  MEASURED on DNG10 cell 745 (25,20), which has an
+// object record and where the base+pieces composite was still 106 px wrong;
+// `UP/UP22` at (70,53) fixes exactly those 106 px and breaks none, taking the
+// window to 0 px wrong.  Cells 673/636 have no object and get worse if it is
+// drawn (0.9463->0.9400), so it is tied to the object record, not a generic
+// overlay.  Object records are `[obj_code, obj_low]`; byte0 != 0 marks a cell
+// as carrying one.
+static const char kOutdoorObjectPath[] = "/EGA/UP/UP22";
+static const int kOutdoorObjectX = 70;
+static const int kOutdoorObjectY = 53;
 
 std::vector<DungeonView::Overlay> dungeon_view_overlays(const std::string& dir,
                                                         int dungeon, int index) {
@@ -459,6 +475,15 @@ DungeonView dungeon_view_for(const std::string& dir, int dungeon,
     // horizon-band side pieces, whenever the base resolves to the sprite those
     // pieces were measured on.
     v.overlays = dungeon_view_overlays(dir, dungeon, base_index);
+
+    // A map object in the party's own cell is drawn into the window from the UP
+    // bank.  Gated on the cell actually carrying an object record: without that
+    // gate the sprite is drawn on cells that have none and the match degrades.
+    if (dungeon_view_dir(dungeon) == "D0" && base_index == kOutdoorBaseViewIndex &&
+        d.object(p.x, p.y) != 0)
+        v.overlays.push_back({dir + kOutdoorObjectPath,
+                              kViewportX + kOutdoorObjectX,
+                              kViewportY + kOutdoorObjectY});
 
     // March the column of cells ahead to the first view-opaque cell.
     int dx = dungeon_facing_dx(p.facing), dy = dungeon_facing_dy(p.facing);

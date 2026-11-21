@@ -682,10 +682,22 @@ effect value 34 (lantern) as a light source; recorded under G-004.
 
   So "wall that ends the map -> `DP036`, wall with depth behind it -> `DP001`"
   is measured on four cells and is now implemented (and pinned by
-  `tests/dungeon_test.cpp`).  What is **not** settled is the rest of the D0
-  table: a doorway (`0x0a`, cell 95) matches `D0/DP002` only 0.5569, i.e. it is
-  a composite the port does not build, and the open-cell cases are still
-  `DP001` fallbacks.
+  `tests/dungeon_test.cpp`).
+
+- **PARTLY RESOLVED (Round 51).**  The "overfit" residual on the oracle cell was
+  diagnosed: the composite was 106 px wrong, and those 106 px are a **map object**
+  (`EGA/UP/UP22` at window (70,53)), which the port was not drawing.  With it the
+  oracle window is **0 px wrong**, and the trigger is the cell's object record
+  (cells with `obj=(0,0)` get *worse* if it is drawn).  So the horizon band was
+  never fitted noise — all three pieces are necessary under ablation.
+
+  Still a guess: (a) whether the band is the same for every outdoor cell —
+  cells 636/673 score 0.9463/0.9265 with no object, so something else varies;
+  (b) the object-code -> `UPnn` mapping (only code `1` seen, on one cell).
+
+  What is **not** settled is the rest of the D0 table: a doorway (`0x0a`, cell 95)
+  matches `D0/DP002` only 0.5569, i.e. it is a composite the port does not build,
+  and the open-cell cases are still `DP001` fallbacks.
 - **To settle it:** locate the outdoor draw routine in `analysis/lof.asm` and
   read which table supplies the base sprite and the scenery.  Note `0x3B72` is
   **not** it — that is a data offset passed to the string printer

@@ -2946,6 +2946,60 @@ The full table `ega\d0\dp000`..`ega\d0\dp069` sits at image `0x361E1`
 (D1..D7 are built from a stem at run time).  That table is the place to look
 for the remaining D0 work.
 
+### Round 51 — the residual was a MISSING DRAW, not a wrong base
+
+I revisited G-013's "overfit" claim by measuring what the composite actually
+gets wrong instead of just scoring it.  The answer changes the conclusion.
+
+**The band pieces are necessary, not decorative.**  Ablating them one at a time
+against the oracle cell (745), score and wrong-pixel count:
+
+| pieces | score | px wrong |
+|--------|-------|----------|
+| none (base only) | 0.9076 | 1320 |
+| DP012 | 0.9428 | 817 |
+| DP004 | 0.9421 | 827 |
+| DP005 | 0.9233 | 1095 |
+| DP012+DP004 | 0.9772 | 326 |
+| DP012+DP004+DP005 | 0.9926 | **106** |
+
+Every piece earns its place.  But note the score: **0.9926, not 1.0000**.  The
+port was documented as "pixel-exact" and was not — 106 pixels were wrong.
+
+**Those 106 pixels are one object.**  They form a single blob at x 70..82,
+y 53..70.  Searching every `EGA/*` sprite for a placement that fixes those exact
+pixels *and breaks none* gives exactly one answer:
+
+    EGA/UP/UP22  at window (70,53), 18x16, 114 opaque px -> fixes all 106, breaks 0
+
+With it the window is **0 px wrong (1.0000)**.  So the root cause was not a
+mis-chosen base sprite — it was an **undrawn map object**.  `UP22` lives in the
+`EGA/UP` bank (the one that also holds the menu art), which is why no `D0/DPnnn`
+search could ever find it; that is the trap that made it look like overfit.
+
+**It is gated on the object record.**  DNG10 cell 745 has `obj=(1,0)`; cells
+673 and 636 have `obj=(0,0)` and get *worse* if UP22 is drawn there
+(0.9463->0.9400, 0.9265->0.9190).  So the trigger is "this cell carries an
+object", i.e. object-record byte0 != 0.  Implemented that way and pinned by
+`tests/dungeon_test.cpp::test_outdoor_object` (mutation-checked).
+
+**What this does and does not settle.**
+
+* Settles: the oracle cell is genuinely exact now, and the cause is known —
+  a missing draw, which is a real engine behaviour, not a fitted constant.
+* Does **not** settle: cells 636/673 still score 0.9463/0.9265 with no object
+  present, so a further per-cell factor remains.  Those two captures are the
+  open evidence for G-013.
+* The `UP22` choice itself is measured from one cell.  It is the *only* sprite
+  in the tree that fits, which is strong, but the mapping object-code -> `UPnn`
+  is not decoded; a second object cell would confirm it.  Object cells trigger
+  an event screen, so they cannot be probed by the simple viewport sweep — that
+  is why this needs the event dispatcher (A-3).
+
+**Method note 3.** `EGA/UP` is not just menu art.  Objects standing in the
+viewport come from it too, so an all-banks search is required before concluding
+"no sprite matches".
+
 **Method note 2.** Check `ink` before believing a match.  A normal viewport
 frame is 14280 non-zero pixels; a frame that scores a "perfect" 1.0000 against
 a character sprite is a failed capture, not a discovery.

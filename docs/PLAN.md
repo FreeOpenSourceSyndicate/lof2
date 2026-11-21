@@ -5,14 +5,14 @@ The authoritative *technical* queue is `docs/HANDOFF.md` §4; open guesses are i
 `docs/GUESSWORK.md`; rules are in `docs/RULES.md`. This file answers three
 questions: **what is left, in what order, how long, and how done are we?**
 
-Last refreshed: 2026-11-21 (session of agent lof2/M-5, sole active agent).
+Last refreshed: 2026-11-08 (session of agent lof2/M-5, sole active agent).
 
 ---
 
-## 1. Overall project completion — ~80 %
+## 1. Overall project completion — ~82 %
 
 Weighted by player-visible subsystem, not by line count.  The table below sums
-to **81.7 %** (weights total 100); it is rounded to ~80 % because the two largest
+to **82.4 %** (weights total 100); it is rounded to ~82 % because the two largest
 open items — outdoor scenery and the save writer — are the ones most likely to
 hide extra work.  The previous revision said ~75 % while its own table summed to
 78.5 %; the arithmetic is now stated so the figure can be checked.
@@ -31,7 +31,7 @@ there is still no save writer at all.
 | Boot → menu | 100 % | 6 | `EGA/UP/MSCR` + `MENU`, font |
 | Town (Thyn, Cyldane) + buildings | 100 % | 10 | inn, shop/emporium, bank, house, temple (+ heal/revive/rest prompts) |
 | DNGS decode (all 29 levels) | 100 % | 5 | tiles + object layer + header |
-| **Dungeon first-person view** | **75 %** | 14 | Temple (`D5`) depth march is pixel-exact. The outdoor (`D0`) composite is pixel-exact **for one cell only**; a sealed-patch sweep shows the scenery piece set is overfit (**G-013**), so *scored against the game* this is not 85 % — it is exact on the oracle and approximate elsewhere. The outdoor **wall** case is now derived and tested (`DP036` at the map edge, `DP001` otherwise). Remaining: the doorway/opaque-fill view and the `CHAR2` room cases (A-6) |
+| **Dungeon first-person view** | **80 %** | 14 | Temple (`D5`) depth march is pixel-exact. The outdoor (`D0`) composite is pixel-exact **for one cell only**; a sealed-patch sweep shows the scenery piece set is overfit (**G-013**), so *scored against the game* this is not 85 % — it is exact on the oracle and approximate elsewhere. The outdoor **wall** case is derived and tested (`DP036` at the map edge, `DP001` otherwise). The oracle cell is now **0 px wrong** — the last 106 px were a missing object draw (`EGA/UP/UP22`), not a wrong base. Remaining: whether the horizon band is per-cell, the doorway/opaque-fill view, and the `CHAR2` room cases (A-6) |
 | **Object/feature semantics** | **40 %** | 8 | stairs/portals decoded (A-2); door-like signature proven; door/trap/item dispatch not decoded |
 | **Level transitions (stairs)** | **85 %** | 4 | stairs/portals/level changes work and are decompiled (A-2 done, image `0x2e7fa`); open: the non-stair object codes (doors/traps) |
 | Encounter screen | 100 % | 5 | `SYST/NSCnn` record → `CHAR0/CHnn` |
@@ -53,7 +53,7 @@ Rule 1 forbids guessing.
 
 | # | Task | Est. | Ground truth / next step | Files |
 |---|------|------|--------------------------|-------|
-| **A-1** | ✅ **DONE, with a caveat** — **Outdoor viewport rendering (`D0` bank)**. The outdoor view is a **composite**: base `D0/DP001` plus horizon-band pieces `DP012`@(0,49), `DP004`@(15,46), `DP005`@(90,50), blitted with an index-0 transparent mask (the mask is load-bearing: an opaque paste scores 0.9225 instead of 0.9926). Reproduces the 120×119 window of `ref/oracle/play.png` **pixel-exactly**, shipped through `dungeon_view_overlays()` for the play loop, `--walk` and `--play D0/DPnnn`; `tests/port_play_test.py` requires the viewport to be pixel-exact. **The earlier 'facing E confirms it' claim is retracted** — facing does not change the frame at cell 745 at all. A re-sealed save sweep (notes-a Round 50) shows the piece set is **overfit to the one oracle cell**: cells 636/673 are closer to bare DP001, and cell 492 draws a different mid-band. Filed as **G-013**; the measured set is kept so the oracle stays exact. **Remaining work: decode the scenery-selection rule** (A-6). | **done (one cell)** | `ref/oracle/play.png`; sealed-patch cell sweep | `port/dungeon.{h,cpp}`, `tests/port_play_test.py` |
+| **A-1** | ✅ **DONE, with a caveat** — **Outdoor viewport rendering (`D0` bank)**. The outdoor view is a **composite**: base `D0/DP001` plus horizon-band pieces `DP012`@(0,49), `DP004`@(15,46), `DP005`@(90,50), blitted with an index-0 transparent mask (the mask is load-bearing: an opaque paste scores 0.9225 instead of 0.9926). Reproduces the 120×119 window of `ref/oracle/play.png` **pixel-exactly**, shipped through `dungeon_view_overlays()` for the play loop, `--walk` and `--play D0/DPnnn`; `tests/port_play_test.py` requires the viewport to be pixel-exact. **The earlier 'facing E confirms it' claim is retracted** — facing does not change the frame at cell 745 at all. A re-sealed save sweep (notes-a Round 50) shows the piece set is **overfit to the one oracle cell**: cells 636/673 are closer to bare DP001, and cell 492 draws a different mid-band. Filed as **G-013**; the measured set is kept so the oracle stays exact. **UPDATE:** the "overfit" residual was diagnosed — the composite was 106 px wrong on the oracle cell, and those 106 px are the **map-object sprite** `EGA/UP/UP22` at (70,53), which the port was not drawing. With it the window is **pixel-exact, 0 px wrong** (`tests/port_play_test.py` asserts the viewport matches). Ablation confirms all three band pieces are necessary. **Remaining work: whether the band is per-cell** (A-6). | **done (one cell)** | `ref/oracle/play.png`; sealed-patch cell sweep | `port/dungeon.{h,cpp}`, `tests/port_play_test.py` |
 | **A-2** | ✅ **DONE** — **Stairs / level transition.** `walk_key()` moves the party between `DNGS` levels; the destination rule, the portal-table index (`location%10`, not the dungeon group) and the stairs/hole wording (`[0x37fe] == 7`) are all decompiled (image `0x2e7fa`). `tests/dungeon_test.cpp` asserts both portals land on a **walkable** cell. | **done** | stair handler `0x2e7fa`; notes-a Round 52 | `port/dungeon.{h,cpp}`, `port/lof.cpp` |
 | **A-3** | **Object-code semantics** (doors, traps, items) — the object layer's high byte is only proven "door-like" by geometry. Stairs/portals are now decoded (A-2); the remaining codes (doors, traps, item pickups) are not. | **8–12 h** | event dispatcher at image `0x1F31E`; SPEC record `+0xe2` behaviour type | `port/dungeon.{h,cpp}`, `tools/dngs.py` |
 | **A-4** | **G-013 residue** — depth-2/≥3 bank sprite numbers are scenario-5 values. Capture a second scenario's depth-2/≥3 view and read its `CHnn`; table per scenario if it differs. | **3–5 h** | emulator depth sweep on a non-Temple save | `port/dungeon.cpp`, `docs/GUESSWORK.md` G-013 |
@@ -84,13 +84,34 @@ Rule 1 forbids guessing.
 1. ~~**M-4** (save position)~~ — **done**, viewport comparisons are now honest.
 2. ~~**A-2** (stairs)~~ — **done** (notes-a Round 52).
 3. **A-6** (outdoor scenery rule) — the only thing standing between "exact on one
-   cell" and "exact outdoors".  Highest value per hour in Area A now.
+   cell" and "exact outdoors".  Highest value per hour in Area A now.  **Round 51
+   already removed half of it** (the object draw); what is left is whether the
+   horizon band varies per cell.
 4. **M-1** (save writer) — without it nothing a player does persists.
 5. Then A-3, B-1, A-4/A-5, M-2, M-3, B-2, B-3.
 
-Total remaining effort: **~75–123 agent-hours**.  A-1's main body is done, but its
-residue (A-6, the scenery rule, 6–10 h) is new work that did not exist before the
-sweep — the sweep converted an assumed-done item into a measured partial one.
+### Remaining-effort total (checkable)
+
+| task | low h | high h |
+|------|-------|--------|
+| A-3 object codes | 8 | 12 |
+| A-4 G-013 second scenario | 3 | 5 |
+| A-5 mover/collision | 4 | 6 |
+| A-6 outdoor scenery rule | 6 | 10 |
+| M-1 save writer | 8 | 12 |
+| M-2 character sheet | 6 | 10 |
+| M-3 all-out message | 2 | 4 |
+| B-1 item use effects | 8 | 14 |
+| B-2 spells in combat | 12 | 20 |
+| B-3 quick-combat + monster attack | 8 | 14 |
+| **total** | **65** | **107** |
+
+So **~65–107 agent-hours** remain (previously stated as 75–123; that figure was
+not the sum of the rows, this one is).  Add ~30 % if the work must be re-derived
+by an agent with no prior context on this codebase.  A-1's main body is done, but
+its residue (A-6) is real work that did not exist before the sweep — the sweep
+converted an assumed-done item into a measured partial one, and Round 51 then
+split it again (the object draw is now done; the per-cell band question is not).
 
 ---
 
@@ -114,10 +135,12 @@ sweep — the sweep converted an assumed-done item into a measured partial one.
 
 - The completion percentages are estimates of *player-visible* coverage, not a
   proof of correctness; only the subsystems marked 100 % are oracle-verified.
-- Three items are **not** removable by derivation as things stand and are
+- Two items are **not** removable by derivation as things stand and are
   tracked as such: the RNG-seeded monster placement (GUESSWORK G-007, closed as
-  not-portable-by-data), the descriptive item-effect labels (G-004), and the
-  outdoor scenery piece set (G-013, unclear — revisit).
+  not-portable-by-data) and the descriptive item-effect labels (G-004).
+  The outdoor scenery set (G-013) was on this list and has been **removed from
+  it**: Round 51 showed it was not a fitted constant at all but a missing object
+  draw, and the oracle window is now exact.
 - **A correction to this plan's own history:** A-1 was recorded as done on the
   strength of two captures that turned out to be the *same* frame (facing does
   not change the view at that cell).  The lesson is in §4: a second capture is
