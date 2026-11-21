@@ -910,6 +910,151 @@ static void test_view_depth(const std::string& dir) {
     }
 }
 
+// Stairs, holes and portals: the tile-code model, the big-endian destination
+// record, and -- against the real levels -- the two invariants that make the
+// model falsifiable (every stair has a destination; every destination lands
+// next to the matching opposite stair).
+static void test_stairs(const std::string& dir) {
+    // Tile-code classification.
+    assert(!dungeon_is_stair(0x06));
+    assert(!dungeon_is_stair(0x00));
+    assert(dungeon_is_stair(0x15) && dungeon_is_down_stair(0x15));
+    assert(dungeon_is_stair(0x04) && dungeon_is_up_stair(0x04));
+    assert(dungeon_is_stair(0x84) && dungeon_is_up_stair(0x84));
+    assert(dungeon_is_stair(0xf4) && dungeon_is_up_stair(0xf4) &&
+           dungeon_is_portal(0xf4));
+    assert(!dungeon_is_portal(0x04) && !dungeon_is_portal(0x15));
+    // High nibble is the destination dungeon.
+    assert(dungeon_stair_dungeon(0x15, 0) == 1);
+    assert(dungeon_stair_dungeon(0x04, 5) == 0);
+    assert(dungeon_stair_dungeon(0x65, 1) == 6);
+    assert(dungeon_stair_dungeon(0x84, 1) == 8);
+
+    // The portal table (ds:0xa546) is indexed by the *current* dungeon.
+    assert(dungeon_stair_dungeon(0xf4, 5) == 1);
+    assert(dungeon_stair_dungeon(0xf4, 3) == 1);
+    assert(dungeon_stair_dungeon(0xf4, 0) == 0);
+
+    // Messages.
+    bool portal = true;
+    assert(std::string(dungeon_stair_message(0x15, false)) ==
+           "You climb down the stairs.");
+    assert(std::string(dungeon_stair_message(0x15, true)) ==
+           "You climb down the hole.");
+    assert(std::string(dungeon_stair_message(0x04, false)) ==
+           "You climb up the stairs.");
+    assert(std::string(dungeon_stair_message(0x04, true)) ==
+           "You climb up the hole.");
+    assert(std::string(dungeon_stair_message(0xf4, false, &portal)) ==
+           "You enter ");
+    assert(portal);
+
+    // Destination record is big-endian: the first disk byte is the HIGH byte of
+    // the cell index.  Cell 644 = 0x0284 is stored as disk bytes (0x02, 0x84),
+    // which the decoder assembles into the word 0x8402.
+    Dungeon d;
+    d.tiles.assign(kDungeonTiles, 0);
+    d.objects.assign(kDungeonTiles, 0);
+    d.tiles[5 * kDungeonW + 5] = 0x15;
+    d.objects[5 * kDungeonW + 5] = 0x8402;      // disk order: byte0=0x02, byte1=0x84
+    assert(d.dest_cell(5, 5) == 644);
+    DungeonLink l;
+    assert(dungeon_stair_target(d, 5, 5, 0, &l));
+    assert(l.dungeon == 1 && l.cell == 644);
+
+    // A non-stair cell has no link even if it carries a record, and a stair
+    // with no record has none either.
+    d.tiles[5 * kDungeonW + 5] = 0x06;
+    assert(!dungeon_stair_target(d, 5, 5, 0, &l));
+    d.tiles[5 * kDungeonW + 5] = 0x15;
+    d.objects[5 * kDungeonW + 5] = 0;
+    assert(!dungeon_stair_target(d, 5, 5, 0, &l));
+
+    // Portal target comes from the table, not the record.
+    d.tiles[5 * kDungeonW + 5] = 0xf4;
+    assert(dungeon_stair_target(d, 5, 5, 5, &l));
+    assert(l.dungeon == 1 && l.cell == 0x0492);
+
+    // --- Real levels ------------------------------------------------------
+    // 29 levels DNG<d><l>; load every one that exists.
+    std::vector<Dungeon> lv;
+    std::vector<std::pair<int, int>> id;
+    for (int dd = 0; dd <= 6; dd++) {
+        for (int ll = 0; ll <= 7; ll++) {
+            Dungeon m;
+            if (!load_dungeon(dir + "/" + dungeon_file_name(dd, ll), m)) continue;
+            lv.push_back(m);
+            id.push_back({dd, ll});
+        }
+    }
+    if (lv.size() < 29) {
+        std::printf("dungeon_test: stairs (data-driven part skipped: %zu/29 "
+                    "levels)\n", lv.size());
+        return;
+    }
+
+    auto find = [&](int dd, int ll) -> const Dungeon* {
+        for (size_t k = 0; k < id.size(); k++)
+            if (id[k].first == dd && id[k].second == ll) return &lv[k];
+        return nullptr;
+    };
+
+    int stairs = 0, portals = 0, plain_dest = 0, resolved = 0, reciprocal = 0;
+    int portal_resolved = 0;
+    for (size_t k = 0; k < lv.size(); k++) {
+        const Dungeon& m = lv[k];
+        int cur = id[k].first;
+        for (int y = 0; y < kDungeonH; y++) {
+            for (int x = 0; x < kDungeonW; x++) {
+                uint8_t code = m.tile(x, y);
+                if (!dungeon_is_stair(code)) continue;
+                stairs++;
+                DungeonLink l;
+                bool is_portal = dungeon_is_portal(code);
+                if (is_portal) portals++;
+                if (!dungeon_stair_target(m, x, y, cur, &l)) continue;
+                const Dungeon* dst = find(l.dungeon, id[k].second);
+                if (is_portal) {
+                    if (dst && l.cell >= 0 && l.cell < kDungeonTiles)
+                        portal_resolved++;
+                    continue;
+                }
+                plain_dest++;
+                if (!dst || l.cell < 0 || l.cell >= kDungeonTiles) continue;
+                resolved++;
+                // The arrival cell sits next to the matching opposite stair:
+                // an up stair lands beside a down stair and vice versa.
+                bool want_up = dungeon_is_down_stair(code);
+                int cx = l.cell % kDungeonW, cy = l.cell / kDungeonW;
+                const int nb[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+                for (const auto& n : nb) {
+                    uint8_t t = dst->tile(cx + n[0], cy + n[1]);
+                    if (want_up ? dungeon_is_up_stair(t)
+                                : dungeon_is_down_stair(t)) {
+                        reciprocal++;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    // 57 stair cells ship across the 29 levels, 2 of them portals.
+    assert(stairs == 57);
+    assert(portals == 2);
+    // Every ordinary stair carries a destination record (55/55) and every one
+    // lands in a real level, beside the matching opposite stair (55/55).  These
+    // two are the invariants that make the model falsifiable: a wrong nibble
+    // reading or a little-endian destination would break them immediately.
+    assert(plain_dest == 55);
+    assert(resolved == 55);
+    assert(reciprocal == resolved);
+    // Both portals resolve through the ds:0xa546 table.
+    assert(portal_resolved == 2);
+    std::printf("dungeon_test: stairs verified (%d cells, %d ordinary, "
+                "%d reciprocal, %d portals)\n", stairs, plain_dest, reciprocal,
+                portals);
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_render();
@@ -934,6 +1079,7 @@ int main(int argc, char** argv) {
     test_base_view(dir);
     test_room_art(dir);
     test_view_depth(dir);
+    test_stairs(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }

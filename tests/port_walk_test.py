@@ -98,6 +98,48 @@ def main() -> int:
                   % (got,))
             rc = 1
 
+    # --- Level transitions -------------------------------------------------
+    # A stair is a tile code: low nibble 4 = up, 5 = down, high nibble = the
+    # destination dungeon number; the destination cell is the cell's object
+    # record, a big-endian row-major index.  DNG05's down-stair is cell 1211
+    # (23,33), tile 0x15, and its record points at DNG15 cell 644 = (32,17).
+    # Standing on the passable cell east of it (1212, tile 0) facing W and
+    # stepping forward must therefore move the party into DNG15 at (32,17)
+    # while keeping the facing.
+    #
+    # The save is a scratch copy of GAME1 with the party moved to that cell; the
+    # shipped saves are left untouched.
+    import shutil
+    import tempfile
+    stair_save = os.path.join(tempfile.mkdtemp(prefix="lof_stair_"), "GAME1")
+    with open(SAVE, "rb") as f:
+        data = bytearray(f.read())
+
+    def put16(buf, off, val):
+        buf[off] = val & 0xFF
+        buf[off + 1] = (val >> 8) & 0xFF
+
+    put16(data, 0x9A0, 1212)   # party cell (24,33)
+    put16(data, 0x9A2, 5)      # level digit  5
+    put16(data, 0x9A4, 0)      # dungeon digit 0  -> DNG05
+    put16(data, 0x9A6, 3)      # facing W
+    with open(stair_save, "wb") as f:
+        f.write(data)
+
+    cmd = [os.path.join(ROOT, "lof"), "--dir", GAME, "--headless", "--walk",
+           "--save", stair_save, "--walk-keys", "0x48"]
+    res = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    m = re.search(r"walk: x=(-?\d+) y=(-?\d+) facing=(\d+)", res.stdout)
+    got = tuple(int(g) for g in m.groups()) if m else None
+    if got == (32, 17, 3) and "You climb down the stairs." in res.stdout:
+        print("port_walk_test: level transition ok (DNG05 cell 1211 -> DNG15 "
+              "(32,17))")
+    else:
+        print("port_walk_test: FAIL level transition (got %s, want (32, 17, 3); "
+              "output %r)" % (got, res.stdout))
+        rc = 1
+    shutil.rmtree(os.path.dirname(stair_save), ignore_errors=True)
+
     # The walk viewport must differ from the static play composition.
     walk_shot = "/tmp/port_walk_test.png"
     play_shot = "/tmp/port_walk_play.png"

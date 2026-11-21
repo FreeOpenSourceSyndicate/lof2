@@ -190,6 +190,70 @@ bool dungeon_place_cell(const Dungeon& d, DungeonPos& p, int cell, int facing) {
     return dungeon_place(d, p, cell % kDungeonW, cell / kDungeonW);
 }
 
+// --- Stairs, holes and portals -------------------------------------------
+
+// LOF.EXE ds:0xa546: portal destinations, 4 bytes per dungeon number, laid out
+// as [dest dungeon, 0, dest cell lo, dest cell hi].  The handler indexes it with
+// `si = dungeon << 2` and reads ds:[si-0x5aba] / ds:[si-0x5ab8].
+static const uint8_t kPortalTable[8][4] = {
+    {0, 0, 0x00, 0x00},   // dungeon 0
+    {0, 0, 0xfd, 0x03},   // dungeon 1
+    {0, 0, 0x00, 0x00},   // dungeon 2
+    {1, 0, 0xf5, 0x02},   // dungeon 3
+    {1, 0, 0x68, 0x00},   // dungeon 4
+    {1, 0, 0x92, 0x04},   // dungeon 5
+    {1, 0, 0x6e, 0x00},   // dungeon 6
+    {0, 0, 0xc5, 0x04},   // dungeon 7
+};
+
+bool dungeon_is_stair(uint8_t code) {
+    uint8_t n = code & kTileStairMask;
+    return n == kTileStairUp || n == kTileStairDown;
+}
+
+bool dungeon_is_up_stair(uint8_t code) {
+    return (code & kTileStairMask) == kTileStairUp;
+}
+
+bool dungeon_is_down_stair(uint8_t code) {
+    return (code & kTileStairMask) == kTileStairDown;
+}
+
+bool dungeon_is_portal(uint8_t code) {
+    return dungeon_is_stair(code) && (code >> 4) == kTilePortal;
+}
+
+int dungeon_stair_dungeon(uint8_t code, int dungeon) {
+    if (dungeon_is_portal(code))
+        return (dungeon >= 0 && dungeon < 8) ? kPortalTable[dungeon][0] : 0;
+    return code >> 4;
+}
+
+bool dungeon_stair_target(const Dungeon& d, int x, int y, int dungeon,
+                          DungeonLink* out) {
+    uint8_t code = d.tile(x, y);
+    if (!dungeon_is_stair(code)) return false;
+    DungeonLink l;
+    l.dungeon = dungeon_stair_dungeon(code, dungeon);
+    if (dungeon_is_portal(code)) {
+        if (dungeon < 0 || dungeon >= 8) return false;
+        l.cell = kPortalTable[dungeon][2] | (kPortalTable[dungeon][3] << 8);
+    } else {
+        l.cell = d.dest_cell(x, y);
+    }
+    if (l.cell < 0) return false;
+    if (out) *out = l;
+    return true;
+}
+
+const char* dungeon_stair_message(uint8_t code, bool hole, bool* portal) {
+    if (portal) *portal = dungeon_is_portal(code);
+    if (dungeon_is_portal(code)) return "You enter ";
+    if (dungeon_is_up_stair(code))
+        return hole ? "You climb up the hole." : "You climb up the stairs.";
+    return hole ? "You climb down the hole." : "You climb down the stairs.";
+}
+
 // Colour per tile code (EGA 16-colour indices).
 static uint8_t tile_colour(uint8_t v) {
     switch (v) {

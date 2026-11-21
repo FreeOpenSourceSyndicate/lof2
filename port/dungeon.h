@@ -57,6 +57,16 @@ struct Dungeon {
         return (uint8_t)(object(x, y) >> 8);
     }
 
+    // Destination cell of a stair / portal on this cell, or -1 if the cell has
+    // none.  The two object bytes are a BIG-endian row-major cell index (the
+    // first byte is always 0..4 because the index is < 1296, the second 0..245),
+    // which is exactly how LOF.EXE stores it.  See dungeon_stair_target().
+    inline int dest_cell(int x, int y) const {
+        uint16_t v = object(x, y);
+        int c = (int)((v & 0xFF) << 8) | (int)(v >> 8);
+        return c == 0 ? -1 : c;
+    }
+
     // Party entry cell from the header (see above).
     inline int entry_x() const { return (int)(field % kDungeonW); }
     inline int entry_y() const { return (int)(field / kDungeonW); }
@@ -156,6 +166,64 @@ bool dungeon_place_entry(const Dungeon& d, DungeonPos& p);
 // save written on a cell that has since become solid still loads.  Returns
 // false only if no passable cell exists at all.
 bool dungeon_place_cell(const Dungeon& d, DungeonPos& p, int cell, int facing);
+
+// --- Stairs, holes and portals -------------------------------------------
+//
+// A stair is a *tile code*, not an object: the low nibble is the direction
+// (4 = up, 5 = down) and the high nibble is the **dungeon number to travel to**,
+// so 0x15 is "down to dungeon 1".  The destination *cell* is the cell's object
+// record, a big-endian row-major index (see Dungeon::dest_cell).  A third
+// variant sets the high nibble to 0xF (0xf4 seen in DNG03/DNG43): a portal whose
+// target comes from the table at LOF.EXE ds:0xa546, indexed by the current
+// dungeon number, rather than from the object record.
+//
+// Ground truth, from the handler at LOF.EXE image 0x2e7fa..0x2e9c6 which reads
+// the tile under the party (`[bx+0x46d8]`), switches on the low nibble, and for
+// the 0xF case does `si = [0x37fe] << 2` then loads ds:[si-0x5aba] (dungeon)
+// and ds:[si-0x5ab8] (cell):
+//
+//  * Every one of the 57 stair cells across the 29 shipped levels has a
+//    non-zero destination record (57/57) -- no other cell kind does reliably.
+//  * 55/55 of those destinations land in an existing level, and every one lands
+//    on a cell *adjacent* to the matching opposite stair (an up-stair arrives
+//    next to a down-stair and vice versa) -- the reciprocity a hand-authored
+//    staircase has to satisfy.
+//  * Live check: injecting tile 0x15 + record 644 into DNG05 in front of the
+//    party made the original open DNGS/DNG15 immediately on stepping forward.
+constexpr uint8_t kTileStairMask = 0x0F;
+constexpr uint8_t kTileStairUp = 0x04;
+constexpr uint8_t kTileStairDown = 0x05;
+constexpr uint8_t kTilePortal = 0x0F;
+
+// True if `code` is an up stair (low nibble 4) or a down stair (low nibble 5).
+// The high nibble says where it goes: the destination dungeon number, or 0xF
+// for a portal (whose target comes from the ds:0xa546 table instead).
+bool dungeon_is_stair(uint8_t code);
+// True if `code` is specifically an up (4) or a down (5) stair.
+bool dungeon_is_up_stair(uint8_t code);
+bool dungeon_is_down_stair(uint8_t code);
+// True for a stair whose high nibble is 0xF (a portal).
+bool dungeon_is_portal(uint8_t code);
+
+// Dungeon number a stair travels to: the tile's high nibble for 4/5, or the
+// portal table entry for 0xF.  `dungeon` is the current dungeon number (0..6),
+// needed only for the portal case.
+int dungeon_stair_dungeon(uint8_t code, int dungeon);
+
+// Where a stair at (x,y) leads.  Returns false when the cell is not a stair.
+// `dungeon` is the current dungeon number (see above).
+struct DungeonLink {
+    int dungeon = 0;   // destination dungeon number (0..6)
+    int cell = -1;     // destination row-major cell index
+};
+bool dungeon_stair_target(const Dungeon& d, int x, int y, int dungeon,
+                          DungeonLink* out);
+
+// The message the engine prints when a stair is used (LOF.EXE ds:0xa40c..0xa473).
+// The stairs/hole choice is made at run time from game state that is not yet
+// mapped, so the caller supplies `hole`; `portal` reports the "You enter " form
+// used for the 0xF tiles.
+const char* dungeon_stair_message(uint8_t code, bool hole, bool* portal = nullptr);
 
 // Draw a top-down map of the level onto `scr`, `cell` pixels per tile,
 // centred, with the player drawn at (px,py).  Tile codes are colour-coded and

@@ -767,20 +767,64 @@ static void draw_viewport_map(Screen& s, const Dungeon& d, const DungeonPos& p) 
     }
 }
 
-// Translate an input key to a walk action and apply it.  Accepts either the
-// BIOS scancode the walk model documents (0x48 up, 0x50 down, 0x4b left,
-// 0x4d right) or the SDL2 arrow keysym (0x40000052 up, 0x40000051 down,
-// 0x40000050 left, 0x4000004f right) that Window::poll_key reports.  Returns
-// true if the key was a movement key.
-static bool walk_apply_key(Dungeon& d, DungeonPos& p, int key) {
-    switch (key) {
-        case 0x48: case 0x40000052: dungeon_step(d, p); return true;   // up
-        case 0x50: case 0x40000051:                                    // down
-            dungeon_turn(p, true); dungeon_turn(p, true); return true;
-        case 0x4b: case 0x40000050: dungeon_turn(p, false); return true;  // left
-        case 0x4d: case 0x4000004f: dungeon_turn(p, true); return true;   // right
-        default: return false;
+// One movement key press.  Turning keys just turn; a forward key steps, and if
+// the cell stepped onto is a stair the party follows it to the destination
+// level.  `location` is the save's level id (tens*10 + ones, the same encoding
+// `save_location()` produces): a stair's high nibble is the destination dungeon
+// while the level digit is unchanged, so the new id is
+// `link.dungeon * 10 + location % 10`.
+//
+// Returns true if the key was a movement key and has been applied (so the
+// caller must recompose the screen).  *level_changed is set when the party
+// followed a stair, which also means the view directory changed; `msg` then
+// receives the stair message.
+static bool walk_key(const std::string& dir, uint16_t& location, Dungeon& dng,
+                     DungeonPos& pos, int key, bool* level_changed,
+                     std::string& msg) {
+    if (level_changed) *level_changed = false;
+    if (key == 0x50 || key == 0x40000051) {          // down: turn about
+        dungeon_turn(pos, true);
+        dungeon_turn(pos, true);
+        return true;
     }
+    if (key == 0x4b || key == 0x40000050) {          // left
+        dungeon_turn(pos, false);
+        return true;
+    }
+    if (key == 0x4d || key == 0x4000004f) {          // right
+        dungeon_turn(pos, true);
+        return true;
+    }
+    if (key != 0x48 && key != 0x40000052) return false;   // not a movement key
+
+    int ahead_x = pos.x + dungeon_facing_dx(pos.facing);
+    int ahead_y = pos.y + dungeon_facing_dy(pos.facing);
+    uint8_t tile = dng.tile(ahead_x, ahead_y);
+    if (!dungeon_is_stair(tile)) {
+        dungeon_step(dng, pos);
+        return true;
+    }
+
+    int dungeon = location / 10;
+    DungeonLink link;
+    if (!dungeon_stair_target(dng, ahead_x, ahead_y, dungeon, &link)) {
+        dungeon_step(dng, pos);
+        return true;
+    }
+    uint16_t next_loc = (uint16_t)(link.dungeon * 10 + location % 10);
+    Dungeon next;
+    std::string err;
+    if (!load_dungeon(dir + "/DNGS/" + dungeon_map_name(next_loc), next, &err)) {
+        fprintf(stderr, "lof: %s\n", err.c_str());
+        dungeon_step(dng, pos);
+        return true;
+    }
+    dng = next;
+    dungeon_place_cell(dng, pos, link.cell, pos.facing);
+    location = next_loc;
+    msg = dungeon_stair_message(tile, false);
+    if (level_changed) *level_changed = true;
+    return true;
 }
 
 // The interactive front-end loop.  `intro` is the title/credits/menu sequence;
@@ -967,8 +1011,19 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                 continue;
             }
             // Arrow keys walk the party; recompose the viewport after a move.
-            if (have_dng && walk_apply_key(dng, pos, key))
-                redraw_play();
+            // A stair changes the level, so the view directory (and thus the
+            // whole screen) has to be recomposed too.  `walk_key` applies every
+            // movement key, including plain turns and blocked steps.
+            if (have_play && have_dng) {
+                uint16_t loc = (uint16_t)play_dungeon;
+                std::string stair_msg;
+                bool changed = false;
+                if (walk_key(dir, loc, dng, pos, key, &changed, stair_msg)) {
+                    if (changed) play_dungeon = loc;
+                    if (!stair_msg.empty()) printf("lof: %s\n", stair_msg.c_str());
+                    redraw_play();
+                }
+            }
         } else if (state == DECISION) {
             // Any key commits the round: resolve it, then show the table.
             RoundResult rr = resolve_round(combat_rng, combat_party, combat_monsters);
@@ -1013,8 +1068,8 @@ static bool walk_loop(const std::string& dir, const std::string& save,
                       const std::vector<int>& keys, Screen& out, DungeonPos& pos) {
     SaveGame sg = load_save(save);
     if (!sg.ok) { fprintf(stderr, "lof: --walk needs a valid --save\n"); return false; }
-    std::string mapname = dungeon_map_name(save_location(sg));
-    std::string path = dir + "/DNGS/" + mapname;
+    uint16_t location = save_location(sg);
+    std::string path = dir + "/DNGS/" + dungeon_map_name(location);
     Dungeon d;
     std::string err;
     if (!load_dungeon(path, d, &err)) {
@@ -1022,13 +1077,18 @@ static bool walk_loop(const std::string& dir, const std::string& save,
         return false;
     }
     place_party_from_save(d, sg, pos);
-    for (int k : keys) walk_apply_key(d, pos, k);
+    for (int k : keys) {
+        std::string msg;
+        bool changed = false;
+        walk_key(dir, location, d, pos, k, &changed, msg);
+        if (!msg.empty()) printf("lof: %s\n", msg.c_str());
+    }
     // Compose the HUD + party panel with no viewport tile, then blit the
     // depth-selected first-person view sprite into the window (its offset
     // depends on the wall depth, so it is not a fixed DP001 blit).
     if (!compose_play_screen(dir, "", sg, true, out, err, /*with_view=*/false))
         return false;
-    if (!render_dungeon_play_view(out, dir, save_location(sg), d, pos)) {
+    if (!render_dungeon_play_view(out, dir, location, d, pos)) {
         // No view sprite on disk: fall back to the synthetic map viewport.
         draw_viewport_map(out, d, pos);
     }

@@ -2692,3 +2692,47 @@ The rule is measured on one cell at two facings.  A full cell sweep of the
 outdoor map would confirm the pieces are cell-independent; until then the rule
 is stated in terms of what was observed.  Tracked as an open item, not silently
 assumed.
+
+## Round 46 — Dungeon stairs, holes and portals (verified end to end)
+
+The stair model is now complete and falsified against the shipped data.
+
+**Tile code.** A stair is a *tile* code, not an object:
+`low nibble 4 = up, 5 = down`, and the **high nibble is the destination
+dungeon number** (so `0x15` = "down to dungeon 1", `0x84` = "up to dungeon 8").
+A high nibble of `0xF` (`0xf4` in DNG03/DNG43) is a *portal*: its destination
+comes from the table at `ds:0xa546`, indexed by the current dungeon number,
+instead of from the cell's object record.
+
+**Destination cell.** The cell's object record — the 2 bytes per cell after the
+1296 tile bytes — is a **big-endian row-major cell index**. That is why the
+first disk byte is only ever 0..4 (the high byte of an index < 1296) and the
+second 0..245. The loader byte-swaps it, which is why a naive little-endian read
+looks like noise. `Dungeon::dest_cell()` decodes it; a zero record means "no
+destination".
+
+**Handler.** `LOF.EXE` image `0x2e7fa..0x2e9c6` reads the tile under the party
+(`[bx+0x46d8]`), switches on the low nibble, and for the `0xF` case does
+`si = [0x37fe] << 2` then loads `ds:[si-0x5aba]` (dungeon) and `ds:[si-0x5ab8]`
+(cell) — i.e. the `ds:0xa546` table. The destination *level* keeps the current
+level digit, so the new file id is `dest_dungeon * 10 + (location % 10)`.
+
+**Falsification (29 levels, `tests/dungeon_test.cpp`).**
+
+* 57 stair cells ship across the 29 levels; 2 of them are portals.
+* **55/55** ordinary stair cells carry a non-zero destination record.
+* **55/55** destinations land in a real level, and every one lands on a cell
+  *adjacent* to the matching opposite stair (an up-stair arrives beside a
+  down-stair and vice versa). A wrong nibble reading or a little-endian
+  destination breaks both counts immediately.
+* Both portals resolve through the `ds:0xa546` table.
+
+**Live confirmation.** Injecting tile `0x15` + record 644 into DNG05 in front of
+the party made the original emulator open `DNGS/DNG15` on stepping forward. The
+same transition is now reproduced by the drop-in: `--walk` from DNG05 cell 1212
+(`0x15` stair at 1211 → DNG15 cell 644) prints "You climb down the stairs." and
+lands at (32,17), and `tests/port_walk_test.py` pins it.
+
+The stairs/hole wording ("You climb up the hole." vs "...the stairs.") is chosen
+at run time from state that is not yet mapped, so `dungeon_stair_message()` takes
+that choice as a parameter rather than guessing it.
