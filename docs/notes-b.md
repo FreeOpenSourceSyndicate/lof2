@@ -1935,3 +1935,27 @@ its message.  **OT-003 was therefore closed as not-needed** (the `W`/`B` meaning
 are decompilation-derived and stand; Rule 1).  (Whether the melee round table is
 *only* the quick-combat summary is not yet confirmed — the printer at `0x186A3`
 runs in both modes' round function.)
+
+### Monster attack path `0x159F8` — entry map (2026-11-21, not yet ported)
+
+The monster half of the round.  Entry state: `[bp+6]` = far pointer to the
+attacker's combat record row (marker at `+0x00`), `[bp+0xa]` = the target row.
+The first ~300 bytes already decode as:
+
+| image | meaning |
+|---|---|
+| `0x159FB` | `cmp byte es:[bx],1` — only marker 1 (defender) takes this path; else `jmp 0x1797C` (the party path) |
+| `0x15A0B` | `[bp-0x44]` = target index (`[bp+0xa]+0x01`) |
+| `0x15A16` | `[bp-0xc]` = attacker index (`[bp+0x06]+0x01`) |
+| `0x15A38` | `record = [0xafc0]:[0x52] + 0x11a*index` (the 0x11a combat record) |
+| `0x15A3B` | `if record[+0x37] == 0x0c` → cap the attacker's HP at `8*record[+0x2c]` (`0x15A42..0x15A65`, `+2` otherwise) |
+| `0x15A7B` | `if (word record[+0x106] | word record[+0x108]) != 0` → `jmp 0x137DE` (skip to the shared tail) |
+| `0x15A9B` | `if record[+0x10e] == 0` → `0x15DF8` |
+| `0x15AA6` | `bx = 6 * attacker[+0x05]`; `es=[0xafca]`; `if word es:[bx+0x3d48] <= 1` → `0x15DF8` (the `+0x05` group index into a 6-byte-stride table at `0x3d48`) |
+| `0x15AC5` | `es=[0xafc2]`; `if byte es:[0x3de9] != 0` → `0x15B1E` |
+
+So the path is a decision tree over the combat record's `+0x37` type, two word
+flags at `+0x106`/`+0x108`, a flag at `+0x10e`, and two globals
+(`[0xafca]:0x3d48`, `[0xafc2]:0x3de9`).  Transcribing it needs those globals
+identified first — the next session should start by reading what writes
+`[0xafca]` and `[0xafc2]` and what lives at `0x3d48`/`0x3de9`.
