@@ -2592,3 +2592,50 @@ actually changed before drawing a conclusion from a null result.
 Regression coverage: `tests/port_walk_test.py` now asserts the Gonk save spawns
 at (23,12) facing E — not the header's (17,3) — so the save-over-header
 precedence cannot silently regress.
+
+### Round 24 — the outdoor (D0) viewport is a 4-sprite composite, pixel-exact
+
+**The wilderness viewport is not one sprite, and not a sprite ladder.**  It is
+the base view plus three horizon-band side pieces, and the set reproduces
+`ref/oracle/play.png`'s 120x119 window **pixel-exactly (14280/14280)**:
+
+| sprite | origin (window coords) | role |
+|--------|------------------------|------|
+| `D0/DP001` | (0,0) | full base view (the cell structure ahead) |
+| `D0/DP012` | (0,49) | left horizon piece |
+| `D0/DP004` | (15,46) | mid-left horizon piece |
+| `D0/DP005` | (90,50) | right horizon piece |
+
+Blit order matters: `DP012` then `DP004` then `DP005`, each with a
+transparent (index 0) mask, over the full `DP001` base.  `DP004`/`DP005`/`DP012`
+are each an **exact** pixel match at those offsets (verified independently per
+sprite), and the composite reaches 1.0000 against the DOSBox capture.
+
+**How this was measured (no guessing).**  Greedy search over all 63 `D0` sprites
+at every in-window offset, scoring whole-window agreement against
+`ref/oracle/play.png`, converged in three steps:
+
+    DP001 (base)         0.9132
+    + DP012 @ (0,49)     0.9502
+    + DP004 @ (15,46)    0.9846
+    + DP005 @ (90,50)    1.0000
+
+The base is not ambiguous: composing the same pieces over every other
+full-size `D0` sprite gives `DP001` 0.9635, `DP002` 0.0721, `DP036` 0.0651,
+`DP014` 0.0602 — only `DP001` is the outdoor base for this cell/facing.
+
+**Corrections to earlier notes.**  Round 20's claim that the wilderness window
+"matches `DP036`/`DP014` at IoU 1.000" does not hold for this frame; the base is
+`DP001` and the earlier IoU was an ink-level (not index-level) score.  Also note
+`ref/oracle/wilderness.png` and `ref/oracle/play.png` are the **same scene in two
+different palettes** (different time of day): the sky dither pattern is
+byte-identical, only the palette registers differ, so a diff between them
+measures the clock, not the geometry.  Use `play.png` (day palette, the one the
+port already matches) as the A-1 oracle.
+
+**Still to pin (do not guess).**  These three pieces are the ones the engine
+selects for *this* cell and facing (DNG10 cell 745 = (25,20) facing N).  Which
+piece set other cells/facings select is not yet measured; a position/facing sweep
+through the emulator would give the selection rule.  The safe implementation is
+to blit the measured set for the measured view and leave other views on the base
+only until the sweep is done.
