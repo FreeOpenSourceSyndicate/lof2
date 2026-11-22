@@ -40,6 +40,11 @@ EVENT_FIRE_TEST = python3 tests/event_fire_test.py
 # named from SYST/SNSC via +0xeb.
 RECRUIT_EVENT_TEST = python3 tests/recruit_event_test.py
 
+# (Agent A — dungeons) the once-only event gate: a record with +0xe4 == 1 and a
+# type that takes the 0 flag is skipped entirely when the party's +0x38 union
+# already covers its +0xe6 index.  Exactly one shipped record is gated.
+ONCE_ONLY_TEST = python3 tests/once_only_test.py
+
 # (Maintainer — disassembly) the two address conventions for LOF.EXE.  Mixing
 # them silently lands in-image mid-instruction and is what hid the event
 # dispatcher's callers for a whole session.
@@ -53,4 +58,5 @@ LOCAL_TEST_CMDS = \
     ( $(TARGET_CONVENTION_TEST) ) && \
     ( $(EVENT_FIRE_TEST) ) && \
     ( $(RECRUIT_EVENT_TEST) ) && \
+    ( $(ONCE_ONLY_TEST) ) && \
     ( python3 tests/saves_test.py )

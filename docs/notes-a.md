@@ -3203,20 +3203,73 @@ record's type word.
 1F5B8: jmp word cs:[bx+0x25ea]         ; 17-entry jump table
 ```
 
-The table is at image `0x21B9A`; each entry is an **IP**, and the handler address
-is `cs*16 + ip` with `cs = 0x2F6B` (the segment of the `jmp`). Resolved:
+**Correction (2026-11-08, Round 58b): this table does not dispatch to handlers.**
+It has only **two distinct targets**, and they set a one-byte local flag:
 
-| type | handler (image) | type | handler (image) |
-|-----:|----------------:|-----:|----------------:|
-|  7 | `0x24601` | 16 | `0x28493` |
-|  8 | `0x2604A` | 17 | `0x277B6` |
-|  9 | `0x272DF` | 18 | `0x21C60` |
-| 10 | `0x278DA` | 19 | `0x213B3` |
-| 11 | `0x1FA74` | 20 | `0x1F602` |
-| 12 | `0x28EF0` | 21 | `0x283D6` |
-| 13 | `0x2543B` | 22 | `0x249B6` |
-| 14 | `0x2C74A` | 23 | `0x21BB0` |
-| 15 | `0x2C793` |    |         |
+```
+1F5B8: jmp word cs:[bx+0x25ea]
+1F5BD: nop
+1F5BE: mov byte [bp-8], 0 ; jmp 0x1F5EC    <- types 7,8,11,12,13,15,18,23
+1F5C4: mov byte [bp-8], 1 ; jmp 0x1F5EC    <- types 9,10,14,16,17,19,20,21,22
+                                            (and the out-of-range path, 0..6)
+```
+
+The table is 17 words at image `0x1F5CA` -- `cs*16 + 0x25EA` with `cs = 0x1CFE`,
+the segment of the `jmp` itself, which is the `target()` rule the address test
+pins.  Its contents alternate between exactly two IPs, `0x25DE` and `0x25E4`.
+So the type word selects **`[bp-8] == 0` or `1`**, not a per-type routine.  Every
+arm rejoins the single shared tail at `0x1F5EC`.
+
+Reading the table as if it were at `0x25EA *in the image*` (which is what an
+earlier round did) lands at `0x21B9A`, which is code -- `push cx; push ax; lcall
+...` -- and the "handler" addresses it yields (`0x24601`, `0x2604A`, ...) are
+mid-instruction.  Those numbers were wrong and the per-type handlers they imply
+do not exist.
+
+### What the flag actually gates
+
+`[bp-8]` is the "the type is one of the 9 special ones" flag, and the only thing
+it gates is a **party-wide once-only check**:
+
+```
+1F603: cmp word es:[bx+0xe4], 1        ; record+0xe4 == 1
+1F609: jne 0x1F62D                     ;   (a "once only" record)
+1F60B: cmp byte [bp-8], 0
+1F60F: je  0x1F62D                     ;   and the type is a special one
+1F611: cmp word es:[bx+0xe6], 0xc
+1F617: jge 0x1F62D                     ;   and the index is < 12
+1F619: mov bx, es:[bx+0xe6]
+1F622: cmp byte es:[bx+0x37ee], 0      ;   and [0x37ee+index] != 0
+1F62A: jmp 0x212F6                     ;   -> silent early return
+```
+
+`0x212F6` is the function's shared epilogue (`pop si; pop di; mov sp,bp; pop bp;
+retf`), so the "once only" record is **skipped entirely**: no text, no effect.
+
+`[0x37ee]` is a 12-byte array and it is a **per-character** field, not a global
+latch: the two loops that fill it (`0x1F38C` over 6 slots x 12 entries, `0x1F396`
+likewise) index character records at stride `0x19A` (410, the save's slot size)
+and test **character byte `+0x38`**:
+
+```
+1F3F0: mov ax, 0x19a ; imul [bp-0x3c]      ; slot * 410
+1F3F8: add si, [bp-0x40]                    ; + entry 0..11
+1F3FF: les bx, es:[0x30]                    ; character table
+1F404: cmp byte es:[bx+si+0x38], 0
+1F409: je  0x1F3DA
+1F412: mov byte es:[bx+0x37ee], 1           ; OR across the whole party
+```
+
+So `[0x37ee]` is the **party-wide union of bytes `+0x38..+0x43`** over the six
+slots, and a "once only" event fires only while that union is zero for its
+`+0xe6` index.  This also explains why `+0xe6` is bounded by 12: the array is 12
+bytes.  It is not a bitfield -- each byte is a separate 0..255 index, which is
+why the bound is 12 and not 96.
+
+On the shipped saves the union is `010000000010` (entries 1 and 10), i.e. the
+same two entries set for every character.  Only **5 of the 665** records are
+gated by this rule (SPEC0[0], SPEC0[1], SPEC0[13], SPEC0[14], SPEC1[1]) -- so the
+port printing those regardless is a real, if narrow, divergence.
 
 Types **0..6** never reach the jump: `sub ax,7` underflows and the unsigned
 `ja` sends them to `0x1F5C4` (which sets `[bp-8]=1`). That is the "plain text"
@@ -3286,8 +3339,10 @@ quantities/percentages, not the record text.
 
 ### What is settled and what is not
 
-- Settled: the effect is chosen by `record+0xe2`; the jump table is 17 words at
-  image `0x21B9A` with `cs = 0x2F6B`; the domain is 7..23; 0..6 take the
+- Settled: the type word `record+0xe2` only selects a **flag** (`[bp-8]`); the
+  17-word table at image `0x1F5CA` (`cs = 0x1CFE`) holds two IPs, `0x25DE`/`0x25E4`.
+  There are no per-type handlers.  The flag gates one party-wide once-only check
+  against `record+0xe4 == 1` and `[0x37ee + record+0xe6]`.  The domain is 7..23; 0..6 take the
   plain-text path at `0x1F5C4` (`mov [bp-8],1` then the shared tail); and the
   four arguments come from `0xda..0xe0` filtered to `1..185`.
 - Settled (negative): the entries are **not** 17 separate handlers. They share

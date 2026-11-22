@@ -801,9 +801,39 @@ static void draw_viewport_map(Screen& s, const Dungeon& d, const DungeonPos& p) 
 // text_b is empty.  The record is *not* consumed: the engine clears the cell's
 // tile/word at many per-type sites, not in one generic place, so consuming
 // unconditionally here would diverge.
+// The party-wide "already done" union the once-only check reads.
+//
+// The dispatcher builds `[0x37ee]`, a 12-byte array, by OR-ing character byte
+// `+0x38 + i` across the six party slots (loops at 0x1F38C / 0x1F396; the
+// stride is 0x19a, the save slot size).  It is *not* a global latch and not a
+// bitfield -- each byte is its own 0..255 index, which is why the record's
+// `+0xe6` argument is bounded by 12 rather than 96.
+static std::array<uint8_t, 12> party_done_flags(const SaveGame& sg) {
+    std::array<uint8_t, 12> out{};
+    for (const SaveChar& c : sg.chars) {
+        if (!c.present) continue;
+        for (size_t i = 0; i < out.size(); i++)
+            if (c.raw[0x38 + i]) out[i] = 1;
+    }
+    return out;
+}
+
+// Types whose type word selects `[bp-8] == 0` in the dispatch table at 0x1F5CA.
+// Only these are subject to the once-only check below; everything else (types
+// 0..6 and 9,10,14,16,17,19..22) gets `[bp-8] == 1` and is never suppressed.
+static bool type_takes_zero_flag(uint16_t type) {
+    switch (type) {
+        case 7: case 8: case 11: case 12: case 13: case 15: case 18: case 23:
+            return true;
+        default:
+            return false;
+    }
+}
+
 static void fire_cell_event(const std::string& dir, uint16_t location,
                             const Dungeon& d, const DungeonPos& pos,
-                            SpecTable* spec, bool* spec_loaded) {
+                            SpecTable* spec, bool* spec_loaded,
+                            const SaveGame* sg) {
     const int idx = d.event_index(pos.x, pos.y);
     if (idx < 0) return;
     if (!*spec_loaded) {
@@ -818,6 +848,20 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
         return;
     }
     const SpecRecord& r = spec->records[(size_t)idx];
+
+    // Once-only records are skipped entirely -- no text and no effect -- when
+    // the party has already been through them:
+    //   1F603: cmp word es:[bx+0xe4], 1   ; the record is "once only"
+    //   1F60B: cmp byte [bp-8], 0         ; and its type takes the 0 flag
+    //   1F611: cmp word es:[bx+0xe6], 0xc ; and the index is inside the array
+    //   1F622: cmp byte es:[bx+0x37ee],0 ; and the party has done it
+    //   1F62A: jmp 0x212F6                ; -> the shared epilogue, silently
+    // 0x212F6 is `pop si; pop di; mov sp,bp; pop bp; retf`, i.e. a plain return.
+    if (r.counter == 1 && type_takes_zero_flag((uint16_t)r.type) &&
+        r.arg_e6 < 12 && sg != nullptr) {
+        if (party_done_flags(*sg)[(size_t)r.arg_e6]) return;
+    }
+
     if (!r.text_b.empty()) printf("lof: %s\n", r.text_b.c_str());
 
     // A record may also name a long text block: `index_c9` (0xff = none) is an
@@ -1145,7 +1189,8 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                 if (walk_key(dir, loc, dng, pos, key, &changed, stair_msg)) {
                     if (changed) { play_dungeon = loc; play_spec_loaded = false; }
                     if (!stair_msg.empty()) printf("lof: %s\n", stair_msg.c_str());
-                    fire_cell_event(dir, loc, dng, pos, &play_spec, &play_spec_loaded);
+                    fire_cell_event(dir, loc, dng, pos, &play_spec,
+                                    &play_spec_loaded, &play_sg);
                     redraw_play();
                 }
             }
@@ -1219,7 +1264,7 @@ static bool walk_loop(const std::string& dir, const std::string& save,
         walk_key(dir, location, d, pos, k, &changed, msg);
         if (!msg.empty()) printf("lof: %s\n", msg.c_str());
         if (location != before) spec_loaded = false;   // stair: new level, new SPEC
-        fire_cell_event(dir, location, d, pos, &spec, &spec_loaded);
+        fire_cell_event(dir, location, d, pos, &spec, &spec_loaded, &sg);
     }
     // Persist the walk.  The party position is written back into the save's
     // world block and the file is re-sealed, so a later load resumes here.
