@@ -9,9 +9,9 @@ This drives the real `lof --walk` path over a shipped save moved to the cell in
 front of the recruit cell on DNG10, and asserts three things:
 
   * the question (SPEC0[1] text_b) appears,
-  * the warrior's speech (SPEC0[1]'s `+0xc9` block in SYST/TXT0) is shown, which
-    is what proves the text-block index is resolved against the *scenario* file,
-  * the joining character is named "Siegurd", which proves `+0xeb` indexes SNSC.
+  * the joining character is named "Siegurd", which proves `+0xeb` indexes SNSC,
+  * the warrior's speech (the `+0xc9` block) is *not* shown yet, because the
+    tail skips that block for type 1 -- it belongs to the accept path.
 
 The save is rewritten in place (moved, then re-sealed) because the shipped saves
 start elsewhere on the level and the walk key script would be dozens of steps of
@@ -90,21 +90,28 @@ def main():
         for needle, why in (
             ("A large warrior asks if he may join you (Yes/No).",
              "the recruit question"),
-            ("Cyldane", "the warrior's speech (the +0xc9 text block)"),
-            ("companionship may prove to", "the rest of the speech"),
             ("Siegurd would join", "the joining class named from SNSC"),
         ):
             if needle not in after:
                 sys.exit("recruit_event_test: missing %s (%r).  Got:\n%s"
                          % (why, needle, after))
+
+        # The speech is the *accept* path, and the tail skips the +0xc9 block for
+        # type 1 outright (0x1F6DE).  Showing it on entry would hand the player
+        # the "yes" text before they answered, so its absence is part of the
+        # contract, not an unfinished feature.
+        if "Cyldane" in after:
+            sys.exit("recruit_event_test: the warrior's speech was printed "
+                     "before the question was answered; the +0xc9 block must be "
+                     "skipped for type 1.  Got:\n%s" % after)
         if "walk: x=31 y=2" not in after:
             sys.exit("recruit_event_test: the party did not enter the cell: %r"
                      % after.strip())
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
-    print("recruit_event_test: ok (question, speech block and Siegurd all "
-          "reproduced from the data)")
+    print("recruit_event_test: ok (question and Siegurd reproduced; the accept "
+          "speech is correctly withheld until the answer)")
 
 
 if __name__ == "__main__":

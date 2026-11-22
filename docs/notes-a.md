@@ -3461,3 +3461,18 @@ running to "...my companionship may prove to be less dangerous..." -- the text t
 player sees after answering yes.  This is what made `text_b` alone insufficient:
 20 records carry no short text at all and only name a block (e.g. `SPEC0[19]`).
 
+**The block is not shown on entry for every type.**  The tail gates it on the
+type word and on the `[bp+6]` argument:
+
+    1F6C8: cmp word es:[bx+0xe2], 0x19 ; je 0x1F713   ; type 25 skips
+    1F6D0: cmp byte [bp+6], 0          ; jne 0x1F713  ; non-zero arg skips
+    1F6D6: cmp byte es:[bx+0xc9], 0    ; jl  0x1F713  ; no block -> skip
+    1F6DE: cmp word es:[bx+0xe2], 1    ; je  0x1F713  ; type 1 skips
+    1F6E6: cmp word es:[bx+0xe2], 8    ; je  0x1F713  ; type 8 skips
+
+So types 1, 8 and 25 never print their block from this path.  For the recruit
+that is correct behaviour, not an omission: the speech is what the warrior says
+*after* the party accepts, and the engine shows it on the accept path.  Printing
+it on entry would hand the player the "yes" text before they answered.  The port
+therefore prints no block for those three types.
+

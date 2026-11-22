@@ -832,7 +832,17 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
     // engine pages this over the message box; printing it line by line keeps the
     // whole block instead of dropping it, which is what a bare text_b does for
     // the 20 records that carry no short text at all (e.g. SPEC0[19]).
-    if (r.has_index()) {
+    // ...but the tail skips the block for the types whose handler has already
+    // spoken, and the test is on the type word, not on "did we print anything":
+    //   cmp word es:[bx+0xe2], 0x19 ; je 0x1F713   (type 25)
+    //   cmp word es:[bx+0xe2], 1    ; je 0x1F713   (type 1,  at 0x1F6DE)
+    //   cmp word es:[bx+0xe2], 8    ; je 0x1F713   (type 8,  at 0x1F6E6)
+    // and the block is skipped whenever the `[bp+6]` argument is non-zero
+    // (0x1F6D0).  A recruit's speech belongs to the accept path, not to the
+    // prompt, so printing it on entry would show the player the "yes" text
+    // before they answered.  Types 1, 8 and 25 therefore print no block here.
+    const bool type_skips_block = r.type == 1 || r.type == 8 || r.type == 25;
+    if (r.has_index() && !type_skips_block) {
         const int scenario = spec_scenario_for_location(location);
         const std::string txt_path =
             dir + "/SYST/TXT" + std::to_string(scenario);
@@ -858,6 +868,9 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
     // `+0xeb` by 0x4e, the SNSC record stride, and indexes the loaded SNSC image
     // at [0x37b0].  Reporting the class is faithful data, not a guess; the stat
     // block and the answer loop are not implemented, so the event still says so.
+    // (The accept path also prints the record's `+0xc9` speech and the
+    // "joins the companionship." line; neither is reachable until the answer is
+    // read, and the engine only shows them after a yes.)
     if (r.type == 1 && r.has_class()) {
         std::vector<SnsRecord> classes = load_snsc(dir + "/SYST/SNSC");
         if (r.class_eb < classes.size())
