@@ -1247,6 +1247,68 @@ static void test_answer_text(const std::string& dir) {
                 recruit.text_a.c_str());
 }
 
+// The answer branches, as a tested model.
+//
+// The dispatcher compares the typed answer with the record keyword
+// case-insensitively and takes one of two branches.  Getting the polarity wrong
+// silently swaps "the effect fires" with "it does not", which is the kind of bug
+// that looks like working code, so the model is asserted directly.
+static void test_answer_branches(const std::string& dir) {
+    SpecRecord r;
+    r.keyword = "Y";
+    r.text_a = "He goes, disappointed.";
+    r.text_b = "A large warrior asks if he may join you (Yes/No).";
+    r.flag_4b = 0;
+
+    // Empty keyword: the record never reads an answer and never prints +0x0e.
+    SpecRecord silent = r;
+    silent.keyword.clear();
+    assert(classify_answer(silent, "Y") == AnswerEffect::NoAnswerWanted);
+    assert(!answer_prints_outcome(silent, classify_answer(silent, "Y")));
+    assert(!answer_fires_effect(classify_answer(silent, "Y")));
+
+    // Match: the effect fires.  Mismatch: it must not.
+    assert(classify_answer(r, "Y") == AnswerEffect::Match);
+    assert(answer_fires_effect(classify_answer(r, "Y")));
+    assert(classify_answer(r, "N") == AnswerEffect::Mismatch);
+    assert(!answer_fires_effect(classify_answer(r, "N")));
+
+    // The compare is case-insensitive, which is what makes the ground truth
+    // (a player typing lowercase 'y' to the warrior) work.
+    assert(classify_answer(r, "y") == AnswerEffect::Match);
+    assert(keyword_matches("Y", "y"));
+    assert(keyword_matches("Fire", "fIrE"));
+    assert(!keyword_matches("Y", "yes") && "prefixes must not match");
+    assert(!keyword_matches("Y", ""));
+    assert(!keyword_matches("", "Y"));
+
+    // +0x4b == 0: both branches print the outcome line.
+    assert(answer_prints_outcome(r, AnswerEffect::Match));
+    assert(answer_prints_outcome(r, AnswerEffect::Mismatch));
+    // +0x4b == 1: neither branch does.
+    SpecRecord quiet = r;
+    quiet.flag_4b = 1;
+    assert(!answer_prints_outcome(quiet, AnswerEffect::Match));
+    assert(!answer_prints_outcome(quiet, AnswerEffect::Mismatch));
+    // An empty +0x0e prints nothing either way.
+    SpecRecord no_line = r;
+    no_line.text_a.clear();
+    assert(!answer_prints_outcome(no_line, AnswerEffect::Match));
+
+    // Against the shipped record: the warrior wants "Y" and its outcome line is
+    // the documented decline text.
+    SpecTable spec = load_spec(spec_path(dir + "/..", 10));
+    if (spec.ok && spec.records.size() > 1) {
+        const SpecRecord& warrior = spec.records[1];
+        assert(classify_answer(warrior, "y") == AnswerEffect::Match);
+        assert(classify_answer(warrior, "n") == AnswerEffect::Mismatch);
+        assert(answer_prints_outcome(warrior, AnswerEffect::Mismatch));
+        assert(warrior.text_a == "He goes, disappointed.");
+    }
+    std::printf("dungeon_test: answer branches ok (match fires the effect, "
+                "mismatch does not, +0x4b gates the outcome line)\n");
+}
+
 // `+0xeb` is an SNSC class index, but the block that reads it at 0x1F85B is
 // dead code, and SPEC0[1] does not go through it.
 //
@@ -1686,6 +1748,7 @@ int main(int argc, char** argv) {
     test_dispatch_table(dir);
     test_answer_text(dir);
     test_recruit_field_guard(dir);
+    test_answer_branches(dir);
     test_recruit_class(dir);
     test_walk_real(dir);
     test_view_themes(dir);

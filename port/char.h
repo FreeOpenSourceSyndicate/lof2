@@ -109,6 +109,48 @@ struct SpecRecord {
     bool has_class() const { return class_eb != 0xff; }
 };
 
+// How a typed answer interacts with a record's outcome line (`+0x0e`).
+//
+// Derived from the dispatcher at 0x209C8..0x20A95 and pinned by
+// tests/dungeon_test.cpp::test_answer_branches.  The record's keyword (+0x00) is
+// compared case-insensitively against the answer; an empty keyword means the
+// record never reads one.
+//
+//   0x209C8: cmp byte es:[bx+si],0        ; keyword empty?
+//   0x209CC: jne 0x209D1
+//   0x209CE: jmp 0x20AB8                  ; no answer wanted -> the type switch
+//   0x20A0C: or dx,ax                     ; compare result, 0 == equal
+//   0x20A0E: je  0x20A72                  ; EQUAL   -> the match branch
+//   0x20A10: ...                          ; else    -> the mismatch branch
+//
+// The match branch is the one that reaches the per-type effect switch, so only
+// a correct answer can fire the effect.  `+0x0e` is printed on both branches,
+// with `+0x4b` gating each branch separately:
+//
+//   match    (0x20A89 cmp byte [bx+0x4b],0 ; 0x20A8E je 0x20AB8 -> no print)
+//   mismatch (0x20A3D cmp byte [bx+0x4b],0 ; 0x20A42 je 0x20A47 -> print)
+//
+// so `+0x4b == 0` means "both answers get the line" and `+0x4b == 1` means
+// "neither does".  The other gate on each branch is `+0x0e != 0`.
+enum class AnswerEffect {
+    NoAnswerWanted,   // keyword empty: go straight to the type switch
+    Match,            // answer == keyword: effect fires, line per +0x4b
+    Mismatch,         // answer != keyword: no effect, line per +0x4b
+};
+
+// Classify a typed answer against a record.  `answer` may be empty.
+AnswerEffect classify_answer(const SpecRecord& r, const std::string& answer);
+
+// Whether the outcome line (`+0x0e`) is printed for this branch.
+bool answer_prints_outcome(const SpecRecord& r, AnswerEffect effect);
+
+// Whether the per-type effect runs for this branch (only on a match).
+bool answer_fires_effect(AnswerEffect effect);
+
+// Case-insensitive comparison with the same folding the engine uses
+// (0x1BE9F: test byte [bx-0x51fb],2 ; sub ax,0x20).
+bool keyword_matches(const std::string& keyword, const std::string& answer);
+
 // A parsed SYST/SPECn file: the count byte plus its records.
 struct SpecTable {
     uint8_t declared_count = 0;

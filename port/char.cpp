@@ -43,6 +43,40 @@ std::string cstr(const uint8_t* p, size_t limit) {
 
 }  // namespace
 
+// Case-insensitive keyword compare, matching the engine's folding at 0x1BE9F.
+// The engine consults a case table and subtracts 0x20 from characters marked as
+// lower case; the shipped keywords are all ASCII, so a plain tolower on ASCII is
+// equivalent.  The comparison walks both strings to their NUL and requires equal
+// length, exactly as 0x1BE70 does.
+bool keyword_matches(const std::string& keyword, const std::string& answer) {
+    if (keyword.empty()) return false;
+    size_t i = 0;
+    for (; i < keyword.size() && i < answer.size(); i++) {
+        unsigned char a = (unsigned char)keyword[i];
+        unsigned char b = (unsigned char)answer[i];
+        if (a >= 'a' && a <= 'z') a = (unsigned char)(a - 0x20);
+        if (b >= 'a' && b <= 'z') b = (unsigned char)(b - 0x20);
+        if (a != b) return false;
+    }
+    return i == keyword.size() && i == answer.size();
+}
+
+AnswerEffect classify_answer(const SpecRecord& r, const std::string& answer) {
+    if (r.keyword.empty()) return AnswerEffect::NoAnswerWanted;
+    return keyword_matches(r.keyword, answer) ? AnswerEffect::Match
+                                             : AnswerEffect::Mismatch;
+}
+
+bool answer_prints_outcome(const SpecRecord& r, AnswerEffect effect) {
+    if (effect == AnswerEffect::NoAnswerWanted) return false;
+    // Both branches gate on `+0x4b == 0` and then on `+0x0e != 0`.
+    return r.flag_4b == 0 && !r.text_a.empty();
+}
+
+bool answer_fires_effect(AnswerEffect effect) {
+    return effect == AnswerEffect::Match;
+}
+
 bool parse_spec(const std::vector<uint8_t>& data, SpecTable& out) {
     out = SpecTable{};
     if (data.empty()) return false;
