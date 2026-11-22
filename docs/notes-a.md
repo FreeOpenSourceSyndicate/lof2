@@ -3003,3 +3003,44 @@ viewport come from it too, so an all-banks search is required before concluding
 **Method note 2.** Check `ink` before believing a match.  A normal viewport
 frame is 14280 non-zero pixels; a frame that scores a "perfect" 1.0000 against
 a character sprite is a failed capture, not a discovery.
+
+## Round 53 — Save writer, and the reader bug it exposed (maintainer, 2026-11-08)
+
+**Task P-1, done.** `build_save()` / `write_save_file()` in `port/char.cpp` now
+emit a complete 13134-byte `GAMES/GAMEn`, and `lof --walk ... --save-out PATH`
+persists the party after replaying keys. Read→write is byte-identical on every
+intact archived save (GAME 1/2/3, GAME1..GAME4); GAME 5 is re-sealed because it
+is tampered (below). Round-trip is proven through a real file, not by assigning
+structs in memory.
+
+**The reader was wrong, and it was visible on screen.** `load_save()` walked
+`(size - 4) / 410` records — 32 of them — because `docs/notes-b.md` claimed
+`13134 = 4 + 32*410 + 10` means "32 character slots". The arithmetic is a
+coincidence. The real boundary is structural: `4 + 6*410 == 0x9a0`, and `0x9a0`
+is independently known to be the world state (party cell first). Slot 6's
+`present` byte was therefore the party cell (125 in GAME1), i.e. truthy, so it
+counted as a live 7th character. Consequence: the play screen's rations figure
+summed 32 "characters" and printed **38** where the DOSBox oracle prints **19**.
+Fixed by stopping at six and keeping `world` / `map` verbatim.
+
+*Lesson:* a size-based "N records fit" inference is not evidence. Check whether
+the computed boundary lands on a field you independently know, and whether the
+first byte at that boundary looks like a plausible field value. Here it was 125 —
+the party cell — and nobody looked.
+
+**The seal is weak, and the test must say so.** The checksum is the ROST fold
+(seed 1, add/xor alternating, NUL → 1) over `[0, 0x2e3a)`. Substituting 1 for
+NUL makes every **0↔1** change invisible: measured on GAME1, all 11225 zero
+bytes and all 326 one-bytes flip undetected. My first test asserted "any single
+byte flip breaks the seal" and failed — correctly. The test now asserts the real
+property (meaningful bytes are covered; zero→one is not) so a future agent does
+not "fix" the fold into something the engine would reject.
+
+**GAME 5 is tampered.** Both spellings store 13680 where the contents fold to
+22103. `SaveGame::sealed` records this; `lof` warns on load instead of silently
+repairing it, because a silent repair destroys the evidence.
+
+**Also verified:** changing only facing (`0x9a6`) rewrites exactly that byte plus
+the seal, and the written file resumes at the new facing while the original
+still resumes at the old one. `save_set_party`/`save_set_location` round-trip
+(cell 455, location 10 → `DNG10`).

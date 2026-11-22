@@ -240,14 +240,42 @@ The engine's save system is grounded from `LOF.EXE` strings: `GAMES\GAME%d`
 with prompts "Load which gamestanding:", " is not a valid game:",
 " gamestanding loaded!" (and the save mirror). A save file is:
 
-    off 0  : header `00 46 4F 4C`  (0x00 'F' 'O' 'L')
-    off 4  : N x 410-byte (0x19a) character records — the SAME struct ROST uses
-    end    : trailing block (10 bytes here)
+    off 0    : header `00 46 4F 4C`  (0x00 'F' 'O' 'L')
+    off 4    : 6 x 410-byte (0x19a) character records — the SAME struct ROST uses
+    off 0x9a0: world state (party cell, location digits, facing, clock, morale, ...)
+    off 0x2e3a: 4-byte checksum (little-endian) over bytes [0, 0x2e3a)
+    off 0x2e3e: 36*36 = 1296-byte per-cell array
+    total    : 13134 bytes
 
-GAME1..GAME5 are all 13134 bytes = 4 + 32*410 + 10, i.e. **32 character slots**.
+**The character table is exactly six records, not 32.** `4 + 6*410 == 0x9a0`,
+which is precisely where the world state begins — that identity is the proof, and
+it is confirmed by the data: record 6's first byte would be the party cell
+(125 = (17,3) in GAME1), not a `present` flag. An earlier reading of this file
+concluded "32 slots" from `13134 = 4 + 32*410 + 10`; that arithmetic is a
+coincidence (410*32 = 13120, and the remaining 14 bytes were called a "trailer").
+The consequence was visible on screen: the port summed rations over all 32
+"slots", counting the world state as a 7th character, and printed **38** where
+the DOSBox oracle prints **19**. `load_save()` now stops at six and keeps the
+world/map blocks verbatim in `SaveGame::world` / `SaveGame::map`.
+
+The checksum is the same alternating ADD/XOR fold as the ROST record trailer
+(`rost_record_checksum`): seed 1, add on even index, xor on odd, **NUL counts as
+1**. Verified to reproduce the stored word on GAME 1/2/3, GAME1..GAME4.
+GAME 5 (both spellings) stores 13680 where its contents fold to 22103 — that
+archive copy is tampered, so `SaveGame::sealed` is false for it and `lof` warns
+on load. The writer re-seals, so writing GAME5 "repairs" it.
+
+Note the fold's blind spot, which is a property of the original algorithm and
+must not be "fixed": substituting 1 for NUL means **every 0↔1 change is
+invisible** to the seal (measured: all 11225 zero bytes and all 326 one-bytes in
+GAME1 can be flipped undetected). It catches changes to meaningful bytes but not
+someone setting a zero flag to one.
+
 The six party members appear first: Decker, Siegurd, Handy, Merlin, Cassandra,
-Assanla (present = 0x01). `SaveGame`/`load_save()` in `port/char.{h,cpp}` parse
-this; `tools/spec.py --save GAME1` dumps it.
+Assanla (present = 0x01). `SaveGame`/`load_save()`/`build_save()` in
+`port/char.{h,cpp}` read and write this; `tools/spec.py --save GAME1` dumps it.
+`build_save(read_save(f))` is byte-identical to an intact `f` for every archived
+save, and `lof --walk ... --save-out PATH` persists the party position.
 
 ### 410-byte character struct — grounded offsets
 

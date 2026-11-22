@@ -14,6 +14,18 @@
 
 using namespace lofport;
 
+static std::vector<uint8_t> slurp(const std::string& path) {
+    std::vector<uint8_t> out;
+    FILE* f = std::fopen(path.c_str(), "rb");
+    if (!f) return out;
+    uint8_t buf[4096];
+    size_t n;
+    while ((n = std::fread(buf, 1, sizeof buf, f)) > 0)
+        out.insert(out.end(), buf, buf + n);
+    std::fclose(f);
+    return out;
+}
+
 static void put16(std::vector<uint8_t>& v, size_t off, uint16_t val) {
     v[off] = (uint8_t)(val & 0xff);
     v[off + 1] = (uint8_t)(val >> 8);
@@ -530,11 +542,111 @@ static int real_data() {
     assert(sv.ok);
     assert(sv.header[0] == 0x00 && sv.header[1] == 'F' &&
            sv.header[2] == 'O' && sv.header[3] == 'L');
-    assert(sv.chars.size() == 32);
+    // Six slots, not 32.  4 + 6*410 == 0x9a0, which is exactly where the world
+    // state starts, so a 7th "record" would be the party cell.  The old
+    // 32-slot walk made the rations total 38 where the oracle prints 19.
+    assert(sv.chars.size() == kSaveCharCount);
     assert(sv.chars[0].present == 1 && sv.chars[0].name == "Decker");
     assert(sv.chars[1].name == "Siegurd");
     assert(sv.chars[5].name == "Assanla");
-    assert(sv.trailer.size() == 10);
+    // World state and the per-cell array are preserved verbatim.
+    assert(sv.world.size() == kSaveChecksum - kSaveCharsEnd);
+    assert(sv.map.size() == kSaveMapCells);
+    assert(sv.world[0] == (uint8_t)(sv.party_pos & 0xff));   // +0x9a0
+
+    // Rations: the oracle's play screen prints 19 for this save.  Summing over
+    // all parsed records gave 38 because the world-state byte at 0x9a0 is 125
+    // (truthy) and sits where a 7th record would begin.
+    long rations = 0;
+    for (size_t i = 0; i < sv.chars.size(); i++)
+        if (sv.chars[i].present) rations += sv.chars[i].raw[kCharRations70];
+    assert(rations == 19);
+
+    // The save is sealed with the same fold as the ROST trailer, over the first
+    // 0x2e3a bytes.  Round-tripping must reproduce the file byte-for-byte.
+    assert(save_checksum_ok(slurp(std::string(dir) + "/GAMES/GAME1")));
+    {
+        std::vector<uint8_t> in = slurp(std::string(dir) + "/GAMES/GAME1");
+        std::vector<uint8_t> out = build_save(sv);
+        assert(out.size() == kSaveSize);
+        assert(out == in);
+        assert(save_checksum_ok(out));
+    }
+
+    // The seal is a weak fold, and the test must assert what it ACTUALLY does,
+    // not what one would wish it did.  Because NUL is substituted with 1 before
+    // folding, 0 <-> 1 changes are completely invisible: measured on this save,
+    // all 11225 zero bytes and all 326 one-bytes can be flipped without the seal
+    // noticing.  Any other single-byte change is caught.  So the writer's seal
+    // protects against corruption/editing of *meaningful* bytes (stats, names,
+    // position) but not against setting a zero flag.
+    {
+        std::vector<uint8_t> in = slurp(std::string(dir) + "/GAMES/GAME1");
+        // The blind spot, asserted explicitly so nobody "fixes" the fold later.
+        {
+            std::vector<uint8_t> blind = in;
+            size_t z = 0;
+            while (z < kSaveChecksum && blind[z] != 0) z++;
+            assert(z < kSaveChecksum);
+            blind[z] = 1;
+            assert(save_checksum_ok(blind));   // NOT detected - by design
+        }
+        // Meaningful-byte changes are detected: the party cell and facing are
+        // what the port edits, and they must break the seal if edited by hand.
+        for (size_t off : {kSavePartyPos, kSavePartyPos + 1, kSaveFacing}) {
+            std::vector<uint8_t> bad = in;
+            bad[off] ^= 0x40;   // a bit that is not the 0<->1 blind spot
+            if (bad[off] == in[off]) continue;
+            if (in[off] == 0 && bad[off] == 1) continue;
+            assert(!save_checksum_ok(bad));
+        }
+        // A changed world byte must survive a rebuild with the seal restored.
+        SaveGame g2 = sv;
+        save_set_party(g2, 455, 3);
+        std::vector<uint8_t> moved = build_save(g2);
+        assert(save_checksum_ok(moved));
+        assert(moved[kSavePartyPos] == 455 % 256);
+        assert(moved[kSaveFacing] == 3);
+        // Everything except the two edited fields and the seal is untouched.
+        for (size_t i = 0; i < moved.size(); i++) {
+            if (i >= kSavePartyPos && i < kSavePartyPos + 2) continue;
+            if (i == kSaveFacing) continue;
+            if (i >= kSaveChecksum && i < kSaveChecksum + 4) continue;
+            assert(moved[i] == in[i]);
+        }
+        // ...and a real write-then-read through a file gives the new position
+        // back.  (Assigning g2 to h would prove nothing.)
+        const std::string tmp = "/tmp/lof_save_roundtrip.sav";
+        assert(write_save_file(tmp, moved));
+        SaveGame h = load_save(tmp);
+        assert(h.ok);
+        assert(h.sealed);
+        assert(h.party_pos == 455 && h.facing == 3);
+        assert(h.chars.size() == kSaveCharCount);
+        assert(h.chars[0].name == "Decker");
+        // The writer refuses to emit an unsealed image.
+        std::vector<uint8_t> bad = moved;
+        bad[kSavePartyPos] ^= 0x40;   // a covered byte the fold does notice
+        assert(!save_checksum_ok(bad));
+        assert(!write_save_file(tmp + ".bad", bad));
+        std::remove((tmp + ".bad").c_str());
+        std::remove(tmp.c_str());
+    }
+
+    // The tampered archive save must be reported, not silently accepted.  GAME5's
+    // stored word is 13680 while its contents fold to 22103.
+    {
+        std::string p5 = std::string(dir) + "/GAMES/GAME5";
+        std::vector<uint8_t> b5 = slurp(p5);
+        if (!b5.empty()) {
+            SaveGame g5 = load_save(p5);
+            assert(g5.ok);
+            assert(!g5.sealed);          // flagged as tampered
+            assert(!save_checksum_ok(b5));
+            std::vector<uint8_t> fixed = build_save(g5);
+            assert(save_checksum_ok(fixed));   // writing re-seals it
+        }
+    }
 
     // Character-struct offsets the engine's init/erase routines use directly
     // (analysis/lof.asm 1B9C2..1BA7E).  Live slots carry word10 == -1.

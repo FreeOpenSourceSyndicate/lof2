@@ -149,7 +149,9 @@ SaveGame load_save(const std::string& path) {
                      ((uint32_t)d[kSaveMorale + 3] << 24);
         g.morale = (int)m;
     }
-    size_t n = (d.size() - kSaveHeaderSize) / 410;
+    // Exactly six records; the world state begins where they end, so parsing to
+    // EOF would swallow it (see the layout comment in the header).
+    size_t n = std::min(kSaveCharCount, (d.size() - kSaveHeaderSize) / 410);
     for (size_t i = 0; i < n; i++) {
         const uint8_t* r = d.data() + kSaveHeaderSize + i * 410;
         SaveChar c;
@@ -162,9 +164,85 @@ SaveGame load_save(const std::string& path) {
         c.name = std::move(nm);
         g.chars.push_back(std::move(c));
     }
-    size_t end = kSaveHeaderSize + n * 410;
-    g.trailer.assign(d.begin() + end, d.end());
+    if (d.size() > kSaveCharsEnd) {
+        size_t end = std::min(d.size(), kSaveChecksum);
+        g.world.assign(d.begin() + kSaveCharsEnd, d.begin() + end);
+    }
+    if (d.size() > kSaveMap)
+        g.map.assign(d.begin() + kSaveMap, d.end());
+    g.sealed = save_checksum_ok(d);
     return g;
+}
+
+uint32_t save_checksum(const uint8_t* data, size_t len) {
+    // Identical fold to the ROST record trailer: seed 1, add on even index, xor
+    // on odd, NUL counted as 1.
+    uint32_t acc = 1;
+    for (size_t i = 0; i < len; i++) {
+        uint32_t c = data[i] ? data[i] : 1;
+        acc = (i % 2 == 0) ? (acc + c) : (acc ^ c);
+    }
+    return acc;
+}
+
+std::vector<uint8_t> build_save(const SaveGame& g) {
+    std::vector<uint8_t> out(kSaveSize, 0);
+    std::memcpy(out.data(), g.header, kSaveHeaderSize);
+    // Records: only the slots the caller actually holds.  A short party leaves
+    // the remaining slots zeroed, which is what an empty slot looks like.
+    for (size_t i = 0; i < g.chars.size() && i < kSaveCharCount; i++)
+        std::memcpy(out.data() + kSaveHeaderSize + i * 410,
+                    g.chars[i].raw.data(), 410);
+    // World state, then the per-cell array, copied verbatim from the load.
+    for (size_t i = 0; i < g.world.size() && kSaveCharsEnd + i < kSaveChecksum; i++)
+        out[kSaveCharsEnd + i] = g.world[i];
+    for (size_t i = 0; i < g.map.size() && kSaveMap + i < kSaveSize; i++)
+        out[kSaveMap + i] = g.map[i];
+    // Re-seal: the engine rejects a save whose trailer does not fold correctly.
+    uint32_t sum = save_checksum(out.data(), kSaveChecksum);
+    for (int i = 0; i < 4; i++)
+        out[kSaveChecksum + i] = (uint8_t)((sum >> (8 * i)) & 0xff);
+    return out;
+}
+
+bool save_checksum_ok(const std::vector<uint8_t>& bytes) {
+    if (bytes.size() < kSaveChecksum + 4) return false;
+    uint32_t stored = (uint32_t)bytes[kSaveChecksum] |
+                      ((uint32_t)bytes[kSaveChecksum + 1] << 8) |
+                      ((uint32_t)bytes[kSaveChecksum + 2] << 16) |
+                      ((uint32_t)bytes[kSaveChecksum + 3] << 24);
+    return stored == save_checksum(bytes.data(), kSaveChecksum);
+}
+
+bool write_save_file(const std::string& path, const std::vector<uint8_t>& bytes) {
+    if (bytes.size() != kSaveSize) return false;
+    if (!save_checksum_ok(bytes)) return false;   // never write an unsealed save
+    FILE* f = std::fopen(path.c_str(), "wb");
+    if (!f) return false;
+    size_t n = std::fwrite(bytes.data(), 1, bytes.size(), f);
+    return std::fclose(f) == 0 && n == bytes.size();
+}
+
+// Offset of a world-state field inside SaveGame::world.
+static size_t world_off(size_t file_off) { return file_off - kSaveCharsEnd; }
+
+void save_set_party(SaveGame& g, uint16_t cell, uint8_t facing) {
+    g.party_pos = cell;
+    g.facing = facing;
+    if (g.world.size() > world_off(kSaveFacing)) {
+        g.world[world_off(kSavePartyPos)] = (uint8_t)(cell & 0xff);
+        g.world[world_off(kSavePartyPos) + 1] = (uint8_t)(cell >> 8);
+        g.world[world_off(kSaveFacing)] = facing;
+    }
+}
+
+void save_set_location(SaveGame& g, uint8_t tens, uint8_t ones) {
+    g.loc_tens = tens;
+    g.loc_ones = ones;
+    if (g.world.size() > world_off(kSaveLocTens)) {
+        g.world[world_off(kSaveLocOnes)] = ones;
+        g.world[world_off(kSaveLocTens)] = tens;
+    }
 }
 
 uint16_t save_location(const SaveGame& g) {

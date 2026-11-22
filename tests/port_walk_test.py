@@ -140,6 +140,71 @@ def main() -> int:
         rc = 1
     shutil.rmtree(os.path.dirname(stair_save), ignore_errors=True)
 
+    # --- Save writer -------------------------------------------------------
+    # Walking with --save-out must persist the party position and re-seal the
+    # file, and loading the written file must resume at the new position.  This
+    # is the end-to-end check for the GAMES writer: a writer that produced a
+    # correctly-sized but unsealed file would be rejected by the engine, and one
+    # that dropped the world block would silently teleport the party.
+    save_dir = tempfile.mkdtemp(prefix="lof_save_")
+    src = os.path.join(save_dir, "in.sav")
+    dst = os.path.join(save_dir, "out.sav")
+    with open(SAVE, "rb") as f:
+        src_bytes = f.read()
+    with open(src, "wb") as f:
+        f.write(src_bytes)
+
+    def walk_pos(path):
+        r = subprocess.run(
+            [os.path.join(ROOT, "lof"), "--dir", GAME, "--headless", "--walk",
+             "--save", path], check=True, capture_output=True, text=True)
+        mm = re.search(r"walk: x=(-?\d+) y=(-?\d+) facing=(\d+)", r.stdout)
+        return tuple(int(g) for g in mm.groups()) if mm else None
+
+    def fold(buf):
+        acc = 1
+        for i, c in enumerate(buf):
+            c = c or 1
+            acc = (acc + c) & 0xFFFFFFFF if i % 2 == 0 else (acc ^ c) & 0xFFFFFFFF
+        return acc
+
+    subprocess.run(
+        [os.path.join(ROOT, "lof"), "--dir", GAME, "--headless", "--walk",
+         "--save", src, "--walk-keys", "0x4b", "--save-out", dst],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if not os.path.exists(dst):
+        print("port_walk_test: FAIL save writer (--save-out wrote no file)")
+        return 1
+    with open(dst, "rb") as f:
+        out_bytes = f.read()
+    before, after = walk_pos(src), walk_pos(dst)
+    stored = int.from_bytes(out_bytes[0x2E3A:0x2E3E], "little")
+    problems = []
+    if len(out_bytes) != 13134:
+        problems.append("size %d != 13134" % len(out_bytes))
+    if stored != fold(out_bytes[:0x2E3A]):
+        problems.append("written save is not sealed")
+    if before is None or after is None:
+        problems.append("could not read positions")
+    elif after[2] != 1:
+        problems.append("facing not persisted (got %s)" % (after,))
+    elif after != (before[0], before[1], 1):
+        problems.append("unexpected position change %s -> %s" % (before, after))
+    # Only the facing byte and the seal may differ from the input.
+    changed = [i for i in range(min(len(src_bytes), len(out_bytes)))
+               if src_bytes[i] != out_bytes[i]]
+    unexpected = [hex(i) for i in changed
+                  if i != 0x9A6 and not (0x2E3A <= i < 0x2E3E)]
+    if unexpected:
+        problems.append("unexpected bytes changed: %s" % unexpected)
+    if problems:
+        print("port_walk_test: FAIL save writer (%s)" % "; ".join(problems))
+        rc = 1
+    else:
+        print("port_walk_test: save writer ok (turn persists, re-sealed, "
+              "resumes at facing %d)" % after[2])
+    shutil.rmtree(save_dir, ignore_errors=True)
+
     # The walk viewport must differ from the static play composition.
     walk_shot = "/tmp/port_walk_test.png"
     play_shot = "/tmp/port_walk_play.png"

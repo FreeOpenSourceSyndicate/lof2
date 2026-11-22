@@ -984,8 +984,16 @@ struct SaveGame {
     uint8_t facing = kSaveFacingInvalid;  // +0x9a6  party facing (0=N..3=W)
     int time_of_day = -1;             // +0x9b6  index into time_of_day_names()
     int morale = -1;                  // +0x9ba  index into morale_names()
-    std::vector<SaveChar> chars;      // floor((size - 4) / 410) records
-    std::vector<uint8_t> trailer;     // any bytes past the last whole record
+    std::vector<SaveChar> chars;      // exactly kSaveCharCount records
+    // World state verbatim (bytes 0x9a0 .. kSaveChecksum) and the per-cell array
+    // (kSaveMap .. end).  Kept whole so `build_save()` round-trips byte-exactly
+    // without having to decode every field: only the fields the port actually
+    // changes (position, facing, clock) are edited in place by the setters.
+    std::vector<uint8_t> world;
+    std::vector<uint8_t> map;
+    // True iff the file's stored checksum matched on load.  A tampered save is
+    // still loaded (the player may want to inspect it), but the caller can warn.
+    bool sealed = false;
 };
 
 // Combined location id (tens*10 + ones) for a save.
@@ -995,6 +1003,58 @@ uint16_t save_location(const SaveGame& g);
 // view directory is empty if the ones digit exceeds 7 (no D8/D9).
 std::string dungeon_map_name(uint16_t location);
 std::string dungeon_view_dir(uint16_t location);
+
+// --- Save file layout -------------------------------------------------------
+//
+// A saved game is NOT "a header followed by character records to EOF".  It is
+// four distinct regions, and the boundary is fixed, not derived from the file
+// size:
+//
+//     0x0000  magic `00 'F' 'O' 'L'`
+//     0x0004  6 x 410-byte character records   (0x9a0 = 4 + 6*410)
+//     0x09a0  world state (party cell, location, facing, clock, ...)
+//     0x2e3a  4-byte checksum over bytes [0, 0x2e3a)
+//     0x2e3e  1296-byte per-cell array (36*36)
+//     total   13134
+//
+// The six slots are exactly the six party members; there is no seventh record.
+// This matters: the old reader walked `(size-4)/410` = 32 slots to EOF, so slot
+// 6 began AT the world state and its `present` byte read 125 (the party cell),
+// making it look like a live character.  That inflated the rations total from
+// the correct 19 to 38 (the oracle prints 19).  See notes-a Round 51.
+constexpr size_t kSaveCharCount = 6;
+constexpr size_t kSaveCharsEnd = kSaveHeaderSize + kSaveCharCount * 410;  // 0x9a0
+constexpr size_t kSaveChecksum = 0x2e3a;  // 4-byte fold over [0, 0x2e3a)
+constexpr size_t kSaveMap = 0x2e3e;       // 36*36 per-cell bytes
+constexpr size_t kSaveMapCells = 36 * 36;
+constexpr size_t kSaveSize = kSaveMap + kSaveMapCells;  // 13134
+
+// The checksum is the same alternating ADD/XOR fold the ROST records use
+// (`rost_record_checksum`), seeded with 1, with NUL counted as 1.  Verified: it
+// reproduces the stored word on every intact archived save.  GAME5's stored word
+// is wrong (13680 vs 22103), i.e. that archive copy is tampered; the engine
+// rejects it, and so must the writer's round-trip check.
+uint32_t save_checksum(const uint8_t* data, size_t len);
+
+// Serialise a save.  Produces the full kSaveSize byte image with a correct
+// checksum, so `build_save(read_save(f))` is byte-identical to an intact f.
+std::vector<uint8_t> build_save(const SaveGame& g);
+
+// True iff the file's stored checksum matches its contents.
+bool save_checksum_ok(const std::vector<uint8_t>& bytes);
+
+// Write `bytes` to `path`.  The caller is expected to pass build_save() output,
+// which is already sealed; this is the only place the port touches a save file
+// on disk, so the "never write an unsealed save" rule has one enforcement point.
+bool write_save_file(const std::string& path, const std::vector<uint8_t>& bytes);
+
+// Move the party in the in-memory save: updates the world-state copy at +0x9a0
+// and +0x9a6 and the mirrored convenience fields, so build_save() emits the new
+// position.  No-op when the save carries no world block.
+void save_set_party(SaveGame& g, uint16_t cell, uint8_t facing);
+
+// Set the dungeon location (the two digit bytes at +0x9a2 / +0x9a4).
+void save_set_location(SaveGame& g, uint8_t tens, uint8_t ones);
 
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.

@@ -217,9 +217,12 @@ static bool draw_party_and_status(Screen& s, const std::string& dir,
         // prints it with "%ld" at x=60).  A save's copy is the value at save time;
         // the engine consumes rations as the party travels.
         {
+            // Six slots only.  Walking every parsed record used to include the
+            // world-state bytes as a bogus 7th "character" and printed 38 where
+            // the oracle prints 19 (the reader bug fixed alongside this).
             long total = 0;
-            for (const SaveChar& c : sg.chars)
-                if (c.present) total += c.raw[kCharRations70];
+            for (size_t i = 0; i < sg.chars.size() && i < kSaveCharCount; i++)
+                if (sg.chars[i].present) total += sg.chars[i].raw[kCharRations70];
             box.draw_text(s, 60, 184, std::to_string(total), 7);
         }
     }
@@ -1067,9 +1070,17 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
 // left 0x4b turn left, right 0x4d turn right (the wilderness key map).  Prints
 // the resulting position so a headless test can assert the party moved.
 static bool walk_loop(const std::string& dir, const std::string& save,
-                      const std::vector<int>& keys, Screen& out, DungeonPos& pos) {
+                      const std::string& save_out, const std::vector<int>& keys,
+                      Screen& out, DungeonPos& pos) {
     SaveGame sg = load_save(save);
     if (!sg.ok) { fprintf(stderr, "lof: --walk needs a valid --save\n"); return false; }
+    // The engine refuses a save whose trailer does not fold correctly (it shows
+    // its "caught trying to fraud" page).  We load it anyway but say so: one of
+    // the archived saves (GAME5) is tampered, and silently repairing it on write
+    // would hide that.
+    if (!sg.sealed)
+        fprintf(stderr, "lof: warning: %s fails its checksum (tampered); "
+                        "loading anyway, writing will re-seal it\n", save.c_str());
     uint16_t location = save_location(sg);
     std::string path = dir + "/DNGS/" + dungeon_map_name(location);
     Dungeon d;
@@ -1084,6 +1095,15 @@ static bool walk_loop(const std::string& dir, const std::string& save,
         bool changed = false;
         walk_key(dir, location, d, pos, k, &changed, msg);
         if (!msg.empty()) printf("lof: %s\n", msg.c_str());
+    }
+    // Persist the walk.  The party position is written back into the save's
+    // world block and the file is re-sealed, so a later load resumes here.
+    if (!save_out.empty()) {
+        save_set_party(sg, (uint16_t)(pos.y * kDungeonW + pos.x), pos.facing);
+        if (!write_save_file(save_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", save_out.c_str());
+            return false;
+        }
     }
     // Compose the HUD + party panel with no viewport tile, then blit the
     // depth-selected first-person view sprite into the window (its offset
@@ -1103,7 +1123,7 @@ int main(int argc, char** argv) {
     bool ui = false, walk = false;
     std::string shot;
     long shot_frame = -1;
-    std::string walk_save, walk_keys;
+    std::string walk_save, walk_keys, walk_out;
     // --cursor X,Y overlays the engine's software mouse cursor at (X,Y) on the
     // rendered screen.  The DOSBox reference captures were taken with the mouse
     // parked at (0,0), so `--cursor 0,0` reproduces them exactly.
@@ -1123,6 +1143,7 @@ int main(int argc, char** argv) {
         else if (a == "--walk") walk = true;
         else if (a == "--save" && i + 1 < argc) walk_save = argv[++i];
         else if (a == "--walk-keys" && i + 1 < argc) walk_keys = argv[++i];
+        else if (a == "--save-out" && i + 1 < argc) walk_out = argv[++i];
         else if (a == "--cursor" && i + 1 < argc) {
             const char* v = argv[++i];
             char* end = nullptr;
@@ -1152,7 +1173,7 @@ int main(int argc, char** argv) {
         }
         Screen s;
         DungeonPos pos;
-        if (!walk_loop(dir, save, keys, s, pos)) return 1;
+        if (!walk_loop(dir, save, walk_out, keys, s, pos)) return 1;
         printf("walk: x=%d y=%d facing=%d\n", pos.x, pos.y, pos.facing);
         if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
         if (!headless) present_sdl(s, "Legend of Faerghail");

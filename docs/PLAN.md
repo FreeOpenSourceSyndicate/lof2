@@ -10,20 +10,22 @@ Last refreshed: 2026-11-08 (session of agent lof2/M-5, sole active agent).
 
 ---
 
-## 1. Overall project completion — ~82 %
+## 1. Overall project completion — ~86 %
 
 Weighted by player-visible subsystem, not by line count.  The table below sums
-to **82.4 %** (weights total 100); it is rounded to ~82 % because the two largest
-open items — outdoor scenery and the save writer — are the ones most likely to
-hide extra work.  The previous revision said ~75 % while its own table summed to
-78.5 %; the arithmetic is now stated so the figure can be checked.
+to **86.4 %** (weights total 100); it is rounded to ~86 %.  The previous revision
+said ~75 % while its own table summed to 78.5 %, then ~82 % at 82.4 %; the
+arithmetic is stated so the figure can be checked (and was re-checked: 86.4 is
+82.4 + the 4-point save writer, which went 0 → 100 %).  That is the largest
+single capability added since the project began: the drop-in can now hold a
+session.
 
 The drop-in already boots, shows the intro, reaches the menu, walks a town, visits every building,
 walks the Temple dungeon in first person, meets wandering monsters and resolves
 a combat round.  What is missing is concentrated in three places: the *outdoor
 scenery rule* (the view is exact for one cell and approximate elsewhere), the
-*object interactions* beyond stairs (doors, traps, pickups), and *saving* --
-there is still no save writer at all.
+*object interactions* beyond stairs (doors, traps, pickups).  Saving is no
+longer one of them: saves are written, sealed and reloaded.
 
 | Subsystem | Done | Weight | Notes |
 |---|---|---|---|
@@ -40,7 +42,7 @@ there is still no save writer at all.
 | Character data (SPEC/ROST/SNSC) | 90 % | 6 | parse + checksum done; char-sheet *screen* not pixel-matched |
 | Items | 70 % | 6 | table parsed, equip deltas derived; use-effects partial |
 | Save **read** | 100 % | 4 | archive fixtures, checksum, content addressing |
-| **Save write** | **0 %** | 4 | no writer exists at all |
+| **Save write** | **100 %** | 4 | `build_save`/`write_save_file`; read→write byte-identical on every intact archive save; `--save-out` persists the party; tampered saves detected and flagged |
 
 ---
 
@@ -61,7 +63,7 @@ ground truth first. "Ground truth" names how correctness will be proven, because
 
 | # | Task | Est. | Why this rank | Ground truth / next step |
 |---|------|------|---------------|--------------------------|
-| **P-1** | **Save writer.** No writer exists at all — everything a player does is lost on exit. | 8–12 h | **Top.** Without it the drop-in cannot be used for a real session; it is the difference between a demo and a playable game. | Round-trip a shipped save: read → write → **byte-identical**, ROST checksum recomputed. `port/char.{h,cpp}`, `port/lof.cpp`, `tests/saves_test.py` |
+| ~~**P-1**~~ | ~~**Save writer.**~~ **DONE.** | — | `build_save()`/`write_save_file()` emit a sealed 13134-byte save; `lof --walk --save-out` persists the party. Also fixed the reader's 32-slot bug (world state was being parsed as a 7th character, doubling the rations readout 19→38). | Proven: read→write is **byte-identical** on every intact archived save; turn persists and resumes; tests mutation-checked. `port/char.{h,cpp}`, `port/lof.cpp`, `tests/char_test.cpp`, `tests/port_walk_test.py` |
 | **P-2** | **Object-code semantics** (doors, traps, item pickups). Stairs/portals are decoded; the rest of the object layer is only proven "door-like" by geometry. | 8–12 h | **High.** Dungeons cannot be explored without doors; this blocks progression, not just fidelity. | Event dispatcher at image `0x1F31E`; SPEC record `+0xe2` behaviour type. `port/dungeon.{h,cpp}`, `tools/dngs.py` |
 | **P-3** | **Monster attack path + quick-combat loop** (`0x159F8`, `0x17BAA`). Melee rounds resolve, but monsters do not act and there is no combat loop. | 8–14 h | **High.** Combat where the enemy never strikes is not combat; this is the core of the game. | Those routines (partly disassembled). `port/combat.{h,cpp}` |
 | **P-4** | **Spells in combat.** The cast-spell action is unimplemented in `resolve_round()`. | 12–20 h | **High**, but depends on P-3's loop existing. | Spell table + the cast path in the combat dispatcher. `port/combat.{h,cpp}` |
@@ -100,7 +102,6 @@ Two ordering facts worth stating because they are not obvious from the table:
 
 | task | low h | high h |
 |------|-------|--------|
-| P-1 save writer | 8 | 12 |
 | P-2 object codes | 8 | 12 |
 | P-3 monster attack + combat loop | 8 | 14 |
 | P-4 spells in combat | 12 | 20 |
@@ -110,9 +111,9 @@ Two ordering facts worth stating because they are not obvious from the table:
 | P-8 character sheet | 6 | 10 |
 | P-9 depth-2+ sprites | 3 | 5 |
 | P-10 all-out message | 2 | 4 |
-| **total** | **65** | **107** |
+| **total** | **57** | **95** |
 
-So **~65–107 agent-hours** remain. Add ~30 % if the work must be re-derived by an
+So **~57–95 agent-hours** remain (P-1 is done). Add ~30 % if the work must be re-derived by an
 agent with no prior context on this codebase.
 
 ---
