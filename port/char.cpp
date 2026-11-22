@@ -939,7 +939,14 @@ PartyRow defender_row(const SnsRecord& rec, int group, int hp, int hp_max) {
     r.hp_pct = rec.stats[0x2c - 0x26] ? (uint8_t)(100 * hp / (8 * rec.stats[0x2c - 0x26]))
                                       : 0;
     r.body24 = (uint8_t)(group + 1);
-    r.hp_mod = rec.stats[0x39 - 0x26] ? 0x32 : 0;
+    // +0x06: the encounter builder (0x27A1E) writes 0 or 0x32, but a live
+    // round rebuilds the rows: it zeroes the byte (runtime 313F:6870) and then
+    // subtracts 10 * (4 - rec[+0x29]) (313F:68D5..0x6902).  The Mercenary
+    // capture reads 0xEC = -(10 * (4 - 2)), which pins the formula.
+    {
+        const uint8_t step = (uint8_t)(4u - (uint32_t)rec.stats[0x29 - 0x26]);
+        r.hp_mod = (uint8_t)(0u - (uint8_t)(step * 10u));
+    }
     r.attr_a = rec.stats[0x2d - 0x26];
     r.attr_b = rec.stats[0x2e - 0x26];
     r.attr_c = rec.stats[0x30 - 0x26];

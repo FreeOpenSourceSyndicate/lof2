@@ -2017,6 +2017,30 @@ code that has not been read yet.  That rebuild is the thing to find before
 porting the monster path, because it may also own the `+0x106`/`+0x108`/
 `+0x10e` fields the monster path tests.
 
+**RESOLVED 2026-11-21 — the rebuild is decoded.**  `LOF_WATCH=46b38:46b40` on a
+real round (the `LOF_KEYAT` script above) reports the writes and their `cs:ip`;
+the code is runtime `313F:674F`..`313F:6918` = **image `0x27B3A`..`0x27B65`**
+(the emulator loads the image at linear `0x10100`, so image = linear - 0x10100;
+this sits inside the builder noted as `0x27A1E`, i.e. the 0/0x32 write seen
+earlier is a *different row*, `[bp-0x140]`, not `+0x258+72g+12j`).
+
+The per-round row rebuild, per defender row:
+
+    ax = 0x48 * g ; cx = 12 * j ; ax += cx ; ax += 0x25E   ; row + 6
+    es = [0xafa6] (= 0x468E) ; es:[bx] = 0                 ; +0x06 = 0
+    al = 4 - rec[+0x29]                                    ; 313F:68D5
+    al = al * 10                                           ; shl,add,shl
+    es:[bx+0x25E] -= al                                    ; +0x06 -= 10*(4-rec[+0x29])
+
+and, in the same pass:
+
+    +0x0a (word) = word at [0xb082]:0x52 -> +0x9e, indexed by di
+    +0x04        = 100 * (+0x0a) / (8 * rec[+0x2c])
+
+For the Mercenary `rec[+0x29] == 2`, so `+0x06 = -20 = 0xEC`, which is exactly
+what the capture read.  `port/char.cpp::defender_row()` now computes both
+formulas.
+
 **236 is not a static immediate (2026-11-21).**  The whole image was searched
 for every immediate store form -- `c6`/`c7` with `[bx+si|bp+si|bx+di|bp+di|si|di
 +6]`, with and without an `es`/`cs` prefix, byte and word -- and for
