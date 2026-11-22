@@ -61,6 +61,15 @@ bool keyword_matches(const std::string& keyword, const std::string& answer) {
     return i == keyword.size() && i == answer.size();
 }
 
+DoorTarget door_target(const SpecRecord& r) {
+    DoorTarget t;
+    t.location = r.counter;
+    t.map = (int)(int16_t)r.arg_e6;
+    t.cell = r.arg_e8;
+    t.pending = true;
+    return t;
+}
+
 AnswerEffect classify_answer(const SpecRecord& r, const std::string& answer) {
     if (r.keyword.empty()) return AnswerEffect::NoAnswerWanted;
     return keyword_matches(r.keyword, answer) ? AnswerEffect::Match

@@ -138,6 +138,23 @@ enum class AnswerEffect {
     Mismatch,         // answer != keyword: no effect, line per +0x4b
 };
 
+// A type-7 ("would you like to go through?") door's destination, from the
+// effect at image 0x20AD7..0x20B13: the handler copies the record's `+0xe4`
+// into `[0xb05c]:0x37fa`, `+0xe6` (sign-extended) into `[0xb050]:0x460e`,
+// `+0xe8` into `[0xb04e]:0x3824`, and sets `[0xb05e]:0x3b15 = 1`.  All ten
+// shipped type-7 records carry a plausible destination cell (e.g. SPEC2[0] =
+// location 1, map 1, cell 572 = row 15, col 32), so the three fields are the
+// destination (level, map, 36x36 cell) and the byte is a pending flag.
+// Which code *consumes* the flag is not yet decoded -- see GUESSWORK G-017.
+struct DoorTarget {
+    int location = 0;   // +0xe4 -> [0x37fa]
+    int map = 0;        // +0xe6 -> [0x460e] (dword, sign-extended)
+    int cell = 0;       // +0xe8 -> [0x3824]
+    bool pending = false;  // [0x3b15] = 1
+};
+
+DoorTarget door_target(const SpecRecord& r);
+
 // Classify a typed answer against a record.  `answer` may be empty.
 AnswerEffect classify_answer(const SpecRecord& r, const std::string& answer);
 

@@ -557,6 +557,20 @@ static int real_data() {
         assert(g2.body24 == 2 && g2.hp_pct == 100);
     }
 
+    // Type-7 door destination (0x20AD7..0x20B13): +0xe4/+0xe6/+0xe8 become
+    // (location, map, cell) and the pending flag is raised.
+    {
+        SpecRecord r;
+        r.type = SPEC_TYPE_DOOR;
+        r.counter = 1;      // +0xe4
+        r.arg_e6 = 1;       // +0xe6
+        r.arg_e8 = 572;     // +0xe8 = row 15, col 32
+        DoorTarget t = door_target(r);
+        assert(t.location == 1 && t.map == 1 && t.cell == 572 && t.pending);
+        r.arg_e6 = 0xFFFF;  // sign-extended into the engine's dword
+        assert(door_target(r).map == -1);
+    }
+
     // Profession (+0x1b): an index into kProfessionNames; the display routine
     // (image 0x2FB4A) rejects values > 0x0b, and the init routine seeds 0x0c
     // ("no profession"), so 12 must map to an empty name.  Verified against the

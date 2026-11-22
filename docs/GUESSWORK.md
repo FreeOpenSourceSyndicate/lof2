@@ -262,6 +262,17 @@ How to use each section:
   no move loop yet). It only affects *when* the port should call
   `event_index()` after a step, which is the remaining P-2 work.
 
+### G-017 — who consumes the type-7 door destination
+
+`0x20AD7..0x20B13` writes a type-7 door's destination into
+`[0xb05c]:0x37fa` (`+0xe4`), `[0xb050]:0x460e` (`+0xe6`, sign-extended) and
+`[0xb04e]:0x3824` (`+0xe8`), then raises `[0xb05e]:0x3b15`.  The three fields
+read as a destination (level, map, 36x36 cell: all ten shipped type-7 records
+carry a cell in `0..1295`, e.g. SPEC2[0] = 1/1/572), and the port stores exactly
+that (`door_target()`), but **no reader of `[0x3b15]` has been found**, so the
+actual party move is not implemented.  Do not invent the move: find the reader
+of `[0x3b15]` (watch it during a door acceptance) before porting it.
+
 ### G-016 — the `SpecType` labels come from record text, not from code
 
 - **Guess:** the names in `port/char.h`'s `SpecType` enum (`SPEC_TYPE_DOOR = 7`,

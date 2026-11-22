@@ -836,6 +836,8 @@ static const std::string* g_event_answer = nullptr;
 
 // `answer` is the player's typed reply for records that carry a keyword
 // (+0x00); nullptr means no reply was supplied.
+static DoorTarget g_door;   // type-7 destination, see door_target()
+
 static void fire_cell_event(const std::string& dir, uint16_t location,
                             const Dungeon& d, const DungeonPos& pos,
                             SpecTable* spec, bool* spec_loaded,
@@ -953,6 +955,17 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
         else
             printf("lof:   (recruit class %u missing from SYST/SNSC)\n",
                    (unsigned)r.class_eb);
+    }
+
+    // Type 7: a doorway.  The handler (0x20AD7..0x20B13) stores the record's
+    // destination -- +0xe4 -> [0x37fa], +0xe6 -> [0x460e], +0xe8 -> [0x3824]
+    // -- and raises [0x3b15].  The move itself happens wherever that flag is
+    // consumed, which is not decoded yet (GUESSWORK G-017).
+    if (r.type == 7) {
+        g_door = door_target(r);
+        printf("lof:   (door -> location %d, map %d, cell %d)\n",
+               g_door.location, g_door.map, g_door.cell);
+        return;
     }
 
     // Plain-text group with no extra tail work: the event is fully reproduced.
