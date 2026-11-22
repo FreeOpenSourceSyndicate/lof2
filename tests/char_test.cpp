@@ -674,18 +674,27 @@ static int real_data() {
         std::remove(tmp.c_str());
     }
 
-    // The tampered archive save must be reported, not silently accepted.  GAME5's
-    // stored word is 13680 while its contents fold to 22103.
+    // A tampered save must be reported, not silently accepted.  Built from
+    // slot 5's own bytes so the check does not depend on which fixture the
+    // working tree happens to hold there.
     {
         std::string p5 = std::string(dir) + "/GAMES/GAME5";
         std::vector<uint8_t> b5 = slurp(p5);
         if (!b5.empty()) {
-            SaveGame g5 = load_save(p5);
+            std::vector<uint8_t> t = b5;
+            t[kSavePartyPos] ^= 0x40;
+            std::string tmp = std::string(dir) + "/GAMES/GAME5.tamper";
+            FILE* f = fopen(tmp.c_str(), "wb");
+            assert(f);
+            assert(fwrite(t.data(), 1, t.size(), f) == t.size());
+            fclose(f);
+            SaveGame g5 = load_save(tmp);
             assert(g5.ok);
             assert(!g5.sealed);          // flagged as tampered
-            assert(!save_checksum_ok(b5));
+            assert(!save_checksum_ok(t));
             std::vector<uint8_t> fixed = build_save(g5);
             assert(save_checksum_ok(fixed));   // writing re-seals it
+            std::remove(tmp.c_str());
         }
     }
 

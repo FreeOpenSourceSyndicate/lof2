@@ -6,115 +6,126 @@ are in `docs/GUESSWORK.md`; rules are in `docs/RULES.md`; the deeper technical
 history is in `docs/HANDOFF.md` §4. This file answers three questions: **what is
 left, in what order, how long, and how done are we?**
 
-Last refreshed: 2026-11-08 (session of agent lof2/M-5, sole active agent).
+Last refreshed: 2026-11-21 (session of agent lof2/M-4, sole active agent).
+This revision **integrates** the queue written by lof2/M-5 (its P-1..P-10 are
+kept, renumbered by priority, and the mapping is stated in §2) and adds the
+items that list was missing: town exit / wilderness travel, the town state
+effects (inn rest, temple heal/revive, shop and bank transactions) and the
+`P`/`B` combat flags.  The combat model also gained the derived defender rows
+and the `W` column since that revision (see §1, combat row).
 
 ---
 
-## 1. Overall project completion — ~86 %
+## 1. Overall project completion — ~87 %
 
 Weighted by player-visible subsystem, not by line count.  The table below sums
-to **86.4 %** (weights total 100); it is rounded to ~86 %.  The previous revision
-said ~75 % while its own table summed to 78.5 %, then ~82 % at 82.4 %; the
-arithmetic is stated so the figure can be checked (and was re-checked: 86.4 is
-82.4 + the 4-point save writer, which went 0 → 100 %).  That is the largest
-single capability added since the project began: the drop-in can now hold a
-session.
+to **86.8 %** (weights total 100); it is rounded to ~87 %.  The previous
+revision said ~86 % (86.4 %), and ~82 % before the save writer landed.  The
+arithmetic is stated so the figure can be checked: the only change since 86.4 is
+the combat row, 75 % → 78 %, because the defender rows and the `W` column are now
+**derived** rather than measured (`0x27A1E`, `0x15852`), which is
+0.03 * 12 = 0.36 points.
 
 The drop-in already boots, shows the intro, reaches the menu, walks a town, visits every building,
-walks the Temple dungeon in first person, meets wandering monsters and resolves
-a combat round.  What is missing is concentrated in three places: the *outdoor
-scenery rule* (the view is exact for one cell and approximate elsewhere), the
-*object interactions* beyond stairs (doors, traps, pickups).  Saving is no
-longer one of them: saves are written, sealed and reloaded.
+walks the Temple dungeon in first person, meets wandering monsters, resolves
+a combat round (with monsters' own defence values and a real weapon-break rule)
+and writes saves back.  What is missing is concentrated in three places: the
+*outdoor scenery rule* (the view is exact for one cell and approximate
+elsewhere), *object interactions* beyond stairs (doors, traps, pickups), and
+*the monster's turn* (the attack path and the quick-combat loop).
 
 | Subsystem | Done | Weight | Notes |
 |---|---|---|---|
 | Analysis emulator (the oracle) | 100 % | 12 | stable; reproduces every oracle frame used below |
 | VOR intro + credits | 100 % | 4 | `EGA/IN/DRAG`, `EGA/IN/CRED` |
 | Boot → menu | 100 % | 6 | `EGA/UP/MSCR` + `MENU`, font |
-| Town (Thyn, Cyldane) + buildings | 100 % | 10 | inn, shop/emporium, bank, house, temple (+ heal/revive/rest prompts) |
+| Town (Thyn, Cyldane) + buildings | 100 % | 10 | inn, shop/emporium, bank, house, temple (+ heal/revive/rest prompts). **Menus only** — the transactions and state effects are P-7 |
 | DNGS decode (all 29 levels) | 100 % | 5 | tiles + object layer + header |
-| **Dungeon first-person view** | **80 %** | 14 | Temple (`D5`) depth march is pixel-exact. The outdoor (`D0`) composite is pixel-exact **for one cell only**; a sealed-patch sweep shows the scenery piece set is overfit (**G-013**), so *scored against the game* this is not 85 % — it is exact on the oracle and approximate elsewhere. The outdoor **wall** case is derived and tested (`DP036` at the map edge, `DP001` otherwise). The oracle cell is now **0 px wrong** — the last 106 px were a missing object draw (`EGA/UP/UP22`), not a wrong base. Remaining: whether the horizon band is per-cell, the doorway/opaque-fill view, and the `CHAR2` room cases (A-6) |
-| **Object/feature semantics** | **40 %** | 8 | stairs/portals decoded (A-2); door-like signature proven; door/trap/item dispatch not decoded |
-| **Level transitions (stairs)** | **85 %** | 4 | stairs/portals/level changes work and are decompiled (A-2 done, image `0x2e7fa`); open: the non-stair object codes (doors/traps) |
+| Dungeon first-person view | 80 % | 14 | Temple (`D5`) depth march pixel-exact. The outdoor (`D0`) composite is exact **for one cell only**; the scenery piece set is overfit (**G-013**) — P-9. The outdoor **wall** case is derived and tested (`DP036` at the map edge, `DP001` otherwise); the oracle cell is 0 px wrong |
+| Object/feature semantics | 40 % | 8 | selector, trigger, type dispatch, text path, once-only gate and the `+0x0e` answer line are live; the answer-input path, the recruit stat block and the per-type *effects* are P-2 |
+| Level transitions (stairs) | 85 % | 4 | stairs/portals/level changes work and are decompiled (`0x2e7fa`); open: non-stair object codes |
 | Encounter screen | 100 % | 5 | `SYST/NSCnn` record → `CHAR0/CHnn` |
-| Combat (decision → round → result) | 75 % | 12 | melee round derived; spells, quick-combat loop, monster attack path open |
-| Character data (SPEC/ROST/SNSC) | 90 % | 6 | parse + checksum done; char-sheet *screen* not pixel-matched |
-| Items | 70 % | 6 | table parsed, equip deltas derived; use-effects partial |
+| **Combat (decision → round → result)** | **78 %** | 12 | melee round derived (`0x14D80` fallback), hit score, hand-slot weapon pick, `rand(damage)+1`, XP multiplier, defender rows (`0x27A1E`) and the `W` break check (`0x15852`) all derived. Open: the monster attack path `0x159F8`, the quick-combat loop `0x17BAA`, spells, `P`/`B` |
+| Character data (SPEC/ROST/SNSC) | 90 % | 6 | parse + checksum + save write done; char-sheet *screen* not pixel-matched (P-8) |
+| Items | 70 % | 6 | table parsed, equip deltas derived; use-effects partial (P-6) |
 | Save **read** | 100 % | 4 | archive fixtures, checksum, content addressing |
-| **Save write** | **100 %** | 4 | `build_save`/`write_save_file`; read→write byte-identical on every intact archive save; `--save-out` persists the party; tampered saves detected and flagged |
+| Save **write** | 100 % | 4 | `build_save`/`write_save_file`; read→write byte-identical on every intact archive save; `--save-out` persists the party; tampered saves detected and flagged |
 
 ---
 
 ## 2. Prioritized task queue (single agent — no lanes)
 
 **There is one agent and one queue.** The old `A-*` / `B-*` / `M-*` lane prefixes
-are retired: they only recorded which parallel agent happened to pick an item up,
-and that history is in git. Everything below is owned by the maintainer. Task IDs
-are now `P-n`, assigned purely by priority.
+are retired. Task IDs are `P-n`, assigned purely by priority; the mapping from
+lof2/M-5's numbering is given per row so its history stays readable.
 
-Priority is **player-visible impact**, in this order: can the player finish a
-session and keep it (persistence), can they move through the world (doors,
-collisions), can they fight (monsters hitting back), then fidelity and polish.
-
-Estimates are **agent-hours** for one competent agent who must re-derive the
-ground truth first. "Ground truth" names how correctness will be proven, because
-`docs/RULES.md` forbids guessing.
+Priority is **player-visible impact**: can the player move through the world
+(doors, the town exit), can they fight (monsters hitting back, spells), can they
+keep a session (state effects), then fidelity and polish.  Estimates are
+**agent-hours** for one competent agent who must re-derive the ground truth
+first.
 
 | # | Task | Est. | Why this rank | Ground truth / next step |
 |---|------|------|---------------|--------------------------|
-| ~~**P-1**~~ | ~~**Save writer.**~~ **DONE.** | — | `build_save()`/`write_save_file()` emit a sealed 13134-byte save; `lof --walk --save-out` persists the party. Also fixed the reader's 32-slot bug (world state was being parsed as a 7th character, doubling the rations readout 19→38). | Proven: read→write is **byte-identical** on every intact archived save; turn persists and resumes; tests mutation-checked. `port/char.{h,cpp}`, `port/lof.cpp`, `tests/char_test.cpp`, `tests/port_walk_test.py` |
-| **P-2** | **Object-code semantics** (doors, traps, item pickups). **Selector solved** (2026-11-08): the object layer *does* choose SPEC events — a per-level table of distinct object words from **tile-3 cells only**, in row-major order (capped 70), and the word's *index* in that table is the SPEC record number (dispatcher `0x1F31E`: build `0x1F0C2`, lookup `0x1F46E`, `index*0xee` at `0x1F520`). Implemented as `Dungeon::event_keys()`/`event_index()`, pinned by `test_event_keys` (mutation-checked). **Trigger solved** (2026-11-08, Round 55): the per-tile-code resolver at `0x2E0BE` (called from the walk path at `0x2C8CF`) calls the dispatcher (`0x2E684`) when the party's cell has **tile == 3 and object word != `0x0a`**; word `0x0a` takes a separate character-record branch. **Type dispatch CORRECTED** (2026-11-08, Round 58b): there is **no** per-type jump table. `record+0xe2` is turned into an index by `sub ax,7` and used as `jmp word cs:[bx+0x25ea]`; the 17 words sit at image **`0x1F5CA`** (`cs = 0x1CFE`, the segment of the `jmp` itself) and hold only **two** distinct IPs, `0x25DE` and `0x25E4`, which store `0`/`1` into the local flag `[bp-8]`. The earlier "table at `0x21B9A`, `cs=0x2F6B`" reading was the table address taken image-relative, which lands in code (`push cx; push ax; lcall ...`); the "handlers" it produced are mid-instruction and do not exist. All arms rejoin one tail at `0x1F5EC`. Pinned by `test_dispatch_table`. Four args come from `0xda..0xe0`, filtered to 1..185. **Wired and firing** (2026-11-08, Round 57): `fire_cell_event()` in `port/lof.cpp` now runs after every applied movement key in both the interactive loop and `--walk`, and implements the plain-text path (types 0..6 -> `text_b`); higher types report themselves as unimplemented. **SPEC file selection settled:** `SYST/SPEC<ones digit of the level id>` -- emulator trace for DNG10 opens `SYST/SPEC0`, and across all 29 levels the largest `event_index()` fits `SPEC<ones>` while the tens-digit reading overflows on 5 of them (pinned by `test_event_spec_mapping`). Records are **not** consumed: the engine clears cells at many per-type sites, so a generic clear would diverge. Verified end to end (`GAME1` + one step -> "You enter the acolyte lodgings.", `SPEC5` record 3), pinned by `tests/event_fire_test.py` with a no-step control and mutation-checked. **Recruit record solved** (2026-11-08, Round 58): `+0xeb` is an SNSC class index -- the reader at `0x1F85B` scales it by `0x4e` (the SNSC stride) and indexes `[0x37b0]`, which the loader at `0x1B150` fills by allocating `0x444` (1092 = 14*78) and reading `SYST\SNSC`; `SPEC0[1]` is the only recruit with `+0xeb==0` and `SNSC[0]` is "Siegurd", matching the player's report. `+0xc9` is an entry index into `SYST/TXT<scenario>` (helper `0x1D7C2`), not a file number -- it happens to work for index 1 and fails elsewhere; entries are NUL-separated lines with empty lines as paragraph breaks. The block is **skipped for types 1/8/25** (`0x1F6C8`/`0x1F6DE`/`0x1F6E6`), so a recruit's speech is withheld until the answer. The tail also prints `text_b` for **every** type (print at `0x1F713` is reached from all jump-table arms), which the port now does. **Once-only gate SOLVED and live** (2026-11-08, Round 58b): the flag above gates exactly one check (`0x1F603`..`0x1F62A`) -- a record with `+0xe4==1` and a zero-flag type is skipped **entirely**, text and all, when `[0x37ee + +0xe6]` is set. `[0x37ee]` is a 12-byte **party-wide union of character byte `+0x38+i`** over the six save slots (loops `0x1F38C`/`0x1F396`, stride `0x19a`), not a global latch and not a bitfield -- which is why `+0xe6` is bounded by 12, not 96. Exactly **one** shipped record is gated: `SPEC2[0]`, type 7, "Above you is the hole through which you arrived here." (an arrival hole -- exactly what a once-only record should be). The shipped saves set entries 1 and 10, so they suppress it; the port now does too. Pinned by `tests/once_only_test.py`, mutation-checked. **`+0x0e` solved** (Round 58c): it is the **answer** line, printed only after the keyword compare at `0x1B83:0x640` accepts the reply (`0x209C8` empty-keyword skip, `0x209D1` read, `0x20A04` compare, `0x20A47` print on match, `0x20A72` mismatch path). `SPEC0[1].text_a` is "He goes, disappointed." -- the documented decline text -- and the four records with `+0x0e` but no `+0x50` are pure outcome lines ("Wrong.", "The door opens with a creak.", ...). The port must not print it on entry; pinned by `test_answer_text`. **Remaining:** the answer-input path (read a line, compare against the keyword, print `+0x0e` on a match, else take `0x20A72`), the recruit **stat block**, the `[0x7d1c]` flag (type 0x10 only), and the per-type *effects* (the type-7 door writes `0x37fa`/`0x460e`/`0x3824`/`0x3b15` at `0x20AD7`..`0x20B13`; those are state handoffs into the map/walk code, not screen output). | 2–4 h left | **High.** Dungeons cannot be explored without doors; this blocks progression, not just fidelity. | Selector, trigger, dispatch and the text path are live; only the per-type effects remain. `port/dungeon.{h,cpp}`, `port/char.*`, `port/lof.cpp` |
-| **P-3** | **Monster attack path + quick-combat loop** (`0x159F8`, `0x17BAA`). Melee rounds resolve, but monsters do not act and there is no combat loop. | 8–14 h | **High.** Combat where the enemy never strikes is not combat; this is the core of the game. | Those routines (partly disassembled). `port/combat.{h,cpp}` |
-| **P-4** | **Spells in combat.** The cast-spell action is unimplemented in `resolve_round()`. | 12–20 h | **High**, but depends on P-3's loop existing. | Spell table + the cast path in the combat dispatcher. `port/combat.{h,cpp}` |
-| **P-5** | **Item use effects.** Dispatch (`0x0E89D`/`0x0EDB0`) located; wire the proven effect values in. | 8–14 h | **Medium-high.** Potions/scrolls are how a party survives; effects are partially derived already. | Those sites + the effect values already proven in G-004. `port/char.{h,cpp}` |
-| **P-6** | **Outdoor scenery-selection rule** (G-013 residue). Outdoor view is exact on the oracle cell, approximate elsewhere. | 6–10 h | **Medium.** Fidelity, not progression — the view is already recognisable. | Whether the horizon band is per-cell; cells 636/673 sit at ~0.94 with no object. 70-entry `ega\d0\dpnnn` table at image `0x361E1`. `port/dungeon.cpp` |
-| **P-7** | **Mover / collision test** (G-005 residue). Wall set `{6,13}` is decompiled at the renderer, but step-rejection is still oracle-derived. | 4–6 h | **Medium.** Movement works; this is about edge-case correctness. | `analysis/lof.asm` move path (the four trail-shift sites are already excluded). `port/dungeon.cpp` |
-| **P-8** | **Character-sheet screen.** Oracle mismatch 17 837/64 000 px; palette lacks the oracle's red/yellow. | 6–10 h | **Medium-low.** A screen the player sees often, but no mechanics depend on it. | `ref/oracle/charsheet.png` (recipe in `docs/notes-maintainer-town.md`). `port/lof.cpp`, `port/char.*` |
-| **P-9** | **Depth-2/≥3 bank sprite numbers** (scenario-5 values only). | 3–5 h | **Low.** Affects deep-dungeon views in non-Temple scenarios. | Emulator depth sweep on a non-Temple save. `port/dungeon.cpp` |
-| **P-10** | **All-out-of-action message.** Trigger decoded (`[bp-0x36]`, image `0x18449`), blocked on message colour. | 2–4 h | **Low.** Cosmetic message. | Needs a mid-encounter oracle frame. `port/lof.cpp` |
+| ~~**P-1**~~ | ~~**Save writer.**~~ **DONE** | — | Persistence — the largest single capability of the last revision. | `build_save()`/`write_save_file()`; read→write **byte-identical** on every intact archive save; `lof --walk --save-out` persists. `port/char.{h,cpp}`, `tests/char_test.cpp`, `tests/port_walk_test.py` |
+| **P-2** | **Object-code semantics** — the answer-input path, the recruit stat block, `[0x7d1c]`, the per-type effects (old P-2) | 2–6 | **High.** Doors and pickups are how a dungeon is explored; selector, trigger, dispatch, text path and the once-only gate are already live. | Read a reply, compare against the record's keyword (`0x1B83:0x640`), print `+0x0e` on a match else take `0x20A72`; the type-7 door writes `0x37fa`/`0x460e`/`0x3824`/`0x3b15` (`0x20AD7`..`0x20B13`). `port/dungeon.{h,cpp}`, `port/lof.cpp` |
+| **P-3** | **Monster attack path + quick-combat loop** (`0x159F8`, `0x17BAA`) (old P-3) | 8–14 | **High.** Combat where the enemy never strikes is not combat. | **Entry mapped** (`docs/notes-b.md`): marker-1 gate, `+0x37 == 0x0c` HP cap, `+0x106`/`+0x108` → `0x137DE`, `+0x10e` → `0x15DF8`, `6*attacker[+0x05]` into `[0xafca]:0x3d48`, `[0xafc2]:0x3de9`; all combat segment globals alias arena `0x468E` and are static data. **Blocked on** the per-round rebuild of the `+0x258` rows (it writes `+0x06 = 236`, which the encounter builder does not). `port/combat.{h,cpp}` |
+| **P-4** | **Town exit / wilderness travel** — *new in this revision* | 12–24 | **High.** The wilderness is currently reachable only by loading a save that starts there. The town `(C)ontinue` path is the normal way out. | The town-exit sub-menu (`ds:0x5AA2`, x=139) after the first `C`, then the second `C` heads out; the overworld map, its movement and its encounter rolls. `port/lof.cpp`, `port/screens.*` |
+| **P-5** | **Spells in combat** (old P-4) | 12–20 | **High**, but only once P-3's loop exists to cast in. | The spell table + the cast path in the combat dispatcher; `Cast Spell` is `+0x0f == 4`. `port/combat.{h,cpp}` |
+| **P-6** | **Item use effects** (old P-5) | 8–14 | **Medium-high.** Potions/scrolls are how a party survives. | Dispatch `0x0E89D`/`0x0EDB0` located; wire the proven effect values (G-004). `port/char.{h,cpp}` |
+| **P-7** | **Town state effects** — inn rest, temple heal/revive, shop and bank transactions — *new in this revision* | 10–18 | **Medium-high.** The screens exist but do nothing, so gold and HP cannot change; that makes the town a museum rather than a place to prepare. | The heal/rest/transaction routines behind `--inn-rest`, `--temple-heal`, `--temple-revive`, `--emporium`, `--bank`; `write_save_file()` already exists for the result. `port/lof.cpp`, `port/char.*` |
+| **P-8** | **Character-sheet screen** (old P-8) | 6–10 | **Medium-low.** Seen often, no mechanics depend on it. | `ref/oracle/charsheet.png` (recipe in `docs/notes-maintainer-town.md`); palette lacks the oracle's red/yellow. `port/lof.cpp` |
+| **P-9** | **Outdoor scenery-selection rule** (old P-6, G-013 residue) | 6–10 | **Medium.** Fidelity, not progression. | Whether the horizon band is per-cell; cells 636/673 sit at ~0.94 with no object; the 70-entry `ega\d0\dpnnn` table at image `0x361E1`. `port/dungeon.cpp` |
+| **P-10** | **Mover / collision test** (old P-7, G-005 residue) | 4–6 | **Medium.** Movement works; edge cases only. | The `analysis/lof.asm` move path (the four trail-shift sites are already excluded). `port/dungeon.cpp` |
+| **P-11** | **`P` / `B` round flags** — *new in this revision* | 2–4 | **Low.** Two of the three round-result columns are always blank. | Flag array `[0xafdc]+0x5608`, 2-byte stride: `+0x5608` = `W` (done), `+0x5609` = `P`, `B` likely `+0x560A`. `P` pairs with `sub slot[+0x85], 2` at `0x17658` (shield) / `0x1777A` (armour) and the rust variant `0x17290`; `B` is `0x12846`/`0x13D7D`/`0x1471C`. Read back from `0x1764F`/`0x1777A` to the branch. `port/combat.*` |
+| **P-12** | **Depth-2/≥3 bank sprite numbers** (old P-9) | 3–5 | **Low.** Non-Temple deep-dungeon views only. | Emulator depth sweep on a non-Temple save. `port/dungeon.cpp` |
+| **P-13** | **All-out-of-action message** (old P-10) | 2–4 | **Low.** Cosmetic. | Trigger decoded (`[bp-0x36]`, `0x18449`); blocked on the message colour — needs a mid-encounter oracle frame. `port/lof.cpp` |
 
 ### Done (kept for context; no action)
 
 | Was | Task | Result |
 |-----|------|--------|
-| A-1 | Outdoor viewport composite (`D0`) | ✅ Exact on the oracle cell (**0 px wrong**). The last 106 px were a missing map-object draw (`EGA/UP/UP22` @ 70,53), not a fitted constant — see notes-a Round 51. Residue is P-6. |
-| A-2 | Stairs / level transitions | ✅ Destination rule, portal index (`location%10`) and stairs wording decompiled (image `0x2e7fa`). |
-| M-4 | Party position from the save, not the `DNG` header | ✅ `0x9a0` (cell) / `0x9a6` (facing); emulator-verified. |
-| M-4a | `AH=4Ah` resize, LZEXE unpack, EGA 11-byte header, INT 16h scan/ascii | ✅ See `AGENTS.md` "Fixed bugs (do not regress)". |
+| A-1 | Outdoor viewport composite (`D0`) | ✅ Exact on the oracle cell (0 px wrong); residue is P-9 |
+| A-2 | Stairs / level transitions | ✅ Destination rule, portal index (`location%10`), stairs wording (`0x2e7fa`) |
+| M-4 | Party position from the save, not the `DNG` header | ✅ `0x9a0` (cell) / `0x9a6` (facing) |
+| M-4 | Combat: hit score, hand slots, damage roll, XP multiplier | ✅ `0x27F14` rows, `0x13A43` pick, `rand(damage)+1`, `xp_per_damage()` |
+| M-4 | Combat: defender rows + the `W` column | ✅ `0x27A1E` and `0x15852`; `--fight` prints `WPB=ddd` |
+| M-4 | `AH=4Ah` resize, LZEXE unpack, EGA 11-byte header, INT 16h scan/ascii | ✅ See `AGENTS.md` "Fixed bugs (do not regress)" |
 
 ---
 
 ## 3. Order of work
 
-The queue in §2 **is** the order; work it top to bottom. The ranking rationale
-is the "Why this rank" column, so there is no second list to keep in sync.
+The queue in §2 **is** the order; work it top to bottom.  Two ordering facts
+worth stating:
 
-Two ordering facts worth stating because they are not obvious from the table:
-
-* **P-4 (spells) is ranked below P-3** even though it is bigger, because a spell
-  can only be cast once a combat loop exists to cast it in.
-* **P-6 (outdoor scenery) is ranked below P-3/P-5** despite being the oldest open
-  item. It is fidelity, not progression: the view is already recognisable, while
-  P-2/P-3 block actual play.
+* **P-4 (town exit) is ranked above P-5 (spells)** even though spells are
+  bigger: leaving town is progression, casting is a tactic inside a fight the
+  player can already have.
+* **P-9 (outdoor scenery) is ranked low** despite being the oldest open item —
+  it is fidelity, and the view is already recognisable.
 
 ### Remaining-effort total (checkable)
 
 | task | low h | high h |
 |------|-------|--------|
-| P-2 object codes (selector+trigger+dispatch+text path live; per-type effects left) | 2 | 6 |
+| P-2 object codes (answer path, stat block, per-type effects) | 2 | 6 |
 | P-3 monster attack + combat loop | 8 | 14 |
-| P-4 spells in combat | 12 | 20 |
-| P-5 item use effects | 8 | 14 |
-| P-6 outdoor scenery rule | 6 | 10 |
-| P-7 mover/collision | 4 | 6 |
+| P-4 town exit / wilderness travel | 12 | 24 |
+| P-5 spells in combat | 12 | 20 |
+| P-6 item use effects | 8 | 14 |
+| P-7 town state effects (rest/heal/shop/bank) | 10 | 18 |
 | P-8 character sheet | 6 | 10 |
-| P-9 depth-2+ sprites | 3 | 5 |
-| P-10 all-out message | 2 | 4 |
-| **total** | **57** | **95** |
+| P-9 outdoor scenery rule | 6 | 10 |
+| P-10 mover/collision | 4 | 6 |
+| P-11 `P`/`B` flags | 2 | 4 |
+| P-12 depth-2+ sprites | 3 | 5 |
+| P-13 all-out message | 2 | 4 |
+| **total** | **75** | **135** |
 
-So **~57–95 agent-hours** remain (P-1 is done). Add ~30 % if the work must be re-derived by an
-agent with no prior context on this codebase.
+So **~75–135 agent-hours** remain.  The upper bound is 40 h above lof2/M-5's
+estimate because P-4 (town exit) and P-7 (town state effects) were missing from
+that list, not because any finished work regressed.
 
 ---
 
