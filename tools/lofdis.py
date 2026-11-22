@@ -50,6 +50,30 @@ def load_image(path):
     return d[hdrsz * 16:]
 
 
+def target(seg, off):
+    """Image offset of a `lcall seg:off` target.
+
+    The segment stored in the instruction is *already* relative to the image
+    start (the loader relocates it by LOAD_SEG at run time), so the image offset
+    is just `seg*16 + off`.  Do not subtract anything.
+
+    This differs from a *runtime* linear address, where the image sits at
+    LOAD_SEG: `image = linear - LOAD_SEG*16 = linear - 0x10100`.  That form is
+    for the trace hook and the emulator, never for an `lcall` operand.  Mixing
+    the two is what produced the "the dispatcher has no callers" error.
+
+    Verified: 0x1cfe:0x233e -> 0x1F31E (dispatcher), 0x1cfe:0x1fe4 -> 0x1EFC4
+    (table builder), 0x1b39:0x3ee -> 0x1B77E, 0x2f0e:0x1af4 -> 0x30BD4 (both
+    land on `push bp; mov bp,sp`).
+    """
+    return seg * 16 + off
+
+
+def from_linear(linear):
+    """Image offset of a run-time linear address (for trace hits)."""
+    return linear - LOAD_SEG * 16
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("start", help="image offset to start at (hex)")

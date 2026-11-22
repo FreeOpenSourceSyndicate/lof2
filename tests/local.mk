@@ -24,9 +24,15 @@ COMBAT_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port 
     -o combat_test tests/combat_test.cpp port/combat.cpp && \
     ./combat_test; rc=$$?; rm -f combat_test; exit $$rc
 
+# (Maintainer — disassembly) the two address conventions for LOF.EXE.  Mixing
+# them silently lands in-image mid-instruction and is what hid the event
+# dispatcher's callers for a whole session.
+TARGET_CONVENTION_TEST = python3 tests/target_convention_test.py
+
 LOCAL_TEST_CMDS = \
     ( $(DUNGEON_TEST) ) && \
     ( $(CHAR_TEST) ) && \
     ( $(EGA_DECODE_TEST) ) && \
     ( $(COMBAT_TEST) ) && \
+    ( $(TARGET_CONVENTION_TEST) ) && \
     ( python3 tests/saves_test.py )

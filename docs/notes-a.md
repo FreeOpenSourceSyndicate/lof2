@@ -1588,9 +1588,24 @@ routine at the instruction level. All offsets below are *image offsets* into
 
 ### Address map (verified)
 
-For the **main program** segment (`cs = 0x119D` at run time):
+**Two different conventions, and they are not interchangeable.** Conflating them
+is what produced the "the event dispatcher has no callers" error in Round 54.
 
-    image_offset = reloc_seg * 16 + offset - 0x10100
+- **`lcall seg:off` operand** (what is stored in the instruction): the segment is
+  already image-relative, so `image_offset = seg*16 + off`. Nothing is
+  subtracted. Verified: `0x1cfe:0x233e` -> `0x1F31E` (dispatcher),
+  `0x1cfe:0x1fe4` -> `0x1EFC4` (table builder), `0x1b39:0x3ee` -> `0x1B77E`,
+  `0x2f0e:0x1af4` -> `0x30BD4`; every one lands on `55 8b ec` (`push bp; mov
+  bp,sp`). Use `lofdis.target(seg, off)`.
+- **Run-time linear address** (what a trace hook or `LOF_TRACE_IP` sees): the
+  image is loaded at `LOAD_SEG = 0x1010`, so `image_offset = linear - 0x10100`.
+  Use `lofdis.from_linear()`. Cross-check: the dispatcher's flat address
+  `0x2F41E` maps to image `0x1F31E`.
+
+For the **main program** segment (`cs = 0x119D` at run time, i.e. a *runtime*
+address):
+
+    image_offset = runtime_seg * 16 + offset - 0x10100
 
 Cross-checks: the view routine `119D:22A2` -> image `0x3B72` (its bytes match the
 routine below); the RLE sprite loader `119D:0A5B` -> image `0x232B` (the decoder
@@ -1706,10 +1721,11 @@ procedural DDA renderer (`render_dungeon_viewport`) is the right model.
 
 The routine that draws the play viewport is at image `0x3B72` (runtime
 `119D:3B72`; called via `lcall 0x18d,0x22a2`). Its address is `0x18D0 + 0x22A2`,
-NOT `0x22A2` — the relocation applies to the *segment*, so the image offset of a
-`lcall SEG,OFF` target is `0x18D0 + OFF` (equivalently `SEG*16 + OFF - 0x10100`
-with SEG=0x18D). Every earlier "runtime 119D:22A2 = img 0x22A2" note was off by
-0x1900. Sequence:
+NOT `0x22A2`. The operand's segment is image-relative, so the image offset of a
+`lcall SEG,OFF` target is simply `SEG*16 + OFF` — `0x18D*16 + 0x22A2 = 0x3B72`,
+which is `0x18D0 + 0x22A2`. (The `- 0x10100` form is for *run-time* linear
+addresses, not for `lcall` operands; see the address-map note in Round 27.) Every
+earlier "runtime 119D:22A2 = img 0x22A2" note was off by 0x1900. Sequence:
 
 1. `inc cs:[0xe5e]` (frame counter), `call 0x30f6`, `call 0x5008`.
 2. Saves `cs:[0x1414]`/`cs:[0x1416]` (the two EGA write-mode bytes), zeroes them.
