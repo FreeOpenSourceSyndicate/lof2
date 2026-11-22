@@ -243,6 +243,25 @@ How to use each section:
 - **Impact today:** none — the port caps at `kEventKeyMax` and never reaches it.
   Queued so it is not mistaken for proven behaviour.
 
+### G-015 — the move-path flag that gates the event resolver is inferred
+
+- **Guess:** the resolver at `0x2E0BE` (which calls the event dispatcher for
+  tile-3 cells) is reached from `0x2C8CF` as `push cs; call 0x2e0be`, and the
+  preceding `cmp byte ptr [bp+8],0 / je` means "only if something changed", i.e.
+  the party actually moved. Read literally the argument is just a stack byte at
+  `[bp+8]`; its *meaning* is not proven, only that it is a caller-supplied flag.
+- **Why it is a guess:** no trace confirms `[bp+8]` is a moved/blocked status.
+  The surrounding code in `0x2C6FE` does not obviously set it, and the emulator
+  cannot currently drive a walk (BLK-A004), so the flag's value on a real step is
+  unobserved.
+- **Ground truth needed:** a `LOF_TRACE_IP` hit count at flat `0x3E1CC` (image
+  `0x2E0BE`) while stepping onto (a) a tile-3 cell and (b) a wall; plus reading
+  the pushed argument at the call site. Movement in the emulator is the
+  prerequisite.
+- **Impact today:** none on the selector (proven) and none on the port (it has
+  no move loop yet). It only affects *when* the port should call
+  `event_index()` after a step, which is the remaining P-2 work.
+
 ---
 
 ## E. Known non-determinism (not a guess)

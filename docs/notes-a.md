@@ -3099,10 +3099,70 @@ test (exit 134).
   (tile 1/2/6/…) are still unexplained; they are not SPEC selectors.
 * The 70-entry cap was never hit on the eight Temple levels (max 44), so the
   engine's overflow behaviour is unobserved. Recorded as a guess (G-014).
-* **When** the dispatcher runs is still open (BLK-A006). It has no caller: no
-  `lcall`/`call`/`jmp` targets either `0x1F31E` or `0x1EFC4`, and the body is
-  entered by fallthrough from the `0x1F31B` loop. It also does **not** run during
-  a boot-to-menu run — 1200 headless frames give zero trace hits at flat
-  `0x2F0C4`/`0x2F41E` while the same hook fires immediately at a known-hot
-  address (`LOF_TRACE_IP=12024`). So the object layer is walk-path only, which is
-  the right shape for "event on entering the cell" but does not yet prove it.
+* **When** the dispatcher runs is now known (Round 55). My earlier "no caller"
+  claim was wrong: it used a bad segment base. Far pointers here are
+  `lcall seg:off` with image offset `seg*16 + off`, and with that base both
+  routines have real callers — `0x1EFC4` from `0x2147F`/`0x215CC`, `0x1F31E`
+  from `0x2E684`/`0x0DBCE`.
+
+## Round 55 — the event dispatcher's trigger, found (maintainer, 2026-11-08)
+
+**P-2's trigger question is answered.** The dispatcher *is* called; the previous
+round's "no callers" result was a bad segment base, not a fact.
+
+### The bug that hid the callers
+
+`lcall seg:off` in this image addresses image offset **`seg*16 + off`** (the
+listing's `flat seg:off` column). Searching for the dispatcher under
+`0x1010 + seg*16 + off` or a relocation-adjusted `seg - 0x1010` finds nothing,
+which is how the "reached only by fallthrough" story got started. With the
+correct base every target resolves.
+
+### The two routines and their callers
+
+| routine | role | callers |
+|---------|------|---------|
+| `0x1EFC4` | builds the per-level key table; returns early when empty (`retf` at `0x1F1BA`) | `0x2147F`, `0x215CC` |
+| `0x1F31E` | dispatcher proper: lookup, `index * 0xee`, SPEC read | `0x2E684`, `0x0DBCE` |
+
+They are separate functions, not one body: `0x1EFC4` ends in a `retf` at
+`0x1F1BA` and the dispatcher starts fresh with `push bp; mov bp,sp`.
+
+### The trigger
+
+The general path is the per-tile-code resolver at `0x2E0BE`, called from
+`0x2C8CF` (`push cs; call 0x2e0be`) behind `cmp byte [bp+8],0`. The resolver
+reads the party's cell and switches on its tile code; the tile-3 branch is:
+
+```
+2E660: mov es,[0xb0d0]
+2E664: cmp byte es:[bx+0x46d8],3   ; tile code == 3 ?
+2E66A: je  0x2e66f                 ; else skip the whole branch
+2E679: cmp word es:[bx+0x4be8],0xa ; object word == 0x0a ?
+2E67F: je  0x2e690                 ; yes -> the character-record branch
+2E684: lcall 0x1cfe,0x233e         ; the dispatcher
+```
+
+So the rule the port must mirror is: **on the party's cell, if tile == 3 and the
+object word is not `0x0a`, run the dispatcher.** Word `0x0a` is *not* a "no
+event" sentinel — it takes the separate `0x2E690` branch, which walks
+`0x19a`-strided character records (the `0x19a` stride matches the party-record
+stride used elsewhere, so this looks like the "characters are here" case).
+
+Note the guard's word test is `!= 0x0a`, while the *table build* uses `> 0x0a`.
+They differ only for tile-3 cells with word `< 0x0a`. Those cells would have the
+dispatcher called but its lookup miss (the table never contains them), so the
+observable outcome is the same: no event. On the shipped levels the gap is
+empty — all 518 tile-3 cells across the eight Temple levels have a word `> 0x0a`
+— so the tile test alone gates events in practice. `tests/dungeon_test.cpp`
+asserts this and prints a warning if a future level breaks it.
+
+### What this does and does not settle
+
+- Settled: *where* the trigger is, *which* cell it reads, and *when* it runs
+  (walk path, not the menu; not on every frame).
+- Still inferred: that `[bp+8]` at the call site means "the party moved". It is
+  a caller-supplied flag and nothing in `0x2C6FE` obviously sets it. Logged as
+  **G-015**; it only affects when the port calls `event_index()` after a step,
+  not the predicate itself.
+- Still open: the SPEC record's *effects* (what the selected record does).

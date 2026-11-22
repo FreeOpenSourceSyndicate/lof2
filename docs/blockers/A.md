@@ -20,7 +20,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 | BLK-A003 | A (dungeons) | Agent A | Medium | **Resolved** (2026-11-08) | — |
 | BLK-A004 | A (dungeons) | Maintainer | Medium | Resolved | — |
 | BLK-A005 | A (dungeons) | Maintainer | Medium | **Resolved** (2026-11-18: closed as not-portable-by-data — producer input is RNG-seeded monster placement) | — |
-| BLK-A006 | A (dungeons) | Maintainer | High | **Open** | — |
+| BLK-A006 | A (dungeons) | Maintainer | High | **Resolved** (2026-11-08) | — |
 
 ---
 
@@ -29,39 +29,50 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 - **Blocked lane:** A (dungeons)
 - **Responsible:** Maintainer
 - **Priority:** High
-- **Status:** **Open** (2026-11-08)
+- **Status:** **Resolved (2026-11-08)** — the caller was found; the earlier "no
+  caller" note was a bad segment base. See the log below.
 - **Dependencies:** —
 
 **Description & unblock action.** The object-word → SPEC-record *selector* is
-now proven (Round 54): the table build, the index lookup and `index * 0xee` are
-all decoded and implemented. What is *not* proven is **when** the dispatcher
-runs — i.e. whether an event fires on entering the cell, on a "look" command, or
-only on a specific action. This matters because the port must not fire doors on
-every step.
+proven (Round 54): the table build, the index lookup and `index * 0xee` are all
+decoded and implemented. What was *not* proven was **when** the dispatcher runs
+— on entering the cell, on a "look" command, or only on a specific action. This
+matters because the port must not fire doors on every step.
 
-Negative results so far, all worth recording so the next attempt does not repeat
-them:
+**Log.** 2026-11-08 Maintainer — **resolved, and the earlier negative results
+were wrong.** The bug was the far-pointer convention: `lcall seg:off` in this
+image points at image offset `seg*16 + off`. With the correct base every search
+finds real call sites:
 
-- No `lcall`/near `call`/near `jmp` in the image targets the dispatcher body
-  (`0x1F31E`) or its function entry (`0x1EFC4`), under either far-pointer
-  convention (checked with the relocation-adjusted form too). The body is reached
-  by **fallthrough** from `0x1F31B`'s `jmp 0x1f1b3` loop, so it is the tail of the
-  function starting at `0x1EFC4`, not a separately called routine.
-- `analysis/lof.asm` has no cross-reference for it either (the linear
-  disassembler does not label fallthrough targets).
-- **It does not execute during a boot-to-menu run at all.** With the trace hook
-  validated on a known-hot address (`LOF_TRACE_IP=12024` hits immediately), a
-  1200-frame headless boot (`LOF_CMDLEN=3 LOF_PLANT_LOFX=1`) produces **zero** hits
-  at flat `0x2F0C4` (function entry) and zero at `0x2F41E` (dispatcher body).
-  So the object layer is **walk-path only**, which is consistent with P-2 needing
-  a movement trigger and with the port not firing events from the menu.
+| routine | role | callers |
+|---------|------|---------|
+| `0x1EFC4` | builds the per-level key table; returns early if empty (`retf` at `0x1F1BA`) | `0x2147F`, `0x215CC` |
+| `0x1F31E` | the dispatcher proper: lookup, `index * 0xee`, SPEC read | `0x2E684`, `0x0DBCE` |
 
-**Unblock action.** Drive a walk move in the emulator and count hits at flat
-`0x2F0C4` while (a) stepping onto a tile-3 cell with an object word > 0x0a and
-(b) stepping onto an ordinary cell. That single comparison settles whether the
-trigger is "entering an event cell" or a separate action, and the caller then
-falls out of the `LOF_CAP` memory dump at the first hit. Movement in the emulator
-is the open prerequisite (see BLK-A004). Detail: `docs/notes-a.md` Round 54.
+The general trigger is the per-tile-code resolver at `0x2E0BE`, reached from
+`0x2C8CF` (`push cs; call 0x2e0be`) behind `cmp byte [bp+8],0`. Its tile-3
+branch (`0x2E660..0x2E684`) is:
+
+```
+tile = byte es:[bx+0x46d8]   ; == 3, else skip the branch (0x2E664)
+word = word es:[bx+0x4be8]   ; != 0x0a, else branch to 0x2E690 (0x2E679)
+lcall 0x1cfe,0x233e          ; the dispatcher (0x2E684)
+```
+
+So the object layer is **walk-path only** and gated on the party's cell: it fires
+for tile-3 cells whose word is not `0x0a`. Word `0x0a` is *not* "empty" — it
+takes the separate `0x2E690` branch, which walks `0x19a`-strided character
+records. The earlier "does not run in a boot-to-menu run" result was also a
+mapping error: it traced flat `0x2F41E`, which is not the dispatcher's address.
+
+The one remaining inference is the *meaning* of the `[bp+8]` flag (guessed "the
+party moved"), logged as G-015. It does not affect the selector or the
+`event_index()` predicate; it only affects when the port should call it.
+
+**Deliverables.** `event_index()` in `port/dungeon.h` implements the exact
+predicate; `tests/dungeon_test.cpp` asserts, per level, that no cell fires an
+event unless the engine's guard would call the dispatcher, and warns if any
+tile-3 cell falls in the `word <= 0x0a` gap (none do on shipped data).
 
 ---
 

@@ -111,6 +111,34 @@ struct Dungeon {
     // failed: the codes are level-local identifiers, and only tile-3 cells take
     // part.
     //
+    // **When it fires.**  There are two distinct routines, and both have real
+    // callers (an earlier note claiming "no callers" was wrong -- it used a bad
+    // segment base; far pointers here are `lcall seg:off` with image offset
+    // `seg*16+off`):
+    //
+    //   0x1EFC4  builds the table and returns early when it is empty (retf at
+    //            0x1F1BA).  Called from 0x2147F and 0x215CC.
+    //   0x1F31E  the dispatcher proper (table lookup, `index * 0xee`, the SPEC
+    //            read).  Called from 0x2E684 and 0x0DBCE.
+    //
+    // The general trigger is the resolver at 0x2E0BE, reached from 0x2C8CF
+    // (`push cs; call 0x2e0be`) behind `cmp byte [bp+8],0` -- a stack argument
+    // whose "something changed" reading is inferred, not proven (G-015).  The
+    // resolver switches on the tile code of the party's cell (0x2E0DC tile 1 ->
+    // 0x2D94C, 0x2E0FC tile 1, 0x2E664 tile 3 -> the dispatcher) and for tile 3
+    // its guard is:
+    //
+    //   tile = byte  es:[bx+0x46d8]   ; == 3, else skip the whole branch
+    //   word = word  es:[bx+0x4be8]   ; != 0x0a, else branch to 0x2E690
+    //
+    // so the dispatcher is called only for a tile-3 cell whose word is **not**
+    // 0x0a.  Word 0x0a is therefore *not* "empty": it takes the separate
+    // 0x2E690 branch, which walks 0x19a-strided character records.  Mirror the
+    // guard rather than inventing a sentinel meaning.  `is_event_cell()` below
+    // uses `word > kEventMinWord`, which is the predicate the *table build*
+    // uses; on the shipped levels every tile-3 cell has word > 0x0a, so the two
+    // predicates select the same cells (asserted in tests/dungeon_test.cpp).
+    //
     // `event_keys()` is that table.  A cell with no event returns -1.
 
     inline bool is_event_cell(int x, int y) const {

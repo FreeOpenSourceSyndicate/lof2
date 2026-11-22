@@ -929,6 +929,25 @@ static void test_event_keys(const std::string& dir) {
                 assert(idx >= 0 && idx < (int)keys.size());
                 assert(keys[(size_t)idx] == d.object(x, y));
             }
+        // The trigger guard, as the engine writes it (0x2E664 tile test, 0x2E679
+        // word test): the post-move handler *calls* the dispatcher when the
+        // party's cell has tile == 3 and its word is not 0x0a, and an event only
+        // *fires* if the dispatcher's table lookup then succeeds (word > 0x0a).
+        // So the number of cells where `event_index() >= 0` must equal the number
+        // of cells the engine's guard admits, and both must equal the number of
+        // tile-3 cells on these levels (the word test never excludes any).  Pin
+        // the counts: they change if the trigger rule regresses.
+        int fires = 0, guarded = 0, tile3 = 0;
+        for (int y = 0; y < kDungeonH; y++)
+            for (int x = 0; x < kDungeonW; x++) {
+                if (d.tile(x, y) == kEventTile) tile3++;
+                if (d.tile(x, y) == kEventTile && d.object(x, y) != 0x0a) guarded++;
+                if (d.event_index(x, y) >= 0) fires++;
+            }
+        assert(fires == guarded);
+        assert(tile3 == guarded);       // every tile-3 cell clears the word test
+        static const int kExpectedCells[] = {78, 46, 22, 50, 53, 74, 95, 100};
+        assert(fires == kExpectedCells[checked]);
         // The decisive check: the table indexes SPEC records, so it can never
         // hold more keys than the level has records.  SPECn's first byte is the
         // record count (238-byte records follow).
