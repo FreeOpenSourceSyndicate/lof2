@@ -2016,3 +2016,13 @@ write** — the `+0x258` rows are apparently rebuilt when a round starts, by
 code that has not been read yet.  That rebuild is the thing to find before
 porting the monster path, because it may also own the `+0x106`/`+0x108`/
 `+0x10e` fields the monster path tests.
+
+**236 is not a static immediate (2026-11-21).**  The whole image was searched
+for every immediate store form -- `c6`/`c7` with `[bx+si|bp+si|bx+di|bp+di|si|di
++6]`, with and without an `es`/`cs` prefix, byte and word -- and for
+`mov al,0xec` (`b0 ec`) and `mov ax,0xec` (`b8 ec 00`): **no hit**.  So the
+rebuild either computes the byte (from HP, a percentage, or a table read) or
+copies it from a register whose value came from elsewhere.  Static scanning is
+therefore the wrong tool for this one: use `LOF_WATCH=lo:hi` over the row's
+`+0x06` byte during a real fight, which reports the writing `cs:ip` directly
+(`LOF_CAP` gave the *value*, `LOF_WATCH` will give the *writer*).
