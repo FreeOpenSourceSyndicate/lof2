@@ -3531,3 +3531,45 @@ that is correct behaviour, not an omission: the speech is what the warrior says
 it on entry would hand the player the "yes" text before they answered.  The port
 therefore prints no block for those three types.
 
+
+## Round 58c — `+0x0e` is the *answer* line, not a second prompt (2026-11-08)
+
+The dispatcher prints `text_b` (+0x50) as the prompt, then reads an answer and
+compares it against the record's keyword at +0x00:
+
+```
+209C8: cmp byte es:[bx+si], 0        ; keyword empty?
+209CC: jne 0x209D1
+209CE: jmp 0x20AB8                   ; -> no answer wanted, straight to the tail
+209D1: ... lcall 0x18d,0x1b4a        ; read the player's line
+209EF: lea ax, [bp-0x5c]             ; the answer buffer
+209F4: imul ax, [bp-0x44], 0xee      ; -> this SPEC record
+20A04: lcall 0x1b83,0x640            ; strcmp(answer, keyword)
+20A0C: or dx, ax ; je 0x20A72        ; mismatch -> the "wrong" branch
+20A47: cmp byte es:[bx+0xe], 0       ; match: is +0x0e non-empty?
+20A4E: je 0x1F83C                    ;   no -> just the tail
+20A57: add ax, 0xe                   ;   yes -> print it
+```
+
+So `+0x0e` is shown only **after** the answer is accepted, and 0x20A72 is the
+mismatch path (which re-tests `+0x4b` and `+0x0e` at 0x20A89/0x20A90).
+
+### The data agrees
+
+- SPEC0[1].text_a is **"He goes, disappointed."** -- exactly the documented
+  ground-truth line for answering *no* to the warrior.
+- The four records that carry `+0x0e` but no `+0x50` are pure outcome lines:
+  "Wrong." (SPEC4[134], keyword `Circle`), "Pity, I'd like to have known how he
+  is." (SPEC4[33], keyword `N`), "The door opens with a creak." (SPEC6[63],
+  keyword `Stairs`), "He gives you some dry clay." (SPEC7[8], keyword
+  `Iceflower`).
+- 56 records carry both (prompt + outcome); 413 carry only the prompt.
+
+The port therefore must **not** print `+0x0e` on entry.  Doing so would show the
+player the "no" text -- or the "wrong answer" text -- before they answered,
+which is the same class of bug the speech-gating fix removed.  Reproducing it
+needs the answer-input path (read a line, compare against the keyword with the
+same comparison at 0x1B83:0x640, then print `+0x0e` on a match and take the
+0x20A72 branch otherwise); that is the next piece of P-2, not a one-line change.
+
+Pinned by `test_answer_text` in `tests/dungeon_test.cpp`.

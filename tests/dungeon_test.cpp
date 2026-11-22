@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <set>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -1123,6 +1124,117 @@ static void test_recruit_class(const std::string& dir) {
                 (unsigned)r.class_eb, classes[(size_t)r.class_eb].singular.c_str());
 }
 
+// The dispatch table does *not* hold per-type handlers.
+//
+// `record+0xe2` (the type) is turned into an index by `sub ax,7` and used at
+// 0x1F5B8 as `jmp word cs:[bx+0x25ea]`.  The 17 words live at image 0x1F5CA
+// (`cs = 0x1CFE`, the segment of the `jmp` itself), and they contain exactly two
+// distinct IPs, 0x25DE and 0x25E4 -- the two arms that set the local flag
+// `[bp-8]` to 0 and 1 respectively.  There are no per-type routines.
+//
+// Reading the table at `0x25EA` *within the image* (which an earlier round did)
+// lands at 0x21B9A: that is code, `push cx; push ax; lcall ...`, and the
+// "handlers" it yields are mid-instruction.  Both traps are asserted here.
+static void test_dispatch_table(const std::string& dir) {
+    const std::string exe = dir + "/../LOF.EXE";
+    std::ifstream in(exe, std::ios::binary);
+    if (!in) {
+        std::printf("dungeon_test: skipping dispatch-table check (no LOF.EXE)\n");
+        return;
+    }
+    std::vector<uint8_t> file((std::istreambuf_iterator<char>(in)),
+                              std::istreambuf_iterator<char>());
+    if (file.size() < 0x40) {
+        std::printf("dungeon_test: skipping dispatch-table check (short EXE)\n");
+        return;
+    }
+    const size_t hdr = (size_t)(file[8] | (file[9] << 8)) * 16;  // MZ header
+    auto img = [&](size_t o) { return file[hdr + o]; };
+    auto rd16 = [&](size_t o) {   // a word at an *image* offset
+        return (uint16_t)(file[hdr + o] | (file[hdr + o + 1] << 8));
+    };
+
+    // The `jmp word cs:[bx+0x25ea]` sits at image 0x1F5B8; its own segment is
+    // what `cs:` resolves to, and `target()` (tools/lofdis.py, LOAD_SEG=0x1010)
+    // gives 0x1CFE for it.  The table is therefore at 0x1CFE*16 + 0x25EA.
+    const size_t kTable = 0x1CFE * 16 + 0x25EA;
+    assert(kTable == 0x1F5CA);
+    assert(img(0x1F5B8) == 0x2E && img(0x1F5B9) == 0xFF &&
+           "0x1F5B8 must be `jmp word cs:[bx+disp16]` (2E FF A7 ...)");
+    assert(rd16(0x1F5BB) == 0x25EA && "the jmp's displacement must be 0x25EA");
+
+    // Every entry resolves to one of exactly two arms.
+    const uint16_t kArmZero = 0x25DE, kArmOne = 0x25E4;
+    for (int i = 0; i < 17; i++) {
+        const uint16_t ip = rd16(kTable + (size_t)i * 2);
+        assert((ip == kArmZero || ip == kArmOne) &&
+               "a dispatch entry must be one of the two flag arms");
+    }
+    // Arm 0 stores 0, arm 1 stores 1, and both rejoin the shared tail.
+    const size_t kZero = 0x1CFE * 16 + kArmZero;   // 0x1F5BE
+    const size_t kOne = 0x1CFE * 16 + kArmOne;     // 0x1F5C4
+    assert(kZero == 0x1F5BE && kOne == 0x1F5C4);
+    assert(img(kZero) == 0xC6 && img(kZero + 1) == 0x46 && img(kZero + 2) == 0xF8 &&
+           "arm 0 must be `mov byte [bp-8], imm8`");
+    assert(img(kZero + 3) == 0x00 && "arm 0 must store 0");
+    assert(img(kOne) == 0xC6 && img(kOne + 1) == 0x46 && img(kOne + 2) == 0xF8 &&
+           "arm 1 must be `mov byte [bp-8], imm8`");
+    assert(img(kOne + 3) == 0x01 && "arm 1 must store 1");
+
+    // Trap 1: 0x21B9A (the table read image-relative) is code, not a table.
+    assert(img(0x21B9A) == 0x51 && img(0x21B9B) == 0x50 &&
+           "0x21B9A must be `push cx; push ax`, i.e. code");
+
+    // Trap 2: which types land on which arm.  This is the flag the once-only
+    // gate tests, so pin the mapping rather than trusting the derivation.
+    auto arm_for = [&](int type) -> int {
+        const int i = type - 7;
+        if (i < 0 || i > 16) return 1;   // the unsigned `ja` path stores 1
+        return rd16(kTable + (size_t)i * 2) == kArmZero ? 0 : 1;
+    };
+    for (int t : {7, 8, 11, 12, 13, 15, 18, 23}) assert(arm_for(t) == 0);
+    for (int t : {9, 10, 14, 16, 17, 19, 20, 21, 22}) assert(arm_for(t) == 1);
+    for (int t = 0; t <= 6; t++) assert(arm_for(t) == 1);
+
+    std::printf("dungeon_test: dispatch table ok (17 words at 0x1F5CA, two arms, "
+                "no per-type handlers)\n");
+}
+
+// `record+0x0e` (`text_a`) is the answer line, not a second prompt.
+//
+// The engine prints `text_b` (+0x50) as the prompt and then reads the player's
+// answer; `text_a` is shown only afterwards.  The proof is in the data: every
+// record that carries `text_a` but no `text_b` is a pure answer line --
+// "Wrong.", "The door opens with a creak.", "Pity, I'd like to have known how he
+// is." -- and for the recruit the decline branch is SPEC0[1].text_a, "He goes,
+// disappointed.", which is the documented ground truth for answering "no".
+static void test_answer_text(const std::string& dir) {
+    const std::string syst = dir + "/..";
+    SpecTable spec = load_spec(spec_path(syst, 10));
+    if (!spec.ok || spec.records.size() < 2) {
+        std::printf("dungeon_test: skipping answer-text check (no data)\n");
+        return;
+    }
+    const SpecRecord& recruit = spec.records[1];
+    assert(recruit.type == 1);
+    assert(recruit.text_a == "He goes, disappointed." &&
+           "SPEC0[1].text_a must be the decline line");
+    assert(recruit.text_b.find("asks if he may join you") != std::string::npos);
+
+    // The prompt is +0x50 and the answer is +0x0e across the whole release, so
+    // an "answer-only" record exists and never carries a prompt.
+    int answer_only = 0;
+    for (int scenario = 0; scenario < 10; scenario++) {
+        SpecTable t = load_spec(spec_path(syst, scenario));
+        if (!t.ok) continue;
+        for (const SpecRecord& r : t.records)
+            if (!r.text_a.empty() && r.text_b.empty()) answer_only++;
+    }
+    assert(answer_only > 0 && "the release must contain answer-only records");
+    std::printf("dungeon_test: answer text ok (SPEC0[1].text_a = \"%s\")\n",
+                recruit.text_a.c_str());
+}
+
 // The long text block a record can name: `index_c9` (+0xc9, 0xff = none).
 //
 // The field is an entry index into `SYST/TXT<n>`, where <n> is the *same
@@ -1507,6 +1619,8 @@ int main(int argc, char** argv) {
     test_event_spec_mapping(dir);
     test_recruit_record(dir);
     test_text_block_index(dir);
+    test_dispatch_table(dir);
+    test_answer_text(dir);
     test_recruit_class(dir);
     test_walk_real(dir);
     test_view_themes(dir);
