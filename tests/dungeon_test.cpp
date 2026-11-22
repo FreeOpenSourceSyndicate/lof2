@@ -4,6 +4,7 @@
 // game data is present (game/DNGS/DNG00 ...) the decoder is also run against a
 // real file and its geometry / a few known cells are asserted.
 #include "dungeon.h"
+#include "char.h"
 
 #include <cassert>
 #include <cstdio>
@@ -951,17 +952,20 @@ static void test_event_keys(const std::string& dir) {
         // The decisive check: the table indexes SPEC records, so it can never
         // hold more keys than the level has records.  SPECn's first byte is the
         // record count (238-byte records follow).
-        std::string spec_path = dir + "/../SYST/SPEC" + std::string(nm + 3);
-        if (FILE* f = std::fopen(spec_path.c_str(), "rb")) {
-            int nrec = std::fgetc(f);
-            std::fclose(f);
-            assert(nrec >= 0);
-            if ((int)keys.size() > nrec) {
-                std::printf("dungeon_test: %s has %zu event keys but only %d "
-                            "SPEC records\n", nm, keys.size(), nrec);
-                assert(false);
-            }
-        }
+        //
+        // `nm + 3` is the two-digit level id; SPEC is selected by its **ones**
+        // digit (see char.h `spec_scenario_for_location`).  This used to be a
+        // silent no-op: it built "SPEC00" from both digits, the file never
+        // existed, and the `if (fopen)` guard swallowed the whole check.
+        const int level = (nm[3] - '0') * 10 + (nm[4] - '0');
+        std::string spec_file = dir + "/../SYST/SPEC" +
+                                std::to_string(spec_scenario_for_location(level));
+        FILE* f = std::fopen(spec_file.c_str(), "rb");
+        assert(f && "SPEC file for this level must exist");
+        int nrec = std::fgetc(f);
+        std::fclose(f);
+        assert(nrec > 0);
+        assert((int)keys.size() <= nrec);
         // Pin the table size per level.  These counts are the rule's signature:
         // dropping the tile-3 filter gives 19/32/22/24/42/39/47/18 instead, so
         // this assertion fails if the rule regresses.
@@ -970,6 +974,67 @@ static void test_event_keys(const std::string& dir) {
         checked++;
     }
     if (checked) std::printf("dungeon_test: %d levels checked for event keys\n", checked);
+}
+
+// Every shipped level's event table must fit the SPEC file the engine actually
+// loads for it.  This is the whole-table form of the mapping rule, and it is
+// what distinguishes the two readings of `DNG<dd>`:
+//
+//   ones digit  -> SPEC<ones>   : 29/29 levels fit (largest index < record count)
+//   tens digit  -> SPEC<tens>   : 5 levels overflow (DNG01/04/05/06 need indexes
+//                                 27/34/31/43 but SPEC0 has 24 records)
+//
+// The engine's own trace pins which one it is: for DNG10 it opens SYST/SPEC0.
+// Pin the aggregate too, so a rule change has to break something visible.
+static void test_event_spec_mapping(const std::string& dir) {
+    namespace fs = std::filesystem;
+    int levels = 0, fit = 0, overflow = 0;
+    for (int tens = 0; tens < 8; tens++) {
+        for (int ones = 0; ones < 8; ones++) {
+            const int level = tens * 10 + ones;
+            char nm[16];
+            std::snprintf(nm, sizeof nm, "DNG%02d", level);
+            const std::string dpath = dir + "/" + nm;
+            if (!fs::exists(dpath)) continue;
+            Dungeon d;
+            if (!load_dungeon(dpath, d)) continue;
+            levels++;
+
+            auto rec_count = [&](int scenario) {
+                const std::string p =
+                    dir + "/../SYST/SPEC" + std::to_string(scenario);
+                FILE* f = std::fopen(p.c_str(), "rb");
+                if (!f) return -1;
+                int n = std::fgetc(f);
+                std::fclose(f);
+                return n;
+            };
+
+            int max_idx = -1;
+            for (int y = 0; y < kDungeonH; y++)
+                for (int x = 0; x < kDungeonW; x++)
+                    max_idx = std::max(max_idx, d.event_index(x, y));
+
+            // The rule the engine uses: ones digit.
+            const int scen = spec_scenario_for_location(level);
+            assert(scen == ones);
+            const int nrec = rec_count(scen);
+            assert(nrec > 0 && "every level's SPEC file must exist");
+            if (max_idx >= 0) {
+                assert(max_idx < nrec);
+                fit++;
+            }
+            // The rejected reading must actually be rejected for at least the
+            // levels where it overflows, i.e. this is not a vacuous distinction.
+            const int alt = rec_count(tens);
+            if (alt > 0 && max_idx >= alt) overflow++;
+        }
+    }
+    assert(levels == 29);
+    assert(fit == levels);
+    assert(overflow >= 4 && "the tens-digit reading must fail on real levels");
+    std::printf("dungeon_test: SPEC mapping ok (%d levels fit, %d overflow "
+                "under the tens-digit reading)\n", fit, overflow);
 }
 
 // End-to-end walk model over a real level: place the party, then walk and turn
@@ -1302,6 +1367,7 @@ int main(int argc, char** argv) {
     test_connectivity_stats(dir);
     test_object_doors(dir);
     test_event_keys(dir);
+    test_event_spec_mapping(dir);
     test_walk_real(dir);
     test_view_themes(dir);
     test_dungeon_screen(dir);

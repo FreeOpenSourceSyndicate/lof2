@@ -123,6 +123,33 @@ bool parse_spec(const std::vector<uint8_t>& data, SpecTable& out);
 // Load and parse SYST/SPECn.  `path` is the full path to the file.
 SpecTable load_spec(const std::string& path);
 
+// Which SPEC file a dungeon belongs to.
+//
+// The level id is the two-digit number in `DNGS/DNG<dd>` (and in the save's
+// location byte, `tens*10 + ones`).  The SPEC file is selected by the **second**
+// digit -- the level -- not the first.  Ground truth is the emulator's own file
+// trace (`LOF_I21=1`) on the documented drive into a dungeon:
+//
+//   [3D open] 'DNGS\DNG10'  -> game/DNGS/DNG10
+//   [3D open] 'SYST\NSC00'  -> game/SYST/NSC00
+//   [3D open] 'SYST\SPEC0'  -> game/SYST/SPEC0
+//
+// i.e. for DNG10 the engine loads SPEC0 = the ones digit.  This also holds as a
+// whole-table consistency check: for all 29 shipped levels the largest
+// `event_index()` is < the record count of SPEC<ones>, and for several levels
+// (DNG06 needs index 43, SPEC0 has 24 records) the other reading would run off
+// the end of the table.  `scenario` here is that ones digit; it is the same
+// value the status box prints (port/lof.cpp uses `loc % 10`) and the same one
+// that indexes SYST/NSC<scenario>.
+inline int spec_scenario_for_location(int location) { return location % 10; }
+
+// `SYST/SPEC<n>` for a location.  `dir` is the game data directory.
+inline std::string spec_path(const std::string& dir, int location) {
+    char p[32];
+    snprintf(p, sizeof p, "/SYST/SPEC%d", spec_scenario_for_location(location));
+    return dir + p;
+}
+
 // --- ROST/ROST ------------------------------------------------------------
 
 // One saved-character record.  The engine stores the character as a 410-byte
