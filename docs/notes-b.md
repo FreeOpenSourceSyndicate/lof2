@@ -1496,6 +1496,48 @@ LOF_CMDLEN=3 LOF_NO_TIMER=1 LOF_DUMP=/tmp/round.mem \
 `LOF_KEYAT` is required: the walk consumes keys before the encounter appears
 (~frame 450–650), so `LOF_KEYAUTO` lands them too early.
 
+### 3a. The monster attack path (`0x159F8`) — entry decoded 2026-11-21
+
+Read with capstone on the image; every address below is an image offset.
+
+```
+0x159F8  les bx,[bp+6]              ; the acting row
+0x159FB  cmp byte es:[bx],1 ; jne -> 0x1797C   ; only defenders (marker 1)
+0x15A08  les bx,[bp+0xa]            ; the target row
+0x15A0B  al = es:[bx+1]             ; target's record index -> [bp-0x44]
+0x15A16  al = es:[bx+1]             ; attacker's record index -> [bp-0xc]
+0x15A1E  si = 0x11a * attacker_rec  ; the monster-instance stride
+0x15A24  es = [0xafc0] ; record = es:[0x52] + si
+0x15A3B  cmp byte es:[bx+0x37],0xc  ; the "boss" flag
+0x15A42    si = 8 * rec[+0x2c]      ; 8 * max HP
+0x15A51    ax = row[+0x0a] + 2      ; HP + 2
+0x15A58    if ax > si: row[+0x0a] = si
+0x15A65  else: row[+0x0a] += 2      ; the wounded branch heals 2
+```
+
+So an attack first tops the attacker up: the capped case clamps to
+`8*rec[+0x2c]`, the other adds 2.  Then:
+
+```
+0x15A7B  if rec[+0x106] | rec[+0x108] != 0 -> 0x137DE   ; alternate attack
+0x15A9B  if rec[+0x10e] != 0              -> 0x15DF8   ; alternate attack
+0x15AB0  bx = 3 * row[+0x05]                          ; rank term
+0x15ABA  if [0xafca]:0x3d48[bx] <= 1      -> 0x15DF8   ; the `<= 1` guard
+0x15AC9  if [0xafc2]:0x3de9 == 0          -> 0x15AD1   ; the "0" branch:
+                                                       ;   prints two lines
+0x15B1E  si = 0x11a * attacker_rec                    ; the normal branch
+0x15B2F  al = rec[+0x3a]                              ; the attack rating
+0x15B39  lcall 0x2a7d:0x2f6a (0, al)                  ; rand(0..al)
+0x15B41  ax += 1                                      ; -> 1..al+1 attacks
+0x15B42  [bp-0x48] = ax                               ; the attack count
+0x15B48  if row[+0x0a] <= ax -> 0x15CEE               ; too weak: skip
+0x15B5D  (0x3de9 != 0) -> 0x15C4E                     ; silent variant
+0x15B60  otherwise: message + delay + the monster's name
+```
+
+`0x15C4E` / `0x15CEE` and the damage application are **not yet transcribed** —
+that is the next stretch (see `docs/PLAN.md` P-3).
+
 ### 4. The round-result table
 
 After the round the engine draws `The result of this round:` + the melee table
