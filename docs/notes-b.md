@@ -1642,6 +1642,21 @@ attack path at `0x17C8F`**.  That makes the spell and item effects (P-5, P-6)
 this loop's two remaining arms, and the "quick combat" label in earlier notes
 was a misnomer.
 
+### 3c. Leaving town lands in the wilderness play loop (P-4)
+
+Scripted `O`,`2` (load slot 2, the wilderness save) and `O`,`2`+`C`,`C` (town,
+then two Continues) produce frames that match each other at **0.9557**, with the
+differences confined to `x 10..304, y 57..183` — the dynamic viewport and party
+panel.  So the town exit's destination **is the outdoor play screen**, and the
+exit is reachable from a fresh start with no save at all.
+
+The exit's asset sequence, from the `LOF_I21` trace, is: the town tiles
+(`TWN00..TWN05`, twice), `ROST/ROST`, `ROST/SHOP`, then **24 animation frames**
+`EGA/ANIM/AN00..AN53` (`an{0,1,2,3,4,5}{0,1,2,3}`), then `EGA/PAGE/PG00`
+(112x155 — a panel tile, not a full screen).  The transition is therefore an
+animation followed by a page overlay, and the resulting screen is the same
+play-loop composition the drop-in already renders.
+
 ### 4. The round-result table
 
 After the round the engine draws `The result of this round:` + the melee table
