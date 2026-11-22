@@ -1550,6 +1550,23 @@ acting row and `[bp+0xa]` the target throughout.
 
 `0x15C4E` sets a row's HP word to 0 (`mov word es:[bx+0xa],0`).
 
+**Runtime check (2026-11-21).**  With the round script below and
+`LOF_TRACE_IP=25af8:25b00` (= image `0x159F8`, linear = image + `0x10100`), the
+path **does execute** — the log shows `T … 1DAF:8008` (the entry) — but it never
+reaches the `0x15DF1` subtraction (`1DAF:80F1`), and no defender-row HP byte
+(`0x46B42`) is ever written.  So one of the three gates aborts in this
+encounter.  All-defend and attack variants behave the same.
+
+**Process trap:** `LOF_TRACE_IP` prints `seg:off`, not the linear address, so a
+grep for the linear form silently reports "never executed" — grep for
+`1DAF:80xx` (image + `0x10100` = `0x1DAF0 + ip`) instead.
+
+**The `0x11a` stride is a runtime structure.**  `SYST/NSC00` is a 1951-byte file
+= 1 count byte + 25 * 78-byte records, so `rec[+0x106]`/`+0x108`/`+0x10e` are
+fields of the 282-byte in-memory monster instance (built at load), not of the
+file record.  Their producer is still to be found; until it is, the three gates
+cannot be evaluated from game data.
+
 **Open, do not guess:** `0x15DEB..0x15DF5` does `ax = [bp-0x48]` (the attack
 count) then `sub word es:[bx+0xa], ax` with `bx = [bp+6]`.  Two readings fit the
 instruction text — (a) the acting row's HP is an attack *budget*, or (b) the
