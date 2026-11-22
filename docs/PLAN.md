@@ -77,7 +77,7 @@ first.
 | **P-8** | **Character-sheet screen** (old P-8) | 6–10 | **Medium-low.** Seen often, no mechanics depend on it. | `ref/oracle/charsheet.png` (recipe in `docs/notes-maintainer-town.md`); palette lacks the oracle's red/yellow. `port/lof.cpp` |
 | **P-9** | **Outdoor scenery-selection rule** (old P-6, G-013 residue) | 6–10 | **Medium.** Fidelity, not progression. | Whether the horizon band is per-cell; cells 636/673 sit at ~0.94 with no object; the 70-entry `ega\d0\dpnnn` table at image `0x361E1`. `port/dungeon.cpp` |
 | **P-10** | **Mover / collision test** (old P-7, G-005 residue) | 4–6 | **Medium.** Movement works; edge cases only. | The `analysis/lof.asm` move path (the four trail-shift sites are already excluded). `port/dungeon.cpp` |
-| **P-11** | **`P` / `B` round flags** — *new in this revision* | 1–3 | **Low.** Two of the three round-result columns are always blank. **`P` guard derived 2026-11-21** (`0x1756D`..`0x1759D`): defender dexterity `+0x46 > 11`, a shield in slot `[bp-0x30]` (armour `[bp-0x3e]` at `0x1777A`), then `sub slot[+0x85], 2` and `P = 1`; message gate `[0xafc2]:0x3de9 == 0`. Remaining: the port's `weapon_slots()` tracks only the two weapon hands, so the prelude's shield/armour slot scan must be extended first. `B` is untouched (`0x12846`/`0x13D7D`/`0x1471C`). Flag array `[0xafdc]+0x5608`: `W` done, `P` `+0x5609`, `B` likely `+0x560A`. `port/combat.*`, `port/char.*` |
+| **P-11** | **`P` / `B` round flags** — *new in this revision* | 2–4 | **Low, and blocked on P-3.** Two of the three round-result columns are always blank. **`P` guard derived 2026-11-21** (`0x1756D`..`0x1759D`): defender dexterity `+0x46 > 11`, a shield in slot `[bp-0x30]` (armour `[bp-0x3e]` at `0x1777A`), then `sub slot[+0x85], 2` and `P = 1`; message gate `[0xafc2]:0x3de9 == 0`. Remaining: **it is blocked on P-3, not on the slot scan.**  The `P` event runs in the *defender* path, and the only defender that has inventory is a party member — i.e. it needs a monster attack to land.  Until P-3 exists nothing in the port can reach it, so the slot scan (`weapon_slots()` covers only the two weapon hands; the shield/armour slots would mirror `defense_from_items`' equipped-class scan, item class 3 = shield, 2 = armour) is the second half of the work, not the first. `B` is untouched (`0x12846`/`0x13D7D`/`0x1471C`). Flag array `[0xafdc]+0x5608`: `W` done, `P` `+0x5609`, `B` likely `+0x560A`. `port/combat.*`, `port/char.*` |
 | **P-12** | **Depth-2/≥3 bank sprite numbers** (old P-9) | 3–5 | **Low.** Non-Temple deep-dungeon views only. | Emulator depth sweep on a non-Temple save. `port/dungeon.cpp` |
 | **P-13** | **All-out-of-action message** (old P-10) | 2–4 | **Low.** Cosmetic. | Trigger decoded (`[bp-0x36]`, `0x18449`); blocked on the message colour — needs a mid-encounter oracle frame. `port/lof.cpp` |
 
@@ -118,12 +118,12 @@ worth stating:
 | P-8 character sheet | 6 | 10 |
 | P-9 outdoor scenery rule | 6 | 10 |
 | P-10 mover/collision | 4 | 6 |
-| P-11 `P`/`B` flags | 1 | 3 |
+| P-11 `P`/`B` flags | 2 | 4 |
 | P-12 depth-2+ sprites | 3 | 5 |
 | P-13 all-out message | 2 | 4 |
-| **total** | **73** | **132** |
+| **total** | **74** | **133** |
 
-So **~73–132 agent-hours** remain.  The upper bound is 40 h above lof2/M-5's
+So **~74–133 agent-hours** remain.  The upper bound is 40 h above lof2/M-5's
 estimate because P-4 (town exit) and P-7 (town state effects) were missing from
 that list, not because any finished work regressed.
 
