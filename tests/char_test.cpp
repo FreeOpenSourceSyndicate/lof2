@@ -381,6 +381,47 @@ static int real_data() {
     // but six records in this release.
     assert(unset_4e == 659);
 
+    // The four words the effect handlers read (record 0xda..0xe0; the
+    // dispatcher copies them into a local array at 0x1F520..0x1F552 before
+    // jumping through the type table).  The copy is *filtered*: 0x1F53C keeps
+    // only 1 <= value < 0xba (186) and the local stays 0 otherwise.  Across the
+    // release exactly one word trips that filter -- SPEC2 record 15, args[0] =
+    // 47760, a type-0 text record that never dispatches -- so the filter is
+    // live behaviour, not a defensive no-op.  `args[0]` must equal `arg_da`.
+    size_t with_args = 0, out_of_range = 0;
+    for (int n = 0; n <= 7; n++) {
+        char p[64];
+        snprintf(p, sizeof p, "%s/SYST/SPEC%d", dir, n);
+        SpecTable tt = load_spec(p);
+        assert(tt.ok);
+        for (size_t ri = 0; ri < tt.records.size(); ri++) {
+            const auto& r = tt.records[ri];
+            assert(r.args[0] == r.arg_da);
+            bool any = false;
+            for (uint16_t a : r.args) {
+                if (!a) continue;
+                any = true;
+                if (a >= 186) {
+                    out_of_range++;
+                    assert(n == 2 && ri == 15 && r.type == SPEC_TYPE_TEXT);
+                }
+            }
+            if (any) with_args++;
+        }
+    }
+    assert(with_args == 263);
+    assert(out_of_range == 1);
+
+    // The type word selects the effect: values 7..23 index the 17-entry jump
+    // table at image 0x21B9A; 0..6 take the "plain text" path at 0x1F5C4 and
+    // are by far the commonest (type 0 is 146 of SPEC4's 151 records).
+    SpecTable t4 = load_spec(std::string(dir) + "/SYST/SPEC4");
+    assert(t4.ok && t4.records.size() == 151);
+    size_t text4 = 0;
+    for (const auto& r : t4.records)
+        if (r.type == SPEC_TYPE_TEXT) text4++;
+    assert(text4 == 146);
+
     // SPEC6 has 182 records; SPEC7 has 41 (the counts are stable per file).
     SpecTable t6 = load_spec(std::string(dir) + "/SYST/SPEC6");
     assert(t6.ok && t6.records.size() == 182);

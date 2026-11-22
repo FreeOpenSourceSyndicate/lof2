@@ -89,7 +89,12 @@ struct SpecRecord {
     uint16_t arg_4c = 0;      // 0x4c  word argument (used by type 7)
     int16_t arg_4e = 0;       // 0x4e  signed word, `< 0` means "unset"
     uint8_t index_c9 = 0xff;  // 0xc9  class index 0..12, 0xff = none
-    uint16_t arg_da = 0;      // 0xda  word argument
+    // 0xda  four words the effect handlers read.  The dispatcher copies
+    // record+0xda+2*i into a local array before jumping through the type table
+    // (0x1F520..0x1F552, values 1..185; 263 of 665 records are non-zero), so
+    // the handlers see four small integers, not one.  `arg_da` is slot 0.
+    std::array<uint16_t, 4> args{};
+    uint16_t arg_da = 0;      // 0xda  == args[0]; kept for existing callers
     SpecType type = SPEC_TYPE_TEXT;  // 0xe2  behaviour dispatch type
     uint16_t counter = 0;     // 0xe4  countdown/counter
     uint16_t arg_e6 = 0;      // 0xe6  extra argument (type 7/14)

@@ -3166,3 +3166,89 @@ asserts this and prints a warning if a future level breaks it.
   **G-015**; it only affects when the port calls `event_index()` after a step,
   not the predicate itself.
 - Still open: the SPEC record's *effects* (what the selected record does).
+
+## Round 56 — the SPEC record's effect dispatch (maintainer, 2026-11-08)
+
+**P-2's third piece, located.** The dispatcher does not run one generic effect:
+after selecting the record it jumps through a 17-entry table indexed by the
+record's type word.
+
+### Where
+
+```
+1F59C: imul ax, [bp-0x44], 0xee        ; record index * record size
+1F5A4: les bx, [0x7d04]                ; SPEC base
+1F5A8: mov ax, es:[bx+si+0xe2]         ; the record's type word
+1F5AD: sub ax, 7
+1F5B0: cmp ax, 0x10                    ; 0..16
+1F5B3: ja  0x1F5C4                     ; out of range -> the "no type" path
+1F5B5: add ax, ax
+1F5B7: xchg bx, ax
+1F5B8: jmp word cs:[bx+0x25ea]         ; 17-entry jump table
+```
+
+The table is at image `0x21B9A`; each entry is an **IP**, and the handler address
+is `cs*16 + ip` with `cs = 0x2F6B` (the segment of the `jmp`). Resolved:
+
+| type | handler (image) | type | handler (image) |
+|-----:|----------------:|-----:|----------------:|
+|  7 | `0x24601` | 16 | `0x28493` |
+|  8 | `0x2604A` | 17 | `0x277B6` |
+|  9 | `0x272DF` | 18 | `0x21C60` |
+| 10 | `0x278DA` | 19 | `0x213B3` |
+| 11 | `0x1FA74` | 20 | `0x1F602` |
+| 12 | `0x28EF0` | 21 | `0x283D6` |
+| 13 | `0x2543B` | 22 | `0x249B6` |
+| 14 | `0x2C74A` | 23 | `0x21BB0` |
+| 15 | `0x2C793` |    |         |
+
+Types **0..6** never reach the jump: `sub ax,7` underflows and the unsigned
+`ja` sends them to `0x1F5C4` (which sets `[bp-8]=1`). That is the "plain text"
+path, and it matches the data — type 0 is by far the most common value in every
+`SPECn` (e.g. 146 of 151 records in `SPEC4`).
+
+### The record arguments the handlers see
+
+Before the jump the dispatcher copies **four words** from the record into locals:
+
+```
+1F520: mov ax, 0xee
+1F523: imul [bp-0x44]                  ; index * 0xee
+1F526: mov di, ax
+1F528: mov ax, [bp-0x3c]               ; slot 0..3
+1F52B: shl ax, 1
+1F52D: add di, ax
+1F533: mov si, es:[bx+di+0xda]         ; record word at 0xda + 2*slot
+1F53C: cmp si, 0xba                    ; 1 <= value < 0xba (186)
+1F542: mov [bp+di-0x3c], si             ; store into the local array
+```
+
+So the handlers read an array of four integers taken from record offsets
+`0xda, 0xdc, 0xde, 0xe0`, and the copy is **filtered**: a word is stored only if
+`1 <= value < 0xba` (186); anything else leaves the local at 0. That filter is
+live, not defensive -- exactly one word in the release trips it (SPEC2 record 15,
+`args[0] = 47760`, a type-0 text record that never dispatches), which is pinned
+in `tests/char_test.cpp`. 263 of the 665 records carry at least one non-zero
+argument, so this is a real argument list, not padding.
+
+`SpecRecord` in `port/char.h` now exposes all four as `args[0..3]`
+(`arg_da` remains as an alias for `args[0]`); the parser fills them in
+`port/char.cpp`.
+
+### What is settled and what is not
+
+- Settled: the effect is chosen by `record+0xe2`, the domain is 7..23, the table
+  is 17 words at image `0x21B9A`, and the four arguments come from
+  `0xda..0xe0`.
+- **Not** settled: what each handler *does*. Only two were read so far and both
+  are consistent with the existing `SpecType` labels: type 20 (`0x1F602`) gates
+  on `+0xe4 == 1`, a flag at `[bp-8]`, `+0xe6 < 0xc` and a byte at
+  `[0xb04c]+0x37ee` — the "countdown/once-only" shape; type 11 (`0x1FA74`)
+  writes `0xffff` to `[0x7d0c]`/`[0x7d0e]` and sets a latch at `[0x7d1c]` when
+  `+0xe2 == 0x10`, the teleport shape.
+- The 0..6 "no handler" path is `0x1F5C4`; reading it fully is the next step for
+  the text-only majority.
+
+This is why P-2 is not yet done: the selector, the trigger and the type
+dispatch are all proven, but porting 17 handlers (and the text path) is the
+remaining work.

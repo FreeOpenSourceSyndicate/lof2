@@ -64,7 +64,8 @@ bool parse_spec(const std::vector<uint8_t>& data, SpecTable& out) {
         rec.arg_4c = rd16(r + 0x4c);
         rec.arg_4e = (int16_t)rd16(r + 0x4e);
         rec.index_c9 = r[0xc9];
-        rec.arg_da = rd16(r + 0xda);
+        for (int i = 0; i < 4; i++) rec.args[i] = rd16(r + 0xda + 2 * i);
+        rec.arg_da = rec.args[0];
         rec.type = (SpecType)rd16(r + 0xe2);
         rec.counter = rd16(r + 0xe4);
         rec.arg_e6 = rd16(r + 0xe6);
