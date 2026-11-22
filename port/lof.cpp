@@ -776,15 +776,31 @@ static void draw_viewport_map(Screen& s, const Dungeon& d, const DungeonPos& p) 
 // when the party's cell has tile 3 and a word the table build accepts; the
 // dispatcher then resolves the word to a record index through its key table and
 // reads `index * 0xee` from `SYST/SPEC<ones digit of the level>`.  This mirrors
-// that lookup and runs the part of the effect tail (0x1F5EC) that is proven:
-// the plain-text path, which prints record text_b (record +0x50, image 0x280F0).
+// that lookup and runs the part of the effect tail (0x1F5EC) that is proven.
 //
-// Types that need an interaction (recruit, door, trade, button, teleport, ...)
-// and the per-type effects in the tail are NOT reproduced here; they are
+// The tail prints text_b (record +0x50) *before* it looks at the type: the
+// print at 0x1F713 is reached from both the plain-text path (0x1F5C4) and every
+// arm of the 17-entry jump table (0x1F5B8, types 7..23), so the message is shown
+// for all of them.  Printing it only for "text" types would swallow the prompt
+// of every interactive event -- e.g. the wilderness door at 0x1F6DE, whose
+// question would never appear.
+//
+// The *effects* are not reproduced.  Which path a type takes is decided by
+// `sub ax,7; cmp ax,0x10; ja 0x1F5C4`: types 0..6 and >=24 fall through to the
+// plain-text path, types 7..23 are dispatched through the jump table.  Of the
+// plain-text group only 0..6 are fully reproduced (print text_b and stop); 24
+// and 25 have extra tail work (25 re-prints the question and loops it, at
+// 0x1F76D), and the jump-table group needs the per-type handlers.  Those are
 // reported by name so the omission is visible in a transcript rather than
-// silently printing nothing.  The record is *not* consumed: the engine clears
-// the cell's tile/word at many per-type sites, not in one generic place, so
-// consuming unconditionally here would diverge.
+// silently printing nothing.
+//
+// Two tail details are also still unimplemented and deliberately not guessed:
+// the conditional extra line from record +0xc9 (0x1F6D6; -1 means "none", and
+// 16 of 586 text records set it), and the +0x0e line gated on the
+// `0x2f0e:0x1af4` result, which is a strlen (0x30BD4) and so only tests whether
+// text_b is empty.  The record is *not* consumed: the engine clears the cell's
+// tile/word at many per-type sites, not in one generic place, so consuming
+// unconditionally here would diverge.
 static void fire_cell_event(const std::string& dir, uint16_t location,
                             const Dungeon& d, const DungeonPos& pos,
                             SpecTable* spec, bool* spec_loaded) {
@@ -802,14 +818,11 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
         return;
     }
     const SpecRecord& r = spec->records[(size_t)idx];
-    // Types 0..6 never reach the 17-entry jump table (`sub ax,7; cmp ax,0x10;
-    // ja 0x1F5C4`), so they take the plain-text path at 0x1F5C4.
-    if (r.type <= 6) {
-        if (!r.text_b.empty()) printf("lof: %s\n", r.text_b.c_str());
-        return;
-    }
-    printf("lof: event type %u at (%d,%d) not implemented: \"%s\"\n",
-           (unsigned)r.type, pos.x, pos.y, r.text_b.c_str());
+    if (!r.text_b.empty()) printf("lof: %s\n", r.text_b.c_str());
+    // Plain-text group with no extra tail work: the event is fully reproduced.
+    if (r.type <= 6) return;
+    printf("lof:   (event type %u at %d,%d: effect not implemented)\n",
+           (unsigned)r.type, pos.x, pos.y);
 }
 
 // One movement key press.  Turning keys just turn; a forward key steps, and if
