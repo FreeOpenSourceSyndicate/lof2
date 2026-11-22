@@ -571,6 +571,16 @@ static int real_data() {
         assert(door_target(r).map == -1);
     }
 
+    // Type-16 latch (0x1FA8F / 0x1F639): visit -> set, next visit -> "arise",
+    // and other types never touch it.
+    {
+        CoffinLatch c;
+        assert(!c.visit(16) && c.armed);      // first visit sets the latch
+        assert(c.visit(16) && !c.armed);      // second visit clears it
+        assert(!c.visit(16) && c.armed);      // and it re-arms
+        assert(!c.visit(7) && c.armed);       // other types leave it alone
+    }
+
     // Profession (+0x1b): an index into kProfessionNames; the display routine
     // (image 0x2FB4A) rejects values > 0x0b, and the init routine seeds 0x0c
     // ("no profession"), so 12 must map to an empty name.  Verified against the

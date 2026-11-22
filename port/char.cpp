@@ -70,6 +70,16 @@ DoorTarget door_target(const SpecRecord& r) {
     return t;
 }
 
+bool CoffinLatch::visit(uint16_t type) {
+    if (type != 16) return false;
+    if (armed) {
+        armed = false;
+        return true;
+    }
+    armed = true;
+    return false;
+}
+
 AnswerEffect classify_answer(const SpecRecord& r, const std::string& answer) {
     if (r.keyword.empty()) return AnswerEffect::NoAnswerWanted;
     return keyword_matches(r.keyword, answer) ? AnswerEffect::Match

@@ -836,7 +836,8 @@ static const std::string* g_event_answer = nullptr;
 
 // `answer` is the player's typed reply for records that carry a keyword
 // (+0x00); nullptr means no reply was supplied.
-static DoorTarget g_door;   // type-7 destination, see door_target()
+static DoorTarget g_door;     // type-7 destination, see door_target()
+static CoffinLatch g_coffin;  // type-16 two-visit latch, see CoffinLatch
 
 static void fire_cell_event(const std::string& dir, uint16_t location,
                             const Dungeon& d, const DungeonPos& pos,
@@ -869,6 +870,14 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
     if (r.counter == 1 && type_takes_zero_flag((uint16_t)r.type) &&
         r.arg_e6 < 12 && sg != nullptr) {
         if (party_done_flags(*sg)[(size_t)r.arg_e6]) return;
+    }
+
+    // A type-16 record (lava crossing / sarcophagus) alternates: the visit that
+    // finds the latch set prints the coffin line instead of the record's text
+    // (0x1F639 -> 0x21276 skips it).
+    if (g_coffin.visit(r.type)) {
+        printf("lof: The companions arise out of the coffin.\n");
+        return;
     }
 
     if (!r.text_b.empty()) printf("lof: %s\n", r.text_b.c_str());

@@ -155,6 +155,19 @@ struct DoorTarget {
 
 DoorTarget door_target(const SpecRecord& r);
 
+// Type-16 (SPEC_TYPE_LAVA: lava crossing / sarcophagus) is a two-visit latch
+// (image 0x1FA8F and 0x1F639, flag `[0x7d1c]`):
+//   entry path 0x1FA8F: type == 0x10 and latch == 0 -> latch = 1 (normal visit)
+//   re-entry   0x1F639: type == 0x10 and latch != 0 -> latch = 0, print
+//                       ds:0x80d2 "The companions arise out of the coffin."
+//                       and jump to 0x21276, which skips the record's own text.
+// The string was read out of the live data segment (LOF_SEGDUMP 4C92:80d2).
+struct CoffinLatch {
+    bool armed = false;
+    // True when this visit is the "arise" one (latch was set, now cleared).
+    bool visit(uint16_t type);
+};
+
 // Classify a typed answer against a record.  `answer` may be empty.
 AnswerEffect classify_answer(const SpecRecord& r, const std::string& answer);
 
