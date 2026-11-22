@@ -1650,23 +1650,35 @@ differences confined to `x 10..304, y 57..183` — the dynamic viewport and part
 panel.  So the town exit's destination **is the outdoor play screen**, and the
 exit is reachable from a fresh start with no save at all.
 
-The exit is **two-step**: one `C` at the town menu produces a screen that
-matches *neither* the town (0.7435) nor the play screen (0.7233), and only the
-second `C` reaches the wilderness (0.9557).  So `C` opens an intermediate
-screen first.  It is **not** a picture: the frame uses only five palette
-indices (`{0,2,4,6,7}`, mostly black), and none of `EGA/PAGE/PG00..PG09`,
-`EGA/PAGE/BOOK`, `EGA/IN/{CRED,DRAG,TITL}` matches it at any offset in
-index space.  It is therefore drawn from the font — a prompt or message page
-(one candidate is the gate/"really leave?" confirmation; the engine also gates
-the town gates on the clock phase, per the internal-clock note), but the text
-is **not yet read**, so it stays open rather than guessed.
+**Owner-supplied spec (authoritative, 2026-11-21).**  Leaving town is always
+possible except when no character in the party is alive.  The intermediate
+screen I measured is **not a general exit menu** — it is the *first-departure
+amulet event*:
 
-The exit's asset sequence, from the `LOF_I21` trace, is: the town tiles
+```
+On starting your journey, you recieve an amulet from a town guard.
+A gift from the Count.
+You find an artefact:
+The Amulet
+Who should recieve that (1-6)?
+(L)eave it
+```
+
+After it, `(L)`, `(C)` or a character digit leaves town; later departures need
+only the one `(C)`.  The owner also notes that a new game starts **inside the
+Inn** (the boot menu *is* the Inn), so a `C` there exits the Inn into the town,
+and only the next `C` is a town exit — which explains why my single-`C` capture
+matched neither screen: it was the amulet prompt, and my frame timings were
+straddling the animation.
+
+So the exit's asset sequence, from the `LOF_I21` trace, is: the town tiles
 (`TWN00..TWN05`, twice), `ROST/ROST`, `ROST/SHOP`, then **24 animation frames**
 `EGA/ANIM/AN00..AN53` (`an{0,1,2,3,4,5}{0,1,2,3}`), then `EGA/PAGE/PG00`
-(112x155 — a panel tile, not a full screen).  The transition is therefore an
-animation followed by a page overlay, and the resulting screen is the same
-play-loop composition the drop-in already renders.
+(112x155 — a panel tile, not a full screen), and the resulting screen is the
+play-loop composition the drop-in already renders (0.9557 vs the slot-2
+capture, residue = viewport + panel).  The amulet screen itself is font-drawn
+text on black (indices `{0,2,4,6,7}`); its wording above is the owner's, and
+the port must render exactly that.
 
 ### 4. The round-result table
 
