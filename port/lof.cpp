@@ -770,6 +770,48 @@ static void draw_viewport_map(Screen& s, const Dungeon& d, const DungeonPos& p) 
     }
 }
 
+// Raise the dungeon event for the cell the party just entered, if any.
+//
+// The engine's post-move handler (0x2E664) calls the SPEC dispatcher (0x1F31E)
+// when the party's cell has tile 3 and a word the table build accepts; the
+// dispatcher then resolves the word to a record index through its key table and
+// reads `index * 0xee` from `SYST/SPEC<ones digit of the level>`.  This mirrors
+// that lookup and runs the part of the effect tail (0x1F5EC) that is proven:
+// the plain-text path, which prints record text_b (record +0x50, image 0x280F0).
+//
+// Types that need an interaction (recruit, door, trade, button, teleport, ...)
+// and the per-type effects in the tail are NOT reproduced here; they are
+// reported by name so the omission is visible in a transcript rather than
+// silently printing nothing.  The record is *not* consumed: the engine clears
+// the cell's tile/word at many per-type sites, not in one generic place, so
+// consuming unconditionally here would diverge.
+static void fire_cell_event(const std::string& dir, uint16_t location,
+                            const Dungeon& d, const DungeonPos& pos,
+                            SpecTable* spec, bool* spec_loaded) {
+    const int idx = d.event_index(pos.x, pos.y);
+    if (idx < 0) return;
+    if (!*spec_loaded) {
+        *spec_loaded = true;
+        *spec = load_spec(spec_path(dir, location));
+        if (!spec->ok)
+            fprintf(stderr, "lof: cannot read %s\n",
+                    spec_path(dir, location).c_str());
+    }
+    if (!spec->ok || idx >= (int)spec->records.size()) {
+        fprintf(stderr, "lof: event index %d has no SPEC record\n", idx);
+        return;
+    }
+    const SpecRecord& r = spec->records[(size_t)idx];
+    // Types 0..6 never reach the 17-entry jump table (`sub ax,7; cmp ax,0x10;
+    // ja 0x1F5C4`), so they take the plain-text path at 0x1F5C4.
+    if (r.type <= 6) {
+        if (!r.text_b.empty()) printf("lof: %s\n", r.text_b.c_str());
+        return;
+    }
+    printf("lof: event type %u at (%d,%d) not implemented: \"%s\"\n",
+           (unsigned)r.type, pos.x, pos.y, r.text_b.c_str());
+}
+
 // One movement key press.  Turning keys just turn; a forward key steps, and if
 // the cell stepped onto is a stair the party follows it to the destination
 // level.  `location` is the save's level id (tens*10 + ones, the same encoding
@@ -965,6 +1007,8 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
     bool have_dng = false;
     SaveGame play_sg;
     int play_dungeon = 0;
+    SpecTable play_spec;
+    bool play_spec_loaded = false;
     // Compose the in-game screen (HUD + party panel, no viewport tile) and blit
     // the depth-selected first-person view for the party's current position.
     auto redraw_play = [&]() {
@@ -1024,8 +1068,9 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                 std::string stair_msg;
                 bool changed = false;
                 if (walk_key(dir, loc, dng, pos, key, &changed, stair_msg)) {
-                    if (changed) play_dungeon = loc;
+                    if (changed) { play_dungeon = loc; play_spec_loaded = false; }
                     if (!stair_msg.empty()) printf("lof: %s\n", stair_msg.c_str());
+                    fire_cell_event(dir, loc, dng, pos, &play_spec, &play_spec_loaded);
                     redraw_play();
                 }
             }
@@ -1090,11 +1135,16 @@ static bool walk_loop(const std::string& dir, const std::string& save,
         return false;
     }
     place_party_from_save(d, sg, pos);
+    SpecTable spec;
+    bool spec_loaded = false;
     for (int k : keys) {
         std::string msg;
         bool changed = false;
+        uint16_t before = location;
         walk_key(dir, location, d, pos, k, &changed, msg);
         if (!msg.empty()) printf("lof: %s\n", msg.c_str());
+        if (location != before) spec_loaded = false;   // stair: new level, new SPEC
+        fire_cell_event(dir, location, d, pos, &spec, &spec_loaded);
     }
     // Persist the walk.  The party position is written back into the save's
     // world block and the file is re-sealed, so a later load resumes here.

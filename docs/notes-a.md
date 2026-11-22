@@ -3301,3 +3301,61 @@ quantities/percentages, not the record text.
 
 This is why P-2 is not yet done: selector, trigger and type dispatch are proven,
 but the shared effect tail is not decoded and no event effect is implemented.
+
+## Which SYST/SPEC file a level loads (settled)
+
+The event table resolves a cell's word to a record index, so the file it indexes
+matters.  Two readings of the level id `DNG<dd>` are possible; the engine uses
+the **ones** digit:
+
+```
+[3D open] 'DNGS\DNG10'  -> game/DNGS/DNG10
+[3D open] 'SYST\NSC00'  -> game/SYST/NSC00
+[3D open] 'SYST\SPEC0'  -> game/SYST/SPEC0      <- LOF_I21=1, documented drive
+```
+
+So `DNG53` -> `SPEC3`, `DNG10` -> `SPEC0`.  A whole-table check agrees: across
+all 29 shipped levels the largest `event_index()` is below the record count of
+`SPEC<ones>`, while the tens-digit reading overflows on five of them (DNG01/04/
+05/06 need indexes 27/34/31/43; `SPEC0` holds 24 records).  Pinned by
+`test_event_spec_mapping()` in `tests/dungeon_test.cpp`.
+
+Corroborated by play: `SPEC0` record 1 is the type-1 "A large warrior asks if he
+may join you (Yes/No)." special, and `DNG10`'s event table has `0x2000` at index
+1.  `DNG00`'s first event cell (one step from the entry) is `0x1600`, which is
+table index 9 -> `SPEC0[9]`, "A small spring gurgles in a fountain." -- a spring
+event, not a warrior.  The warrior is therefore not in DNG00; the two-steps-from-
+town anecdote belongs to a different level, which is why the text is absent from
+SPEC0's first few records.
+
+`tests/dungeon_test.cpp` previously *claimed* to check this and did not: it built
+`"SPEC" + std::string(nm + 3)` = `SPEC00`, the file never existed, and the
+`if (fopen(...))` guard swallowed the assertion.  It now fails loudly.
+
+## The event fire path in the port (settled as far as the text types)
+
+`port/lof.cpp` `fire_cell_event()` runs after every applied movement key (both
+the interactive loop and `--walk`).  It mirrors the dispatcher's lookup and
+implements only the plain-text path: types 0..6 print `text_b` (record +0x50).
+Higher types are reported as not implemented rather than silently ignored.
+
+The record is **not** consumed.  The engine clears the cell (`[bx+0x46d8] = 0`,
+`[bx+0x4be8] = 0`) at many per-type sites -- `0x1F7F5`, `0x20BC7`, `0x20E13`,
+`0x210F2`, `0x21227`, `0x212F0`, `0x214DA`, `0x21623`, `0x2C2A3`, `0x2D989`,
+`0x2E3C1`, `0x2E457`, `0x2E595`, `0x2E625`, ... -- not in one generic place, so
+consuming unconditionally would diverge from the original.  A spring or a
+gravestone presumably stays readable; a one-shot reward does not.
+
+Verified end to end: `lof --walk --save game/GAMES/GAME1 --walk-keys 0x48`
+prints "You enter the acolyte lodgings." (`SPEC5` record 3, type 0) and the same
+run with no key prints nothing.  Pinned by `tests/event_fire_test.py`.
+
+### Still open in the tail at 0x1F5EC
+
+- The once-only latch: `record+0xe4 == 1` **and** "any arg non-zero"
+  (`[bp-8] != 0`) **and** `record+0xe6 < 0xc` **and** `[0x37ee + e6] != 0` jumps
+  to `0x212F6` instead of falling through.  `[0x37ee]` is a 12-byte array that
+  the key-table builder fills with 1 for every scenario record whose +0x38 byte
+  is non-zero, so this is a "already used this scenario resource" test.
+- `type == 0x10` consults the byte at `[0x7d1c]` (set at `0x1F641`).
+- The signed byte at `record+0xea` and the `0x37ee`-indexed bookkeeping.

@@ -24,6 +24,12 @@ COMBAT_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port 
     -o combat_test tests/combat_test.cpp port/combat.cpp && \
     ./combat_test; rc=$$?; rm -f combat_test; exit $$rc
 
+# (Agent A — dungeons) the event fire path: a real save, one forward step, and
+# the plain-text effect must print the SPEC record the dispatcher selects.  This
+# is the end-to-end check that the walk loop consults the event table at all; a
+# no-step control asserts the text does not appear without a move.
+EVENT_FIRE_TEST = python3 tests/event_fire_test.py
+
 # (Maintainer — disassembly) the two address conventions for LOF.EXE.  Mixing
 # them silently lands in-image mid-instruction and is what hid the event
 # dispatcher's callers for a whole session.
@@ -35,4 +41,5 @@ LOCAL_TEST_CMDS = \
     ( $(EGA_DECODE_TEST) ) && \
     ( $(COMBAT_TEST) ) && \
     ( $(TARGET_CONVENTION_TEST) ) && \
+    ( $(EVENT_FIRE_TEST) ) && \
     ( python3 tests/saves_test.py )
