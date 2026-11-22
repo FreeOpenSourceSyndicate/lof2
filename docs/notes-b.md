@@ -1680,6 +1680,14 @@ capture, residue = viewport + panel).  The amulet screen itself is font-drawn
 text on black (indices `{0,2,4,6,7}`); its wording above is the owner's, and
 the port must render exactly that.
 
+**OCR attempt (negative, 2026-11-21).**  Template-matching that frame against
+`EGA/UP/CHR1` cells found **zero** glyph matches at *all 48* alignments
+(`y0` 0..7, `x0` 0..5), so the amulet page is **not** CHR1 at a 6-px pitch —
+try `CHR2` (and the compact 5x5 face), and capture the page with a longer,
+settled script (the load/animation timing is unstable: frame 620 was still the
+animation, frame 1000 held the prompt).  Do not hand-place the text until the
+font and pitch are identified.
+
 ### 4. The round-result table
 
 After the round the engine draws `The result of this round:` + the melee table
