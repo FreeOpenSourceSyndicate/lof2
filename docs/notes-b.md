@@ -1587,10 +1587,25 @@ otherwise runs on from `0x15E1F`:
 0x15EB5  lcall 0x212f:0x9342 ([bp-0x44])     ; the target index
 ```
 
-**Open, do not guess:** `row[+0x16]` (the `0x15E1F` gate) lies *outside* the
-12-byte row as captured (`+0x00..+0x0b`), so either the row is longer than the
-12 bytes the capture showed, or `[bp+6]` is not a row pointer on this route.
-The same applies to `0x15DEB..0x15DF5`, below. does `ax = [bp-0x48]` (the attack
+**`row[+0x16]` resolved by capture (2026-11-21).**  `LOF_TRACE_IP=25f1f:25f21`
++ `LOF_CAP` dumps the frame at the `0x15E1F` hit; the trace prints
+`1DAF:842F` with `ss=4C92 bp=B948`, and reading `ss:[bp+6]` out of the dump
+gives `468E:0258` — the **first defender row**, so `[bp+6]` is a row pointer
+after all (`[bp+0xa]` is `468E:01B2` = party row 5, the target).
+
+The rows are 12 bytes (the dump shows `01 0c 01 00 32 01 ec 14 64 01 08 00`
+then `01 0c 01 00 64 01 ec 14 64 01 10 00` at +12), so **`row[+0x16]` aliases
+the *next* row's `+0x0a` HP low byte** — here `0x10` (the second Mercenary's HP
+16), not `0xff`.  The gate therefore **aborts every time** in this encounter,
+which is exactly what the trace shows (the path runs, never reaches the damage
+subtraction, and no party HP changes).
+
+So in the shipped Mercenary encounter the monsters *never act*.  That is
+measured behaviour the port must reproduce, **not** a bug to fix: a port that
+lets mercenaries attack diverges from the original.  Whether the engine intends
+`+0x16` on a longer row (or on the character record, whose `+0x16 == 0xff` has
+the same "special" sense on the decision screen) is **open** — do not guess.
+The same `+0x16` caveat applies to `0x15DEB..0x15DF5`, below. does `ax = [bp-0x48]` (the attack
 count) then `sub word es:[bx+0xa], ax` with `bx = [bp+6]`.  Two readings fit the
 instruction text — (a) the acting row's HP is an attack *budget*, or (b) the
 frame's `[bp+6]` is the target in this call.  A runtime capture of one monster
