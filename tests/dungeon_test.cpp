@@ -1200,14 +1200,26 @@ static void test_dispatch_table(const std::string& dir) {
                 "no per-type handlers)\n");
 }
 
-// `record+0x0e` (`text_a`) is the answer line, not a second prompt.
+// `record+0x0e` (`text_a`) is an *outcome* line, not a second prompt.
 //
-// The engine prints `text_b` (+0x50) as the prompt and then reads the player's
-// answer; `text_a` is shown only afterwards.  The proof is in the data: every
-// record that carries `text_a` but no `text_b` is a pure answer line --
-// "Wrong.", "The door opens with a creak.", "Pity, I'd like to have known how he
-// is." -- and for the recruit the decline branch is SPEC0[1].text_a, "He goes,
-// disappointed.", which is the documented ground truth for answering "no".
+// The engine prints `text_b` (+0x50) as the prompt, reads an answer and compares
+// it case-insensitively against the record's keyword (+0x00).  `+0x0e` is
+// printed afterwards, on both the match and the mismatch branch, with `+0x4b`
+// gating each branch separately:
+//
+//   match    (0x20A0E je 0x20A72): +0x4b == 0 and +0x0e non-empty -> print
+//   mismatch (0x20A42 je 0x20A47): +0x4b == 0 and +0x0e non-empty -> print
+//
+// so +0x4b == 0 means "both answers get a line", and +0x4b == 1 means neither
+// does.  The proof that this is an outcome line and not a prompt is in the data:
+// every record carrying `text_a` but no `text_b` is a pure outcome -- "Wrong.",
+// "The door opens with a creak.", "Pity, I'd like to have known how he is." --
+// and SPEC0[1].text_a is "He goes, disappointed.", the documented ground truth
+// for declining the warrior.
+//
+// What is NOT proven here: that this line is specifically the *decline* line.
+// The recruit's accept path (TXT0 speech + "joins the companionship.", string at
+// file offset 0x4a2ff) is not yet traced, so the port must not claim it.
 static void test_answer_text(const std::string& dir) {
     const std::string syst = dir + "/..";
     SpecTable spec = load_spec(spec_path(syst, 10));
@@ -1233,6 +1245,58 @@ static void test_answer_text(const std::string& dir) {
     assert(answer_only > 0 && "the release must contain answer-only records");
     std::printf("dungeon_test: answer text ok (SPEC0[1].text_a = \"%s\")\n",
                 recruit.text_a.c_str());
+}
+
+// `+0xeb` is an SNSC class index, but the block that reads it at 0x1F85B is
+// dead code, and SPEC0[1] does not go through it.
+//
+//   1F85B: cmp byte es:[bx+0xea], 0
+//   1F861: jge 0x1F88F          ; +0xea >= 0  -> SKIP the whole +0xeb reader
+//   1F863: cmp byte es:[bx+0xeb], 0
+//   1F869: jl  0x1F88F          ; +0xeb < 0   -> SKIP it too
+//   1F86D: imul byte es:[bx+0xeb]  <- only reached when +0xea < 0 <= +0xeb
+//
+// SPEC0[1] (the large warrior) has +0xea == 42, so it takes the first branch and
+// never touches +0xeb there.  Across the whole release no record satisfies
+// `+0xea < 0 && +0xeb >= 0`, so the 0x1F86D body cannot execute at all.  An
+// earlier round read 0x1F85B as "the recruit reader" and derived "Siegurd" from
+// it; that inference is unsound.
+//
+// The *live* +0xeb reader is at 0x20F02, in the join path: it scales +0xeb by
+// 0x4e (the SNSC stride), indexes the SNSC image at [0x37b0] and calls
+// 0x1D99A, which zeroes a 0x19a-byte character slot and copies the record in.
+// So +0xeb is a class index -- that part of the earlier finding holds -- but it
+// is consumed by the join routine, not by the 0x1F85B test.
+static void test_recruit_field_guard(const std::string& dir) {
+    const std::string syst = dir + "/..";
+    SpecTable spec = load_spec(spec_path(syst, 10));
+    if (!spec.ok || spec.records.size() < 2) {
+        std::printf("dungeon_test: skipping recruit-guard check (no data)\n");
+        return;
+    }
+    // The guard is on a *signed* byte: SPEC0[1].+0xea is 42, not negative.
+    const uint8_t ea = (uint8_t)spec.records[1].raw[0xea];
+    assert((int8_t)ea >= 0 &&
+           "SPEC0[1].+0xea must be >= 0, i.e. it skips the 0x1F85B reader");
+    assert((int8_t)ea == 42 && "SPEC0[1].+0xea is 42");
+
+    // No record in the release can reach 0x1F86D: it needs +0xea < 0 <= +0xeb.
+    int reachable = 0, total = 0;
+    for (int scenario = 0; scenario < 10; scenario++) {
+        SpecTable t = load_spec(spec_path(syst, scenario));
+        if (!t.ok) continue;
+        for (const SpecRecord& r : t.records) {
+            total++;
+            const int ea_s = (int8_t)(uint8_t)r.raw[0xea];
+            const int eb_s = (int8_t)(uint8_t)r.raw[0xeb];
+            if (ea_s < 0 && eb_s >= 0) reachable++;
+        }
+    }
+    assert(total == 665 && "the release has 665 SPEC records");
+    assert(reachable == 0 &&
+           "no record may reach 0x1F86D; the +0xeb reader there is dead code");
+    std::printf("dungeon_test: recruit guard ok (SPEC0[1].+0xea=%d, 0/%d records "
+                "reach the 0x1F85B +0xeb reader)\n", (int)(int8_t)ea, total);
 }
 
 // The long text block a record can name: `index_c9` (+0xc9, 0xff = none).
@@ -1621,6 +1685,7 @@ int main(int argc, char** argv) {
     test_text_block_index(dir);
     test_dispatch_table(dir);
     test_answer_text(dir);
+    test_recruit_field_guard(dir);
     test_recruit_class(dir);
     test_walk_real(dir);
     test_view_themes(dir);

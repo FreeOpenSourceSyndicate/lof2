@@ -908,13 +908,23 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
     }
 
     // Recruits: `+0xeb` is an SNSC class index (0xff = none) and names the
-    // character who would join.  The reader at 0x1F85B proves it -- it scales
-    // `+0xeb` by 0x4e, the SNSC record stride, and indexes the loaded SNSC image
-    // at [0x37b0].  Reporting the class is faithful data, not a guess; the stat
-    // block and the answer loop are not implemented, so the event still says so.
-    // (The accept path also prints the record's `+0xc9` speech and the
-    // "joins the companionship." line; neither is reachable until the answer is
-    // read, and the engine only shows them after a yes.)
+    // character who would join.  The reader that matters is at 0x20F02 in the
+    // join path -- it scales `+0xeb` by 0x4e (the SNSC stride), indexes the SNSC
+    // image at [0x37b0] and calls 0x1D99A, which zeroes a 0x19a-byte character
+    // slot and copies the record into it.
+    //
+    // Correction: an earlier version of this comment cited the reader at
+    // 0x1F85B.  That block is guarded by `cmp byte es:[bx+0xea],0 ; jge` and by
+    // `cmp byte es:[bx+0xeb],0 ; jl`, so it only runs for +0xea < 0 <= +0xeb --
+    // a combination that occurs in 0 of the 665 shipped records.  SPEC0[1] has
+    // +0xea == 42 and never reaches it.  The class index is still correct
+    // (pinned by test_recruit_class and test_recruit_field_guard); only the
+    // justification was wrong.
+    //
+    // The join itself is not implemented: the accept path clears the slot, copies
+    // the SNSC record, appends the record's `+0xc9` speech and prints
+    // " joins the companionship." (image string at file offset 0x4a2ff).  This
+    // branch only reports the class the event names.
     if (r.type == 1 && r.has_class()) {
         std::vector<SnsRecord> classes = load_snsc(dir + "/SYST/SNSC");
         if (r.class_eb < classes.size())

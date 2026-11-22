@@ -3544,15 +3544,53 @@ compares it against the record's keyword at +0x00:
 209D1: ... lcall 0x18d,0x1b4a        ; read the player's line
 209EF: lea ax, [bp-0x5c]             ; the answer buffer
 209F4: imul ax, [bp-0x44], 0xee      ; -> this SPEC record
-20A04: lcall 0x1b83,0x640            ; strcmp(answer, keyword)
-20A0C: or dx, ax ; je 0x20A72        ; mismatch -> the "wrong" branch
-20A47: cmp byte es:[bx+0xe], 0       ; match: is +0x0e non-empty?
-20A4E: je 0x1F83C                    ;   no -> just the tail
-20A57: add ax, 0xe                   ;   yes -> print it
+20A04: lcall 0x1b83,0x640            ; compare(answer, keyword)
+20A0C: or dx, ax                     ; dx:ax == 0  <=>  strings EQUAL
+20A0E: je  0x20A72                   ; equal  -> the outcome branch
+20A10: ...                           ; not equal -> the "wrong answer" branch
 ```
 
-So `+0x0e` is shown only **after** the answer is accepted, and 0x20A72 is the
-mismatch path (which re-tests `+0x4b` and `+0x0e` at 0x20A89/0x20A90).
+**Correction (Round 58d):** an earlier version of this note called 0x20A72 the
+*mismatch* path.  That is backwards.  `or dx, ax` followed by `je` tests for
+zero, and the compare returns zero on equality, so `je 0x20A72` is the **match**
+branch.  The polarity matters because it decides which way the two outcomes are
+printed.
+
+The compare at `0x1BE70` is **case-insensitive**: it folds each character
+through a case table and `test byte [bx-0x51fb], 2` / `sub ax, 0x20`
+(`0x1BE9F`..`0x1BEB3`) before comparing.  That is why the keyword "Y" matches a
+player typing `y`, as the ground truth for the recruit does.
+
+### Which line is printed on which branch
+
+```
+20A72: ... es:[bx+0x4b] ; je 0x20AB8   ; MATCH:  if +0x4b == 0 -> the tail
+20A90: cmp byte es:[bx+0xe], 0
+20A95: je  0x20AB8                     ;         +0x0e empty -> the tail
+20A9D: add ax, 0xe                     ;         else PRINT +0x0e
+20AB4: mov byte [bp-2], 1
+20AB8: cmp word es:[bx+0xe2], 7        ; -> the per-type effect switch
+
+20A3D: cmp byte es:[bx+0x4b], 0
+20A42: je  0x20A47                     ; NO MATCH: +0x4b == 0 -> 0x20A47
+20A44: jmp 0x1F83C                     ;            +0x4b != 0 -> tail silently
+20A4C: cmp byte es:[bx+0xe], 0
+20A4E: je  0x1F83C                     ;            +0x0e empty -> tail
+20A5C: lcall 0x18d,0x16a8              ;            else PRINT +0x0e
+```
+
+So `+0x0e` is printed on **both** branches, and `+0x4b` gates each one
+separately.  The two branches are clean inverses:
+
+| `+0x4b` | correct answer | wrong answer |
+|--------:|----------------|--------------|
+| 0 | print `+0x0e` | print `+0x0e` |
+| 1 | silent | silent |
+
+That is exactly the shape of a prompt whose outcome line differs by answer:
+`SPEC0[1]` (the recruit, `+0x4b == 0`) shows the decline line only to a player
+who answered wrong, and the accept path (TXT0 speech + "joins the
+companionship.") only to one who answered right.
 
 ### The data agrees
 
@@ -3573,3 +3611,43 @@ same comparison at 0x1B83:0x640, then print `+0x0e` on a match and take the
 0x20A72 branch otherwise); that is the next piece of P-2, not a one-line change.
 
 Pinned by `test_answer_text` in `tests/dungeon_test.cpp`.
+
+## Round 58e — the `+0xeb` "recruit reader" at 0x1F85B is dead code (2026-11-08)
+
+The port's recruit branch cited `0x1F85B` as proof that `+0xeb` is an SNSC class
+index.  The reading of the *bytes* was right; the claim that this block runs for
+the recruit is not.
+
+```
+1F85B: cmp byte es:[bx+0xea], 0
+1F861: jge 0x1F88F          ; +0xea >= 0  -> skip the whole +0xeb reader
+1F863: cmp byte es:[bx+0xeb], 0
+1F869: jl  0x1F88F          ; +0xeb < 0   -> skip it too
+1F86D: imul byte es:[bx+0xeb]   ; only reached when +0xea < 0 <= +0xeb
+```
+
+Both tests are on **signed** bytes (`jge`/`jl`), so the body needs
+`+0xea < 0 && +0xeb >= 0`.  Across all 665 shipped SPEC records that
+combination occurs **zero** times, so `0x1F86D` cannot execute at all.  SPEC0[1]
+(the large warrior) has `+0xea == 42`, so it takes the first branch and never
+touches `+0xeb` there.  Pinned by `test_recruit_field_guard`.
+
+The **live** `+0xeb` reader is at `0x20F02`, inside the join path:
+
+```
+20F02: mov al, byte es:[bx+si+0xeb]
+20F14: mov al, 0x4e ; imul byte [bp-0x76]     ; SNSC stride
+20F1D: add ax, word es:[0x37b0]               ; the loaded SNSC image
+20F2A: call 0x1D99A
+```
+
+and `0x1D99A` is the actual join: it `rep stosw`-zeroes a **0x19a-byte**
+character slot, then copies the 78-byte SNSC record into it
+(`1D9A6` pushes 0x19a as the fill size, `1D9AD` scales the slot by 0x19a,
+`1DA3B` clears the slot's name byte).  So the class-index interpretation stands;
+it is simply consumed by the join routine, not by the `0x1F85B` test.
+
+Consequence for the port: nothing changes in the *mapping*
+(`SPEC0[1].+0xeb == 0` -> `SNSC[0]` -> "Siegurd", which matches the user's
+ground truth), only in the justification.  The comment in `port/lof.cpp` is
+corrected; the old text would have sent the next maintainer to a dead address.
