@@ -1535,8 +1535,26 @@ So an attack first tops the attacker up: the capped case clamps to
 0x15B60  otherwise: message + delay + the monster's name
 ```
 
-`0x15C4E` / `0x15CEE` and the damage application are **not yet transcribed** —
-that is the next stretch (see `docs/PLAN.md` P-3).
+**`0x137DE` is the shared epilogue, not a routine** — `sub ax,ax; pop si; pop
+di; mov sp,bp; pop bp; retf`.  So the jumps to it at `0x15A87` and `0x15E1C`
+are **aborts** (no attack), which corrects the earlier "alternate attack"
+reading.  Its caller-side neighbour `0x137E6` is the dispatcher: `attacker[+0xa]
+== 0` or `target[+0xa] == 0` -> return; `attacker[+0x00] == 2` -> the party path
+`0x13806`; **everything else -> `0x159F8`** (this path), so `[bp+6]` is the
+acting row and `[bp+0xa]` the target throughout.
+
+`0x15DF8` is the *alternate* attack branch, taken when `rec[+0x10e] == 0` or the
+`3*row[+0x05]` table guard is `<= 1`: it scales the target's record index
+(`0x19a * [bp-0x44]`) into the character segment `[0xafa6]:0x30` and tests
+`char[+0x1f] == 7` -> abort when not 7.
+
+`0x15C4E` sets a row's HP word to 0 (`mov word es:[bx+0xa],0`).
+
+**Open, do not guess:** `0x15DEB..0x15DF5` does `ax = [bp-0x48]` (the attack
+count) then `sub word es:[bx+0xa], ax` with `bx = [bp+6]`.  Two readings fit the
+instruction text — (a) the acting row's HP is an attack *budget*, or (b) the
+frame's `[bp+6]` is the target in this call.  A runtime capture of one monster
+attack (watch the two rows' `+0x0a`) decides it; it must not be assumed.
 
 ### 4. The round-result table
 
