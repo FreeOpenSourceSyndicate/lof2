@@ -3235,20 +3235,53 @@ argument, so this is a real argument list, not padding.
 (`arg_da` remains as an alias for `args[0]`); the parser fills them in
 `port/char.cpp`.
 
+### The tail is shared, not per-type
+
+The first read of the table suggested 17 independent handlers. That is wrong:
+several entries are **entry points into one shared tail** starting at `0x1F5EC`.
+Type 20's target (`0x1F602`) is the clearest case -- it is `pushf` followed by
+the *same* `imul 0xee / add [0x7d04]` sequence at `0x1F5EC`, i.e. it exists only
+to run the tail with the flags preserved. So the table selects a *variant* of
+the common post-select path, not a separate routine per type.
+
+What the shared tail does, in order:
+
+```
+1F603: cmp word es:[bx+0xe4], 1     ; "fire once" counter
+1F60B: cmp byte [bp-8], 0           ; the flag set by the 0..6 path
+1F611: cmp word es:[bx+0xe6], 0xc   ; index into the 12-byte array at 0x37ee
+1F639: cmp word es:[bx+0xe2], 0x10  ; type 16
+1F641: cmp byte [0x7d1c], 0         ; the latch type 11 sets
+1F678: cmp word es:[bx+0xe4], 2     ; sets [0x7d1b]
+1F693: mov al, es:[bx+si+0xea]      ; a signed byte
+1F69D: jl / cmp byte [bp+6], 0      ; -> lcall 0x212f,0x6e00 (image 0x17FF0)
+1F6C8: cmp word es:[bx+0xe2], 0x19  ; type 25 -- the one that reads index_c9
+1F6DE: cmp word es:[bx+0xe2], 1     ; type 1
+1F6E6: cmp word es:[bx+0xe2], 8     ; type 8
+```
+
+So the tail branches *on the type word itself* at several points rather than
+being entered at a per-type address. Porting it is a single function with a
+type switch, which is a much smaller job than 17 handlers.
+
+`0x212f:0x6e00` resolves to image `0x17FF0`, a routine that accumulates words
+and formats them with a divisor of `0x64` (100) -- consistent with printing
+quantities/percentages, not the record text.
+
 ### What is settled and what is not
 
-- Settled: the effect is chosen by `record+0xe2`, the domain is 7..23, the table
-  is 17 words at image `0x21B9A`, and the four arguments come from
-  `0xda..0xe0`.
-- **Not** settled: what each handler *does*. Only two were read so far and both
-  are consistent with the existing `SpecType` labels: type 20 (`0x1F602`) gates
-  on `+0xe4 == 1`, a flag at `[bp-8]`, `+0xe6 < 0xc` and a byte at
-  `[0xb04c]+0x37ee` — the "countdown/once-only" shape; type 11 (`0x1FA74`)
-  writes `0xffff` to `[0x7d0c]`/`[0x7d0e]` and sets a latch at `[0x7d1c]` when
-  `+0xe2 == 0x10`, the teleport shape.
-- The 0..6 "no handler" path is `0x1F5C4`; reading it fully is the next step for
-  the text-only majority.
+- Settled: the effect is chosen by `record+0xe2`; the jump table is 17 words at
+  image `0x21B9A` with `cs = 0x2F6B`; the domain is 7..23; 0..6 take the
+  plain-text path at `0x1F5C4` (`mov [bp-8],1` then the shared tail); and the
+  four arguments come from `0xda..0xe0` filtered to `1..185`.
+- Settled (negative): the entries are **not** 17 separate handlers. They share
+  the tail at `0x1F5EC` and the tail switches on the type word. Any earlier
+  reading of `0x1F602` as a distinct type-20 handler was wrong.
+- **Not** settled: the tail's actual behaviour (the once-only latch at
+  `[0x7d1c]`/`[0x7d1b]`, the `0x37ee` array indexed by `+0xe6`, the signed byte
+  at `+0xea`), and therefore whether the existing `SpecType` labels in
+  `port/char.h` match. Those labels were derived from record *text*, not from
+  code, so they are still guesses.
 
-This is why P-2 is not yet done: the selector, the trigger and the type
-dispatch are all proven, but porting 17 handlers (and the text path) is the
-remaining work.
+This is why P-2 is not yet done: selector, trigger and type dispatch are proven,
+but the shared effect tail is not decoded and no event effect is implemented.

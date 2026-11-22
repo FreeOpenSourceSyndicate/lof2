@@ -31,12 +31,16 @@ namespace lofport {
 constexpr size_t kSpecRecordSize = 238;  // 0xee
 constexpr size_t kRostRecordSize = 414;
 
-// The behaviour dispatch type at record offset 0xe2.  LOF reads this word in
-// its event handlers (`cmp es:[bx+si+0xe2], TYPE`); the observed values are
-// 0..22, 24 and 25.  The names below are derived by correlating each value with
-// the record's text (all 665 records across SPEC0..7) and the handler set the
-// disassembly keys off (1, 7, 9, 0x0c, 0x0e, 0x11, 0x19).  They are descriptive
-// labels, not engine symbol names.
+// The behaviour dispatch type at record offset 0xe2.  The *code* fact is that
+// the dispatcher subtracts 7 and indexes a 17-word jump table (image 0x21B9A,
+// cs 0x2F6B) when the result is 0..16; values 0..6 never reach the table and
+// take the plain-text path at 0x1F5C4.  Most table entries land in one shared
+// tail at 0x1F5EC that switches on the type word itself.
+//
+// The names below are NOT from the code: they are descriptive labels derived by
+// correlating each value with the record's text (all 665 records across
+// SPEC0..7).  Several (12, 19..22) are placeholders.  Treat them as hypotheses
+// until the tail at 0x1F5EC is decoded -- see G-016 in docs/GUESSWORK.md.
 enum SpecType : uint16_t {
     SPEC_TYPE_TEXT = 0,        // pure description (scenery, gravestones) — the
                                // common case; the engine just prints text_b

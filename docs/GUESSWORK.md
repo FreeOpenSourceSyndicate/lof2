@@ -262,6 +262,25 @@ How to use each section:
   no move loop yet). It only affects *when* the port should call
   `event_index()` after a step, which is the remaining P-2 work.
 
+### G-016 — the `SpecType` labels come from record text, not from code
+
+- **Guess:** the names in `port/char.h`'s `SpecType` enum (`SPEC_TYPE_DOOR = 7`,
+  `SPEC_TYPE_TELEPORT = 11`, `SPEC_TYPE_TRAP = 18`, ...) are descriptive labels
+  inferred by correlating each type value with the record's text. The *code* now
+  says something weaker: values 7..23 index a 17-word jump table at image
+  `0x21B9A`, but most entries land in one shared tail at `0x1F5EC` that switches
+  on the type word itself, and types 0..6 never reach the table at all.
+- **Why it is a guess:** no handler body has been decoded end to end. The two
+  checks done so far are consistent with the labels (type 11 writes the latch at
+  `[0x7d1c]` that the tail tests, which fits "teleport"; the `+0xe4 == 1`
+  once-only gate fits "fire once") but consistency is not proof, and several
+  labels (12, 19, 20, 21, 22) are placeholders named after their own numbers.
+- **Ground truth needed:** decode the shared tail at `0x1F5EC` and the four
+  branches the type word selects inside it, then rename the enum from code.
+- **Impact today:** none on behaviour -- nothing dispatches these types yet. It
+  matters as soon as effects are implemented, because a wrong label would put
+  the wrong behaviour behind the right number.
+
 ---
 
 ## E. Known non-determinism (not a guess)
