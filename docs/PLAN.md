@@ -68,7 +68,7 @@ first.
 | # | Task | Est. | Why this rank | Ground truth / next step |
 |---|------|------|---------------|--------------------------|
 | ~~**P-1**~~ | ~~**Save writer.**~~ **DONE** | — | Persistence — the largest single capability of the last revision. | `build_save()`/`write_save_file()`; read→write **byte-identical** on every intact archive save; `lof --walk --save-out` persists. `port/char.{h,cpp}`, `tests/char_test.cpp`, `tests/port_walk_test.py` |
-| **P-2** | **Object-code semantics** — the answer-input path, the recruit stat block, `[0x7d1c]`, the per-type effects (old P-2) | 2–6 | **High.** Doors and pickups are how a dungeon is explored; selector, trigger, dispatch, text path and the once-only gate are already live. | Read a reply, compare against the record's keyword (`0x1B83:0x640`), print `+0x0e` on a match else take `0x20A72`; the type-7 door writes `0x37fa`/`0x460e`/`0x3824`/`0x3b15` (`0x20AD7`..`0x20B13`). `port/dungeon.{h,cpp}`, `port/lof.cpp` |
+| **P-2** | **Object-code semantics** — the recruit stat block, `[0x7d1c]`, the per-type effects (old P-2) | 1–4 | **High.** Doors and pickups are how a dungeon is explored. **Answer-input path DONE 2026-11-21:** `fire_cell_event()` now classifies the reply (`classify_answer`), prints the outcome line `+0x0e` per the `+0x4b` rule, and fires the effect **only** on a match; `lof --walk --answer TEXT` drives it, pinned by `tests/answer_path_test.py` (no answer → prompt only; `N` → line, no effect; `Y` → line + effect). | The type-7 door writes `0x37fa`/`0x460e`/`0x3824`/`0x3b15` (`0x20AD7`..`0x20B13`); the recruit stat block is the SNSC copy at `0x20F02`/`0x1D99A`. `port/dungeon.{h,cpp}`, `port/lof.cpp` |
 | **P-3** | **Monster attack path + quick-combat loop** (`0x159F8`, `0x17BAA`) (old P-3) | 8–14 | **High.** Combat where the enemy never strikes is not combat. | **Entry mapped** (`docs/notes-b.md`): marker-1 gate, `+0x37 == 0x0c` HP cap, `+0x106`/`+0x108` → `0x137DE`, `+0x10e` → `0x15DF8`, `6*attacker[+0x05]` into `[0xafca]:0x3d48`, `[0xafc2]:0x3de9`; all combat segment globals alias arena `0x468E` and are static data. **Blocked on** the per-round rebuild of the `+0x258` rows (it writes `+0x06 = 236`, which the encounter builder does not). `port/combat.{h,cpp}` |
 | **P-4** | **Town exit / wilderness travel** — *new in this revision* | 12–24 | **High.** The wilderness is currently reachable only by loading a save that starts there. The town `(C)ontinue` path is the normal way out. | The town-exit sub-menu (`ds:0x5AA2`, x=139) after the first `C`, then the second `C` heads out; the overworld map, its movement and its encounter rolls. `port/lof.cpp`, `port/screens.*` |
 | **P-5** | **Spells in combat** (old P-4) | 12–20 | **High**, but only once P-3's loop exists to cast in. | The spell table + the cast path in the combat dispatcher; `Cast Spell` is `+0x0f == 4`. `port/combat.{h,cpp}` |
@@ -109,7 +109,7 @@ worth stating:
 
 | task | low h | high h |
 |------|-------|--------|
-| P-2 object codes (answer path, stat block, per-type effects) | 2 | 6 |
+| P-2 object codes (stat block, per-type effects) | 1 | 4 |
 | P-3 monster attack + combat loop | 8 | 14 |
 | P-4 town exit / wilderness travel | 12 | 24 |
 | P-5 spells in combat | 12 | 20 |
@@ -121,9 +121,9 @@ worth stating:
 | P-11 `P`/`B` flags | 2 | 4 |
 | P-12 depth-2+ sprites | 3 | 5 |
 | P-13 all-out message | 2 | 4 |
-| **total** | **75** | **135** |
+| **total** | **74** | **133** |
 
-So **~75–135 agent-hours** remain.  The upper bound is 40 h above lof2/M-5's
+So **~74–133 agent-hours** remain.  The upper bound is 40 h above lof2/M-5's
 estimate because P-4 (town exit) and P-7 (town state effects) were missing from
 that list, not because any finished work regressed.
 

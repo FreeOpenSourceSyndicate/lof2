@@ -58,10 +58,13 @@ def make_save(path):
         f.write(data)
 
 
-def run(save, keys):
+def run(save, keys, answer=None):
+    cmd = [LOF, "--dir", os.path.join(ROOT, "game"), "--walk",
+           "--save", save, "--walk-keys", keys]
+    if answer is not None:
+        cmd += ["--answer", answer]
     p = subprocess.run(
-        [LOF, "--dir", os.path.join(ROOT, "game"), "--walk",
-         "--save", save, "--walk-keys", keys],
+        cmd,
         capture_output=True, text=True, cwd=ROOT,
     )
     if p.returncode != 0:
@@ -86,7 +89,9 @@ def main():
         if "large warrior" in before:
             sys.exit("recruit_event_test: the question printed without moving")
 
-        after = run(save, FORWARD)
+        # The joining class is the *accept* path: only a matching answer
+        # reaches the effect switch (0x20A0E), so the run must answer "Y".
+        after = run(save, FORWARD, "Y")
         for needle, why in (
             ("A large warrior asks if he may join you (Yes/No).",
              "the recruit question"),

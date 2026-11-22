@@ -830,10 +830,17 @@ static bool type_takes_zero_flag(uint16_t type) {
     }
 }
 
+// The player's typed reply (--answer) for records that carry a keyword; null
+// when none was supplied.
+static const std::string* g_event_answer = nullptr;
+
+// `answer` is the player's typed reply for records that carry a keyword
+// (+0x00); nullptr means no reply was supplied.
 static void fire_cell_event(const std::string& dir, uint16_t location,
                             const Dungeon& d, const DungeonPos& pos,
                             SpecTable* spec, bool* spec_loaded,
-                            const SaveGame* sg) {
+                            const SaveGame* sg,
+                            const std::string* answer = nullptr) {
     const int idx = d.event_index(pos.x, pos.y);
     if (idx < 0) return;
     if (!*spec_loaded) {
@@ -863,6 +870,19 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
     }
 
     if (!r.text_b.empty()) printf("lof: %s\n", r.text_b.c_str());
+
+    // A record with a keyword (+0x00) reads a reply before anything fires
+    // (0x209C8..0x20A95): only a matching answer reaches the per-type effect
+    // switch.  The outcome line (+0x0e) is printed on both branches, gated by
+    // +0x4b (see `answer_prints_outcome`).
+    const AnswerEffect effect = classify_answer(r, answer ? *answer : "");
+    if (effect == AnswerEffect::NoAnswerWanted ? false : answer == nullptr) {
+        printf("lof:   (answer wanted)\n");
+        return;
+    }
+    if (answer_prints_outcome(r, effect) && !r.text_a.empty())
+        printf("lof: %s\n", r.text_a.c_str());
+    if (!answer_fires_effect(effect)) return;
 
     // A record may also name a long text block: `index_c9` (0xff = none) is an
     // entry index into `SYST/TXT<same scenario number as the SPEC file>`.  The
@@ -1200,7 +1220,8 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                     if (changed) { play_dungeon = loc; play_spec_loaded = false; }
                     if (!stair_msg.empty()) printf("lof: %s\n", stair_msg.c_str());
                     fire_cell_event(dir, loc, dng, pos, &play_spec,
-                                    &play_spec_loaded, &play_sg);
+                                    &play_spec_loaded, &play_sg,
+                                    g_event_answer);
                     redraw_play();
                 }
             }
@@ -1274,7 +1295,8 @@ static bool walk_loop(const std::string& dir, const std::string& save,
         walk_key(dir, location, d, pos, k, &changed, msg);
         if (!msg.empty()) printf("lof: %s\n", msg.c_str());
         if (location != before) spec_loaded = false;   // stair: new level, new SPEC
-        fire_cell_event(dir, location, d, pos, &spec, &spec_loaded, &sg);
+        fire_cell_event(dir, location, d, pos, &spec, &spec_loaded, &sg,
+                        g_event_answer);
     }
     // Persist the walk.  The party position is written back into the save's
     // world block and the file is re-sealed, so a later load resumes here.
@@ -1303,7 +1325,7 @@ int main(int argc, char** argv) {
     bool ui = false, walk = false;
     std::string shot;
     long shot_frame = -1;
-    std::string walk_save, walk_keys, walk_out;
+    std::string walk_save, walk_keys, walk_out, answer_text;
     // --cursor X,Y overlays the engine's software mouse cursor at (X,Y) on the
     // rendered screen.  The DOSBox reference captures were taken with the mouse
     // parked at (0,0), so `--cursor 0,0` reproduces them exactly.
@@ -1323,6 +1345,10 @@ int main(int argc, char** argv) {
         else if (a == "--walk") walk = true;
         else if (a == "--save" && i + 1 < argc) walk_save = argv[++i];
         else if (a == "--walk-keys" && i + 1 < argc) walk_keys = argv[++i];
+        else if (a == "--answer" && i + 1 < argc) {
+            answer_text = argv[++i];
+            g_event_answer = &answer_text;
+        }
         else if (a == "--save-out" && i + 1 < argc) walk_out = argv[++i];
         else if (a == "--cursor" && i + 1 < argc) {
             const char* v = argv[++i];
@@ -1445,7 +1471,8 @@ int main(int argc, char** argv) {
     bool round_result_flag = false;
     bool fight_flag = false;
     int fight_hp = 8, fight_count = 2;
-    int fight_hit_score = -1;  // -1: derive it from the combat rows
+    int fight_hit_score = -1;
+    // The typed reply for a dungeon record that carries a keyword (+0x00).
     int fight_monster_scen = 0, fight_monster_rec = 12;  // pinned Mercenary
     uint32_t fight_seed = 1;
     std::vector<EncounterGroup> encounter_groups;
@@ -1478,6 +1505,12 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--monster") {
             if (i + 1 < argc) sscanf(argv[++i], "%d:%d", &fight_monster_scen,
                                      &fight_monster_rec);
+        }
+        else if (std::string(argv[i]) == "--answer") {
+            if (i + 1 < argc) {
+                answer_text = argv[++i];
+                g_event_answer = &answer_text;
+            }
         }
         else if (std::string(argv[i]) == "--hit-score") {
             if (i + 1 < argc) fight_hit_score = atoi(argv[++i]);

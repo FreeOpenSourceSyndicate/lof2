@@ -33,6 +33,7 @@ COMBAT_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port 
 # is the end-to-end check that the walk loop consults the event table at all; a
 # no-step control asserts the text does not appear without a move.
 EVENT_FIRE_TEST = python3 tests/event_fire_test.py
+ANSWER_PATH_TEST = python3 tests/answer_path_test.py
 
 # (Agent A — dungeons) the recruit event the player reported, end to end: the
 # warrior's question, the speech block it names via +0xc9 (resolved against the
@@ -57,6 +58,7 @@ LOCAL_TEST_CMDS = \
     ( $(COMBAT_TEST) ) && \
     ( $(TARGET_CONVENTION_TEST) ) && \
     ( $(EVENT_FIRE_TEST) ) && \
+    ( $(ANSWER_PATH_TEST) ) && \
     ( $(RECRUIT_EVENT_TEST) ) && \
     ( $(ONCE_ONLY_TEST) ) && \
     ( python3 tests/saves_test.py )
