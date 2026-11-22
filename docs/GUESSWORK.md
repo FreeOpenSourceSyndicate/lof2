@@ -228,7 +228,20 @@ How to use each section:
 
 ## D. Can be removed — queued (normal task)
 
-*(none)*
+### G-014 — the event-key table's 70-entry cap overflow is unobserved
+
+- **Guess:** the engine's per-level event-key table (`[0xb048]+0x56`, count at
+  `[0x7d00]`) holds at most **0x46 = 70** entries, and the code at `0x1F189`
+  simply stops inserting past that. What happens to a cell whose word would have
+  been the 71st is unobserved: the build loop's cap check is in the *lookup*
+  path (`0x1F189` guards the current cell's word against the limit), and no
+  shipped level comes close.
+- **Why it is a guess:** no level exercises it. The largest table across the
+  eight Temple levels is 44 keys (DNG06), so the overflow branch never runs.
+- **Ground truth needed:** a synthetic DNGS with >70 distinct tile-3 object words
+  fed to the emulator, watching `[0x7d00]` and the resulting SPEC index.
+- **Impact today:** none — the port caps at `kEventKeyMax` and never reaches it.
+  Queued so it is not mistaken for proven behaviour.
 
 ---
 

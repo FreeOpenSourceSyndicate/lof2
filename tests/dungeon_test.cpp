@@ -891,6 +891,68 @@ static void test_object_doors(const std::string& dir) {
     if (checked) std::printf("dungeon_test: %d levels checked for door features\n", checked);
 }
 
+// The object word -> SPEC record link.  The engine does not index SPEC by the
+// raw object code: it collects the level's *distinct* object words from cells
+// whose tile code is exactly 3 and whose word exceeds 0x0a, in row-major order
+// (capped at 70), and the word's position in that table is the SPEC record
+// index.  Ground truth: image 0x1F0C0 (build), 0x1F46E (lookup), 0x1F520
+// (index * 0xee).  The consequence that makes this checkable is that the table
+// can never be longer than the level's SPEC record count -- an assertion that
+// fails loudly for every level if the rule is wrong.
+static void test_event_keys(const std::string& dir) {
+    const char* names[] = {"DNG00", "DNG01", "DNG02", "DNG03",
+                           "DNG04", "DNG05", "DNG06", "DNG07"};
+    int checked = 0;
+    for (const char* nm : names) {
+        Dungeon d;
+        if (!load_dungeon(dir + "/" + std::string(nm), d)) continue;
+        const std::vector<uint16_t>& keys = d.event_keys();
+        assert((int)keys.size() <= kEventKeyMax);
+        // Distinct by construction.
+        std::set<uint16_t> uniq(keys.begin(), keys.end());
+        assert(uniq.size() == keys.size());
+        // Every key is a real object word on a tile-3 cell.
+        for (uint16_t w : keys) {
+            assert(w > kEventMinWord);
+            bool found = false;
+            for (int y = 0; y < kDungeonH && !found; y++)
+                for (int x = 0; x < kDungeonW && !found; x++)
+                    if (d.is_event_cell(x, y) && d.object(x, y) == w) found = true;
+            assert(found);
+        }
+        // `event_index` agrees with the table for every event cell, and a cell
+        // that is not an event cell reports -1.
+        for (int y = 0; y < kDungeonH; y++)
+            for (int x = 0; x < kDungeonW; x++) {
+                int idx = d.event_index(x, y);
+                if (!d.is_event_cell(x, y)) { assert(idx == -1); continue; }
+                assert(idx >= 0 && idx < (int)keys.size());
+                assert(keys[(size_t)idx] == d.object(x, y));
+            }
+        // The decisive check: the table indexes SPEC records, so it can never
+        // hold more keys than the level has records.  SPECn's first byte is the
+        // record count (238-byte records follow).
+        std::string spec_path = dir + "/../SYST/SPEC" + std::string(nm + 3);
+        if (FILE* f = std::fopen(spec_path.c_str(), "rb")) {
+            int nrec = std::fgetc(f);
+            std::fclose(f);
+            assert(nrec >= 0);
+            if ((int)keys.size() > nrec) {
+                std::printf("dungeon_test: %s has %zu event keys but only %d "
+                            "SPEC records\n", nm, keys.size(), nrec);
+                assert(false);
+            }
+        }
+        // Pin the table size per level.  These counts are the rule's signature:
+        // dropping the tile-3 filter gives 19/32/22/24/42/39/47/18 instead, so
+        // this assertion fails if the rule regresses.
+        static const int kExpected[] = {13, 28, 12, 17, 35, 32, 44, 14};
+        assert(keys.size() == (size_t)kExpected[checked]);
+        checked++;
+    }
+    if (checked) std::printf("dungeon_test: %d levels checked for event keys\n", checked);
+}
+
 // End-to-end walk model over a real level: place the party, then walk and turn
 // with the real decoder output and assert the invariants the play loop relies
 // on (never inside a solid cell, a successful step always changes the cell, a
@@ -1220,6 +1282,7 @@ int main(int argc, char** argv) {
     test_file_name(dir);
     test_connectivity_stats(dir);
     test_object_doors(dir);
+    test_event_keys(dir);
     test_walk_real(dir);
     test_view_themes(dir);
     test_dungeon_screen(dir);

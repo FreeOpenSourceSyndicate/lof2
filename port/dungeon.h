@@ -8,6 +8,7 @@
 
 #include "gfx.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -22,6 +23,13 @@ constexpr int kDungeonHeader = 4;
 constexpr int kDungeonTiles = kDungeonW * kDungeonH;          // 1296
 constexpr int kDungeonObjects = kDungeonW * kDungeonH * 2;    // 2592
 constexpr int kDungeonDecoded = kDungeonHeader + kDungeonTiles + kDungeonObjects;
+
+// Event-key rule (see `Dungeon::event_keys`).  Only cells whose tile code is
+// exactly kEventTile and whose object word exceeds kEventMinWord take part, and
+// the engine's table holds at most kEventKeyMax distinct words.
+constexpr uint8_t kEventTile = 3;
+constexpr uint16_t kEventMinWord = 0x0a;
+constexpr int kEventKeyMax = 70;
 
 // Tile-code predicates for stairs.  Declared here because `Dungeon`'s inline
 // accessors use them; the full model is documented further down.
@@ -87,6 +95,38 @@ struct Dungeon {
         return !dungeon_is_stair(tile(x, y)) && object(x, y) != 0;
     }
 
+    // --- Event keys (the object word -> SPEC record link) -----------------
+    //
+    // The engine's event dispatcher (image 0x1F31E) does NOT index SPEC by the
+    // object code.  It first builds a table of the level's *distinct* object
+    // words, in row-major cell order, keeping only cells whose tile code is
+    // exactly 3 and whose word is > 0x0a; the table is capped at 70 entries
+    // (0x46).  The current cell's word is then looked up in that table and its
+    // **table index** is the SPEC record index: the dispatcher multiplies it by
+    // 0xee (238, the record size) to reach the record.  Ground truth: image
+    // 0x1F0C0..0x1F150 (table build), 0x1F46E..0x1F4B6 (index lookup),
+    // 0x1F520..0x1F533 (index * 0xee + SPEC base).  This is why an earlier
+    // attempt that compared raw object codes against SPEC fields failed: the
+    // codes are level-local identifiers, and only tile-3 cells take part.
+    //
+    // `event_keys()` is that table.  A cell with no event returns -1.
+
+    inline bool is_event_cell(int x, int y) const {
+        return tile(x, y) == kEventTile && object(x, y) > kEventMinWord;
+    }
+
+    // Index into the level's distinct event-key table, or -1 if this cell
+    // raises no event.  Equal object words on different cells share an index
+    // (that is how the engine dedupes), so this is stable across the level.
+    inline int event_index(int x, int y) const {
+        if (!is_event_cell(x, y)) return -1;
+        uint16_t w = object(x, y);
+        const std::vector<uint16_t>& k = event_keys();
+        for (size_t i = 0; i < k.size(); i++)
+            if (k[i] == w) return (int)i;
+        return -1;
+    }
+
     // Party entry cell from the header (see above).
     inline int entry_x() const { return (int)(field % kDungeonW); }
     inline int entry_y() const { return (int)(field / kDungeonW); }
@@ -100,6 +140,31 @@ struct Dungeon {
         return (x >= 0 && y >= 0 && x < kDungeonW && y < kDungeonH)
                    ? objects[(size_t)y * kDungeonW + x] : 0;
     }
+
+    // Distinct object words that raise events, in row-major cell order.  Built
+    // lazily; see the "Event keys" comment above for the rule and its ground
+    // truth.  Capped at kEventKeyMax exactly as the engine caps its table.
+    const std::vector<uint16_t>& event_keys() const {
+        if (!event_keys_built_) {
+            event_keys_built_ = true;
+            for (int y = 0; y < kDungeonH; y++) {
+                for (int x = 0; x < kDungeonW; x++) {
+                    if (!is_event_cell(x, y)) continue;
+                    uint16_t w = object(x, y);
+                    if (std::find(event_keys_.begin(), event_keys_.end(), w) ==
+                        event_keys_.end()) {
+                        if ((int)event_keys_.size() >= kEventKeyMax) break;
+                        event_keys_.push_back(w);
+                    }
+                }
+            }
+        }
+        return event_keys_;
+    }
+
+  private:
+    mutable std::vector<uint16_t> event_keys_;
+    mutable bool event_keys_built_ = false;
 };
 
 // Run-length decode a DNGS file's bytes into a Dungeon.  `raw` is the whole

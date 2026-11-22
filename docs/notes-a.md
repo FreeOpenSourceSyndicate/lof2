@@ -3044,3 +3044,55 @@ repairing it, because a silent repair destroys the evidence.
 the seal, and the written file resumes at the new facing while the original
 still resumes at the old one. `save_set_party`/`save_set_location` round-trip
 (cell 455, location 10 → `DNG10`).
+
+---
+
+## Round 54 — Object word → SPEC record link decoded (maintainer, 2026-11-08)
+
+**P-2's core question is answered: the object layer does select SPEC events, and
+the selector is the object word's *position* in a per-level table, not the word
+itself.** This closes the "SPEC is only used by `--dump-spec`" gap.
+
+### The rule (image ground truth)
+
+The dispatcher at `0x1F31E` runs in three steps:
+
+1. **Build the key table** (`0x1F0C0`..`0x1F150`). Scan the level's cells in
+   row-major order. Keep a cell only if its **tile code is exactly 3** and its
+   **object word is > 0x0a**. Insert the word into a table of 4-byte entries at
+   `[0xb048]+0x56` if not already present (compare at `0x1F0FF`/`0x1F106`). The
+   count lives at `[0x7d00]` and is capped at **0x46 = 70** (`0x1F189`).
+2. **Look the current cell's word up** (`0x1F46E`..`0x1F4B6`): linear scan of the
+   table comparing the object word; the matching entry's **index** is kept in
+   `[bp-0x44]`. No match ⇒ jump to `0x21276` (no event).
+3. **Use the index as the SPEC record number** (`0x1F520`..`0x1F533`):
+   `di = index * 0xee` (238 = the record size), then read the record from
+   `[0x7d04]` (the SPEC base) at `es:[bx+di+…]`.
+
+So the object code is a **level-local identifier**, and the ordering of first
+appearance in row-major order is what maps it onto a SPEC record. Nothing about
+the code's numeric value is meaningful — which is exactly why the Round 16 check
+("do codes index SPEC?") failed: it compared raw codes against SPEC fields and
+ignored both the tile-3 filter and the dedupe/reorder step.
+
+### Verification on the shipped data
+
+With the rule implemented (`Dungeon::event_keys()` / `event_index()`), the table
+size per level is **13, 28, 12, 17, 35, 32, 44, 14** for DNG00..DNG07, against
+SPEC record counts of **24, 58, 33, 110, 151, 66, 182, 41** — every level fits,
+which is the necessary condition for the index to address a real record.
+
+Dropping the tile-3 filter yields **19, 32, 22, 24, 42, 39, 47, 18** instead, so
+the filter is load-bearing, not cosmetic. `tests/dungeon_test.cpp::test_event_keys`
+pins the filtered counts and was mutation-checked: removing the filter aborts the
+test (exit 134).
+
+### What this does *not* yet prove
+
+* **Which** SPEC type fires is still the record's own `+0xe2` dispatch field
+  (already decoded in `port/char.h`), so the object layer only chooses the
+  record — it does not encode doors vs traps vs signs.
+* Tile 3 is the *only* event-carrying tile. Cells with features on other tiles
+  (tile 1/2/6/…) are still unexplained; they are not SPEC selectors.
+* The 70-entry cap was never hit on the eight Temple levels (max 44), so the
+  engine's overflow behaviour is unobserved. Recorded as a guess, not a fact.

@@ -256,6 +256,37 @@ def cmd_doors(path):
           % (len(codes), codes.most_common(8)))
 
 
+
+def event_keys(path):
+    """The per-level event-key table the engine builds before dispatching a
+    SPEC event (image 0x1F0C0): the distinct object words, in row-major cell
+    order, taken only from cells whose tile code is exactly 3 and whose word is
+    > 0x0a, capped at 70.  A cell's word position in this list is the SPEC
+    record index (dispatcher 0x1F46E looks it up, 0x1F520 multiplies by 0xee)."""
+    hdr, body = decode(path)
+    tl = tiles(body)
+    ob = objects(body)
+    keys = []
+    for i in range(LAYER_W * LAYER_W):
+        if tl[i] != 3:
+            continue
+        word = ob[i][0] | (ob[i][1] << 8)
+        if word <= 0x0a:
+            continue
+        if word not in keys:
+            keys.append(word)
+        if len(keys) >= 70:
+            break
+    return keys
+
+
+def cmd_events(path):
+    keys = event_keys(path)
+    print('%s: %d event keys' % (os.path.basename(path), len(keys)))
+    for i, w in enumerate(keys):
+        print('  SPEC[%2d]  word=0x%04x' % (i, w))
+
+
 # First-person viewport preview.  Mirrors render_dungeon_viewport() in
 # port/dungeon.cpp: fill the window with black, ray-cast the tile grid, and
 # paint a grey (7) wall band whose height is the projected wall height.  Used
@@ -720,6 +751,9 @@ def main(argv):
     elif cmd == 'grid':
         cmd_grid(argv[1], argv[2] if len(argv) > 2 else 'tiles',
                  int(argv[3]) if len(argv) > 3 else LAYER_W)
+    elif cmd == 'events':
+        for p in (argv[1:] or ['game/DNGS/DNG00']):
+            cmd_events(p)
     elif cmd == 'doors':
         for p in argv[1:]:
             cmd_doors(p)
