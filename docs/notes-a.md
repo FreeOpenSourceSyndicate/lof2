@@ -3651,3 +3651,41 @@ Consequence for the port: nothing changes in the *mapping*
 (`SPEC0[1].+0xeb == 0` -> `SNSC[0]` -> "Siegurd", which matches the user's
 ground truth), only in the justification.  The comment in `port/lof.cpp` is
 corrected; the old text would have sent the next maintainer to a dead address.
+
+## Round 58f — how the recruit is actually reached (2026-11-08)
+
+Resolving the apparent contradiction between 58e and the ground truth.  The
+`+0xeb` reader at `0x1F85B` is dead (58e), yet `+0xeb` really does name the
+joining class.  The reason is that there are **two** different guards, and
+`SPEC0[1]` passes the second one:
+
+```
+1F85B: cmp byte es:[bx+0xea], 0
+1F861: jge 0x1F88F      ; +0xea >= 0 -> skip  (SPEC0[1]: 42 -> skips)
+...
+20039: cmp byte es:[bx+si+0xeb], 0
+2004B: jge 0x20050      ; +0xeb >= 0 -> KEEP  (SPEC0[1]: 0 -> keeps)
+20050: cmp word [bp-6], -1
+20054: je  0x20059
+20056: jmp 0x20EF6      ; -> the join path
+20EF6: mov al, byte es:[bx+si+0xeb]
+20F14: mov al, 0x4e ; imul byte [bp-0x76]   ; SNSC stride
+20F1D: add ax, word es:[0x37b0]             ; the loaded SNSC image
+20F2A: call 0x1D99A                         ; zero a 0x19a slot, copy 78 bytes
+```
+
+So the earlier `0x1F85B` citation was the wrong address but the right field: the
+class index is consumed at `0x20F02`, inside the join routine, and the entry to
+that routine is `0x20EF6`, reached from `0x20056`/`0x2005F`.  Both `0x20056` and
+`0x2005F` are guarded by "the slot pointer is -1", i.e. the party still has a
+free slot -- which is exactly when a recruit can join.
+
+`0x1D99A` is the join proper: `1D9A6 push 0x19a` (the fill size),
+`1D9AD imul [bp+0xa], 0x19a` (the slot stride), `1DA3B mov byte es:[bx+si+1],0`
+(clear the slot's name), then a byte-copy loop.  A 0x19a-byte character record is
+**410** bytes, matching `port/char.h`'s character size, so the port already has
+the right slot geometry to implement this.
+
+The answer model (`classify_answer` and friends in `port/char.{h,cpp}`) is the
+piece in front of it: only a *match* reaches the type switch, so the join runs
+only when the player answers "Y".
