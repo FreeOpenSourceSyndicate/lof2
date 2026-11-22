@@ -1567,7 +1567,30 @@ fields of the 282-byte in-memory monster instance (built at load), not of the
 file record.  Their producer is still to be found; until it is, the three gates
 cannot be evaluated from game data.
 
-**Open, do not guess:** `0x15DEB..0x15DF5` does `ax = [bp-0x48]` (the attack
+**Which branch is live (2026-11-21).**  `LOF_WATCH=4776a:47778` (the Mercenary
+instance's tail at `0x468E:0x52 + 12*0x11a + 0x106`) shows the instance is
+zeroed by `3F1E:1D55` at start-up, so `+0x106`, `+0x108` and `+0x10e` are all 0.
+That means the live route is `+0x10e == 0` -> **`0x15DF8`**, not the message
+variant at `0x15B1E`.  `0x15DF8` loads the target character
+(`0x19a * [bp-0x44]` into `[0xafa6]:0x30`), aborts when `char[+0x1f] == 7`, and
+otherwise runs on from `0x15E1F`:
+
+```
+0x15E1F  if acting_row[+0x16] != 0xff -> abort (0x137DE)
+0x15E3A  if inst[+0x106] | inst[+0x108] != 0 -> abort
+0x15E4D  if [0x3de9] == 0 -> print two lines (0x18d:0x2f39, 0x18d:0x13be)
+0x15E70  al = inst[+0x2b]                    ; attack-range code
+           2 -> [bp-2] = 4, [bp-8] = 1
+           3 -> 0x15ECA
+           else -> [bp-2] = 2
+0x15EA3  if inst[+0x39] != 0 and [bp-2] != 4 -> [bp-2] = 3
+0x15EB5  lcall 0x212f:0x9342 ([bp-0x44])     ; the target index
+```
+
+**Open, do not guess:** `row[+0x16]` (the `0x15E1F` gate) lies *outside* the
+12-byte row as captured (`+0x00..+0x0b`), so either the row is longer than the
+12 bytes the capture showed, or `[bp+6]` is not a row pointer on this route.
+The same applies to `0x15DEB..0x15DF5`, below. does `ax = [bp-0x48]` (the attack
 count) then `sub word es:[bx+0xa], ax` with `bx = [bp+6]`.  Two readings fit the
 instruction text — (a) the acting row's HP is an attack *budget*, or (b) the
 frame's `[bp+6]` is the target in this call.  A runtime capture of one monster
