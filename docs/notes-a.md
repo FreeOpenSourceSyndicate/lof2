@@ -3320,13 +3320,30 @@ all 29 shipped levels the largest `event_index()` is below the record count of
 05/06 need indexes 27/34/31/43; `SPEC0` holds 24 records).  Pinned by
 `test_event_spec_mapping()` in `tests/dungeon_test.cpp`.
 
-Corroborated by play: `SPEC0` record 1 is the type-1 "A large warrior asks if he
-may join you (Yes/No)." special, and `DNG10`'s event table has `0x2000` at index
-1.  `DNG00`'s first event cell (one step from the entry) is `0x1600`, which is
-table index 9 -> `SPEC0[9]`, "A small spring gurgles in a fountain." -- a spring
-event, not a warrior.  The warrior is therefore not in DNG00; the two-steps-from-
-town anecdote belongs to a different level, which is why the text is absent from
-SPEC0's first few records.
+Corroborated by play.  A player reported that leaving the starting town and
+walking forward reaches "A large warrior asks if he may join you (Yes/No).",
+that answering yes yields "Siegurd joins the companionship." and that answering
+no appends "He goes, disappointed.".  In `SYST/SPEC0`:
+
+```
+SPEC0[1]  type 1   text_b (+0x50) = "A large warrior asks if he may join you (Yes/No)."
+                   text_a (+0x0e) = "He goes, disappointed."
+```
+
+and `DNG10` -- the level the shipped saves start in -- has `0x2100` at key-table
+index **1**.  So the mapping resolves to exactly the record the player met.
+
+Note the selector is the *index*, not the word.  The table-build loop at
+`0x1F0C2` walks cells and, for each tile-3 cell, scans entries `0..n-1` comparing
+`[0x4be8+bx*2]` against the stored words; a cell is only appended when the word
+is **absent** (`[bp-2]` stays 1 at `0x1F114`), and the appended slot is
+`[0x7d00]`, a counter that only ever increases.  So the word's first-occurrence
+position is the record index -- `DNG10` word `0x2100` -> index 1 -> `SPEC0[1]`.
+
+Do not confuse this with `0x2000`, which is a *different* word and sits at a
+different index in most levels (`DNG06`/`DNG13`/`DNG63` happen to place it at
+index 1, which is a coincidence, not the rule).  The warrior record is selected
+by index, so any word in index 1 would reach it.
 
 `tests/dungeon_test.cpp` previously *claimed* to check this and did not: it built
 `"SPEC" + std::string(nm + 3)` = `SPEC00`, the file never existed, and the

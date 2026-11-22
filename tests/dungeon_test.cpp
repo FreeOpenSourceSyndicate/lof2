@@ -1001,8 +1001,7 @@ static void test_event_spec_mapping(const std::string& dir) {
             levels++;
 
             auto rec_count = [&](int scenario) {
-                const std::string p =
-                    dir + "/../SYST/SPEC" + std::to_string(scenario);
+                const std::string p = spec_path(dir + "/..", scenario);
                 FILE* f = std::fopen(p.c_str(), "rb");
                 if (!f) return -1;
                 int n = std::fgetc(f);
@@ -1035,6 +1034,52 @@ static void test_event_spec_mapping(const std::string& dir) {
     assert(overflow >= 4 && "the tens-digit reading must fail on real levels");
     std::printf("dungeon_test: SPEC mapping ok (%d levels fit, %d overflow "
                 "under the tens-digit reading)\n", fit, overflow);
+}
+
+// The recruit event a player actually meets, resolved end to end.
+//
+// A player reported: leaving the start and walking forward reaches "A large
+// warrior asks if he may join you (Yes/No)."; yes -> "Siegurd joins the
+// companionship.", no -> "He goes, disappointed.".  That fixes the meaning of
+// type 1 and gives a record to test the selector against.
+//
+// The selector is the word's *index* in the level's event table, not the word
+// itself: the table-build loop (0x1F0C2) appends a word only when it is not
+// already present and writes it to a slot from a monotonic counter, so the
+// first-occurrence position is the record number.  DNG10 -- the level the
+// shipped saves start in -- holds 0x2100 at index 1, and SPEC0[1] is the
+// warrior record.  Asserting the text, not just the index, keeps this honest:
+// if the mapping drifts the strings stop matching.
+static void test_recruit_record(const std::string& dir) {
+    Dungeon d;
+    std::string err;
+    if (!load_dungeon(dir + "/DNG10", d, &err)) {
+        std::printf("dungeon_test: skipping recruit check (%s)\n", err.c_str());
+        return;
+    }
+    const std::vector<uint16_t>& keys = d.event_keys();
+    assert(keys.size() > 1);
+    assert(keys[1] == 0x2100 && "DNG10 key-table slot 1 changed");
+
+    // `dir` is the DNGS directory; SPEC lives beside it under SYST.
+    SpecTable spec = load_spec(spec_path(dir + "/..", 10));
+    assert(spec.ok);
+    assert(spec.records.size() > 1);
+    const SpecRecord& r = spec.records[1];
+    assert(r.type == 1 && "slot 1 of SPEC0 must be the recruit event");
+    assert(r.text_b.find("large warrior") != std::string::npos);
+    assert(r.text_b.find("Yes/No") != std::string::npos);
+    assert(r.text_a.find("disappointed") != std::string::npos);
+
+    // The cell that resolves to slot 1 must actually exist on the level, so the
+    // index is reachable in play rather than a table entry with no cell.
+    int cells = 0;
+    for (int y = 0; y < kDungeonH; y++)
+        for (int x = 0; x < kDungeonW; x++)
+            if (d.event_index(x, y) == 1) cells++;
+    assert(cells >= 1 && "no cell resolves to the recruit record");
+    std::printf("dungeon_test: recruit record ok (%d cells -> SPEC0[1] "
+                "\"A large warrior...\")\n", cells);
 }
 
 // End-to-end walk model over a real level: place the party, then walk and turn
@@ -1368,6 +1413,7 @@ int main(int argc, char** argv) {
     test_object_doors(dir);
     test_event_keys(dir);
     test_event_spec_mapping(dir);
+    test_recruit_record(dir);
     test_walk_real(dir);
     test_view_themes(dir);
     test_dungeon_screen(dir);

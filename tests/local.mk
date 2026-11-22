@@ -1,8 +1,12 @@
 # Per-agent tests. Each agent owns its own line; keep them independent.
 # Example:  LOCAL_TEST_CMDS = ./dungeon_test
 # (Agent A — dungeons) DNGS decoder.
+# Links char.cpp as well: the event tests resolve a level's key table through
+# SYST/SPEC, and pinning the record text (rather than just the index) is what
+# keeps the selector honest.
 DUNGEON_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port \
-    -o dungeon_test tests/dungeon_test.cpp port/dungeon.cpp port/gfx.cpp && \
+    -o dungeon_test tests/dungeon_test.cpp port/dungeon.cpp port/gfx.cpp \
+    port/char.cpp port/data.cpp && \
     ./dungeon_test game/DNGS; rc=$$?; rm -f dungeon_test; exit $$rc
 # (Agent B — characters/items) SPEC/ROST readers.
 CHAR_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port \
