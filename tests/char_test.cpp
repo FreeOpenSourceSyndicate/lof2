@@ -548,6 +548,11 @@ static int real_data() {
         assert(d.attr_c == merc.stats[10]);         // +0x09 = record +0x30
         assert(d.hp_cur == 8);
         assert(d.hp_pct == 50);                     // 100*8 / (8*2)
+        // +0x06 is the rebuild's `0 - 10*(4 - rec[+0x29])`, not the 0/0x32 the
+        // setup builder writes into a different row: the live round capture
+        // reads 0xEC for the Mercenary (rec[+0x29] == 2 -> 4-2 = 2 -> 20).
+        assert(merc.stats[0x29 - 0x26] == 2);
+        assert(d.hp_mod == 0xEC);
         PartyRow g2 = defender_row(merc, 1, 16, 16);
         assert(g2.body24 == 2 && g2.hp_pct == 100);
     }
