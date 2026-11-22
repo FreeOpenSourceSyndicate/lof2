@@ -3376,3 +3376,28 @@ run with no key prints nothing.  Pinned by `tests/event_fire_test.py`.
   is non-zero, so this is a "already used this scenario resource" test.
 - `type == 0x10` consults the byte at `[0x7d1c]` (set at `0x1F641`).
 - The signed byte at `record+0xea` and the `0x37ee`-indexed bookkeeping.
+
+## What the recruit (type 1) record still needs
+
+The question/answer plumbing in the tail is now read, but the *stats* source is
+not, so the port prints the question and stops there.
+
+Read at `0x1F71E`: the tail pushes `record + 0x50` and calls `0x2f0e:0x1af4`.
+Its result comes back in AX, and `or ax, ax; je 0x1F761` skips the follow-up when
+AX is zero; when AX is non-zero **and** the `[bp+6]` argument is zero the tail
+also prints `record + 0x0e` (the same two-pointer print used for the question).
+That matches the reported behaviour -- the "no" text appears under the prompt --
+so `+0x0e` is the follow-up line and AX distinguishes the answers.
+
+`type == 0x19` (`0x1F76D`) takes an extra branch: it prints `+0x0e`, then
+re-prints `+0x50` and calls `0x18d:0x13be`, i.e. it loops the prompt.
+
+Open: which record fields name the joining character. For `SPEC0[1]` the fields
+at `+0xea`/`+0xec` are `42` and `1`, but 42 is not a valid index into anything we
+have decoded -- `SYST/NSC00` has 25 records, `SYST/SNSC` 14, `ROST/ROST` 11 --
+and the other type-1 records hold values like 44, 10, 39, 46. Until that index is
+identified, implementing the recruit would mean inventing the stats, which is
+worse than reporting the event as unimplemented. The reported "the nsc Siegurd
+joins" suggests an `SYST/SNSC` record (Siegurd is `SNSC[0]`), so the likely shape
+is "`+0xea` indexes a monster/character template, and the SNSC record supplies
+name + stats" -- but that is a hypothesis, not a finding.
