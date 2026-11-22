@@ -1650,6 +1650,13 @@ differences confined to `x 10..304, y 57..183` — the dynamic viewport and part
 panel.  So the town exit's destination **is the outdoor play screen**, and the
 exit is reachable from a fresh start with no save at all.
 
+The exit is **two-step**: one `C` at the town menu produces a screen that
+matches *neither* the town (0.7435) nor the play screen (0.7233), and only the
+second `C` reaches the wilderness (0.9557).  So `C` opens an intermediate
+screen first — its asset is not yet proven (the only page file the trace opens
+is `EGA/PAGE/PG00`, 112x155, but that is not evidence enough to call it the
+intermediate screen).
+
 The exit's asset sequence, from the `LOF_I21` trace, is: the town tiles
 (`TWN00..TWN05`, twice), `ROST/ROST`, `ROST/SHOP`, then **24 animation frames**
 `EGA/ANIM/AN00..AN53` (`an{0,1,2,3,4,5}{0,1,2,3}`), then `EGA/PAGE/PG00`
