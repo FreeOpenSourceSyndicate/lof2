@@ -1,11 +1,17 @@
-# WORKSTREAMS — who owns what (single-lane model)
+# WORKSTREAMS — ownership model (historical lanes; single maintainer now)
+
+> **Current model, as of 2026-11-08: one agent (the maintainer) owns the whole
+> tree and works the single queue in `docs/PLAN.md` §2 top to bottom.** The
+> lane/area material below is kept only as history and as a domain index (which
+> notes file and which test covers which subsystem). It is **not** an assignment
+> scheme and no current task should be described in terms of a lane. Task IDs
+> are `P-n` in `docs/PLAN.md`.
 
 > **Read `docs/RULES.md` first** (the owner's standing rules + changelog),
 > `docs/GUESSWORK.md` (the guess register), and `docs/OWNER-TASKS.md` (work only
-> the owner can do). In particular, **never guess** and **do not edit files you
-> do not own**: if a task would require guessing and removing the guess needs
-> another area's files, that is a **blocker** (`docs/BLOCKERS.md`) — see
-> `docs/RULES.md` Rules 2 and 8.
+> the owner can do). In particular, **never guess** (`docs/RULES.md` Rule 2):
+> with one agent owning the whole tree, "this needs another area's files" is no
+> longer a valid blocker — there are no areas to cross.
 
 ## The model: one lane, three areas
 
@@ -30,16 +36,16 @@ The **area** of a file is just a label (it tells you which domain a change
 belongs to, and which notes/blocker file to read). It is **not** an ownership
 boundary any more.
 
-### Working alone (the normal case)
+### Working alone (the only case now)
 
-There is **one worker**: the Maintainer lane. It may edit **any** file. It works
-the single queue in `docs/HANDOFF.md` ("Current status") top to bottom, in long
+There is **one worker**: the maintainer, who may edit **any** file. It works the
+single priority queue in **`docs/PLAN.md` §2** top to bottom, in long
 uninterrupted stretches, committing and pushing after every meaningful step.
 
-### Fanning out (0–2 extra agents)
+### Fanning out (INACTIVE — the owner has confirmed one agent)
 
-If the owner starts extra agents, they **do not get assigned a lane** — they take
-**items off the same single queue**. Because two agents must never edit the same
+Kept only in case the owner ever starts extra agents again. They would **not** get
+a lane — they would take **items off the same single queue**. Because two agents must never edit the same
 file at once, the one rule that replaces "stay in your lane" is:
 
 > **Claim the item, and do not start a second item that touches the same area
@@ -47,8 +53,7 @@ file at once, the one rule that replaces "stay in your lane" is:
 
 Concretely, to take an item:
 
-1. Read `docs/HANDOFF.md` and this file; pick the highest-priority **unclaimed**
-   item from the queue.
+1. Read `docs/PLAN.md` §2; pick the highest-priority **unclaimed** item.
 2. Create your branch `work/<yourname>` and push it **immediately**, before
    writing code, with a one-line claim at the top of your notes file — this is
    what makes the claim visible to the other agents.
@@ -58,9 +63,7 @@ Concretely, to take an item:
 4. Do the work; push often; open a PR when a unit is green; squash-merge it
    yourself once `make check` is green (Rule 10).
 
-The queue in `docs/HANDOFF.md` lists, per item, the **area** it touches, so two
-agents can always pick two items in different areas and never collide. When an
-area has only one item left, run one agent.
+`docs/PLAN.md` §2 lists the items; the "Files" column names what each touches.
 
 ### A note on the retired lanes
 

@@ -1,9 +1,10 @@
 # PLAN — prioritized task list, estimates, and project completion
 
-Status report for the owner. Refreshed at the start of each session (T-3).
-The authoritative *technical* queue is `docs/HANDOFF.md` §4; open guesses are in
-`docs/GUESSWORK.md`; rules are in `docs/RULES.md`. This file answers three
-questions: **what is left, in what order, how long, and how done are we?**
+Status report for the owner, and the **single work queue** — one agent works
+this top to bottom. Refreshed at the start of each session (T-3). Open guesses
+are in `docs/GUESSWORK.md`; rules are in `docs/RULES.md`; the deeper technical
+history is in `docs/HANDOFF.md` §4. This file answers three questions: **what is
+left, in what order, how long, and how done are we?**
 
 Last refreshed: 2026-11-08 (session of agent lof2/M-5, sole active agent).
 
@@ -43,75 +44,76 @@ there is still no save writer at all.
 
 ---
 
-## 2. Prioritized task list (Area A first — this agent's workstream)
+## 2. Prioritized task queue (single agent — no lanes)
+
+**There is one agent and one queue.** The old `A-*` / `B-*` / `M-*` lane prefixes
+are retired: they only recorded which parallel agent happened to pick an item up,
+and that history is in git. Everything below is owned by the maintainer. Task IDs
+are now `P-n`, assigned purely by priority.
+
+Priority is **player-visible impact**, in this order: can the player finish a
+session and keep it (persistence), can they move through the world (doors,
+collisions), can they fight (monsters hitting back), then fidelity and polish.
 
 Estimates are **agent-hours** for one competent agent who must re-derive the
-ground truth first. "Ground truth" says how correctness will be proven, because
-Rule 1 forbids guessing.
+ground truth first. "Ground truth" names how correctness will be proven, because
+`docs/RULES.md` forbids guessing.
 
-### Area A — dungeons (my workstream; do these first)
+| # | Task | Est. | Why this rank | Ground truth / next step |
+|---|------|------|---------------|--------------------------|
+| **P-1** | **Save writer.** No writer exists at all — everything a player does is lost on exit. | 8–12 h | **Top.** Without it the drop-in cannot be used for a real session; it is the difference between a demo and a playable game. | Round-trip a shipped save: read → write → **byte-identical**, ROST checksum recomputed. `port/char.{h,cpp}`, `port/lof.cpp`, `tests/saves_test.py` |
+| **P-2** | **Object-code semantics** (doors, traps, item pickups). Stairs/portals are decoded; the rest of the object layer is only proven "door-like" by geometry. | 8–12 h | **High.** Dungeons cannot be explored without doors; this blocks progression, not just fidelity. | Event dispatcher at image `0x1F31E`; SPEC record `+0xe2` behaviour type. `port/dungeon.{h,cpp}`, `tools/dngs.py` |
+| **P-3** | **Monster attack path + quick-combat loop** (`0x159F8`, `0x17BAA`). Melee rounds resolve, but monsters do not act and there is no combat loop. | 8–14 h | **High.** Combat where the enemy never strikes is not combat; this is the core of the game. | Those routines (partly disassembled). `port/combat.{h,cpp}` |
+| **P-4** | **Spells in combat.** The cast-spell action is unimplemented in `resolve_round()`. | 12–20 h | **High**, but depends on P-3's loop existing. | Spell table + the cast path in the combat dispatcher. `port/combat.{h,cpp}` |
+| **P-5** | **Item use effects.** Dispatch (`0x0E89D`/`0x0EDB0`) located; wire the proven effect values in. | 8–14 h | **Medium-high.** Potions/scrolls are how a party survives; effects are partially derived already. | Those sites + the effect values already proven in G-004. `port/char.{h,cpp}` |
+| **P-6** | **Outdoor scenery-selection rule** (G-013 residue). Outdoor view is exact on the oracle cell, approximate elsewhere. | 6–10 h | **Medium.** Fidelity, not progression — the view is already recognisable. | Whether the horizon band is per-cell; cells 636/673 sit at ~0.94 with no object. 70-entry `ega\d0\dpnnn` table at image `0x361E1`. `port/dungeon.cpp` |
+| **P-7** | **Mover / collision test** (G-005 residue). Wall set `{6,13}` is decompiled at the renderer, but step-rejection is still oracle-derived. | 4–6 h | **Medium.** Movement works; this is about edge-case correctness. | `analysis/lof.asm` move path (the four trail-shift sites are already excluded). `port/dungeon.cpp` |
+| **P-8** | **Character-sheet screen.** Oracle mismatch 17 837/64 000 px; palette lacks the oracle's red/yellow. | 6–10 h | **Medium-low.** A screen the player sees often, but no mechanics depend on it. | `ref/oracle/charsheet.png` (recipe in `docs/notes-maintainer-town.md`). `port/lof.cpp`, `port/char.*` |
+| **P-9** | **Depth-2/≥3 bank sprite numbers** (scenario-5 values only). | 3–5 h | **Low.** Affects deep-dungeon views in non-Temple scenarios. | Emulator depth sweep on a non-Temple save. `port/dungeon.cpp` |
+| **P-10** | **All-out-of-action message.** Trigger decoded (`[bp-0x36]`, image `0x18449`), blocked on message colour. | 2–4 h | **Low.** Cosmetic message. | Needs a mid-encounter oracle frame. `port/lof.cpp` |
 
-| # | Task | Est. | Ground truth / next step | Files |
-|---|------|------|--------------------------|-------|
-| **A-1** | ✅ **DONE, with a caveat** — **Outdoor viewport rendering (`D0` bank)**. The outdoor view is a **composite**: base `D0/DP001` plus horizon-band pieces `DP012`@(0,49), `DP004`@(15,46), `DP005`@(90,50), blitted with an index-0 transparent mask (the mask is load-bearing: an opaque paste scores 0.9225 instead of 0.9926). Reproduces the 120×119 window of `ref/oracle/play.png` **pixel-exactly**, shipped through `dungeon_view_overlays()` for the play loop, `--walk` and `--play D0/DPnnn`; `tests/port_play_test.py` requires the viewport to be pixel-exact. **The earlier 'facing E confirms it' claim is retracted** — facing does not change the frame at cell 745 at all. A re-sealed save sweep (notes-a Round 50) shows the piece set is **overfit to the one oracle cell**: cells 636/673 are closer to bare DP001, and cell 492 draws a different mid-band. Filed as **G-013**; the measured set is kept so the oracle stays exact. **UPDATE:** the "overfit" residual was diagnosed — the composite was 106 px wrong on the oracle cell, and those 106 px are the **map-object sprite** `EGA/UP/UP22` at (70,53), which the port was not drawing. With it the window is **pixel-exact, 0 px wrong** (`tests/port_play_test.py` asserts the viewport matches). Ablation confirms all three band pieces are necessary. **Remaining work: whether the band is per-cell** (A-6). | **done (one cell)** | `ref/oracle/play.png`; sealed-patch cell sweep | `port/dungeon.{h,cpp}`, `tests/port_play_test.py` |
-| **A-2** | ✅ **DONE** — **Stairs / level transition.** `walk_key()` moves the party between `DNGS` levels; the destination rule, the portal-table index (`location%10`, not the dungeon group) and the stairs/hole wording (`[0x37fe] == 7`) are all decompiled (image `0x2e7fa`). `tests/dungeon_test.cpp` asserts both portals land on a **walkable** cell. | **done** | stair handler `0x2e7fa`; notes-a Round 52 | `port/dungeon.{h,cpp}`, `port/lof.cpp` |
-| **A-3** | **Object-code semantics** (doors, traps, items) — the object layer's high byte is only proven "door-like" by geometry. Stairs/portals are now decoded (A-2); the remaining codes (doors, traps, item pickups) are not. | **8–12 h** | event dispatcher at image `0x1F31E`; SPEC record `+0xe2` behaviour type | `port/dungeon.{h,cpp}`, `tools/dngs.py` |
-| **A-4** | **G-013 residue** — depth-2/≥3 bank sprite numbers are scenario-5 values. Capture a second scenario's depth-2/≥3 view and read its `CHnn`; table per scenario if it differs. | **3–5 h** | emulator depth sweep on a non-Temple save | `port/dungeon.cpp`, `docs/GUESSWORK.md` G-013 |
-| **A-5** | **G-005 mover half** — the wall *set* `{6,13}` is decompiled at the renderer but the step-rejection test is still oracle-derived. Isolate the collision routine. | **4–6 h** | `analysis/lof.asm` move path; the four trail-shift sites are excluded already | `port/dungeon.cpp`, `docs/GUESSWORK.md` G-005 |
-| **A-6** | **Outdoor scenery-selection rule** (the residue of A-1 / **G-013**) — decode what picks the horizon-band scenery for an outdoor cell, so the view stops being exact for one cell only. The ahead-cell tile code does **not** separate the known cells (745/636/673 all have an open ahead cell), so it is the object/feature record or a scenario table. | **6–10 h** | **Partly answered in Round 50b**: the wall nibble now splits into `D0/DP036` (wall ends the map, 0.9648 on 3 cells) vs `D0/DP001` (wall with depth, 0.9499) and is implemented + tested. Remaining: the doorway (`0x0a`) composite (cell 95 matches `D0/DP002` only 0.5569) and the open-cell `CHAR2` room cases. The 70-entry `ega\d0\dpnnn` path table at image `0x361E1` is the next thing to read | `port/dungeon.cpp`, `docs/GUESSWORK.md` G-013 |
+### Done (kept for context; no action)
 
-### Area M — engine/front-end (shared; mine too as sole agent)
-
-| # | Task | Est. | Ground truth / next step | Files |
-|---|------|------|--------------------------|-------|
-| M-1 | **Save writer** — no writer exists. Serialise the party + world state back to `GAMES/GAMEn` so play persists. | 8–12 h | round-trip a shipped save: read → write → byte-identical (and ROST checksum recomputed) | `port/char.{h,cpp}`, `port/lof.cpp`, `tests/saves_test.py` |
-| M-2 | **Character-sheet screen** — oracle mismatch (17 837/64 000 px; palette lacks the oracle's red/yellow). | 6–10 h | `ref/oracle/charsheet.png` (recipe in `docs/notes-maintainer-town.md`) | `port/lof.cpp`, `port/char.*` |
-| M-3 | **All-out-of-action message** (HANDOFF item 11) — trigger decoded (`[bp-0x36]`, image `0x18449`), blocked on the message colour. | 2–4 h | needs a mid-encounter oracle frame | `port/lof.cpp` |
-| M-4 | ✅ **DONE** — **Party position comes from the save, not the `DNG` header.** `load_save()` now reads `0x9a0` (cell) and `0x9a6` (facing); `dungeon_place_cell()` places the party there and the DNG header is only the fallback when the word is absent. Four of the five archived saves store a cell that differs from their level header, so the header was the wrong source. | done | **Emulator-verified:** patching `0x9a0` 125→455 in `GAMES/GAME  1` moves the emulator viewport 1.0000→0.0380 vs `dungeon_slot1.png`. Port vs emulator on the Gonk save: viewport 0.2415 → 0.5088, whole screen 0.6230 → 0.6826; all five saves now spawn at their stored cell/facing. | `port/char.{h,cpp}`, `port/dungeon.{h,cpp}`, `port/lof.cpp`, `tests/port_walk_test.py` |
-
-### Area B — characters, items, combat
-
-| # | Task | Est. | Ground truth / next step | Files |
-|---|------|------|--------------------------|-------|
-| B-1 | **Item use effects** — the use-routine dispatch (`0x0E89D`/`0x0EDB0`) is located; wire the proven effect values into the port. | 8–14 h | those sites + the effect values already proven in G-004 | `port/char.{h,cpp}` |
-| B-2 | **Spells in combat** — cast-spell action is unimplemented in `resolve_round()`. | 12–20 h | spell table + the cast path in the combat dispatcher | `port/combat.{h,cpp}` |
-| B-3 | **Quick-combat loop** (`0x17BAA`) + **monster attack path** (`0x159F8`) | 8–14 h | those routines (partly disassembled) | `port/combat.*` |
+| Was | Task | Result |
+|-----|------|--------|
+| A-1 | Outdoor viewport composite (`D0`) | ✅ Exact on the oracle cell (**0 px wrong**). The last 106 px were a missing map-object draw (`EGA/UP/UP22` @ 70,53), not a fitted constant — see notes-a Round 51. Residue is P-6. |
+| A-2 | Stairs / level transitions | ✅ Destination rule, portal index (`location%10`) and stairs wording decompiled (image `0x2e7fa`). |
+| M-4 | Party position from the save, not the `DNG` header | ✅ `0x9a0` (cell) / `0x9a6` (facing); emulator-verified. |
+| M-4a | `AH=4Ah` resize, LZEXE unpack, EGA 11-byte header, INT 16h scan/ascii | ✅ See `AGENTS.md` "Fixed bugs (do not regress)". |
 
 ---
 
-## 3. Recommended order
+## 3. Order of work
 
-1. ~~**M-4** (save position)~~ — **done**, viewport comparisons are now honest.
-2. ~~**A-2** (stairs)~~ — **done** (notes-a Round 52).
-3. **A-6** (outdoor scenery rule) — the only thing standing between "exact on one
-   cell" and "exact outdoors".  Highest value per hour in Area A now.  **Round 51
-   already removed half of it** (the object draw); what is left is whether the
-   horizon band varies per cell.
-4. **M-1** (save writer) — without it nothing a player does persists.
-5. Then A-3, B-1, A-4/A-5, M-2, M-3, B-2, B-3.
+The queue in §2 **is** the order; work it top to bottom. The ranking rationale
+is the "Why this rank" column, so there is no second list to keep in sync.
+
+Two ordering facts worth stating because they are not obvious from the table:
+
+* **P-4 (spells) is ranked below P-3** even though it is bigger, because a spell
+  can only be cast once a combat loop exists to cast it in.
+* **P-6 (outdoor scenery) is ranked below P-3/P-5** despite being the oldest open
+  item. It is fidelity, not progression: the view is already recognisable, while
+  P-2/P-3 block actual play.
 
 ### Remaining-effort total (checkable)
 
 | task | low h | high h |
 |------|-------|--------|
-| A-3 object codes | 8 | 12 |
-| A-4 G-013 second scenario | 3 | 5 |
-| A-5 mover/collision | 4 | 6 |
-| A-6 outdoor scenery rule | 6 | 10 |
-| M-1 save writer | 8 | 12 |
-| M-2 character sheet | 6 | 10 |
-| M-3 all-out message | 2 | 4 |
-| B-1 item use effects | 8 | 14 |
-| B-2 spells in combat | 12 | 20 |
-| B-3 quick-combat + monster attack | 8 | 14 |
+| P-1 save writer | 8 | 12 |
+| P-2 object codes | 8 | 12 |
+| P-3 monster attack + combat loop | 8 | 14 |
+| P-4 spells in combat | 12 | 20 |
+| P-5 item use effects | 8 | 14 |
+| P-6 outdoor scenery rule | 6 | 10 |
+| P-7 mover/collision | 4 | 6 |
+| P-8 character sheet | 6 | 10 |
+| P-9 depth-2+ sprites | 3 | 5 |
+| P-10 all-out message | 2 | 4 |
 | **total** | **65** | **107** |
 
-So **~65–107 agent-hours** remain (previously stated as 75–123; that figure was
-not the sum of the rows, this one is).  Add ~30 % if the work must be re-derived
-by an agent with no prior context on this codebase.  A-1's main body is done, but
-its residue (A-6) is real work that did not exist before the sweep — the sweep
-converted an assumed-done item into a measured partial one, and Round 51 then
-split it again (the object draw is now done; the per-cell band question is not).
+So **~65–107 agent-hours** remain. Add ~30 % if the work must be re-derived by an
+agent with no prior context on this codebase.
 
 ---
 
@@ -141,8 +143,10 @@ split it again (the object draw is now done; the per-cell band question is not).
   The outdoor scenery set (G-013) was on this list and has been **removed from
   it**: Round 51 showed it was not a fitted constant at all but a missing object
   draw, and the oracle window is now exact.
-- **A correction to this plan's own history:** A-1 was recorded as done on the
-  strength of two captures that turned out to be the *same* frame (facing does
-  not change the view at that cell).  The lesson is in §4: a second capture is
-  only evidence if its bytes actually differ.
+- **A correction to this plan's own history:** the outdoor composite was recorded
+  as "pixel-exact" on the strength of two captures that turned out to be the
+  *same* frame (facing does not change the view at that cell), and the score was
+  0.9926, not 1.0.  Two lessons, both in §4: a second capture is only evidence if
+  its bytes actually differ, and a score below 1.0 must be *explained pixel by
+  pixel* before it is called a residual.
 - No guess is introduced by this plan. Every task above names a ground truth.
