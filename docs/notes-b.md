@@ -1667,23 +1667,25 @@ After it, `(L)`, `(C)` or a character digit leaves town; later departures need
 only one `(C)`.  A new game starts **inside the Inn** (the boot menu *is* the
 Inn), so the first `C` leaves the Inn into the town and the next is a town exit.
 
-**RETRACTION (2026-11-21).**  My earlier "town exit" measurements in this file
-were invalid: the scripted keys `O`,`2` **load save slot 2** (the wilderness),
-so the emulator was never in the town menu.  The frames I compared were the
-wilderness at different facings — which is why they matched the play screen at
-0.72..0.98 and why the "intermediate screen" carried a two-tone dithered
-background (indices 0 and 7, the flat grey wall) rather than text.  The amulet
-page was **never captured**, and no CHR1/CHR2 OCR of it has been attempted in
-earnest (the sweeps reported 0 matches because the frame had no text on it).
-The asset sequence below is still a real trace of *something* the engine opens
-after those keys, but it is not proven to be the town exit; treat it as
-unverified until a script actually reaches the town menu.  Note the intro eats the first
-presses (title -> credits -> the Inn menu), so reaching the town needs **three**
-advances before the exit key: `C` (title), `C` (credits), `C` (Inn menu ->
-town), then `C` for the town exit and one more for the amulet page.  A capture
-with only two presses still showed a 7-index screen, i.e. not the amulet page.
+**Working script (validated 2026-11-21).**  The owner gave the exact new-game
+sequence: `[any key to abort intro] - a - 2 - c - c - c - 1`, and for loading a
+game `[any key] - o - [slot]`.  Driving the emulator with it:
 
-**Unverified asset trace.**  The `LOF_I21` trace of the script above shows: the
+```
+LOF_KEYAT="200:0x39,400:0x1e,600:0x03,800:0x2e,1000:0x2e,1200:0x2e" --frames 1450
+   -> the amulet page (ref/emu/amulet_newgame.png)
+... plus 1500:0x02 (the '1' that hands the amulet to character 1), --frames 2200
+   -> the wilderness play screen (ref/emu/town_exit_wilderness.png), which
+      matches the slot-2 play capture at 0.9272 and the town at 0.7136
+```
+
+The amulet page carries **12** colours (a framed page, not the 5-index
+text-on-black I wrongly assumed), and the page differs from the post-`1` frame
+at 0.7498 — i.e. the third `c` really is the amulet step and the digit leaves.
+Earlier "town exit" measurements are retracted: they came from `O`,`2`, which
+loads the wilderness save.
+
+**Asset trace of the town path** (from a run that did reach the town): the
 town tiles (`TWN00..TWN05`, twice), `ROST/ROST`, `ROST/SHOP`, then 24 animation
 frames `EGA/ANIM/AN00..AN53` (`an{0,1,2,3,4,5}{0,1,2,3}`), then
 `EGA/PAGE/PG00` (112x155 — a panel tile, not a full screen).
