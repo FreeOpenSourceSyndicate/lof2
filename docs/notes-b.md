@@ -1651,9 +1651,8 @@ panel.  So the town exit's destination **is the outdoor play screen**, and the
 exit is reachable from a fresh start with no save at all.
 
 **Owner-supplied spec (authoritative, 2026-11-21).**  Leaving town is always
-possible except when no character in the party is alive.  The intermediate
-screen I measured is **not a general exit menu** — it is the *first-departure
-amulet event*:
+possible except when no character in the party is alive.  On the *first*
+departure a town guard gives the party an amulet:
 
 ```
 On starting your journey, you recieve an amulet from a town guard.
@@ -1665,28 +1664,26 @@ Who should recieve that (1-6)?
 ```
 
 After it, `(L)`, `(C)` or a character digit leaves town; later departures need
-only the one `(C)`.  The owner also notes that a new game starts **inside the
-Inn** (the boot menu *is* the Inn), so a `C` there exits the Inn into the town,
-and only the next `C` is a town exit — which explains why my single-`C` capture
-matched neither screen: it was the amulet prompt, and my frame timings were
-straddling the animation.
+only one `(C)`.  A new game starts **inside the Inn** (the boot menu *is* the
+Inn), so the first `C` leaves the Inn into the town and the next is a town exit.
 
-So the exit's asset sequence, from the `LOF_I21` trace, is: the town tiles
-(`TWN00..TWN05`, twice), `ROST/ROST`, `ROST/SHOP`, then **24 animation frames**
-`EGA/ANIM/AN00..AN53` (`an{0,1,2,3,4,5}{0,1,2,3}`), then `EGA/PAGE/PG00`
-(112x155 — a panel tile, not a full screen), and the resulting screen is the
-play-loop composition the drop-in already renders (0.9557 vs the slot-2
-capture, residue = viewport + panel).  The amulet screen itself is font-drawn
-text on black (indices `{0,2,4,6,7}`); its wording above is the owner's, and
-the port must render exactly that.
+**RETRACTION (2026-11-21).**  My earlier "town exit" measurements in this file
+were invalid: the scripted keys `O`,`2` **load save slot 2** (the wilderness),
+so the emulator was never in the town menu.  The frames I compared were the
+wilderness at different facings — which is why they matched the play screen at
+0.72..0.98 and why the "intermediate screen" carried a two-tone dithered
+background (indices 0 and 7, the flat grey wall) rather than text.  The amulet
+page was **never captured**, and no CHR1/CHR2 OCR of it has been attempted in
+earnest (the sweeps reported 0 matches because the frame had no text on it).
+The asset sequence below is still a real trace of *something* the engine opens
+after those keys, but it is not proven to be the town exit; treat it as
+unverified until a script actually reaches the town menu (enter via the Inn:
+`C` from the boot menu, then `C` again).
 
-**OCR attempt (negative, 2026-11-21).**  Template-matching that frame against
-`EGA/UP/CHR1` cells found **zero** glyph matches at *all 48* alignments
-(`y0` 0..7, `x0` 0..5), so the amulet page is **not** CHR1 at a 6-px pitch —
-try `CHR2` (and the compact 5x5 face), and capture the page with a longer,
-settled script (the load/animation timing is unstable: frame 620 was still the
-animation, frame 1000 held the prompt).  Do not hand-place the text until the
-font and pitch are identified.
+**Unverified asset trace.**  The `LOF_I21` trace of the script above shows: the
+town tiles (`TWN00..TWN05`, twice), `ROST/ROST`, `ROST/SHOP`, then 24 animation
+frames `EGA/ANIM/AN00..AN53` (`an{0,1,2,3,4,5}{0,1,2,3}`), then
+`EGA/PAGE/PG00` (112x155 — a panel tile, not a full screen).
 
 ### 4. The round-result table
 
