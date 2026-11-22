@@ -103,11 +103,13 @@ struct Dungeon {
     // exactly 3 and whose word is > 0x0a; the table is capped at 70 entries
     // (0x46).  The current cell's word is then looked up in that table and its
     // **table index** is the SPEC record index: the dispatcher multiplies it by
-    // 0xee (238, the record size) to reach the record.  Ground truth: image
-    // 0x1F0C0..0x1F150 (table build), 0x1F46E..0x1F4B6 (index lookup),
-    // 0x1F520..0x1F533 (index * 0xee + SPEC base).  This is why an earlier
-    // attempt that compared raw object codes against SPEC fields failed: the
-    // codes are level-local identifiers, and only tile-3 cells take part.
+    // 0xee (238, the record size) to reach the record.  Ground truth: the scan
+    // loop at 0x1F0C2..0x1F1AA (function entry 0x1EFC4; tile test 0x1F0E3,
+    // `> 0x0a` at 0x1F178, cap at 0x1F189), the index lookup at
+    // 0x1F46E..0x1F4B6, and `index * 0xee` at 0x1F520..0x1F533.  This is why an
+    // earlier attempt that compared raw object codes against SPEC fields
+    // failed: the codes are level-local identifiers, and only tile-3 cells take
+    // part.
     //
     // `event_keys()` is that table.  A cell with no event returns -1.
 

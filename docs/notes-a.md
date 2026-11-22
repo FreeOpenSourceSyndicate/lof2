@@ -3057,17 +3057,20 @@ itself.** This closes the "SPEC is only used by `--dump-spec`" gap.
 
 The dispatcher at `0x1F31E` runs in three steps:
 
-1. **Build the key table** (`0x1F0C0`..`0x1F150`). Scan the level's cells in
+1. **Build the key table** (scan loop `0x1F0C2`..`0x1F1AA`; the enclosing
+   function starts at `0x1EFC4`). Scan the level's cells in
    row-major order. Keep a cell only if its **tile code is exactly 3** and its
-   **object word is > 0x0a**. Insert the word into a table of 4-byte entries at
-   `[0xb048]+0x56` if not already present (compare at `0x1F0FF`/`0x1F106`). The
-   count lives at `[0x7d00]` and is capped at **0x46 = 70** (`0x1F189`).
+   **object word is > 0x0a** (tile test at `0x1F0E3`, the `> 0x0a` compare at
+   `0x1F178`). Insert the word into a table of 4-byte entries at `[0xb048]+0x56`
+   if not already present (compare at `0x1F0FF`/`0x1F106`). The count lives at
+   `[0x7d00]` and is capped at **0x46 = 70** (`0x1F189`).
 2. **Look the current cell's word up** (`0x1F46E`..`0x1F4B6`): linear scan of the
    table comparing the object word; the matching entry's **index** is kept in
    `[bp-0x44]`. No match ⇒ jump to `0x21276` (no event).
 3. **Use the index as the SPEC record number** (`0x1F520`..`0x1F533`):
    `di = index * 0xee` (238 = the record size), then read the record from
-   `[0x7d04]` (the SPEC base) at `es:[bx+di+…]`.
+   `[0x7d04]` (the SPEC base) at `es:[bx+di+…]`.  (`0x1EFC4` also zeroes the
+   table to `0xffff` first, and `0x1F31E` is the routine that consumes it.)
 
 So the object code is a **level-local identifier**, and the ordering of first
 appearance in row-major order is what maps it onto a SPEC record. Nothing about
