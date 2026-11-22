@@ -20,6 +20,48 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-A<nnn>`, numbered from
 | BLK-A003 | A (dungeons) | Agent A | Medium | **Resolved** (2026-11-08) | — |
 | BLK-A004 | A (dungeons) | Maintainer | Medium | Resolved | — |
 | BLK-A005 | A (dungeons) | Maintainer | Medium | **Resolved** (2026-11-18: closed as not-portable-by-data — producer input is RNG-seeded monster placement) | — |
+| BLK-A006 | A (dungeons) | Maintainer | High | **Open** | — |
+
+---
+
+## BLK-A006 — the SPEC dispatcher's *call site* is not located, so the event trigger is unproven
+
+- **Blocked lane:** A (dungeons)
+- **Responsible:** Maintainer
+- **Priority:** High
+- **Status:** **Open** (2026-11-08)
+- **Dependencies:** —
+
+**Description & unblock action.** The object-word → SPEC-record *selector* is
+now proven (Round 54): the table build, the index lookup and `index * 0xee` are
+all decoded and implemented. What is *not* proven is **when** the dispatcher
+runs — i.e. whether an event fires on entering the cell, on a "look" command, or
+only on a specific action. This matters because the port must not fire doors on
+every step.
+
+Negative results so far, all worth recording so the next attempt does not repeat
+them:
+
+- No `lcall`/near `call`/near `jmp` in the image targets the dispatcher body
+  (`0x1F31E`) or its function entry (`0x1EFC4`), under either far-pointer
+  convention (checked with the relocation-adjusted form too). The body is reached
+  by **fallthrough** from `0x1F31B`'s `jmp 0x1f1b3` loop, so it is the tail of the
+  function starting at `0x1EFC4`, not a separately called routine.
+- `analysis/lof.asm` has no cross-reference for it either (the linear
+  disassembler does not label fallthrough targets).
+- **It does not execute during a boot-to-menu run at all.** With the trace hook
+  validated on a known-hot address (`LOF_TRACE_IP=12024` hits immediately), a
+  1200-frame headless boot (`LOF_CMDLEN=3 LOF_PLANT_LOFX=1`) produces **zero** hits
+  at flat `0x2F0C4` (function entry) and zero at `0x2F41E` (dispatcher body).
+  So the object layer is **walk-path only**, which is consistent with P-2 needing
+  a movement trigger and with the port not firing events from the menu.
+
+**Unblock action.** Drive a walk move in the emulator and count hits at flat
+`0x2F0C4` while (a) stepping onto a tile-3 cell with an object word > 0x0a and
+(b) stepping onto an ordinary cell. That single comparison settles whether the
+trigger is "entering an event cell" or a separate action, and the caller then
+falls out of the `LOF_CAP` memory dump at the first hit. Movement in the emulator
+is the open prerequisite (see BLK-A004). Detail: `docs/notes-a.md` Round 54.
 
 ---
 

@@ -3098,4 +3098,11 @@ test (exit 134).
 * Tile 3 is the *only* event-carrying tile. Cells with features on other tiles
   (tile 1/2/6/…) are still unexplained; they are not SPEC selectors.
 * The 70-entry cap was never hit on the eight Temple levels (max 44), so the
-  engine's overflow behaviour is unobserved. Recorded as a guess, not a fact.
+  engine's overflow behaviour is unobserved. Recorded as a guess (G-014).
+* **When** the dispatcher runs is still open (BLK-A006). It has no caller: no
+  `lcall`/`call`/`jmp` targets either `0x1F31E` or `0x1EFC4`, and the body is
+  entered by fallthrough from the `0x1F31B` loop. It also does **not** run during
+  a boot-to-menu run — 1200 headless frames give zero trace hits at flat
+  `0x2F0C4`/`0x2F41E` while the same hook fires immediately at a known-hot
+  address (`LOF_TRACE_IP=12024`). So the object layer is walk-path only, which is
+  the right shape for "event on entering the cell" but does not yet prove it.

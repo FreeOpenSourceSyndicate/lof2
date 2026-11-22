@@ -110,7 +110,7 @@ mark a `Dependencies` entry, the dependency's priority may have to rise (a
 
 | Area | File | Open | In progress | Resolved |
 |------|------|------|-------------|----------|
-| A (dungeons) | [`blockers/A.md`](blockers/A.md) | — | — | BLK-A001, BLK-A002, BLK-A003, BLK-A004, BLK-A005 |
+| A (dungeons) | [`blockers/A.md`](blockers/A.md) | BLK-A006 | — | BLK-A001, BLK-A002, BLK-A003, BLK-A004, BLK-A005 |
 | B (characters/items) | [`blockers/B.md`](blockers/B.md) | — | — | BLK-B001, BLK-B002, BLK-B003, BLK-B004, BLK-B005 |
 | M (shared/engine) | [`blockers/M.md`](blockers/M.md) | — | — | BLK-M001 |
 
