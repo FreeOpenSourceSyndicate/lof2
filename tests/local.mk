@@ -34,6 +34,12 @@ COMBAT_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port 
 # no-step control asserts the text does not appear without a move.
 EVENT_FIRE_TEST = python3 tests/event_fire_test.py
 
+# (Agent A — dungeons) the recruit event the player reported, end to end: the
+# warrior's question, the speech block it names via +0xc9 (resolved against the
+# *scenario's* TXT file, not the index as a file number), and the joining class
+# named from SYST/SNSC via +0xeb.
+RECRUIT_EVENT_TEST = python3 tests/recruit_event_test.py
+
 # (Maintainer — disassembly) the two address conventions for LOF.EXE.  Mixing
 # them silently lands in-image mid-instruction and is what hid the event
 # dispatcher's callers for a whole session.
@@ -46,4 +52,5 @@ LOCAL_TEST_CMDS = \
     ( $(COMBAT_TEST) ) && \
     ( $(TARGET_CONVENTION_TEST) ) && \
     ( $(EVENT_FIRE_TEST) ) && \
+    ( $(RECRUIT_EVENT_TEST) ) && \
     ( python3 tests/saves_test.py )

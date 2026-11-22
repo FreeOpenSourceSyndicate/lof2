@@ -1082,6 +1082,98 @@ static void test_recruit_record(const std::string& dir) {
                 "\"A large warrior...\")\n", cells);
 }
 
+// The recruit record names the joining character through `class_eb` (+0xeb).
+//
+// The reader at 0x1F85B scales that byte by 0x4e -- the SNSC record stride --
+// and indexes the buffer at [0x37b0], which the loader at 0x1B150 fills by
+// allocating 0x444 (1092 = 14 * 78, the whole SYST/SNSC file) and reading
+// "SYST\SNSC" into it.  So the field is an SNSC class index, and the class's
+// name is the character who joins.
+//
+// The player's report is the oracle: the warrior they met joins as "Siegurd",
+// and SPEC0[1] is the only recruit record with class_eb == 0 while SNSC[0] is
+// "Siegurd".  Asserting the name (not just the index) keeps this honest.
+static void test_recruit_class(const std::string& dir) {
+    const std::string syst = dir + "/..";
+    SpecTable spec = load_spec(spec_path(syst, 10));
+    std::vector<SnsRecord> classes = load_snsc(syst + "/SYST/SNSC");
+    if (!spec.ok || spec.records.size() < 2 || classes.size() < 1) {
+        std::printf("dungeon_test: skipping recruit-class check (no data)\n");
+        return;
+    }
+    const SpecRecord& r = spec.records[1];
+    assert(r.type == 1);
+    assert(r.has_class() && "the warrior record must name a class");
+    assert(r.class_eb < classes.size());
+    assert(classes[(size_t)r.class_eb].singular == "Siegurd" &&
+           "SPEC0[1] must recruit SNSC[0], which is Siegurd");
+
+    // A class index that is out of range must be reported as absent, not read
+    // past the table: the records that recruit nobody store 0xff (== -1).
+    int none = 0, named = 0;
+    for (const SpecRecord& rec : spec.records) {
+        if (rec.type != 1) continue;
+        if (!rec.has_class()) { none++; continue; }
+        named++;
+        assert(rec.class_eb < classes.size());
+    }
+    assert(named >= 1 && none >= 1 &&
+           "SPEC0 should hold both recruiting and non-recruiting type-1 records");
+    std::printf("dungeon_test: recruit class ok (SPEC0[1] -> SNSC[%u] \"%s\")\n",
+                (unsigned)r.class_eb, classes[(size_t)r.class_eb].singular.c_str());
+}
+
+// The long text block a record can name: `index_c9` (+0xc9, 0xff = none).
+//
+// The field is an entry index into `SYST/TXT<n>`, where <n> is the *same
+// scenario number as the SPEC file*, not the index itself.  The open helper at
+// 0x1D7C2 formats "SYST\TXT%d" from the scenario number and then seeks
+// `4 * index_c9` into the offset table.  Reading the field as the file number
+// is the natural mistake (it is what this port did first) and it "works" for the
+// one record where the two coincide, so the check is that every index resolves
+// in its own scenario's TXT and that at least one does *not* resolve in another.
+//
+// An entry is a run of NUL-separated lines; an empty line is a paragraph break,
+// not the end of the entry.  The recruit record is the useful witness: SPEC0[1]
+// carries the warrior's speech ("My journey will take me to Cyldane...") as its
+// block, which is the text a player sees after answering the question.
+static void test_text_block_index(const std::string& dir) {
+    // `dir` is the DNGS directory; SYST sits beside it.
+    const std::string syst = dir + "/..";
+    SpecTable spec = load_spec(spec_path(syst, 10));
+    if (!spec.ok || spec.records.size() < 2) {
+        std::printf("dungeon_test: skipping text-block check (no SPEC0)\n");
+        return;
+    }
+    const SpecRecord& recruit = spec.records[1];
+    assert(recruit.has_index() && "the recruit record should name a text block");
+
+    std::vector<std::string> own = load_txt(syst + "/SYST/TXT0");
+    assert(!own.empty());
+    assert(recruit.index_c9 < own.size() &&
+           "index_c9 must resolve inside its own scenario's TXT file");
+
+    // The block is the warrior's speech, and it is multi-line: reading the
+    // whole entry (not just up to the first NUL) is what makes it readable.
+    const std::string& body = own[(size_t)recruit.index_c9];
+    assert(body.find("Cyldane") != std::string::npos &&
+           "SPEC0[1]'s text block should be the warrior's speech");
+    assert(body.find('\0') != std::string::npos &&
+           "the block must span more than one NUL-separated line");
+
+    // Reading index_c9 as the *file* number must not be silently acceptable:
+    // SPEC0's indices reach 12 and only TXT0..TXT7 exist.
+    bool some_index_exceeds_files = false;
+    for (const SpecRecord& r : spec.records)
+        if (r.has_index() && r.index_c9 > 7) some_index_exceeds_files = true;
+    assert(some_index_exceeds_files &&
+           "SPEC0 should have an index that is out of range as a file number, "
+           "which is what pins the field to be an entry index");
+    std::printf("dungeon_test: text block ok (index_c9=%u -> TXT0 entry, "
+                "%zu lines)\n", (unsigned)recruit.index_c9,
+                (size_t)std::count(body.begin(), body.end(), '\0') + 1);
+}
+
 // End-to-end walk model over a real level: place the party, then walk and turn
 // with the real decoder output and assert the invariants the play loop relies
 // on (never inside a solid cell, a successful step always changes the cell, a
@@ -1414,6 +1506,8 @@ int main(int argc, char** argv) {
     test_event_keys(dir);
     test_event_spec_mapping(dir);
     test_recruit_record(dir);
+    test_text_block_index(dir);
+    test_recruit_class(dir);
     test_walk_real(dir);
     test_view_themes(dir);
     test_dungeon_screen(dir);

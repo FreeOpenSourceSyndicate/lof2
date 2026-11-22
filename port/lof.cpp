@@ -819,6 +819,55 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
     }
     const SpecRecord& r = spec->records[(size_t)idx];
     if (!r.text_b.empty()) printf("lof: %s\n", r.text_b.c_str());
+
+    // A record may also name a long text block: `index_c9` (0xff = none) is an
+    // entry index into `SYST/TXT<same scenario number as the SPEC file>`.  The
+    // open helper at 0x1D7C2 formats "SYST\TXT%d" from the scenario number, not
+    // from `index_c9`, and then seeks `4 * index_c9` into the offset table --
+    // verified across all 46 records that set the field: every index is in
+    // range for its own scenario's TXT file and out of range for the others.
+    //
+    // An entry is a run of NUL-separated *lines*; an empty line is a paragraph
+    // break, not the end of the entry (the offset/length pair delimits it).  The
+    // engine pages this over the message box; printing it line by line keeps the
+    // whole block instead of dropping it, which is what a bare text_b does for
+    // the 20 records that carry no short text at all (e.g. SPEC0[19]).
+    if (r.has_index()) {
+        const int scenario = spec_scenario_for_location(location);
+        const std::string txt_path =
+            dir + "/SYST/TXT" + std::to_string(scenario);
+        std::vector<std::string> blocks = load_txt(txt_path);
+        if (r.index_c9 >= blocks.size()) {
+            printf("lof:   (text block %d missing from %s)\n",
+                   (int)r.index_c9, txt_path.c_str());
+        } else {
+            const std::string& body = blocks[(size_t)r.index_c9];
+            size_t start = 0;
+            while (start <= body.size()) {
+                size_t end = body.find('\0', start);
+                if (end == std::string::npos) end = body.size();
+                if (end > start)
+                    printf("lof: %s\n", body.substr(start, end - start).c_str());
+                start = end + 1;
+            }
+        }
+    }
+
+    // Recruits: `+0xeb` is an SNSC class index (0xff = none) and names the
+    // character who would join.  The reader at 0x1F85B proves it -- it scales
+    // `+0xeb` by 0x4e, the SNSC record stride, and indexes the loaded SNSC image
+    // at [0x37b0].  Reporting the class is faithful data, not a guess; the stat
+    // block and the answer loop are not implemented, so the event still says so.
+    if (r.type == 1 && r.has_class()) {
+        std::vector<SnsRecord> classes = load_snsc(dir + "/SYST/SNSC");
+        if (r.class_eb < classes.size())
+            printf("lof:   (%s would join; recruit stats not implemented)\n",
+                   classes[(size_t)r.class_eb].singular.c_str());
+        else
+            printf("lof:   (recruit class %u missing from SYST/SNSC)\n",
+                   (unsigned)r.class_eb);
+    }
+
     // Plain-text group with no extra tail work: the event is fully reproduced.
     if (r.type <= 6) return;
     printf("lof:   (event type %u at %d,%d: effect not implemented)\n",

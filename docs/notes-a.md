@@ -3379,25 +3379,85 @@ run with no key prints nothing.  Pinned by `tests/event_fire_test.py`.
 
 ## What the recruit (type 1) record still needs
 
-The question/answer plumbing in the tail is now read, but the *stats* source is
-not, so the port prints the question and stops there.
+**Solved (2026-11-08): the joining character is `SYST/SNSC[record+0xeb]`.**
 
-Read at `0x1F71E`: the tail pushes `record + 0x50` and calls `0x2f0e:0x1af4`.
-Its result comes back in AX, and `or ax, ax; je 0x1F761` skips the follow-up when
-AX is zero; when AX is non-zero **and** the `[bp+6]` argument is zero the tail
-also prints `record + 0x0e` (the same two-pointer print used for the question).
-That matches the reported behaviour -- the "no" text appears under the prompt --
-so `+0x0e` is the follow-up line and AX distinguishes the answers.
+`+0xeb` is a signed byte, and the reader at `0x1F85B` pins its meaning without
+guesswork:
 
-`type == 0x19` (`0x1F76D`) takes an extra branch: it prints `+0x0e`, then
-re-prints `+0x50` and calls `0x18d:0x13be`, i.e. it loops the prompt.
+    1F85B: cmp byte es:[bx+0xea], 0     ; signed `+0xea`
+    1F861: jge 0x1F88F                  ; only when +0xea < 0 ...
+    1F863: cmp byte es:[bx+0xeb], 0     ; ... and +0xeb >= 0
+    1F869: jl  0x1F88F
+    1F86B: mov al, 0x4e                 ; 78 = the SNSC record stride
+    1F86D: imul byte es:[bx+0xeb]       ; index * 78
+    1F874: mov es, [0xb03e]
+    1F878: les bx, es:[0x37b0]          ; the loaded SNSC image
+    1F87D: mov al, es:[bx+si+0x48]      ; ...+0x48 (78) = the record's stat byte
+    1F887: lcall 0x212f, 0x6e00         ; print it
 
-Open: which record fields name the joining character. For `SPEC0[1]` the fields
-at `+0xea`/`+0xec` are `42` and `1`, but 42 is not a valid index into anything we
-have decoded -- `SYST/NSC00` has 25 records, `SYST/SNSC` 14, `ROST/ROST` 11 --
-and the other type-1 records hold values like 44, 10, 39, 46. Until that index is
-identified, implementing the recruit would mean inventing the stats, which is
-worse than reporting the event as unimplemented. The reported "the nsc Siegurd
-joins" suggests an `SYST/SNSC` record (Siegurd is `SNSC[0]`), so the likely shape
-is "`+0xea` indexes a monster/character template, and the SNSC record supplies
-name + stats" -- but that is a hypothesis, not a finding.
+The stride `0x4e` is exactly the SNSC record size (14 records x 78 bytes), and
+the pointer at `[0x37b0]` is the SNSC image -- proven by its loader at `0x1B150`,
+not assumed:
+
+    1B158: mov ax, 0x444        ; 1092 = 14 * 78, the whole SNSC file
+    1B160: lcall 0x2f0e, 0x199c ; allocate
+    1B16C: mov es:[0x37b0], ax  ; store the buffer pointer
+    1B17E: mov ax, 0x7624       ; ds:0x7624 = "Error: No memory! NSC"
+    1B1A0: mov ax, 0x763a       ; ds:0x763a = "rb"
+    1B1A5: mov ax, 0x763d       ; ds:0x763d = "SYST\\SNSC"
+                                ; ... fopen("SYST\\SNSC", "rb") into that buffer
+
+So `+0xeb` is an **SNSC class index** and `+0xea` is a per-class variant/level
+number.  The 1092-byte allocation matching the file exactly is what rules out
+every other reading (an NSC table would not be one fixed-size buffer).
+
+This is what the player reported and it now checks out against the data:
+
+| record | `+0xea` | `+0xeb` | `SNSC[eb]` | question |
+|---|---|---|---|---|
+| `SPEC0[0]`  | 39 | -1 | (none) | "A Woodkeeper plants himself in your tracks..." |
+| `SPEC0[1]`  | 42 | 0  | **Siegurd** | "A large warrior asks if he may join you (Yes/No)." |
+| `SPEC0[8]`  | 44 | 2  | Ihl Kazar | "An old priest asks if he may accompany you..." |
+| `SPEC0[12]` | 46 | -1 | (none) | "...the figure of a Halfling..." |
+| `SPEC0[14]` | 10 | -1 | (none) | "...an old distinguished high priestess..." |
+
+`SPEC0[1]` is the only recruit record with `+0xeb == 0`, and `SNSC[0]` is
+"Siegurd" -- the name in the reported "Siegurd joins the companionship."  That
+is a two-way match on a single field, not a coincidence of ranges: the records
+with `+0xeb == -1` are the ones whose prose describes a creature the party does
+*not* recruit under a class name (Woodkeeper, Halfling, priestess), and the two
+records that do name a class (`Siegurd`, `Ihl Kazar`) are the two whose prose
+says "may join you"/"may accompany you".
+
+Correction to the earlier note: `+0xea` is **not** an NSC index either.  It is a
+signed variant number that only the number formatter at `0x1F693` and the
+`0x1F85B` guard read; `42` for Siegurd is a stat/level selector, not a name.
+
+Still open, and deliberately not guessed:
+
+* The **stat block** the new member is built from.  The SNSC record carries the
+  name (two 19-byte NUL-padded forms) plus a 40-byte statistics block, but which
+  fields of it become the recruit's own `+0x24`/`+0x6a`/HP/level is not read
+  yet, and inventing them would be worse than reporting the event unimplemented.
+* The yes/no answer itself.  The `keyword` field (`+0x00`) holds the expected
+  reply (`"Y"`/`"N"`), and `type == 0x19` (`0x1F76D`) loops the prompt, but the
+  port does not drive an answer loop yet -- it prints the prompt and stops.
+* `+0xc9` long text blocks are now printed (see below), but the engine pages
+  them over the message box; the port prints every line at once.
+
+### `+0xc9` is an entry index into `SYST/TXT<scenario>`, not a file number
+
+The open helper at `0x1D7C2` formats `"SYST\\TXT%d"` from the **scenario number**
+(the same digit that selects `SPEC<n>`) and then seeks `4 * index_c9` into the
+offset table.  Verified over all 46 records that set the field: every index is in
+range for its own scenario's TXT file.  Reading `+0xc9` as the file number is the
+trap -- it happens to work for `SPEC0[1]` (index 1) and fails everywhere else,
+and `SPEC0` indices reach 12 while only `TXT0..TXT7` exist.
+
+An entry is a run of NUL-separated **lines**; an empty line is a paragraph break,
+not the end of the entry (the `(offset, length)` pair delimits it).  `SPEC0[1]`'s
+block is the warrior's speech, 10 lines starting "On restarting your journey," and
+running to "...my companionship may prove to be less dangerous..." -- the text the
+player sees after answering yes.  This is what made `text_b` alone insufficient:
+20 records carry no short text at all and only name a block (e.g. `SPEC0[19]`).
+
