@@ -1653,9 +1653,13 @@ exit is reachable from a fresh start with no save at all.
 The exit is **two-step**: one `C` at the town menu produces a screen that
 matches *neither* the town (0.7435) nor the play screen (0.7233), and only the
 second `C` reaches the wilderness (0.9557).  So `C` opens an intermediate
-screen first — its asset is not yet proven (the only page file the trace opens
-is `EGA/PAGE/PG00`, 112x155, but that is not evidence enough to call it the
-intermediate screen).
+screen first.  It is **not** a picture: the frame uses only five palette
+indices (`{0,2,4,6,7}`, mostly black), and none of `EGA/PAGE/PG00..PG09`,
+`EGA/PAGE/BOOK`, `EGA/IN/{CRED,DRAG,TITL}` matches it at any offset in
+index space.  It is therefore drawn from the font — a prompt or message page
+(one candidate is the gate/"really leave?" confirmation; the engine also gates
+the town gates on the clock phase, per the internal-clock note), but the text
+is **not yet read**, so it stays open rather than guessed.
 
 The exit's asset sequence, from the `LOF_I21` trace, is: the town tiles
 (`TWN00..TWN05`, twice), `ROST/ROST`, `ROST/SHOP`, then **24 animation frames**
