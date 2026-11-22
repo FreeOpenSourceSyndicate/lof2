@@ -1600,6 +1600,16 @@ the *next* row's `+0x0a` HP low byte** — here `0x10` (the second Mercenary's H
 which is exactly what the trace shows (the path runs, never reaches the damage
 subtraction, and no party HP changes).
 
+**Reachability, by arithmetic (2026-11-21).**  The gate needs the byte 22 bytes
+past the acting row to be `0xff`, and that byte is the *next* row's `+0x0a` HP
+low byte.  Rows are built with HP = a multiple of 8 (the two captured Mercenary
+rows are 8 and 16, and the row builder derives `+0x04` from
+`100*hp/(8*rec[+0x2c])`, i.e. hp = 8*rec[+0x2c] scaled per member), so a fresh
+row can never be `0xff` — only a *damaged* row whose HP lands exactly on 255
+(e.g. 256 HP minus 1) can pass.  So the gate is not dead code, but it opens
+only in that narrow case; in the shipped Mercenary encounter (8/16 HP) it never
+does.
+
 So in the shipped Mercenary encounter the monsters *never act*.  That is
 measured behaviour the port must reproduce, **not** a bug to fix: a port that
 lets mercenaries attack diverges from the original.  Whether the engine intends
