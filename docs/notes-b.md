@@ -1621,6 +1621,27 @@ instruction text — (a) the acting row's HP is an attack *budget*, or (b) the
 frame's `[bp+6]` is the target in this call.  A runtime capture of one monster
 attack (watch the two rows' `+0x0a`) decides it; it must not be assumed.
 
+### 3b. `0x17BAA` is the party action dispatcher, not "quick combat"
+
+```
+0x17BAA  for i = 0..5:                       ; the six party slots
+0x17BB2  bx = 12*i ; es = [0xafda]
+0x17BC0  al = es:[bx+0x177]                  ; row[i].+0x01 = character index
+0x17BC6  si = 0x19a * al ; es = [0xafa6]
+0x17BDF  char = es:[0x30] + si               ; the character record
+0x17BE2  [bp-0xc] = char[+0x0d]              ; the action argument
+0x17BEA  [bp-4]   = -1                       ; "no target yet"
+0x17BF3  if char[+0x0f] == 4 -> 0x17C04      ; Cast Spell
+0x17BFA  if char[+0x0f] == 3 -> 0x17C04      ; Use object
+0x17C01  else -> 0x17C8F                     ; the attack path
+```
+
+So the loop walks the party rows, resolves each member's record and branches on
+the action word: **3/4 go to the object/spell branch, everything else to the
+attack path at `0x17C8F`**.  That makes the spell and item effects (P-5, P-6)
+this loop's two remaining arms, and the "quick combat" label in earlier notes
+was a misnomer.
+
 ### 4. The round-result table
 
 After the round the engine draws `The result of this round:` + the melee table
