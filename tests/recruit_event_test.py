@@ -95,7 +95,8 @@ def main():
         for needle, why in (
             ("A large warrior asks if he may join you (Yes/No).",
              "the recruit question"),
-            ("Siegurd would join", "the joining class named from SNSC"),
+            ("Siegurd joins the companionship.",
+             "the join line, with the class named from SNSC"),
         ):
             if needle not in after:
                 sys.exit("recruit_event_test: missing %s (%r).  Got:\n%s"
@@ -115,8 +116,8 @@ def main():
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
-    print("recruit_event_test: ok (question and Siegurd reproduced; the accept "
-          "speech is correctly withheld until the answer)")
+    print("recruit_event_test: ok (question and the join line reproduced; the "
+          "accept speech is correctly withheld until the answer)")
 
 
 if __name__ == "__main__":

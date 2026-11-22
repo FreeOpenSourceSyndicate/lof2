@@ -958,12 +958,22 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
     // branch only reports the class the event names.
     if (r.type == 1 && r.has_class()) {
         std::vector<SnsRecord> classes = load_snsc(dir + "/SYST/SNSC");
-        if (r.class_eb < classes.size())
-            printf("lof:   (%s would join; recruit stats not implemented)\n",
-                   classes[(size_t)r.class_eb].singular.c_str());
-        else
+        if (r.class_eb < classes.size()) {
+            const std::string& who = classes[(size_t)r.class_eb].singular;
+            // The join path (0x20EF6..) calls 0x1D99A with the SNSC record and a
+            // free slot; 0x1D99A zeroes the 0x19a-byte slot and copies
+            // `strlen(record)` bytes into `slot[1..]` -- i.e. the class *name*
+            // (the record's 19-byte NUL-padded field stops the copy).  The
+            // engine's own line is " joins the companionship." (image 0x44E05);
+            // the sibling " finds no place in the team to join the companions."
+            // covers a full party.  The port prints the success line and does
+            // not yet mutate the roster (G-018: which free slot, the party
+            // capacity, and where the recruit's *stats* come from).
+            printf("lof:   %s joins the companionship.\n", who.c_str());
+        } else {
             printf("lof:   (recruit class %u missing from SYST/SNSC)\n",
                    (unsigned)r.class_eb);
+        }
     }
 
     // Type 7: a doorway.  The handler (0x20AD7..0x20B13) stores the record's

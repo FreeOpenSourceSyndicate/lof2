@@ -262,6 +262,19 @@ How to use each section:
   no move loop yet). It only affects *when* the port should call
   `event_index()` after a step, which is the remaining P-2 work.
 
+### G-018 — the recruit's slot, capacity and stats
+
+The join path (`0x20EF6..0x20F2D`) calls `0x1D99A` with the SNSC record
+(`0x4e * class` into `[0xb03e]:0x37b0`) and a destination slot.  `0x1D99A`
+zeroes the `0x19a`-byte slot and copies `strlen(record)` bytes into
+`slot[1..]` — because the record's first field is a 19-byte NUL-padded name,
+that copies **only the name**; no stat byte is copied there.  The port
+therefore prints the engine's own line (" joins the companionship.", image
+`0x44E05`; the full-party sibling is " finds no place in the team to join the
+companions.") but does **not** create a character.  Open: which free slot the
+engine picks and the party capacity (the panel shows six), and where the
+recruit's statistics come from.  Do not synthesise stats until that is read.
+
 ### G-017 — who consumes the type-7 door destination
 
 `0x20AD7..0x20B13` writes a type-7 door's destination into
