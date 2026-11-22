@@ -1677,8 +1677,11 @@ page was **never captured**, and no CHR1/CHR2 OCR of it has been attempted in
 earnest (the sweeps reported 0 matches because the frame had no text on it).
 The asset sequence below is still a real trace of *something* the engine opens
 after those keys, but it is not proven to be the town exit; treat it as
-unverified until a script actually reaches the town menu (enter via the Inn:
-`C` from the boot menu, then `C` again).
+unverified until a script actually reaches the town menu.  Note the intro eats the first
+presses (title -> credits -> the Inn menu), so reaching the town needs **three**
+advances before the exit key: `C` (title), `C` (credits), `C` (Inn menu ->
+town), then `C` for the town exit and one more for the amulet page.  A capture
+with only two presses still showed a 7-index screen, i.e. not the amulet page.
 
 **Unverified asset trace.**  The `LOF_I21` trace of the script above shows: the
 town tiles (`TWN00..TWN05`, twice), `ROST/ROST`, `ROST/SHOP`, then 24 animation
