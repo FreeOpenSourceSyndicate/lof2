@@ -1959,3 +1959,31 @@ audit were moved there:
 - **Party-panel live state** (time of day, morale, rations) is engine state a
   save does not carry; the port deliberately draws the labels only. This is
   correct-by-construction, not guesswork.
+
+### 2026-11-23 — G-019 resolved (potion = spell-cast); oracle + P-4/P-5 scoping
+
+- **G-019 (heal/poison magnitude) RESOLVED as spell-based** (commit `a9059bd`).
+  Runtime `LOF_DUMP` (menu + shop) pinned the data layout: DS base `0x4ac10`,
+  item table at `DS:0x2cec` (linear `0x4d8fc`), runtime record == file layout.
+  The **buy** core (`0x63f4`) reads price via `es=[0xaf5e]` at `[bx+0xfce]`
+  (price = record +0x12; Healing potion = 350).  The action-3 "use object" path
+  (`0x17c04`) reads `item.f4_low` (`[bx+0xfd4]`) = a **1-based spell index**
+  (Healing potion f4=80 = spell 80 "Healing I") and looks it up in the spell
+  table (`es=[0xafae]`, `es:[spell*0x24+0x2712]` = block byte 0).  So a potion
+  **casts its spell**; the effect-10 `hp += [bx+0xfd5]` (f4 high = 0) is a
+  no-op path.  The `charges` (f3 high) stand-in stays until spell-casting
+  exists.  `[0xaf5e]`/`[0xafa8]` are transient segments (hold code overlays at
+  rest), which is why a static frame dump can't read them.
+- **DOSBox is unavailable here** — `apt` has no package index and the shell is
+  unprivileged, so `tools/capture_dosbox*.sh` can't run.  That blocks the two
+  oracle-dependent polish items: **P-13** (all-out message colour) and **P-14**
+  (VOR credits-page palette).  The analysis emulator still works for non-oracle
+  experiments (P-12 depth sprites, P-15 synthetic-map overflow).
+- **P-4 gap**: `--ui` (`run_ui`) has INTRO -> PLAY -> DECISION -> RESULT only.
+  `compose_town_screen` and `compose_amulet_screen` exist but are **not wired**
+  into `--ui`; the town-exit -> amulet -> wilderness transition is the missing
+  piece.  Wiring it is the concrete next P-4 step (no oracle needed).
+- **P-5 (spells)**: the cast path is at image `0x19690` (block-byte-0 flag test:
+  bits `&4`, `&1`, `&0x10`) with the effect/target work after; the 14-byte
+  spell block is `[flags, ...]` per `char_spells.inc`.  This is the 12-20h task;
+  it also fixes potion magnitudes, so it is the highest-value next target.
