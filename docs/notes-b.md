@@ -1687,8 +1687,14 @@ Its index histogram is `{0:16911, 7:34511, 4:4958, 6:3514, 3:2965, 2:1141}`.
 **OCR of the archived page (negative, 2026-11-21).**  With per-cell background
 normalisation the best CHR1 8x8 / 6-px alignment scores only **13** cells, and
 the two "rows" it finds are coincidental.  So the amulet page is **not** CHR1 at
-a 6-px pitch either — try CHR2's 5x5 face, an 8-px (non-overlapping) pitch, and
-`EGA/PAGE/BOOK` as a font source before hand-placing anything.
+a 6-px pitch either — **Swept (all negative, 2026-11-21):** CHR2's 5x5 face at a 5/6-px pitch (best
+score 1 cell), CHR1 at an 8-px pitch (3), CHR2 at 8-px (2).  Also, on this
+*correct* frame, **no** `EGA/PAGE/*`, `EGA/IN/*` or `EGA/UP/*` image matches at
+any offset in index space.  So the page is a *composition* — a code-drawn frame
+plus text in a font that is neither CHR1 nor CHR2 at these pitches.  Next:
+disassemble the page's draw routine (the amulet handler) instead of guessing
+fonts; the string block near " finds no place in the team to join the
+companions." (image `0x44E05`) is a good anchor for the surrounding strings.
 Earlier "town exit" measurements are retracted: they came from `O`,`2`, which
 loads the wilderness save.
 
