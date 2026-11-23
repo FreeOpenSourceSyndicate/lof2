@@ -489,6 +489,36 @@ bool buy_item(SaveGame& g, int char_idx, int item_index, ShopData* shop) {
     return true;
 }
 
+std::string use_item_effect(SaveChar& c, int item_index) {
+    const ItemRecord* it = item_by_index(item_index);
+    if (!it) return "";
+    uint8_t* r = c.raw.data();
+    int val = it->charges;
+    switch (it->effect) {
+    case 10: {  // heal HP by charges, clamped to hp_max
+        uint16_t hp = rd16(r, kCharHpCur22), mx = rd16(r, kCharHpMax20);
+        uint32_t nh = (uint32_t)hp + (uint32_t)val;
+        if (nh > mx) nh = mx;
+        wr16(r, kCharHpCur22, (uint16_t)nh);
+        return "heals";
+    }
+    case 3:  // poison: hp -= charges, mark the poisoned state
+        wr16(r, kCharHpCur22, (uint16_t)(rd16(r, kCharHpCur22) - (uint16_t)val));
+        r[kCharStatus1f] = 3;
+        r[0x57] = 4;
+        r[0x58] = 0x12;
+        return "poisons";
+    case 1:  // enchant weapon (+0x5e), refuses past +0x5e + +0x45 >= 0x11
+        if ((int)r[0x5e] + (int)r[0x45] < 0x11) { r[0x5e] += 2; return "enchants the weapon"; }
+        return "finds the weapon already enchanted";
+    case 2:  // enchant armour (+0x5b)
+        r[0x5b] += 2;
+        return "enchants the armour";
+    default:
+        return "";
+    }
+}
+
 bool joint_deposit(SaveGame& g, int target) {
     uint32_t total = 0;
     for (auto& c : g.chars)

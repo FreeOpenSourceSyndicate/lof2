@@ -1477,6 +1477,36 @@ static void test_buy_item() {
     assert(!buy_item(k, 0, item, &empty));
 }
 
+static void test_use_item() {
+    // Effect 10 (healing potion): hp += charges, clamped to hp_max.
+    int heal = -1, charges = 0;
+    for (int i = 1; i <= (int)kItemCount; i++) {
+        const ItemRecord* x = item_by_index(i);
+        if (x && x->effect == 10 && x->charges > 0) { heal = i; charges = x->charges; break; }
+    }
+    if (heal > 0) {
+        SaveChar c{};
+        c.raw[kCharHpMax20] = 24;
+        c.raw[kCharHpCur22] = 20;
+        std::string v = use_item_effect(c, heal);
+        assert(v == "heals");
+        int expect = 20 + charges; if (expect > 24) expect = 24;
+        assert((c.raw[kCharHpCur22] | (c.raw[kCharHpCur22 + 1] << 8)) == expect);
+    }
+    // Effect 3 (poison): hp -= charges and the poisoned state is set.
+    int poison = -1;
+    for (int i = 1; i <= (int)kItemCount; i++) {
+        const ItemRecord* x = item_by_index(i);
+        if (x && x->effect == 3) { poison = i; break; }
+    }
+    if (poison > 0) {
+        SaveChar p{};
+        p.raw[kCharHpCur22] = 10;
+        assert(use_item_effect(p, poison) == "poisons");
+        assert(p.raw[kCharStatus1f] == 3);
+    }
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
@@ -1487,6 +1517,7 @@ int main(int argc, char** argv) {
     test_bank();
     test_joint_deposit();
     test_buy_item();
+    test_use_item();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).

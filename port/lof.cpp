@@ -1618,6 +1618,8 @@ int main(int argc, char** argv) {
     int joint_deposit_do = 0;       // 1-based recipient for --joint-deposit
     int buy_do = 0;                 // 1-based char for --buy
     int buy_item_idx = 0;           // item index to buy
+    int use_do = 0;                 // 1-based char for --use
+    int use_item_idx = 0;           // item index to use
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
@@ -1667,6 +1669,10 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--buy" && i + 2 < argc) {
             buy_do = atoi(argv[++i]);
             buy_item_idx = atoi(argv[++i]);
+        }
+        else if (std::string(argv[i]) == "--use" && i + 2 < argc) {
+            use_do = atoi(argv[++i]);
+            use_item_idx = atoi(argv[++i]);
         }
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
@@ -1910,6 +1916,38 @@ int main(int argc, char** argv) {
         }
         fprintf(stderr, "lof: character %d bought '%s' for %d gold (gold now %u)\n",
                 buy_do, it->name.c_str(), price, char_gold(sg.chars[buy_do - 1]));
+        return 0;
+    }
+    if (use_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --use needs a valid --save\n"); return 1; }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: --use needs --amulet-out\n"); return 1; }
+        if (use_do - 1 < 0 || use_do - 1 >= (int)sg.chars.size() ||
+            sg.chars[use_do - 1].present == 0) {
+            fprintf(stderr, "lof: --use %d: no such character\n", use_do);
+            return 1;
+        }
+        const ItemRecord* it = item_by_index(use_item_idx);
+        if (!it) { fprintf(stderr, "lof: --use: no such item %d\n", use_item_idx); return 1; }
+        SaveChar& c = sg.chars[use_do - 1];
+        auto hp_of = [](const SaveChar& sc) {
+            return (uint16_t)(sc.raw[kCharHpCur22] | (sc.raw[kCharHpCur22 + 1] << 8));
+        };
+        uint16_t hp_before = hp_of(c);
+        std::string verb = use_item_effect(c, use_item_idx);
+        if (verb.empty()) {
+            fprintf(stderr, "lof: item %d ('%s') has no derived use-effect\n",
+                    use_item_idx, it->name.c_str());
+            return 1;
+        }
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        fprintf(stderr, "lof: character %d used '%s' (%s); hp %u -> %u\n",
+                use_do, it->name.c_str(), verb.c_str(), hp_before, hp_of(c));
         return 0;
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||

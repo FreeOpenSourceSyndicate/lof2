@@ -1270,6 +1270,16 @@ struct ShopData;  // defined below (ROST/SHOP)
 // `shop` may be null to skip the stock check.  Returns true on a completed buy.
 bool buy_item(SaveGame& g, int char_idx, int item_index, ShopData* shop);
 
+// --- Item use effects (use routine 0x0e89d) --------------------------------
+// Applies the use-effect of item `item_index` (its +0x1f effect byte) to
+// character `c`.  Derived effects: 10 heal HP by item.charges (clamped to
+// hp_max), 3 poison (hp -= charges; set status +0x1f=3 / +0x57=4 / +0x58=0x12),
+// 1 enchant weapon (+0x5e += 2 when +0x5e + +0x45 < 0x11), 2 enchant armour
+// (+0x5b += 2).  Returns a short verb ("heals"/"poisons"/...) or "" if the
+// effect is not derived.  Item consumption (removal from the slot) is the
+// caller's job in the engine and is not applied here.
+std::string use_item_effect(SaveChar& c, int item_index);
+
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
 SaveGame load_save(const std::string& path);

@@ -353,6 +353,45 @@ def check_buy_effect() -> int:
     return 0
 
 
+def check_use_effect() -> int:
+    # --use N ITEM: effect 10 (healing potion) raises HP, clamped to hp_max.
+    if not os.path.exists(GAME4):
+        print("port_building_test: SKIP use effect (no GAME4)")
+        return 0
+
+    def rec(b, i):
+        return b[4 + i * 410:4 + (i + 1) * 410]
+
+    a = open(GAME4, "rb").read()
+    r0 = rec(a, 0)
+    hp0 = r0[0x22] | (r0[0x22 + 1] << 8)
+    mx0 = r0[0x20] | (r0[0x20 + 1] << 8)
+    if hp0 >= mx0:
+        print("port_building_test: SKIP use effect (char 1 not wounded)")
+        return 0
+    out = "/tmp/port_use.sav"
+    r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--use", "1", "47", "--save", GAME4, "--amulet-out", out],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        print("port_building_test: FAIL use effect (%s)"
+              % r.stderr.decode().strip())
+        return 1
+    b = open(out, "rb").read()
+    r1 = rec(b, 0)
+    hp1 = r1[0x22] | (r1[0x22 + 1] << 8)
+    if hp1 <= hp0 or hp1 > mx0:
+        print("port_building_test: FAIL use effect (hp %d -> %d, max %d)"
+              % (hp0, hp1, mx0))
+        return 1
+    if len(b) != 13134 or b[0x2e3a:0x2e3e] == a[0x2e3a:0x2e3e]:
+        print("port_building_test: FAIL use effect (save not resealed)")
+        return 1
+    print("port_building_test: ok use effect (healing potion, hp %d -> %d, "
+          "resealed)" % (hp0, hp1))
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
@@ -362,6 +401,7 @@ def main() -> int:
     rc |= check_bank_effect()
     rc |= check_joint_deposit_effect()
     rc |= check_buy_effect()
+    rc |= check_use_effect()
     return rc
 
 

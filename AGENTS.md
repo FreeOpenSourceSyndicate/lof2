@@ -355,7 +355,12 @@ Progress:
       `item.price`, adds the item and decrements stock; `lof --buy N ITEM`;
       pinned by `char_test::test_buy_item` + the buy check in
       `port_building_test.py`.  Emporium sell/repair and House-of-Trades training
-      remain open (interactive item UIs).
+      remain open (interactive item UIs).  **Item use effects (P-6) DONE
+      2026-11-23:** `use_item_effect()` applies effect 10 (heal HP by charges,
+      clamped to hp_max), 3 (poison), 1 (enchant weapon) and 2 (enchant armour)
+      from the use dispatch `0x0e89d`; `lof --use N ITEM`; pinned by
+      `char_test::test_use_item` + the use-effect check in
+      `port_building_test.py`.
 - [x] Encounter screen (`--encounter`): the wandering-monster screen the engine
       draws when it spawns enemies (first met from the wilderness).  It reuses
       the play screen's chrome — `EGA/UP/MSCR`, the party/status panel (its
