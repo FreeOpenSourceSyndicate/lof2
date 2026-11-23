@@ -1682,6 +1682,13 @@ LOF_KEYAT="200:0x39,400:0x1e,600:0x03,800:0x2e,1000:0x2e,1200:0x2e" --frames 145
 The amulet page carries **12** colours (a framed page, not the 5-index
 text-on-black I wrongly assumed), and the page differs from the post-`1` frame
 at 0.7498 — i.e. the third `c` really is the amulet step and the digit leaves.
+Its index histogram is `{0:16911, 7:34511, 4:4958, 6:3514, 3:2965, 2:1141}`.
+
+**OCR of the archived page (negative, 2026-11-21).**  With per-cell background
+normalisation the best CHR1 8x8 / 6-px alignment scores only **13** cells, and
+the two "rows" it finds are coincidental.  So the amulet page is **not** CHR1 at
+a 6-px pitch either — try CHR2's 5x5 face, an 8-px (non-overlapping) pitch, and
+`EGA/PAGE/BOOK` as a font source before hand-placing anything.
 Earlier "town exit" measurements are retracted: they came from `O`,`2`, which
 loads the wilderness save.
 
