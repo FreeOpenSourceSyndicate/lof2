@@ -323,6 +323,80 @@ int give_item(SaveChar& c, int item_index) {
     return slot;
 }
 
+static uint16_t rd16(const uint8_t* r, int off) {
+    return (uint16_t)(r[off] | (r[off + 1] << 8));
+}
+static void wr16(uint8_t* r, int off, uint16_t v) {
+    r[off] = (uint8_t)(v & 0xff);
+    r[off + 1] = (uint8_t)(v >> 8);
+}
+
+int rest_cost(const SaveGame& g, bool with_rations) {
+    int members = 0;
+    long sum = 0;
+    for (const SaveChar& c : g.chars) {
+        if (c.raw[0] == 0) continue;
+        // (wmax - wcur) is an unsigned 16-bit divide in the engine (0x827b).
+        uint16_t spare = (uint16_t)((uint16_t)(rd16(c.raw.data(), kCharWeight64) -
+                                               rd16(c.raw.data(), kCharWeight66)) / 10);
+        if (spare > 14) spare = 14;
+        sum += spare;
+        members++;
+    }
+    int cost = 2 * members;
+    if (with_rations) cost += (int)(3 * sum);
+    return cost;
+}
+
+bool pay_gold(SaveChar& c, int cost) {
+    if (cost < 0) cost = 0;
+    uint32_t gold = (uint32_t)c.raw[kCharGold72]
+                  | ((uint32_t)c.raw[kCharGold72 + 1] << 8)
+                  | ((uint32_t)c.raw[kCharGold72 + 2] << 16)
+                  | ((uint32_t)c.raw[kCharGold72 + 3] << 24);
+    if (gold < (uint32_t)cost) return false;
+    gold -= (uint32_t)cost;
+    c.raw[kCharGold72]     = (uint8_t)(gold & 0xff);
+    c.raw[kCharGold72 + 1] = (uint8_t)((gold >> 8) & 0xff);
+    c.raw[kCharGold72 + 2] = (uint8_t)((gold >> 16) & 0xff);
+    c.raw[kCharGold72 + 3] = (uint8_t)((gold >> 24) & 0xff);
+    // Gold weighs 0.1 lb each, so refresh the carried total (+0x66).
+    CharSheet sh = decode_char(c.raw.data());
+    uint16_t w = (uint16_t)(weight_base(sh) + carried_item_weight(sh));
+    wr16(c.raw.data(), kCharWeight66, w);
+    return true;
+}
+
+void rest_party(SaveGame& g, bool with_rations) {
+    for (SaveChar& c : g.chars) {
+        if (c.raw[0] == 0) continue;
+        uint8_t* r = c.raw.data();
+        if ((int8_t)r[kCharOutOfAction49] > 0) {
+            r[kCharOutOfAction49]--;
+            if (r[kCharOutOfAction49] == 0) {
+                r[kCharStatus1f] = 0;
+                r[0x4b] = 0;
+            }
+        }
+        if (with_rations) r[kCharRations70] = 14;
+        if (r[kCharStatus1f] == 0) {
+            int hp = rd16(r, kCharHpCur22);
+            hp += 2 * r[kCharLevel17];
+            if (r[kCharCon44] > 14) hp += r[kCharCon44] - 14;
+            int hp_max = rd16(r, kCharHpMax20);
+            if (hp > hp_max) hp = hp_max;
+            wr16(r, kCharHpCur22, (uint16_t)hp);
+        }
+        if (r[kCharMagMax68] != 0 && r[kCharMagCur69] < r[kCharMagMax68]) {
+            int gain = r[kCharMagMax68] >> 3;
+            if (gain < 1) gain = 1;
+            int cur = r[kCharMagCur69] + gain;
+            if (cur > r[kCharMagMax68]) cur = r[kCharMagMax68];
+            r[kCharMagCur69] = (uint8_t)cur;
+        }
+    }
+}
+
 uint16_t save_location(const SaveGame& g) {
     return (uint16_t)(g.loc_tens * 10 + g.loc_ones);
 }

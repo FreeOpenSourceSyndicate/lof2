@@ -1604,6 +1604,8 @@ int main(int argc, char** argv) {
     bool inn_rest_flag = false;
     bool inn_rest_pay_flag = false;
     int inn_rest_pay_cost = 2;
+    int inn_rest_do = 0;            // 1-based payer for --inn-rest-do (0 = off)
+    bool inn_rest_rations = false;  // --inn-rest-rations: the "replenished" option
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
@@ -1634,6 +1636,8 @@ int main(int argc, char** argv) {
             if (i + 1 < argc && argv[i + 1][0] >= '0' && argv[i + 1][0] <= '9')
                 inn_rest_pay_cost = atoi(argv[++i]);
         }
+        else if (std::string(argv[i]) == "--inn-rest-do" && i + 1 < argc) inn_rest_do = atoi(argv[++i]);
+        else if (std::string(argv[i]) == "--inn-rest-rations") inn_rest_rations = true;
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
@@ -1715,6 +1719,31 @@ int main(int argc, char** argv) {
         round_rows.push_back({0, false, false, false, 1});
         round_rows.push_back({-7, false, false, false, 1});
         round_rows.push_back({0, false, false, false, 1});
+    }
+    if (inn_rest_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --inn-rest-do needs a valid --save\n"); return 1; }
+        int idx = inn_rest_do - 1;
+        if (idx < 0 || idx >= (int)sg.chars.size() || sg.chars[idx].present == 0) {
+            fprintf(stderr, "lof: --inn-rest-do %d: no present character\n", inn_rest_do);
+            return 1;
+        }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: --inn-rest-do needs --amulet-out\n"); return 1; }
+        int cost = rest_cost(sg, inn_rest_rations);
+        if (!pay_gold(sg.chars[idx], cost)) {
+            fprintf(stderr, "lof: character %d cannot pay %d gold\n", inn_rest_do, cost);
+            return 1;
+        }
+        rest_party(sg, inn_rest_rations);
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        fprintf(stderr, "lof: rested; character %d paid %d gold%s\n", inn_rest_do, cost,
+                inn_rest_rations ? " (rations replenished)" : "");
+        return 0;
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||
         inn_rest_flag || inn_rest_pay_flag || temple_heal_flag || temple_revive_flag) {

@@ -320,8 +320,15 @@ Progress:
       (oracle = 2g for a 1-member party).  Ink-matched to
       `ref/emu/inn_rest_pay.png` (lines 1/3/4 pixel-exact, cost line a 25px
       font-overlap residual); `tests/port_inn_rest_pay_test.py`.  The pay
-      *effect* (deduct gold, restore HP/MP, advance the clock) is still open
-      (P-7).
+      *effect* is implemented too (`lof --inn-rest-do N [--inn-rest-rations]`,
+      image `0x820a..0x8680`): cost = `2*members` (+`3*sum(min(14,spare_lbs))`
+      for W), `pay_gold()` deducts it from the payer's gold (+0x72, refuses if
+      short), `rest_party()` clears the out-of-action countdown, sets rations to
+      14 (W), heals HP by `2*level+max(0,Con-14)` clamped to +0x20, and restores
+      magic (`+0x69 += max(1,+0x68>>3)`, clamped).  Pinned by
+      `char_test::test_rest_effect` + the rest-effect check in the test.  Still
+      open: the spell-memorisation pass, the post-rest 32-slot reset, and the
+      clock advance.
 - [x] Encounter screen (`--encounter`): the wandering-monster screen the engine
       draws when it spawns enemies (first met from the wilderness).  It reuses
       the play screen's chrome — `EGA/UP/MSCR`, the party/status panel (its

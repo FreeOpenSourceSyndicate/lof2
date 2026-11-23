@@ -129,6 +129,19 @@ parameter.  Pinned by `tests/port_inn_rest_pay_test.py` (lines 1/3/4
 pixel-exact, cost line a 25px font-overlap residual).  The pay *effect*
 (deduct gold, restore HP/MP, advance the clock) is still open.
 
+**Inn-rest pay effect (2026-11-23).** Continued P-7: found the ds base
+(0x3c820, by four-string consistency) and disassembled the inn-rest handler
+(image 0x820a..0x8680).  Derived and implemented `rest_cost` / `pay_gold` /
+`rest_party` (port/char): cost = 2*members (+3*sum(min(14,spare_lbs)) for the
+W option); the payer's gold dword (+0x72) is deducted (refused if short);
+each present member has its out-of-action countdown cleared, rations set to
+14 (W), HP healed by 2*level+max(0,Con-14) clamped to +0x20, and magic
+restored (+0x69 += max(1,+0x68>>3), clamped).  `lof --inn-rest-do N
+[--inn-rest-rations] --save S --amulet-out O` applies it and writes a sealed
+save.  Unit-tested (`char_test::test_rest_effect`) and e2e on GAME2 (payer 4
+pays 12g, wounded char 9→11, resealed).  Still open: the spell-memorisation
+pass, the post-rest 32-slot reset, and the clock advance.
+
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 
 Lane M, sole active agent (lof2/M-6). Read the rules, guess register, owner

@@ -1312,10 +1312,66 @@ static void test_give_item() {
     assert(give_item(full, kItemAmulet) == -1);
 }
 
+static void test_rest_effect() {
+    // Inn-rest cost + effect (image 0x820a..0x8680).
+    SaveGame g;
+    g.chars.resize(kSaveCharCount);
+    SaveChar& a = g.chars[0];
+    a.present = 1; a.raw[0] = 1;
+    a.raw[kCharLevel17] = 3;
+    a.raw[kCharCon44] = 18;              // Con bonus +4
+    a.raw[kCharHpMax20] = 30;            // hp 10 / 30
+    a.raw[kCharHpCur22] = 10;
+    a.raw[kCharMagMax68] = 16;           // mag 0 / 16
+    a.raw[kCharMagCur69] = 0;
+    a.raw[kCharGold72] = 100;            // gold 100
+    a.raw[kCharWeight64] = 100;          // spare (100-0)/10 = 10
+    a.raw[kCharWeight66] = 0;
+
+    // Cost: 1 member -> 2; with rations -> 2 + 3*10 = 32.
+    assert(rest_cost(g, false) == 2);
+    assert(rest_cost(g, true) == 32);
+
+    // Pay deducts from the gold dword; a short payer is rejected.
+    assert(pay_gold(a, 2));
+    assert((a.raw[kCharGold72] | (a.raw[kCharGold72 + 1] << 8)) == 98);
+    SaveChar poor{};
+    poor.raw[0] = 1;
+    poor.raw[kCharGold72] = 5;
+    assert(!pay_gold(poor, 6));
+    assert(poor.raw[kCharGold72] == 5);
+
+    // HP heals by 2*level + (Con-14) = 10 per rest, clamped to hp_max (30);
+    // magic heals by max(1, mag_max>>3) = 2 per rest, clamped to mag_max (16).
+    for (int i = 0; i < 8; ++i) rest_party(g, false);
+    assert((a.raw[kCharHpCur22] | (a.raw[kCharHpCur22 + 1] << 8)) == 30);
+    assert(a.raw[kCharMagCur69] == 16);
+    assert(a.raw[kCharRations70] == 0);  // no rations option
+
+    // Out-of-action countdown: 2 -> 1 -> 0 clears status +0x1f and +0x4b.
+    SaveChar& o = g.chars[1];
+    o.present = 1; o.raw[0] = 1;
+    o.raw[kCharOutOfAction49] = 2; o.raw[kCharStatus1f] = 7; o.raw[0x4b] = 1;
+    rest_party(g, false);
+    assert(o.raw[kCharOutOfAction49] == 1);
+    assert(o.raw[kCharStatus1f] == 7);
+    rest_party(g, false);
+    assert(o.raw[kCharOutOfAction49] == 0);
+    assert(o.raw[kCharStatus1f] == 0);
+    assert(o.raw[0x4b] == 0);
+
+    // The "replenished rations" option sets +0x70 = 14.
+    SaveChar& r = g.chars[2];
+    r.present = 1; r.raw[0] = 1; r.raw[kCharRations70] = 3;
+    rest_party(g, true);
+    assert(r.raw[kCharRations70] == 14);
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
     test_give_item();
+    test_rest_effect();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).

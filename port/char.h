@@ -1191,6 +1191,24 @@ constexpr int kItemAmulet = 120;
 // 0x6b3d..0x6b6b is shop bookkeeping and is not reproduced here.)
 int give_item(SaveChar& c, int item_index);
 
+// --- Inn-rest cost + effect (image 0x820a..0x8680) --------------------------
+// The night's-rest price, derived from the counting loop at 0x823a..0x83a9:
+//   2 * present_members  [+ 3 * sum_over_members(min(14, (weight_max(+0x64) -
+//                          weight_cur(+0x66)) / 10))  when `with_rations`]
+// (bp-0x18 = 2 * member_count; the W-rations branch at 0x8397 adds 3 * sum).
+// pay_gold deducts `cost` from the payer's gold dword (+0x72) and returns false
+// when the payer is short (0xbdec).  rest_party applies the night to every
+// present member (0x8480..0x85d8): decrement the out-of-action countdown (+0x49,
+// clearing status +0x1f and +0x4b when it hits 0); set rations (+0x70) to 14
+// when `with_rations`; for a member whose status (+0x1f) is 0, heal HP (+0x22)
+// by 2*level(+0x17) + max(0, Con(+0x44) - 14), clamped to hp_max (+0x20); and
+// restore magic points (+0x69 += max(1, +0x68>>3), clamped to +0x68).  The
+// spell-memorisation pass (0x841e..0x8487) and the post-"Good night" 32-slot
+// reset are not reproduced.
+int rest_cost(const SaveGame& g, bool with_rations);
+bool pay_gold(SaveChar& c, int cost);
+void rest_party(SaveGame& g, bool with_rations);
+
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
 SaveGame load_save(const std::string& path);
