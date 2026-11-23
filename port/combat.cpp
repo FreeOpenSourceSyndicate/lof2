@@ -173,4 +173,20 @@ RoundResult resolve_round(CombatRng& rng, std::vector<Combatant>& party,
     return res;
 }
 
+int apply_trap_damage(SaveGame& g, int damage_scale, CombatRng& rng) {
+    int total = 0;
+    for (SaveChar& c : g.chars) {
+        if (c.raw[kCharPresent] == 0) continue;
+        const int dmg = rng.below(damage_scale) + 1;
+        int hp = (int16_t)(uint16_t)(c.raw[kCharHpCur22] |
+                                     (c.raw[kCharHpCur22 + 1] << 8));
+        hp -= dmg;
+        if (hp < 0) hp = 0;
+        c.raw[kCharHpCur22] = (uint8_t)(hp & 0xff);
+        c.raw[kCharHpCur22 + 1] = (uint8_t)((hp >> 8) & 0xff);
+        total += dmg;
+    }
+    return total;
+}
+
 }  // namespace lofport

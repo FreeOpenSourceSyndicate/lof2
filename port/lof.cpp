@@ -842,8 +842,9 @@ static CoffinLatch g_coffin;  // type-16 two-visit latch, see CoffinLatch
 static bool fire_cell_event(const std::string& dir, uint16_t& location,
                             Dungeon& d, DungeonPos& pos,
                             SpecTable* spec, bool* spec_loaded,
-                            const SaveGame* sg,
-                            const std::string* answer = nullptr) {
+                            SaveGame* sg,
+                            const std::string* answer = nullptr,
+                            CombatRng* rng = nullptr) {
     const int idx = d.event_index(pos.x, pos.y);
     if (idx < 0) return false;
     if (!*spec_loaded) {
@@ -1007,6 +1008,22 @@ static bool fire_cell_event(const std::string& dir, uint16_t& location,
             return false;
         }
         printf("lof:   (teleport -> cell %d)\n", cell);
+        return true;
+    }
+
+    // Type 18: a slide + trap.  Same cell write as type 11 (0x20CE0), then
+    // every present member loses `rand(+0xe6)+1` HP (0x20D2F..0x20D8E).  See
+    // notes-a.md "Per-type effects".
+    if (r.type == 18) {
+        const int cell = r.counter;            // +0xe4
+        if (dungeon_teleport_cell(pos, cell))
+            printf("lof:   (trap slide -> cell %d)\n", cell);
+        else
+            fprintf(stderr, "lof: type-18 trap to bad cell %d\n", cell);
+        if (sg != nullptr && rng != nullptr) {
+            const int dmg = apply_trap_damage(*sg, r.arg_e6, *rng);  // +0xe6
+            printf("lof:   (trap: %d damage across the party)\n", dmg);
+        }
         return true;
     }
 
@@ -1277,7 +1294,7 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                     if (!stair_msg.empty()) printf("lof: %s\n", stair_msg.c_str());
                     if (fire_cell_event(dir, loc, dng, pos, &play_spec,
                                         &play_spec_loaded, &play_sg,
-                                        g_event_answer)) {
+                                        g_event_answer, &combat_rng)) {
                         play_dungeon = loc;      // a door changed the level
                         play_spec_loaded = false;
                     }
@@ -1347,6 +1364,11 @@ static bool walk_loop(const std::string& dir, const std::string& save,
     place_party_from_save(d, sg, pos);
     SpecTable spec;
     bool spec_loaded = false;
+    // A walk-local RNG for the type-18 trap roll, seeded with the engine's
+    // default INT 1Ah tick (LOF_TICK).  The port does not replay the whole RNG
+    // stream, so trap HP is a model (see apply_trap_damage).
+    CombatRng walk_rng;
+    walk_rng.seed = 0x0B;
     for (int k : keys) {
         std::string msg;
         bool changed = false;
@@ -1355,7 +1377,7 @@ static bool walk_loop(const std::string& dir, const std::string& save,
         if (!msg.empty()) printf("lof: %s\n", msg.c_str());
         if (location != before) spec_loaded = false;   // stair: new level, new SPEC
         if (fire_cell_event(dir, location, d, pos, &spec, &spec_loaded, &sg,
-                            g_event_answer))
+                            g_event_answer, &walk_rng))
             spec_loaded = false;                       // door: new map, new SPEC
     }
     // Persist the walk.  The party position is written back into the save's

@@ -141,6 +141,16 @@ struct RoundResult {
 RoundResult resolve_round(CombatRng& rng, std::vector<Combatant>& party,
                           std::vector<Combatant>& defenders);
 
+// Type-18 trap damage (image 0x20CD7..0x20D8E).  After sliding the party to the
+// record's +0xe4 cell (the same write type 11 does), the handler subtracts
+// `rand(+0xe6) + 1` from every present member's current HP (+0x22), clamped at
+// 0 (`rand(n)` is 0x2A7D:0x2F6A == rand15() % n).  Mutates the save's raw
+// character records so `build_save()` persists the loss.  Returns the total
+// damage dealt across the party.  The port does not replay the engine's whole
+// RNG stream, so pass a walk-local CombatRng; the formula and the [1, +0xe6]
+// per-member range are exact, the absolute HP is a model (no oracle exists).
+int apply_trap_damage(SaveGame& g, int damage_scale, CombatRng& rng);
+
 }  // namespace lofport
 
 #endif  // LOF_PORT_COMBAT_H

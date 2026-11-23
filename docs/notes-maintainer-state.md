@@ -46,12 +46,26 @@ object) latch + clear object), 19/20/21/22 (map-wide tile rewrites). Type 11 is
 implemented (`dungeon_teleport_cell()` + a `fire_cell_event()` branch), with a
 unit test (`dungeon_test::test_teleport`, 7 records, SPEC3[54] -> cell 1168) and
 an end-to-end `--walk` test (`teleport_event_test.py`, DNG17 Air Elemental ->
-cell 629 = (17,17)). The other handlers are documented in `notes-a.md`; type 18's
-RNG (`0x2a7d:0x2f6a`) is still to be derived.
+cell 629 = (17,17)).
 
-**Next.** Remaining P-2 per-type effects (12/18/19/20/21/22) and the recruit stat
-block (G-018); P-7 town transactions / P-4 wilderness are the bigger
-player-facing gaps.
+**Type-18 trap (P-2, 2026-11-23).** Same cell write, then every present member
+loses `rand(+0xe6)+1` HP (clamped at 0). The damage helper `0x2a7d:0x2f6a`
+(image `0x2D73A`) is `rand(+0xe6)+1`: it calls the MS-C generator at
+`0x2f0e:0x1dec` (image `0x30ECC`, the same LCG as combat) and the 32-bit signed
+modulo at `0x2f0e:0x1f32` (image `0x31012`). `apply_trap_damage()` in
+`port/combat.{h,cpp}` mutates the save's raw char records so `build_save()`
+persists the loss; a walk-local `CombatRng` seeded 0x0B models the roll (formula
+exact, absolute HP is a model — no oracle). Unit test `combat_test::test_trap_damage`.
+
+**Reachability finding (2026-11-23).** The type-12/18/19/20/21/22 records are
+SPEC indices 81..125, but scanning all 29 DNGS maps, the **largest event index
+any map carries is 48**. So those handlers are cut content, unreachable by the
+walk's event selector in the shipped data; only type 11 (SPEC7[12],[13]) and the
+recruit (SPEC0[1]) are placed. Type 18 is unit-tested only. This means the only
+reachable remaining P-2 item is the **recruit stat block (G-018)**.
+
+**Next.** Recruit stat block (G-018, the only reachable P-2 item); P-7 town
+transactions / P-4 wilderness are the bigger player-facing gaps.
 
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 

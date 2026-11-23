@@ -298,6 +298,51 @@ static void test_weapon_break() {
     assert(melee_round(d, off).damage != melee_round(a, never).damage);
 }
 
+// Type-18 trap: every present member loses rand(+0xe6)+1 HP, clamped at 0;
+// absent slots are untouched.  Damage is in [1, scale] per present member.
+static void test_trap_damage() {
+    auto set_hp = [](SaveChar& c, int hp) {
+        c.raw[kCharPresent] = 1;
+        c.raw[kCharHpCur22] = (uint8_t)(hp & 0xff);
+        c.raw[kCharHpCur22 + 1] = (uint8_t)((hp >> 8) & 0xff);
+    };
+    auto get_hp = [](const SaveChar& c) {
+        return (int)(int16_t)(uint16_t)(c.raw[kCharHpCur22] |
+                                        (c.raw[kCharHpCur22 + 1] << 8));
+    };
+
+    SaveGame g;
+    g.chars.resize(3);
+    set_hp(g.chars[0], 100);
+    set_hp(g.chars[1], 100);
+    g.chars[2].raw[kCharPresent] = 0;   // absent slot
+    g.chars[2].raw[kCharHpCur22] = 50;
+
+    CombatRng rng; rng.seed = 1;
+    const int scale = 20;
+    const int total = apply_trap_damage(g, scale, rng);
+    const int d0 = 100 - get_hp(g.chars[0]);
+    const int d1 = 100 - get_hp(g.chars[1]);
+    check(d0 >= 1 && d0 <= scale, "trap member0 damage in [1,scale]");
+    check(d1 >= 1 && d1 <= scale, "trap member1 damage in [1,scale]");
+    check(total == d0 + d1, "trap total == sum of member damage");
+    check(get_hp(g.chars[2]) == 50, "trap leaves absent slots untouched");
+
+    // Clamp: a 3-HP member cannot go negative.
+    SaveGame h; h.chars.resize(1); set_hp(h.chars[0], 3);
+    CombatRng r2; r2.seed = 5;
+    apply_trap_damage(h, 30, r2);
+    check(get_hp(h.chars[0]) >= 0, "trap HP clamped at 0");
+    check(get_hp(h.chars[0]) <= 3, "trap HP never rises");
+
+    // Deterministic: the same seed reproduces the same damage.
+    SaveGame a, b; a.chars.resize(1); b.chars.resize(1);
+    set_hp(a.chars[0], 100); set_hp(b.chars[0], 100);
+    CombatRng ra, rb; ra.seed = 42; rb.seed = 42;
+    apply_trap_damage(a, 20, ra); apply_trap_damage(b, 20, rb);
+    check(get_hp(a.chars[0]) == get_hp(b.chars[0]), "trap damage reproducible");
+}
+
 int main() {
     test_rng();
     test_single_attack();
@@ -310,11 +355,12 @@ int main() {
     test_xp_table();
     test_weapon_break();
     test_round();
+    test_trap_damage();
     if (failures) {
         fprintf(stderr, "combat_test: %d failure(s)\n", failures);
         return 1;
     }
     printf("combat_test: ok (rng sequence, melee formula, attack count, pct, cap, "
-           "hit score, hand pick, xp table, round)\n");
+           "hit score, hand pick, xp table, round, trap damage)\n");
     return 0;
 }

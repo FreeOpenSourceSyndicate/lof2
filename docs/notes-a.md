@@ -3498,8 +3498,27 @@ cell) and `+0xe6` = 20/30 (the damage scale) with slipping/sliding texts.
 **Type 11 is ported** — `dungeon_teleport_cell()` (a raw set, no passability
 check, facing unchanged, matching the handler's blind `[0x3824]` write) plus the
 `fire_cell_event()` branch; pinned by `dungeon_test::test_teleport`.
-**Type 18's damage** still needs the RNG at `0x2a7d:0x2f6a` (image `0x2D73A`,
-which chains `0x1dec`/`0x1f32`); its cell write is the same as type 11.
+
+**Type 18 is ported too** — the same cell write, then `apply_trap_damage()`
+subtracts `rand(+0xe6)+1` from every present member's HP (+0x22), clamped at 0.
+The damage helper `0x2a7d:0x2f6a` (image `0x2D73A`) is `rand(+0xe6)+1`: it calls
+the MS-C generator `0x2f0e:0x1dec` (image **0x30ECC**, the same LCG as combat)
+and then `0x2f0e:0x1f32` (image `0x31012`, a 32-bit signed modulo) to compute
+`rand15() % +0xe6`, and the caller does `inc ax`.  Pinned by
+`combat_test::test_trap_damage`.  The port does not replay the engine's whole RNG
+stream, so it uses a walk-local `CombatRng` seeded with the INT 1Ah default
+(`0x0B`): the formula and the [1, +0xe6] per-member range are exact, the absolute
+HP is a model (no oracle exists).
+
+**Reachability — most per-type effects are cut content.**  The two type-18
+records are `SPEC6[81]`/`[125]`, but the **largest event index any shipped DNGS
+map carries is 48** (scanning all 29 maps), and the type-12/19/20/21/22 records
+are indices 90..124.  So types 12, 18, 19, 20, 21 and 22 are **not reachable**
+by the walk's event selector in the shipped data; only type 11 (indices 12, 13 in
+SPEC7) and the recruit (type 1, index 1) are placed.  Type 18 is therefore
+unit-tested only (no end-to-end `--walk` capture is possible), and the remaining
+map-mutation handlers (12/19/20/21/22) are low priority — correct to have
+decoded, but they will not fire in normal play.
 
 ## What the recruit (type 1) record still needs
 
