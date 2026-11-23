@@ -6,50 +6,62 @@ are in `docs/GUESSWORK.md`; rules are in `docs/RULES.md`; the deeper technical
 history is in `docs/HANDOFF.md` §4. This file answers three questions: **what is
 left, in what order, how long, and how done are we?**
 
-Last refreshed: 2026-11-21 (session of agent lof2/M-4, sole active agent).
-This revision **integrates** the queue written by lof2/M-5 (its P-1..P-10 are
-kept, renumbered by priority, and the mapping is stated in §2) and adds the
-items that list was missing: town exit / wilderness travel, the town state
-effects (inn rest, temple heal/revive, shop and bank transactions) and the
-`P`/`B` combat flags.  The combat model also gained the derived defender rows
-and the `W` column since that revision (see §1, combat row).
+Last refreshed: 2026-11-23 (session of agent lof2/M-6, sole active agent).
+This revision **reconciles the completion table with the queue**. The previous
+revision's ~87 % weighted only the *screens* that are built and silently left
+out the gameplay subsystems the queue already lists but that are still at
+0–25 %: overworld travel (P-4), town transactions (P-7), spells (P-5) and the
+monster's turn (P-3). Those rows are now in the table, so the honest whole-game
+figure is **~70 %**; the old screens-and-model figure (~87 %) is kept below for
+continuity. The P-1..P-13 queue is unchanged in order and scope except that
+P-4 records its 2026-11-21 reconnaissance, P-3's estimate now matches the
+reduced scope stated in its own row, and the two small queued guesses (P-14,
+P-15) are added so nothing open is off the list.
 
 ---
 
-## 1. Overall project completion — ~87 %
+## 1. Overall project completion — ~70 %
 
-Weighted by player-visible subsystem, not by line count.  The table below sums
-to **86.8 %** (weights total 100); it is rounded to ~87 %.  The previous
-revision said ~86 % (86.4 %), and ~82 % before the save writer landed.  The
-arithmetic is stated so the figure can be checked: the only change since 86.4 is
-the combat row, 75 % → 78 %, because the defender rows and the `W` column are now
-**derived** rather than measured (`0x27A1E`, `0x15852`), which is
-0.03 * 12 = 0.36 points.
+Weighted by player-visible subsystem, not by line count. Two figures are given
+because the earlier table measured only the finished screens/models and did not
+weight the gameplay still missing:
 
-The drop-in already boots, shows the intro, reaches the menu, walks a town, visits every building,
-walks the Temple dungeon in first person, meets wandering monsters, resolves
-a combat round (with monsters' own defence values and a real weapon-break rule)
-and writes saves back.  What is missing is concentrated in three places: the
-*outdoor scenery rule* (the view is exact for one cell and approximate
-elsewhere), *object interactions* beyond stairs (doors, traps, pickups), and
-*the monster's turn* (the attack path and the quick-combat loop).
+- **Whole-game table (this revision): ~70 %.** Weights total 100 and the
+  weighted sum is **69.4 %**, rounded to ~70 %. This is the number to quote.
+- **Screens-and-model figure (previous revision): ~87 %** (86.8 %). The same
+  rows as then, without the gameplay rows added below; it overstates completion
+  because P-3/P-4/P-5/P-7 were not weighted.
+
+The drop-in already boots, shows the intro, reaches the menu, walks a town,
+visits every building, walks the Temple dungeon in first person, meets wandering
+monsters, resolves a combat round (with monsters' own defence values and a real
+weapon-break rule) and writes saves back. What is missing is concentrated in
+four places: *overworld / wilderness travel* (leaving town, walking the map and
+its encounter rolls), *town transactions* (rest/heal/shop/bank change nothing
+yet), *spells* in combat, and *the monster's turn*; then the fidelity residue
+(outdoor scenery, the `P`/`B` flags, the character sheet).
 
 | Subsystem | Done | Weight | Notes |
 |---|---|---|---|
-| Analysis emulator (the oracle) | 100 % | 12 | stable; reproduces every oracle frame used below |
-| VOR intro + credits | 100 % | 4 | `EGA/IN/DRAG`, `EGA/IN/CRED` |
-| Boot → menu | 100 % | 6 | `EGA/UP/MSCR` + `MENU`, font |
-| Town (Thyn, Cyldane) + buildings | 100 % | 10 | inn, shop/emporium, bank, house, temple (+ heal/revive/rest prompts). **Menus only** — the transactions and state effects are P-7 |
-| DNGS decode (all 29 levels) | 100 % | 5 | tiles + object layer + header |
-| Dungeon first-person view | 80 % | 14 | Temple (`D5`) depth march pixel-exact. The outdoor (`D0`) composite is exact **for one cell only**; the scenery piece set is overfit (**G-013**) — P-9. The outdoor **wall** case is derived and tested (`DP036` at the map edge, `DP001` otherwise); the oracle cell is 0 px wrong |
-| Object/feature semantics | 40 % | 8 | selector, trigger, type dispatch, text path, once-only gate and the `+0x0e` answer line are live; the answer-input path, the recruit stat block and the per-type *effects* are P-2 |
-| Level transitions (stairs) | 85 % | 4 | stairs/portals/level changes work and are decompiled (`0x2e7fa`); open: non-stair object codes |
-| Encounter screen | 100 % | 5 | `SYST/NSCnn` record → `CHAR0/CHnn` |
-| **Combat (decision → round → result)** | **78 %** | 12 | melee round derived (`0x14D80` fallback), hit score, hand-slot weapon pick, `rand(damage)+1`, XP multiplier, defender rows (`0x27A1E`) and the `W` break check (`0x15852`) all derived. Open: the monster attack path `0x159F8`, the quick-combat loop `0x17BAA`, spells, `P`/`B` |
-| Character data (SPEC/ROST/SNSC) | 90 % | 6 | parse + checksum + save write done; char-sheet *screen* not pixel-matched (P-8) |
-| Items | 70 % | 6 | table parsed, equip deltas derived; use-effects partial (P-6) |
-| Save **read** | 100 % | 4 | archive fixtures, checksum, content addressing |
-| Save **write** | 100 % | 4 | `build_save`/`write_save_file`; read→write byte-identical on every intact archive save; `--save-out` persists the party; tampered saves detected and flagged |
+| Analysis emulator (the oracle) | 100 % | 8 | stable; reproduces every oracle frame used below. Dev-only tooling, not shipped, but part of the project |
+| VOR intro + credits | 100 % | 3 | `EGA/IN/DRAG`, `EGA/IN/CRED` byte-exact; the credits palette vs DOSBox is P-14 |
+| Boot → menu | 100 % | 4 | `EGA/UP/MSCR` + `MENU`, font |
+| Town screens + buildings | 100 % | 7 | inn, shop/emporium, bank, house, temple (+ heal/revive/rest **prompts**). **Menus only** — the transactions and state effects are P-7 |
+| Town state effects (rest/heal/shop/bank) | 10 % | 6 | the screens exist but do nothing; gold/HP cannot change — P-7 |
+| DNGS decode (all 29 levels) | 100 % | 4 | tiles + object layer + header |
+| Dungeon first-person view | 80 % | 11 | Temple (`D5`) depth march pixel-exact. The outdoor (`D0`) composite is exact **for one cell only**; the scenery rule is overfit (**G-013**) — P-9. The outdoor **wall** case is derived and tested (`DP036` at the map edge, `DP001` otherwise) |
+| Object/feature semantics | 40 % | 7 | selector, trigger, type dispatch, text path, once-only gate, the `+0x0e` answer line, the type-16 coffin latch and the type-7 door *destination* are live; the per-type *effects*, the recruit stat block (**G-018**) and the door *move* (**G-017**) are P-2 |
+| Level transitions (stairs) | 85 % | 3 | stairs/portals/level changes work and are decompiled (`0x2e7fa`); open: non-stair object codes |
+| Encounter screen | 100 % | 4 | `SYST/NSCnn` record → `CHAR0/CHnn` |
+| Combat: decision / round / result model | 78 % | 9 | melee round derived (`0x14D80` fallback), hit score, hand-slot weapon pick, `rand(damage)+1`, XP multiplier, defender rows (`0x27A1E`) and the `W` break check (`0x15852`) all derived; `--fight`/`--ui` wired. Open: `P`/`B` (P-11), the no-live-target state |
+| Combat: monster turn + spells | 25 % | 9 | monster path `0x159F8` is mapped but the shipped gate aborts (monsters do not act — the port matches), and spells (`+0x0f == 4`) and the quick-combat loop are unported — P-3, P-5 |
+| Character data (SPEC/ROST/SNSC) | 90 % | 5 | parse + checksum + save write done; the char-sheet *screen* is not pixel-matched (P-8) |
+| Items + use effects | 65 % | 5 | table parsed, equip deltas derived; use-effects partial (P-6) |
+| Save **read** | 100 % | 3 | archive fixtures, checksum, content addressing |
+| Save **write** | 100 % | 3 | `build_save`/`write_save_file`; read→write byte-identical on every intact archive save; `--save-out` persists; tampered saves detected and flagged |
+| Overworld / wilderness travel | 20 % | 6 | the wilderness play screen renders and the walk model exists, but leaving town (the `(C)ontinue` path + amulet page), overworld movement and encounter rolls are unported — P-4 |
+| Misc polish (char sheet, all-out msg, depth-2+ sprites, VOR palette) | 15 % | 3 | P-8, P-13, P-12, P-14 |
+| **Weighted total** | **69.4 %** | **100** | |
 
 ---
 
@@ -69,8 +81,8 @@ first.
 |---|------|------|---------------|--------------------------|
 | ~~**P-1**~~ | ~~**Save writer.**~~ **DONE** | — | Persistence — the largest single capability of the last revision. | `build_save()`/`write_save_file()`; read→write **byte-identical** on every intact archive save; `lof --walk --save-out` persists. `port/char.{h,cpp}`, `tests/char_test.cpp`, `tests/port_walk_test.py` |
 | **P-2** | **Object-code semantics** — the remaining per-type effects (old P-2) | 1–2 | **High.** Doors and pickups are how a dungeon is explored. **Answer-input path DONE 2026-11-21:** `fire_cell_event()` now classifies the reply (`classify_answer`), prints the outcome line `+0x0e` per the `+0x4b` rule, and fires the effect **only** on a match; `lof --walk --answer TEXT` drives it, pinned by `tests/answer_path_test.py` (no answer → prompt only; `N` → line, no effect; `Y` → line + effect). | **Recruit line DONE 2026-11-21:** the accept path prints the engine's own " joins the companionship." (image `0x44E05`); `0x1D99A` copies only the class *name* into the slot (its `strlen` stops at the record's NUL), so the roster is not mutated and the stat origin is filed as **G-018**. **Type-16 latch DONE 2026-11-21:** `[0x7d1c]` is a *two-visit latch* for type 16 (lava / sarcophagus): the entry path (`0x1FA8F`) sets it, and the next visit (`0x1F639`) clears it, prints `ds:0x80d2` "The companions arise out of the coffin." (read from the live data segment) and jumps to `0x21276`, skipping the record's own text. `CoffinLatch` implements it; char_test pins the cycle. **Type-7 door DONE 2026-11-21:** `door_target()` stores `+0xe4`/`+0xe6`/`+0xe8` as the destination (location, map, cell) plus the pending flag, exactly as `0x20AD7..0x20B13` writes `0x37fa`/`0x460e`/`0x3824`/`0x3b15`; the consumer of `[0x3b15]` is still unknown (**G-017**), so the party does not yet move. The type-7 door writes `0x37fa`/`0x460e`/`0x3824`/`0x3b15` (`0x20AD7`..`0x20B13`); the recruit stat block is the SNSC copy at `0x20F02`/`0x1D99A`. `port/dungeon.{h,cpp}`, `port/lof.cpp` |
-| **P-3** | **Monster attack path + quick-combat loop** (`0x159F8`, `0x17BAA`) (old P-3) | 8–14 | **High.** Combat where the enemy never strikes is not combat. | **Entry mapped** (`docs/notes-b.md`): marker-1 gate, `+0x37 == 0x0c` HP cap, `+0x106`/`+0x108` → `0x137DE`, `+0x10e` → `0x15DF8`, `6*attacker[+0x05]` into `[0xafca]:0x3d48`, `[0xafc2]:0x3de9`; all combat segment globals alias arena `0x468E` and are static data. **The per-round row rebuild is DECODED (2026-11-21)** — image `0x27B3A`..`0x27B65`, found with `LOF_WATCH` on a live round: `+0x06 = -(10*(4 - rec[+0x29]))` (Mercenary `0xEC`), `+0x04 = 100*HP/(8*rec[+0x2c])`, `+0x0a` = the HP word from `[0xb082]:0x52 -> +0x9e`.  `defender_row()` implements both.  So the rows are done.  The path itself is now partially transcribed (`docs/notes-b.md` §3a): the dispatcher `0x137E6` sends every non-party actor to `0x159F8`; the *live* route is `0x15DF8` -> `0x15E1F` (the message variant at `0x15B1E` is not taken, because the monster instance's `+0x10e` is 0); gates `char[+0x1f] != 7`, `row[+0x16] == 0xff`, `inst[+0x106]|+0x108 == 0`; then the `+0x2b` range code and the `0x212f:0x9342` target call.  **`row[+0x16]` is now resolved by capture**: `[bp+6]` *is* the row (`468E:0258`), the rows are 12 bytes, so `+0x16` aliases the **next row's HP low byte**; here it is `0x10`, so the gate **aborts and the Mercenary never acts** — which is exactly what the emulator does, and what the port already does (its round loop only iterates party members).  **Scope reduced (8–14 h -> 4–7 h).**  Remaining: (a) ~~sweep the encounters~~ — settled by arithmetic: the gate needs the next row's HP low byte to be `0xff`, rows are built with HP a multiple of 8, so only a *damaged* row at exactly 255 can open it (the shipped Mercenary 8/16 never does); a positive test would need a big monster damaged by 1; (b) transcribe `0x15E1F`..`0x15Fxx` and the damage application only for the reachable case; (c) `0x17BAA`, now identified as the **party action dispatcher** (six slots, action 3/4 -> the object/spell branch at `0x17C04`, else the attack path at `0x17C8F`), so its two arms belong to P-5/P-6 rather than to P-3. `port/combat.{h,cpp}` |
-| **P-4** | **Town exit / wilderness travel** — *new in this revision* | 12–24 | **High.** The wilderness is currently reachable only by loading a save that starts there. The town `(C)ontinue` path is the normal way out. | The town-exit sub-menu (`ds:0x5AA2`, x=139) after the first `C`, then the second `C` heads out; the overworld map, its movement and its encounter rolls. `port/lof.cpp`, `port/screens.*` |
+| **P-3** | **Monster attack path + quick-combat loop** (`0x159F8`, `0x17BAA`) (old P-3) | 4–7 | **High.** Combat where the enemy never strikes is not combat. | **Entry mapped** (`docs/notes-b.md`): marker-1 gate, `+0x37 == 0x0c` HP cap, `+0x106`/`+0x108` → `0x137DE`, `+0x10e` → `0x15DF8`, `6*attacker[+0x05]` into `[0xafca]:0x3d48`, `[0xafc2]:0x3de9`; all combat segment globals alias arena `0x468E` and are static data. **The per-round row rebuild is DECODED (2026-11-21)** — image `0x27B3A`..`0x27B65`, found with `LOF_WATCH` on a live round: `+0x06 = -(10*(4 - rec[+0x29]))` (Mercenary `0xEC`), `+0x04 = 100*HP/(8*rec[+0x2c])`, `+0x0a` = the HP word from `[0xb082]:0x52 -> +0x9e`.  `defender_row()` implements both.  So the rows are done.  The path itself is now partially transcribed (`docs/notes-b.md` §3a): the dispatcher `0x137E6` sends every non-party actor to `0x159F8`; the *live* route is `0x15DF8` -> `0x15E1F` (the message variant at `0x15B1E` is not taken, because the monster instance's `+0x10e` is 0); gates `char[+0x1f] != 7`, `row[+0x16] == 0xff`, `inst[+0x106]|+0x108 == 0`; then the `+0x2b` range code and the `0x212f:0x9342` target call.  **`row[+0x16]` is now resolved by capture**: `[bp+6]` *is* the row (`468E:0258`), the rows are 12 bytes, so `+0x16` aliases the **next row's HP low byte**; here it is `0x10`, so the gate **aborts and the Mercenary never acts** — which is exactly what the emulator does, and what the port already does (its round loop only iterates party members).  **Scope reduced (8–14 h -> 4–7 h).**  Remaining: (a) ~~sweep the encounters~~ — settled by arithmetic: the gate needs the next row's HP low byte to be `0xff`, rows are built with HP a multiple of 8, so only a *damaged* row at exactly 255 can open it (the shipped Mercenary 8/16 never does); a positive test would need a big monster damaged by 1; (b) transcribe `0x15E1F`..`0x15Fxx` and the damage application only for the reachable case; (c) `0x17BAA`, now identified as the **party action dispatcher** (six slots, action 3/4 -> the object/spell branch at `0x17C04`, else the attack path at `0x17C8F`), so its two arms belong to P-5/P-6 rather than to P-3. `port/combat.{h,cpp}` |
+| **P-4** | **Town exit / wilderness travel** | 10–20 | **High.** The wilderness is currently reachable only by loading a save that starts there. The town `(C)ontinue` path is the normal way out. | **Reconnaissance DONE 2026-11-21 (session 38):** the owner-supplied key script was validated against the emulator — new game + leave town = `[any key] - a - 2 - c - c - c - 1`; load = `[any key] - o - [slot]`. The third `c` opens the **amulet page**, which is the engine's generic *give-an-artefact* flow (engine strings `0x3CF49` "On starting your journey…", `0x43A00` "artefact:" + kind list, `0x43ADD` "(L)eave it", `0x3E6DC` "Amulet") — implement one `give_artefact()` and reuse it, not an amulet special case. The `1` leaves town into the wilderness, matching the slot-2 play capture at 0.9272. Captures archived: `ref/emu/amulet_newgame.png`, `ref/emu/town_exit_wilderness.png`. **Open, in order:** (1) the amulet page's font/layout (sweeps ruled out CHR1/CHR2 at 5/6/8 px and every EGA page image — it is code-drawn); (2) disassemble the give-item routine, first verifying the LZEXE image→`ds` mapping with `tools/mz.py load()+flat()` against the known pair file `0x42BD0` ↔ `ds:0x0EC0` ("Defends"); (3) the 24-frame `EGA/ANIM/AN00..AN53` transition + `EGA/PAGE/PG00`; (4) outdoor movement + encounter rolls. `port/lof.cpp`, `port/screens.*` |
 | **P-5** | **Spells in combat** (old P-4) | 12–20 | **High**, but only once P-3's loop exists to cast in. | The spell table + the cast path in the combat dispatcher; `Cast Spell` is `+0x0f == 4`. `port/combat.{h,cpp}` |
 | **P-6** | **Item use effects** (old P-5) | 8–14 | **Medium-high.** Potions/scrolls are how a party survives. | Dispatch `0x0E89D`/`0x0EDB0` located; wire the proven effect values (G-004). `port/char.{h,cpp}` |
 | **P-7** | **Town state effects** — inn rest, temple heal/revive, shop and bank transactions — *new in this revision* | 10–18 | **Medium-high.** The screens exist but do nothing, so gold and HP cannot change; that makes the town a museum rather than a place to prepare. | The heal/rest/transaction routines behind `--inn-rest`, `--temple-heal`, `--temple-revive`, `--emporium`, `--bank`; `write_save_file()` already exists for the result. `port/lof.cpp`, `port/char.*` |
@@ -80,6 +92,8 @@ first.
 | **P-11** | **`P` / `B` round flags** — *new in this revision* | 2–4 | **Low, and blocked on P-3.** Two of the three round-result columns are always blank. **`P` guard derived 2026-11-21** (`0x1756D`..`0x1759D`): defender dexterity `+0x46 > 11`, a shield in slot `[bp-0x30]` (armour `[bp-0x3e]` at `0x1777A`), then `sub slot[+0x85], 2` and `P = 1`; message gate `[0xafc2]:0x3de9 == 0`. Remaining: **it is blocked on P-3, not on the slot scan.**  The `P` event runs in the *defender* path, and the only defender that has inventory is a party member — i.e. it needs a monster attack to land.  Until P-3 exists nothing in the port can reach it, so the slot scan (`weapon_slots()` covers only the two weapon hands; the shield/armour slots would mirror `defense_from_items`' equipped-class scan, item class 3 = shield, 2 = armour) is the second half of the work, not the first. `B` is untouched (`0x12846`/`0x13D7D`/`0x1471C`). Flag array `[0xafdc]+0x5608`: `W` done, `P` `+0x5609`, `B` likely `+0x560A`. `port/combat.*`, `port/char.*` |
 | **P-12** | **Depth-2/≥3 bank sprite numbers** (old P-9) | 3–5 | **Low.** Non-Temple deep-dungeon views only. | Emulator depth sweep on a non-Temple save. `port/dungeon.cpp` |
 | **P-13** | **All-out-of-action message** (old P-10) | 2–4 | **Low.** Cosmetic. | Trigger decoded (`[bp-0x36]`, `0x18449`); blocked on the message colour — needs a mid-encounter oracle frame. `port/lof.cpp` |
+| **P-14** | **VOR credits palette** — *new in this revision* | 2–4 | **Low.** Cosmetic; the VOR stills are byte-exact to the decoded data but a DOSBox capture of the credits matches only 81.3 % because of a consistent index translation (VOR likely programs a custom attribute palette for the stills). | Trace `INT 10h AH=10h` (set palette) in `VOR.EXE` and reproduce the custom set, or confirm DOSBox's default is the cause. `docs/notes-maintainer-vor.md`. `port/vor.cpp`, `port/gfx.cpp` |
+| **P-15** | **Event-key table 70-entry overflow** (G-014) — *new in this revision* | 1–2 | **Low.** No shipped level reaches it; the port caps at `kEventKeyMax` and never overflows. | Feed the emulator a synthetic DNGS with >70 distinct tile-3 object words and watch `[0x7d00]` and the resulting SPEC index. `port/dungeon.cpp` |
 
 ### Done (kept for context; no action)
 
@@ -110,8 +124,8 @@ worth stating:
 | task | low h | high h |
 |------|-------|--------|
 | P-2 object codes (stat block, per-type effects) | 1 | 4 |
-| P-3 monster attack + combat loop | 8 | 14 |
-| P-4 town exit / wilderness travel | 12 | 24 |
+| P-3 monster attack + combat loop (reduced scope) | 4 | 7 |
+| P-4 town exit / wilderness travel | 10 | 20 |
 | P-5 spells in combat | 12 | 20 |
 | P-6 item use effects | 8 | 14 |
 | P-7 town state effects (rest/heal/shop/bank) | 10 | 18 |
@@ -121,11 +135,14 @@ worth stating:
 | P-11 `P`/`B` flags | 2 | 4 |
 | P-12 depth-2+ sprites | 3 | 5 |
 | P-13 all-out message | 2 | 4 |
-| **total** | **74** | **133** |
+| P-14 VOR credits palette | 2 | 4 |
+| P-15 event-key overflow (G-014) | 1 | 2 |
+| **total** | **71** | **128** |
 
-So **~74–133 agent-hours** remain.  The upper bound is 40 h above lof2/M-5's
-estimate because P-4 (town exit) and P-7 (town state effects) were missing from
-that list, not because any finished work regressed.
+So **~71–128 agent-hours** remain.  P-3 dropped to its reduced scope (4–7 h, not
+8–14 h) and P-4 to 10–20 h after its 2026-11-21 reconnaissance; P-14/P-15 add
+3–6 h.  The range is still dominated by the four big gameplay items (P-4, P-5,
+P-7 and the P-3/P-6 pair), not by polish.
 
 ---
 
@@ -161,5 +178,10 @@ that list, not because any finished work regressed.
   0.9926, not 1.0.  Two lessons, both in §4: a second capture is only evidence if
   its bytes actually differ, and a score below 1.0 must be *explained pixel by
   pixel* before it is called a residual.
-- No guess is introduced by this plan. Every task above names a ground truth.**Script validated 2026-11-21 (owner-supplied keys):** new game + leave town = `[any key] - a - 2 - c - c - c - 1`; load a game = `[any key] - o - [slot]`.  The third `c` opens the amulet page (`ref/emu/amulet_newgame.png`, 12 colours) and the `1` leaves town into the wilderness, matching the slot-2 play capture at 0.9272.  NEXT: OCR the amulet page (CHR1/CHR2, now that the frame is valid and archived), render it, then the animation and the outdoor movement. |
+- No guess is introduced by this plan. Every task above names a ground truth.
+- **P-4 reconnaissance** (2026-11-21, session 38) is recorded in the P-4 row: the
+  leave-town key script is validated, the amulet page is the generic
+  give-an-artefact flow, and the wilderness destination matches the slot-2
+  capture at 0.9272.  The amulet page's font/layout, the give-item routine, the
+  animation and the outdoor movement remain open.
 

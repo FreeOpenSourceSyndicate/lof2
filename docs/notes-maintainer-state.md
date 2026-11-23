@@ -5,6 +5,47 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
+
+Lane M, sole active agent (lof2/M-6). Read the rules, guess register, owner
+tasks, handoff, risks, workstreams and every notes file. No open PRs
+(`0` open) and no open blockers (A/B/M all resolved). Working tree clean at
+`3a6088d`. `make port` builds; `make test` passes the CPU + font tests and only
+fails `dungeon_test` because `game/` is absent (git-ignored) — run
+`./bootstrap.sh` first on a fresh box.
+
+**What this session changed (docs only):**
+
+- **Completion figure corrected to ~70 %.** The previous ~87 % weighted only the
+  finished screens/models and silently omitted four gameplay subsystems that the
+  queue already lists but that are still at 0–25 %: overworld travel (P-4), town
+  transactions (P-7), spells (P-5) and the monster's turn (P-3). §1 now carries
+  the whole-game table (weights total 100, weighted sum **69.4 %**) and keeps the
+  old screens-only figure for continuity. The arithmetic is in the table so it
+  can be checked.
+- **P-4 progress recorded** (from session 38): leave-town key script validated,
+  amulet page = generic give-an-artefact flow, wilderness destination 0.9272.
+  Estimate 12–24 → 10–20 h; open items listed in order.
+- **P-3 estimate** corrected to its reduced scope (4–7 h, not 8–14 h), matching
+  its own row.
+- **Two missing queue rows added:** P-14 VOR credits palette (from
+  `docs/notes-maintainer-vor.md`) and P-15 the G-014 event-key 70-entry overflow.
+- **Remaining effort** recomputed: ~71–128 agent-hours.
+- **Single-queue pointer reconciled** (Rule 9/Rule 7): RULES Rule 8 + checklist
+  and HANDOFF §4 now point at `docs/PLAN.md` §2 as the authoritative queue;
+  HANDOFF §4 is relabelled the per-item status log. Changelog entry added.
+
+**Open guesses (revisited per Rule 4):** watchlist G-005 (wall set — renderer
+half decompiled, mover oracle-derived), G-007 (depth-2+ `CHnn` numbers
+scenario-5), G-004 (descriptive item-effect labels beyond traced values), G-012
+(`P`/`B` flags + no-target state), G-013 (outdoor scenery rule — partly
+resolved, needs the D0 draw routine). Queued-normal G-014/15/16/17/18 map to
+P-2/P-15. **No owner decision is currently required** (GUESSWORK section A is
+empty; OWNER-TASKS "Open" is empty).
+
+**Next queue item:** P-2 (object-code semantics) is the top open item; P-4
+(overworld travel) is the largest player-visible gap.
+
 ## Session 2026-11-21 (thirty-eighth session) — town exit / P-4 entry
 
 Lane M. Closed **P-2** and **P-3** earlier in the cycle, then worked **P-4**

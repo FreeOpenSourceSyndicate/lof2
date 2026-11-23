@@ -145,13 +145,15 @@ The emulator is the oracle. For any screen or behaviour you implement in `port/`
 A subsystem is "done" when the drop-in matches the oracle frame for the relevant
 screen, and `make test` still passes.
 
-## 4. Work queue (pick the top unclaimed item)
+## 4. Work item registry (status log — the queue itself is `docs/PLAN.md` §2)
 
-This is the **single queue** for the whole project — there is one lane
-(`docs/WORKSTREAMS.md`), so **every** agent pulls from here. The **Area** column
-says which domain an item touches; when more than one agent runs, agents pick
-items whose areas are **disjoint** so two never edit the same file. Claim an item
-by pushing `work/<yourname>` with a one-line claim at the top of your notes file.
+The **authoritative, priority-ordered queue is `docs/PLAN.md` §2** (`P-1`…`P-15`),
+with the estimates and the completion table. This table is the **per-item status
+log/registry** that feeds it: it records what is done and where each item's ground
+truth lives. Update both when an item lands. There is one lane
+(`docs/WORKSTREAMS.md`), so **every** agent pulls from the same queue; when more
+than one agent runs, agents pick items whose areas are **disjoint** so two never
+edit the same file.
 
 | # | Area | Item | Ground truth / next step | Files | Status |
 |---|------|------|--------------------------|-------|--------|

@@ -124,7 +124,7 @@ which owns the whole tree. The old lane definitions are **kept in
 transparent and fan-out stays safe.
 
 - **Working alone (the normal case):** the Maintainer lane may edit **any** file,
-  and works the single queue in `docs/HANDOFF.md` §4.
+  and works the single queue in `docs/PLAN.md` §2.
 - **When more than one agent runs:** agents take items off the **same** single
   queue. The one rule that replaces "stay in your lane" is: **do not start an
   item that touches the same area (or the same file) as an item another active
@@ -239,7 +239,7 @@ of file to use as a test fixture.
 3. Read `docs/OWNER-TASKS.md` — the Maintainer re-reminds the owner of every
    open owner task in the reply/handover.
 4. Read `docs/HANDOFF.md`, `docs/RISKS.md`, `docs/WORKSTREAMS.md`.
-5. Pick the top unclaimed item from the queue in `docs/HANDOFF.md` §4; if more
+5. Pick the top unclaimed item from the queue in `docs/PLAN.md` §2; if more
    than one agent is active, pick one in a disjoint area (Rule 8).
 6. Run `./bootstrap.sh` and `./check.sh` if the workspace may have reset.
 7. **Sweep open PRs** (Rule 11): `gh pr list --state open`. The author owns its
@@ -254,6 +254,16 @@ of file to use as a test fixture.
 ---
 
 ## Changelog (newest first)
+
+### 2026-11-23 — Single-queue pointer reconciled
+
+- `docs/PLAN.md` §2 is the authoritative priority queue (it carries the `P-n`
+  IDs, the estimates and the completion table). `docs/RULES.md` (Rule 8 + the
+  session checklist) and `docs/WORKSTREAMS.md` pointed at different files
+  (`docs/HANDOFF.md` §4 vs `docs/PLAN.md` §2). Both now point at
+  `docs/PLAN.md` §2, and `docs/HANDOFF.md` §4 is re-labelled the per-item
+  **status log** that feeds the queue. No rule *intent* changed — only the stale
+  pointer — so this is recorded here rather than as a new rule.
 
 ### 2026-11-20 — User-created saves are project assets (Rule 12)
 
