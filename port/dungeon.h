@@ -282,6 +282,12 @@ bool dungeon_place_entry(const Dungeon& d, DungeonPos& p);
 // false only if no passable cell exists at all.
 bool dungeon_place_cell(const Dungeon& d, DungeonPos& p, int cell, int facing);
 
+// Raw teleport used by a type-11 event: the handler (0x20CD7..0x20CE4) writes
+// the record's `+0xe4` straight into the party-cell global `[0x3824]` with no
+// passability check and no facing change, so this sets `p.x`/`p.y` from the
+// cell and leaves `p.facing` alone.  Returns false for an out-of-range cell.
+bool dungeon_teleport_cell(DungeonPos& p, int cell);
+
 // Follow a type-7 door: load the destination map (`<dir>/DNGS/DNG<nn>` for
 // `dest_location`, the save's tens*10+ones encoding), place the party at `cell`
 // keeping `pos.facing`, and set `location`.  Returns false and leaves

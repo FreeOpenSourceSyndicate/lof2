@@ -1768,6 +1768,41 @@ static void test_door_follow(const std::string& dir) {
     std::printf("dungeon_test: door follow ok (SPEC2[0] -> DNG11 cell %d)\n", t.cell);
 }
 
+// A type-11 event teleports within the current map: the handler writes the
+// record's +0xe4 straight into the party-cell global.  The seven shipped
+// type-11 records all carry a valid cell; SPEC3[54] ("You dive under the
+// rock...") -> cell 1168 = (16,32), and the facing is unchanged.
+static void test_teleport(const std::string& dir) {
+    const std::string root = dir + "/..";
+    int checked = 0;
+    for (int sc = 0; sc < 10; ++sc) {
+        SpecTable t = load_spec(root + "/SYST/SPEC" + std::to_string(sc));
+        if (!t.ok) continue;
+        for (const SpecRecord& r : t.records) {
+            if (r.type != 11) continue;
+            assert(r.counter >= 0 && r.counter < kDungeonW * kDungeonH);
+            ++checked;
+        }
+    }
+    assert(checked == 7 && "the release must carry seven type-11 records");
+
+    SpecTable s3 = load_spec(root + "/SYST/SPEC3");
+    assert(s3.ok && s3.records.size() > 54);
+    const SpecRecord& r = s3.records[54];
+    assert(r.type == 11 && r.counter == 1168);
+    DungeonPos pos;
+    pos.x = 5; pos.y = 6; pos.facing = 3;
+    assert(dungeon_teleport_cell(pos, r.counter));
+    assert(pos.x == 16 && pos.y == 32 && pos.facing == 3);  // facing unchanged
+
+    DungeonPos bad = pos;
+    assert(!dungeon_teleport_cell(bad, kDungeonW * kDungeonH));
+    assert(bad.x == pos.x && bad.y == pos.y && bad.facing == pos.facing);
+
+    std::printf("dungeon_test: teleport ok (%d type-11 records; SPEC3[54] -> cell 1168 = 16,32)\n",
+                checked);
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_render();
@@ -1804,6 +1839,7 @@ int main(int argc, char** argv) {
     test_view_depth(dir);
     test_stairs(dir);
     test_door_follow(dir);
+    test_teleport(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }

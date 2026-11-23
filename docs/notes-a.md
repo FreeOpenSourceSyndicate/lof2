@@ -3469,6 +3469,38 @@ the only shipped type-7 record: ones=1, tens=1, cell=572 -> location 11
 test_door_follow` pins the decode, the real map follow (DNG05 -> DNG11 at 572)
 and the bad-destination no-op.
 
+### Per-type effects — the dispatch chain after the type-7 door (2026-11-23)
+
+After the type-7 door check (`0x20ACF cmp type,7`), the dispatcher falls into a
+chain of `cmp type,N / jne` handlers at `0x20B16..0x20F60`.  Decoded:
+
+| type | handler | effect |
+|------|---------|--------|
+| 19 | `0x20B2A` | every cell with `[0x46d8+i]==3 && [0x4be8+2i]==3` -> `[0x4be8+2i]=8` (map-wide rewrite) |
+| 20 | `0x20B8A` | cells with byte==3 && word==5 -> byte=0, word=0 |
+| 21 | `0x20BF4` | cells with byte==6 -> byte=3, word=6 |
+| 22 | `0x20C50` | cells with byte==3 && word==6 -> byte=6, word=0 |
+| 11 | `0x20CB7` | party cell `[0x3824] = record+0xe4` (same-map teleport); done |
+| 18 | `0x20CB7` | the same cell write, then **every** present member: `hp(+0x22) -= f(+0xe6)+1`, clamped >= 0, slot redrawn |
+| 12 | `0x20D9C` | set the per-(location,object) latch `[0xb052]:0x13ce[0x510*+0xe4 + +0xe6]=1`; if `+0xe4 ==` current location (`[0x460e]`), clear object `+0xe6` (byte `[0x46d8]=0`, word `[0x4be8]=0`) |
+| 10 | `0x20E2C` | slot scan; if a free sub-slot at `+0x83` is found, print `ds:0x858c` and set party cell `[0x3824]=[0x7d14]` |
+
+`0x46d8` (byte) and `0x4be8` (word) are `0x510`-entry per-cell runtime arrays
+(the 36x36 map); `0x13ce` is a per-(location,object) latch.  Their build from the
+DNGS object layer is not decoded yet, so the type-19/20/21/22/12 map mutations
+are not ported.
+
+Field meanings are confirmed against the data: the seven type-11 records carry
+`+0xe4` in 314..1168 (valid cells) with texts like "You dive under the rock and
+come up on the other side"; the two type-18 records carry `+0xe4` = 304/862 (a
+cell) and `+0xe6` = 20/30 (the damage scale) with slipping/sliding texts.
+
+**Type 11 is ported** — `dungeon_teleport_cell()` (a raw set, no passability
+check, facing unchanged, matching the handler's blind `[0x3824]` write) plus the
+`fire_cell_event()` branch; pinned by `dungeon_test::test_teleport`.
+**Type 18's damage** still needs the RNG at `0x2a7d:0x2f6a` (image `0x2D73A`,
+which chains `0x1dec`/`0x1f32`); its cell write is the same as type 11.
+
 ## What the recruit (type 1) record still needs
 
 **Solved (2026-11-08): the joining character is `SYST/SNSC[record+0xeb]`.**

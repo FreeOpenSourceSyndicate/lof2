@@ -46,6 +46,11 @@ RECRUIT_EVENT_TEST = python3 tests/recruit_event_test.py
 # already covers its +0xe6 index.  Exactly one shipped record is gated.
 ONCE_ONLY_TEST = python3 tests/once_only_test.py
 
+# (Agent A — dungeons) the type-11 teleport event: walking onto a type-11 record
+# writes its +0xe4 into the party cell (same map, facing unchanged).  End to end
+# on DNG17's Air Elemental (SPEC7[13], +0xe4=629), with a no-step control.
+TELEPORT_EVENT_TEST = python3 tests/teleport_event_test.py
+
 # (Maintainer — disassembly) the two address conventions for LOF.EXE.  Mixing
 # them silently lands in-image mid-instruction and is what hid the event
 # dispatcher's callers for a whole session.
@@ -61,4 +66,5 @@ LOCAL_TEST_CMDS = \
     ( $(ANSWER_PATH_TEST) ) && \
     ( $(RECRUIT_EVENT_TEST) ) && \
     ( $(ONCE_ONLY_TEST) ) && \
+    ( $(TELEPORT_EVENT_TEST) ) && \
     ( python3 tests/saves_test.py )

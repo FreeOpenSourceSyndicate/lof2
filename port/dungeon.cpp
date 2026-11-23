@@ -191,6 +191,13 @@ bool dungeon_place_cell(const Dungeon& d, DungeonPos& p, int cell, int facing) {
     return dungeon_place(d, p, cell % kDungeonW, cell / kDungeonW);
 }
 
+bool dungeon_teleport_cell(DungeonPos& p, int cell) {
+    if (cell < 0 || cell >= kDungeonW * kDungeonH) return false;
+    p.x = cell % kDungeonW;
+    p.y = cell / kDungeonW;
+    return true;
+}
+
 bool dungeon_follow_door(const std::string& dir, uint16_t dest_location,
                          int cell, uint16_t& location, Dungeon& d,
                          DungeonPos& pos) {

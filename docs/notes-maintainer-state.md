@@ -39,8 +39,19 @@ follow at cell 572 + bad-destination no-op); `tests/once_only_test.py` extended 
 assert the end-to-end `--walk` teleport (`(door -> location 11, cell 572)` and
 `walk: x=32 y=15`). `make test` and `make golden-port` both pass.
 
-**Next.** Remaining P-2 per-type effects and the recruit stat block (G-018);
-P-7 town transactions / P-4 wilderness are the bigger player-facing gaps.
+**Type-11 teleport (P-2, 2026-11-23).** After the door, the dispatcher's next
+handler chain (`0x20B16..0x20F60`) was decoded: type 11 (teleport to `+0xe4`),
+18 (same cell write + per-member `hp(+0x22) -= f(+0xe6)+1`), 12 (per-(location,
+object) latch + clear object), 19/20/21/22 (map-wide tile rewrites). Type 11 is
+implemented (`dungeon_teleport_cell()` + a `fire_cell_event()` branch), with a
+unit test (`dungeon_test::test_teleport`, 7 records, SPEC3[54] -> cell 1168) and
+an end-to-end `--walk` test (`teleport_event_test.py`, DNG17 Air Elemental ->
+cell 629 = (17,17)). The other handlers are documented in `notes-a.md`; type 18's
+RNG (`0x2a7d:0x2f6a`) is still to be derived.
+
+**Next.** Remaining P-2 per-type effects (12/18/19/20/21/22) and the recruit stat
+block (G-018); P-7 town transactions / P-4 wilderness are the bigger
+player-facing gaps.
 
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 

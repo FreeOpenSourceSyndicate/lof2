@@ -995,6 +995,21 @@ static bool fire_cell_event(const std::string& dir, uint16_t& location,
         return false;
     }
 
+    // Type 11: teleport within the current map.  The handler
+    // (0x20CD7..0x20CE4) writes the record's +0xe4 straight into the party-cell
+    // global [0x3824]; the map/location is unchanged and there is no answer
+    // tail.  Data confirms +0xe4 is a cell (the seven shipped type-11 records
+    // carry 314..1168).  See notes-a.md "Per-type effects".
+    if (r.type == 11) {
+        const int cell = r.counter;   // +0xe4
+        if (!dungeon_teleport_cell(pos, cell)) {
+            fprintf(stderr, "lof: type-11 teleport to bad cell %d\n", cell);
+            return false;
+        }
+        printf("lof:   (teleport -> cell %d)\n", cell);
+        return true;
+    }
+
     // Plain-text group with no extra tail work: the event is fully reproduced.
     if (r.type <= 6) return false;
     printf("lof:   (event type %u at %d,%d: effect not implemented)\n",
