@@ -194,9 +194,12 @@ charisma-haggling price variation (0x64c2) are not reproduced.
 and applies: effect 10 heal HP by `item.charges` (f3 high byte), clamped to
 hp_max; effect 3 poison (hp −= charges, set `+0x1f`=3 / `+0x57`=4 / `+0x58`=0x12);
 effect 1 enchant weapon (`+0x5e` += 2 when `+0x5e + +0x45 < 0x11`); effect 2
-enchant armour (`+0x5b` += 2).  `use_item_effect()` + `lof --use N ITEM`;
+enchant armour (`+0x5b` += 2); effect 30 cure poison (state 3 → clear
+`+0x1f`/`+0x57`/`+0x58`); effect 31 cure illness (state 4 → clear `+0x1f`).
+`use_item_effect()` + `lof --use N ITEM`;
 unit-tested (`char_test::test_use_item`) and e2e on GAME4 (healing potion
-20→21).  Item consumption is caller-side.  The `>10` branch (0xEDB0) is open.
+20→21).  Item consumption is caller-side.  Effects 15/40 (combine) and 34
+(lantern) in the >10 branch remain open.
 
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 

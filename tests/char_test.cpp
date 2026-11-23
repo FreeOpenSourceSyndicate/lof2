@@ -1505,6 +1505,18 @@ static void test_use_item() {
         assert(use_item_effect(p, poison) == "poisons");
         assert(p.raw[kCharStatus1f] == 3);
     }
+    // Effect 30 (antidote): clears the poisoned state 3.
+    int cure = -1;
+    for (int i = 1; i <= (int)kItemCount; i++) {
+        const ItemRecord* x = item_by_index(i);
+        if (x && x->effect == 30) { cure = i; break; }
+    }
+    if (cure > 0) {
+        SaveChar q{};
+        q.raw[kCharStatus1f] = 3; q.raw[0x57] = 4; q.raw[0x58] = 0x12;
+        assert(use_item_effect(q, cure) == "cures the poison");
+        assert(q.raw[kCharStatus1f] == 0 && q.raw[0x57] == 0 && q.raw[0x58] == 0);
+    }
 }
 
 int main(int argc, char** argv) {

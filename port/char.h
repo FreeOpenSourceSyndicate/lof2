@@ -1275,9 +1275,10 @@ bool buy_item(SaveGame& g, int char_idx, int item_index, ShopData* shop);
 // character `c`.  Derived effects: 10 heal HP by item.charges (clamped to
 // hp_max), 3 poison (hp -= charges; set status +0x1f=3 / +0x57=4 / +0x58=0x12),
 // 1 enchant weapon (+0x5e += 2 when +0x5e + +0x45 < 0x11), 2 enchant armour
-// (+0x5b += 2).  Returns a short verb ("heals"/"poisons"/...) or "" if the
-// effect is not derived.  Item consumption (removal from the slot) is the
-// caller's job in the engine and is not applied here.
+// (+0x5b += 2), 30 cure poison (state 3 -> clear +0x1f/+0x57/+0x58), 31 cure
+// illness (state 4 -> clear +0x1f).  Returns a short verb ("heals"/"poisons"/...)
+// or "" if the effect is not derived.  Item consumption (removal from the slot)
+// is the caller's job in the engine and is not applied here.
 std::string use_item_effect(SaveChar& c, int item_index);
 
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is

@@ -514,6 +514,15 @@ std::string use_item_effect(SaveChar& c, int item_index) {
     case 2:  // enchant armour (+0x5b)
         r[0x5b] += 2;
         return "enchants the armour";
+    case 30:  // cure poison (state 3 -> clear +0x1f/+0x57/+0x58)
+        if (r[kCharStatus1f] == 3) {
+            r[kCharStatus1f] = 0; r[0x57] = 0; r[0x58] = 0;
+            return "cures the poison";
+        }
+        return "finds no poison to cure";
+    case 31:  // cure illness (state 4 -> clear +0x1f)
+        if (r[kCharStatus1f] == 4) { r[kCharStatus1f] = 0; return "cures the illness"; }
+        return "finds no illness to cure";
     default:
         return "";
     }
