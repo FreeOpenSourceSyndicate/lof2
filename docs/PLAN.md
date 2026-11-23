@@ -27,7 +27,7 @@ because the earlier table measured only the finished screens/models and did not
 weight the gameplay still missing:
 
 - **Whole-game table (this revision): ~70 %.** Weights total 100 and the
-  weighted sum is **69.4 %**, rounded to ~70 %. This is the number to quote.
+  weighted sum is **69.8 %**, rounded to ~70 %. This is the number to quote.
 - **Screens-and-model figure (previous revision): ~87 %** (86.8 %). The same
   rows as then, without the gameplay rows added below; it overstates completion
   because P-3/P-4/P-5/P-7 were not weighted.
@@ -61,7 +61,7 @@ yet), *spells* in combat, and *the monster's turn*; then the fidelity residue
 | Save **write** | 100 % | 3 | `build_save`/`write_save_file`; read→write byte-identical on every intact archive save; `--save-out` persists; tampered saves detected and flagged |
 | Overworld / wilderness travel | 20 % | 6 | the wilderness play screen renders and the walk model exists, but leaving town (the `(C)ontinue` path + amulet page), overworld movement and encounter rolls are unported — P-4 |
 | Misc polish (char sheet, all-out msg, depth-2+ sprites, VOR palette) | 15 % | 3 | P-8, P-13, P-12, P-14 |
-| **Weighted total** | **69.4 %** | **100** | |
+| **Weighted total** | **69.8 %** | **100** | |
 
 ---
 
