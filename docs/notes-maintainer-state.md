@@ -5,6 +5,61 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-21 (thirty-eighth session) — town exit / P-4 entry
+
+Lane M. Closed **P-2** and **P-3** earlier in the cycle, then worked **P-4**
+(the town exit). The tree is green: `make port` builds, `./lof --screen UP/MSCR`
+renders, all named tests pass, working tree clean.
+
+**P-4 — what is now proven.**
+
+- **Validated key scripts** (owner-supplied, verified against the emulator):
+  new game + leave town = `[any key] - a - 2 - c - c - c - 1`; load a game =
+  `[any key] - o - [slot]`. The **third** `c` opens the amulet page; the `1`
+  leaves town into the wilderness.
+- **Destination**: after the digit, the frame matches the slot-2 wilderness play
+  capture at **0.9272** (town: 0.7136). Leaving town is always possible except
+  with no living character; a new game starts in the **Inn** (the boot menu *is*
+  the Inn), so the first `c` leaves the Inn and the next leaves town.
+- **The amulet page is the engine's generic "find an artefact" give-item flow**,
+  not a bespoke screen: `You find an artefact:` + kind + item name +
+  `Who should receive that (1-6)?` + `(L)eave it`. Engine strings (unpacked image
+  offsets): `0x3CF49` "On starting your journey, you receive an amulet from a
+  town guard. A gift from the Count.", `0x43A00` "artefact:" + the kind list
+  (`a weapon:`/`armour:`/`a shield:`/`some ammunition:`/`a magic staff:`/
+  `something to read:`/`a jewel:`), `0x43ADD` "(L)eave it", `0x3E6DC` "Amulet".
+  **Implement one `give_artefact()` and reuse it**, not an amulet special case.
+- **Reference captures archived**: `ref/emu/amulet_newgame.png` (the page, 12
+  colours) and `ref/emu/town_exit_wilderness.png`.
+
+**P-4 — what is open (in order).**
+
+1. The page's **font and layout are unknown**. Do *not* hand-place text. Sweeps
+   already ruled out: CHR1 at 6 px and at 8 px, CHR2 at 8 px, CHR2's compact 5x5
+   face at 5/6 px, and every `EGA/PAGE/*`, `EGA/IN/*`, `EGA/UP/*` image (no
+   match at any offset in index space). It is a code-drawn frame plus text.
+2. **Disassemble the give-item routine** — but first *verify* the image→`ds`
+   mapping: `LOF.EXE` is LZEXE-packed (`hdr` `0x54F0`), so `d[hdr:]` is **not**
+   the image; use `tools/mz.py` `load()`+`flat()` (needs **capstone**) and check
+   the known pair `file 0x42BD0` ↔ `ds 0x0EC0` (must read `Defends`) before
+   trusting any computed `ds`.
+3. Then: the 24-frame `EGA/ANIM/AN00..AN53` transition and `EGA/PAGE/PG00`, and
+   the outdoor movement itself (P-4's remaining bulk).
+
+**Environment caveat (important).** This workspace **drops pip installs between
+commands**: `numpy`, `pillow` and `capstone` each vanished mid-session. Reinstall
+before every analysis run (`pip install numpy pillow capstone`). `capstone` is
+needed by `tools/mz.py`, so a "module not found" there is the environment, not a
+broken tool.
+
+**Retracted.** My earlier "town exit is two-step / intermediate menu" reading in
+`docs/notes-b.md` §3c came from pressing `O`,`2`, which *loads save slot 2* — the
+emulator was never in town. The retraction and the corrected notes are in place;
+do not resurrect those numbers.
+
+**Still open from earlier sessions**: G-017 (consumer of `[0x3b15]`), G-018
+(recruit slot/capacity/stats).
+
 ## Session 2026-11-20 (thirty-seventh session) — combat round-result screen
 
 Lane M. The predecessor's round-result work was in `/tmp` only; this session
