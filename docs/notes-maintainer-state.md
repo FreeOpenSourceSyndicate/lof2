@@ -113,6 +113,20 @@ applies it and writes a sealed save. The amulet viewport is a *different scene*
 (78.8% differs from TWN00), not an overlay, so it stays best-effort. Pinned by
 `char_test::test_give_item` + `port_amulet_test.py`.
 
+**Pivot to P-7 — Inn-rest "who pays" prompt (2026-11-23).** P-4's remaining
+pieces are all blocked (the amulet viewport is a distinct scene, not any town
+tile even scrolled; the ANIM/PAGE transition pieces are small sprites needing
+sequencing decode; the `--ui` town flow needs the add-char chain), so I took
+the most tractable high-value slice of P-7.  Driving the emulator to the Inn
+(party added, then R,S) produced `ref/emu/inn_rest_pay.png`: the *second*
+Inn-rest step, "A nights stay and meal costs 2g, / who pays (1-6)? /
+(C)ontinue" over the MSCR+TWN03 chrome (viewport matches TWN03 plain at
+0.9994).  Implemented as `lof --inn-rest-pay [COST]`; the price is the
+engine's computed value (`"costs "+n+"g,"`), formula undecoded so it is a
+parameter.  Pinned by `tests/port_inn_rest_pay_test.py` (lines 1/3/4
+pixel-exact, cost line a 25px font-overlap residual).  The pay *effect*
+(deduct gold, restore HP/MP, advance the clock) is still open.
+
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 
 Lane M, sole active agent (lof2/M-6). Read the rules, guess register, owner

@@ -308,6 +308,17 @@ Progress:
       heal (1-6)?" / "Who should be revived / (1-6)?" + (C)ontinue.  All strings
       are the engine's own.  Guarded by `tests/port_inn_test.py` and the
       `temple_heal`/`temple_revive` rows of `tests/port_building_test.py`.
+- [x] Inn-rest **"who pays"** prompt (`--inn-rest-pay [COST]`): the *second*
+      Inn-rest step (after `--inn-rest`'s (S)imple choice) — "A nights stay
+      and meal costs <n>g," / "who pays (1-6)?" / "(C)ontinue" over the same
+      MSCR + TWN03 chrome.  The price is the engine's computed value
+      (`"A nights stay and meal " + "costs " + n + "g,"`, strings
+      0x412bf/0x412d7); its formula is undecoded, so it is a parameter
+      (oracle = 2g for a 1-member party).  Ink-matched to
+      `ref/emu/inn_rest_pay.png` (lines 1/3/4 pixel-exact, cost line a 25px
+      font-overlap residual); `tests/port_inn_rest_pay_test.py`.  The pay
+      *effect* (deduct gold, restore HP/MP, advance the clock) is still open
+      (P-7).
 - [x] Encounter screen (`--encounter`): the wandering-monster screen the engine
       draws when it spawns enemies (first met from the wilderness).  It reuses
       the play screen's chrome — `EGA/UP/MSCR`, the party/status panel (its

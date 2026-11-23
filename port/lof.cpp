@@ -754,6 +754,29 @@ static bool compose_inn_rest_screen(const std::string& dir, Screen& s, std::stri
     return true;
 }
 
+// The Inn's "who pays" prompt, shown after choosing (S)imple nights stay: the
+// engine prints "A nights stay and meal costs <n>g," (wrapped) then "who pays
+// (1-6)?" over the same MSCR + TWN03 chrome as --inn-rest.  The price is the
+// engine's computed value ("A nights stay and meal " + "costs " + n + "g,",
+// strings 0x412bf/0x412d7); its formula is not yet derived, so it is a
+// parameter (default 2 = the 1-member oracle `ref/emu/inn_rest_pay.png`).
+static bool compose_inn_rest_pay_screen(const std::string& dir, int cost, Screen& s,
+                                        std::string& err) {
+    s.resize(320, 200);
+    s.clear(0);
+    if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
+    if (!blit_ega(s, dir + "/EGA/TWN/TWN03", kViewportX, kViewportY, &err)) return false;
+    Font font;
+    if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
+    font.draw_text(s, 139, 92, "A nights stay and meal costs", 15);
+    char buf[24];
+    std::snprintf(buf, sizeof buf, "%dg,", cost);
+    font.draw_text(s, 139, 100, buf, 15);
+    font.draw_text(s, 139, 108, "who pays (1-6)?", 15);
+    font.draw_text(s, 139, 124, "(C)ontinue", 0);
+    return true;
+}
+
 // --dump-dungeon: decode a few DNGS/DNGxx levels and print the 36x36 floor
 // plan (and object layer) so the recovered map format is visible from the
 // shipped front-end.
@@ -1579,6 +1602,8 @@ int main(int argc, char** argv) {
     bool house_flag = false;
     bool temple_flag = false;
     bool inn_rest_flag = false;
+    bool inn_rest_pay_flag = false;
+    int inn_rest_pay_cost = 2;
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
@@ -1604,6 +1629,11 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--house") house_flag = true;
         else if (std::string(argv[i]) == "--temple") temple_flag = true;
         else if (std::string(argv[i]) == "--inn-rest") inn_rest_flag = true;
+        else if (std::string(argv[i]) == "--inn-rest-pay") {
+            inn_rest_pay_flag = true;
+            if (i + 1 < argc && argv[i + 1][0] >= '0' && argv[i + 1][0] <= '9')
+                inn_rest_pay_cost = atoi(argv[++i]);
+        }
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
@@ -1687,7 +1717,7 @@ int main(int argc, char** argv) {
         round_rows.push_back({0, false, false, false, 1});
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||
-        inn_rest_flag || temple_heal_flag || temple_revive_flag) {
+        inn_rest_flag || inn_rest_pay_flag || temple_heal_flag || temple_revive_flag) {
         std::string err;
         Screen s;
         bool ok = temple_heal_flag   ? compose_temple_prompt(dir, "Whose wounds should",
@@ -1695,6 +1725,7 @@ int main(int argc, char** argv) {
                   : temple_revive_flag ? compose_temple_prompt(dir, "Who should be revived",
                                                              "(1-6)?", s, err)
                   : inn_rest_flag      ? compose_inn_rest_screen(dir, s, err)
+                  : inn_rest_pay_flag  ? compose_inn_rest_pay_screen(dir, inn_rest_pay_cost, s, err)
                   : temple_flag  ? compose_temple_screen(dir, s, err)
                   : house_flag    ? compose_house_screen(dir, s, err)
                   : bank_flag   ? compose_bank_screen(dir, s, err)
