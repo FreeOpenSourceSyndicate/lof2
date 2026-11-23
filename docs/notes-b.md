@@ -1710,6 +1710,13 @@ it `receive`; the owner's `recieve` was their own typing.
 
 Next: resolve the image->`ds` offset mapping for this region and disassemble the
 code that references `0x3CF49`/`0x43A00` to get the layout and the font.
+
+**Tooling caveat (2026-11-21).**  Those offsets are in the **unpacked** image
+(`LOF.EXE` is LZEXE-packed; `hdr` is `0x54F0`), so `image = d[hdr:]` is wrong and
+a naive `ds = image + hdr - 0x41D10` does not resolve.  Use `tools/mz.py`
+(`load()` + `flat()`), which needs **capstone** — and note this environment
+drops pip installs between commands (`numpy`, `pillow`, `capstone` all vanished
+mid-session), so reinstall before each analysis run.
 Earlier "town exit" measurements are retracted: they came from `O`,`2`, which
 loads the wilderness save.
 
