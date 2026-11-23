@@ -290,9 +290,12 @@ Progress:
       effect** is implemented too: `give_item()` reproduces the engine's add
       routine (image `0x69e2..0x6c5f`) — first empty slot, charges from item
       +0x13, condition 100, `inv_used`++ — and `lof --amulet-give N --save S
-      --amulet-out O` applies it and writes a sealed save.  The town-guard
-      sprite overlaid on the viewport and the `--ui` town->wilderness wiring are
-      follow-ups (P-4).
+      --amulet-out O` applies it and writes a sealed save.  The page's viewport
+      is the plain street tile TWN00 (no separate guard sprite — 0.9993 vs
+      TWN00 with the emulator palette; the earlier "78.8% distinct scene" was a
+      stock-vs-emulator palette error, corrected after the owner confirmed in
+      DOSBox that the page is the town page with only the text changed), so only
+      the `--ui` town->wilderness wiring remains (P-4).
 - [x] Inn + Temple sub-prompts.  Neither the Inn nor the Temple is a `D5`
       first-person interior (that earlier note was a misconception — there is no
       such state).  The **Inn screen *is* the boot main menu**: the game starts

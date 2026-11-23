@@ -100,22 +100,24 @@ landed: the **give-artefact (amulet) page** (`lof --amulet [--save GAMEn]`),
 composing the play-screen chrome (MSCR + TWN00 viewport + party panel) + the
 engine's narration; the text block (rows 92/100/108/116/132/148/164) is
 **ink-mask exact** vs `ref/emu/amulet_newgame.png` (`tests/port_amulet_test.py`,
-`make golden-port`). Remaining P-4: the town-guard sprite overlaid on the TWN00
-viewport, the give-item effect (add the amulet to a character's inventory), the
-24-frame ANIM transition, and the `--ui` town->wilderness wiring.
+`make golden-port`). Remaining P-4: the 24-frame ANIM transition and the `--ui`
+town->wilderness wiring (the give-item effect and the viewport are done).
 
 **Give-item effect (2026-11-23).** Continued P-4: derived the engine's item-add
 routine (image `0x69e2..0x6c5f` — scan 48 slots for the first empty one, store
 the item, seed `charges` from item +0x13, set `condition`=100, `inc` the used
 count +0x6b at `0x6c2a`, refresh the carried weight) and implemented
 `give_item()` in `port/char`. `lof --amulet-give N --save S --amulet-out O`
-applies it and writes a sealed save. The amulet viewport is a *different scene*
-(78.8% differs from TWN00), not an overlay, so it stays best-effort. Pinned by
+applies it and writes a sealed save. The amulet viewport is the plain street
+tile TWN00 (0.9993 vs TWN00 with the emulator palette; the earlier "78.8%
+distinct scene" was a stock-vs-emulator palette-measurement error, corrected
+2026-11-23 after the owner confirmed in DOSBox that the page is the town page
+with only the text changed). Pinned by
 `char_test::test_give_item` + `port_amulet_test.py`.
 
 **Pivot to P-7 — Inn-rest "who pays" prompt (2026-11-23).** P-4's remaining
-pieces are all blocked (the amulet viewport is a distinct scene, not any town
-tile even scrolled; the ANIM/PAGE transition pieces are small sprites needing
+pieces are blocked (the amulet page itself is done — its viewport is plain
+TWN00; the ANIM/PAGE transition pieces are small sprites needing
 sequencing decode; the `--ui` town flow needs the add-char chain), so I took
 the most tractable high-value slice of P-7.  Driving the emulator to the Inn
 (party added, then R,S) produced `ref/emu/inn_rest_pay.png`: the *second*

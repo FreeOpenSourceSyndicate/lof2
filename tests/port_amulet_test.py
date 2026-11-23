@@ -116,6 +116,15 @@ def main() -> int:
     if port.shape != oracle.shape:
         return fail("size %s != %s" % (port.shape, oracle.shape))
 
+    # The page is the town page with only its right-hand text changed
+    # (owner-confirmed in DOSBox): its upper-left viewport is the plain street
+    # tile TWN00, with no separate guard sprite.  Compare it against the oracle
+    # through the index maps (palette-independent); it should be ~1.0.
+    vp = (slice(11, 130), slice(10, 130))
+    vm = float((port[vp] == oracle[vp]).mean())
+    if vm < 0.99:
+        return fail("viewport match %.4f < 0.99 (expected plain TWN00 ~1.0)" % vm)
+
     pi, oi = ink(port, TEXT), ink(oracle, TEXT)
     if not (pi == oi).all():
         return fail("text ink differs (%d px)" % int((pi != oi).sum()))
@@ -126,8 +135,8 @@ def main() -> int:
         if not (port[y0:y0 + 8, 139:320] != 7).any():
             return fail("line at y=%d has no ink" % y0)
 
-    print("port_amulet_test: ok (give-artefact text block ink matches the "
-          "oracle exactly)")
+    print("port_amulet_test: ok (text block ink matches the oracle exactly; "
+          "viewport %.4f vs TWN00)" % vm)
     rc = check_give()
     if rc:
         return rc
