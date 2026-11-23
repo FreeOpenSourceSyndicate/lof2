@@ -32,6 +32,9 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME = os.path.join(ROOT, "game")
 GAME4 = os.path.join(GAME, "GAMES", "GAME4")
+# Committed fixture: character 1 dead (status 7, 0 HP), character 2 has 2000
+# gold — the setup the owner described for testing the Temple revive.
+REVIVE_FIXTURE = os.path.join(ROOT, "saves", "dng00-Conan-393da5b1.sav")
 
 # flag -> (reference PNG, viewport-tile label used in messages)
 BUILDINGS = [
@@ -146,32 +149,28 @@ def check_temple_heal_effect() -> int:
 
 
 def check_temple_revive_effect() -> int:
-    # --temple-revive-do N: cost level*300; roll CON*4+5>=roll -> status 0,
-    # hp_cur>=1, CON--; failure zeroes HP.  Build a dead char + a rich payer.
-    if not os.path.exists(GAME4):
-        print("port_building_test: SKIP temple-revive effect (no GAME4)")
+    # --temple-revive-do N on the committed fixture (dead char 1 + rich char 2):
+    # cost level*300; roll 1 <= CON*4+5 -> status 0, hp_cur>=1, CON--.
+    if not os.path.exists(REVIVE_FIXTURE):
+        print("port_building_test: SKIP temple-revive effect (no fixture)")
         return 0
 
-    def base(i):
-        return 4 + i * 410
+    def rec(b, i):
+        return b[4 + i * 410:4 + (i + 1) * 410]
 
-    a = bytearray(open(GAME4, "rb").read())
-    b0, b1 = base(0), base(1)
-    if a[b0] == 0 or a[b1] == 0 or a[b0 + 0x44] == 0:
-        print("port_building_test: SKIP temple-revive effect (need chars 1/2, CON)")
+    def gold(r):
+        return r[0x72] | (r[0x72 + 1] << 8) | (r[0x72 + 2] << 16) | (r[0x72 + 3] << 24)
+
+    a = open(REVIVE_FIXTURE, "rb").read()
+    r0 = rec(a, 0)
+    if r0[0x1f] != 7:
+        print("port_building_test: SKIP temple-revive effect (fixture char1 alive)")
         return 0
-    lvl, con = a[b0 + 0x17], a[b0 + 0x44]
-    a[b0 + 0x1f] = 7
-    a[b0 + 0x22] = a[b0 + 0x23] = 0
-    gold0 = 5000
-    a[b1 + 0x72] = gold0 & 0xff
-    a[b1 + 0x73] = (gold0 >> 8) & 0xff
-    a[b1 + 0x74] = a[b1 + 0x75] = 0
-    tmp, out = "/tmp/port_temple_dead.sav", "/tmp/port_temple_revived.sav"
-    open(tmp, "wb").write(a)
+    lvl, con, cost = r0[0x17], r0[0x44], r0[0x17] * 300
+    out = "/tmp/port_temple_revived.sav"
     r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
                         "--temple-revive-do", "1", "--temple-revive-payer", "2",
-                        "--temple-revive-roll", "1", "--save", tmp,
+                        "--temple-revive-roll", "1", "--save", REVIVE_FIXTURE,
                         "--amulet-out", out],
                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     if r.returncode != 0:
@@ -179,28 +178,27 @@ def check_temple_revive_effect() -> int:
               % r.stderr.decode().strip())
         return 1
     b = open(out, "rb").read()
-    cost = lvl * 300
-    if b[b0 + 0x1f] != 0:
+    r0b = rec(b, 0)
+    if r0b[0x1f] != 0:
         print("port_building_test: FAIL temple-revive effect (status not cleared)")
         return 1
-    hp = b[b0 + 0x22] | (b[b0 + 0x23] << 8)
+    hp = r0b[0x22] | (r0b[0x23] << 8)
     if hp < 1:
         print("port_building_test: FAIL temple-revive effect (hp_cur %d < 1)" % hp)
         return 1
-    if b[b0 + 0x44] != con - 1:
+    if r0b[0x44] != con - 1:
         print("port_building_test: FAIL temple-revive effect (CON %d != %d)"
-              % (b[b0 + 0x44], con - 1))
+              % (r0b[0x44], con - 1))
         return 1
-    g0 = b[b1 + 0x72] | (b[b1 + 0x73] << 8) | (b[b1 + 0x74] << 16) | (b[b1 + 0x75] << 24)
-    if gold0 - g0 != cost:
+    if gold(rec(a, 1)) - gold(rec(b, 1)) != cost:
         print("port_building_test: FAIL temple-revive effect (paid %d != %d)"
-              % (gold0 - g0, cost))
+              % (gold(rec(a, 1)) - gold(rec(b, 1)), cost))
         return 1
     if len(b) != 13134 or b[0x2e3a:0x2e3e] == a[0x2e3a:0x2e3e]:
         print("port_building_test: FAIL temple-revive effect (save not resealed)")
         return 1
-    print("port_building_test: ok temple-revive effect (status->alive, hp>=1, "
-          "CON--, paid %dg, resealed)" % cost)
+    print("port_building_test: ok temple-revive effect (fixture: status->alive, "
+          "hp>=1, CON--, paid %dg, resealed)" % cost)
     return 0
 
 

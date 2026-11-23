@@ -94,6 +94,7 @@ install_slot() {  # <archive-file> <slot-number> <label>
 # Stable, well-known fixtures by content hash (see saves/manifest.tsv):
 if [ "$CHECK" = 0 ]; then
     install_slot saves/dng05-Decker-3cf7cace.sav 1 "Temple start (archive GAME1)"
+    install_slot saves/dng00-Conan-393da5b1.sav  3 "dead char 1 + rich char 2 (Temple revive)"
     install_slot saves/dng00-Conan-d8b1cad7.sav  4 "Cyldane (OT-001 fixture)"
     install_slot saves/dng05-Conan-e6c8c8bb.sav  5 "dungeon, monsters spawn"
 fi
