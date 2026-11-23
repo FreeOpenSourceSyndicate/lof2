@@ -1691,10 +1691,25 @@ a 6-px pitch either — **Swept (all negative, 2026-11-21):** CHR2's 5x5 face at
 score 1 cell), CHR1 at an 8-px pitch (3), CHR2 at 8-px (2).  Also, on this
 *correct* frame, **no** `EGA/PAGE/*`, `EGA/IN/*` or `EGA/UP/*` image matches at
 any offset in index space.  So the page is a *composition* — a code-drawn frame
-plus text in a font that is neither CHR1 nor CHR2 at these pitches.  Next:
-disassemble the page's draw routine (the amulet handler) instead of guessing
-fonts; the string block near " finds no place in the team to join the
-companions." (image `0x44E05`) is a good anchor for the surrounding strings.
+plus text in a font that is neither CHR1 nor CHR2 at these pitches.  **Strings located (image offsets, engine's own text):**
+
+| image off | string |
+|---|---|
+| `0x3CF49` | `On starting your journey, you receive an amulet from a town guard. A gift from the Count.` |
+| `0x43A00` | `artefact:` + the kind list `a weapon:` / `armour:` / `a shield:` / `some ammunition:` / `a magic staff:` / `something to read:` / `a jewel:` |
+| `0x43ADD` | `(L)eave it` (also at `0x4604E`, next to `(C)ontinue`) |
+| `0x3E6DC`/`0x3E6E0` | `Amulet` (item name) |
+
+So the amulet page is **not** a bespoke screen: it is the engine's general
+"find an artefact" give-item flow — `You find an artefact:` + kind + item name +
+`Who should receive that (1-6)?` + `(L)eave it` — the same shape as the
+pick-pocket prompt (`Who should try out his thieving ability (1-6)?`, image
+`0x40F5C`).  The port should implement one `give_artefact()` screen and reuse it
+for every artefact pickup, not an amulet special case.  Note the engine spells
+it `receive`; the owner's `recieve` was their own typing.
+
+Next: resolve the image->`ds` offset mapping for this region and disassemble the
+code that references `0x3CF49`/`0x43A00` to get the layout and the font.
 Earlier "town exit" measurements are retracted: they came from `O`,`2`, which
 loads the wilderness save.
 
