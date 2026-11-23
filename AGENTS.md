@@ -277,6 +277,18 @@ Progress:
       `--cursor 0,0`) and the dynamic party panel differ.  Guarded by
       `tests/port_town_test.py` and `tests/port_building_test.py`
       (`make golden-port`).
+- [x] Town-exit **give-artefact (amulet) page** (`--amulet`): the page shown
+      when leaving town for the first time.  It reuses the play-screen chrome
+      (MSCR + the TWN00 viewport + the party panel) and prints the engine's
+      narration in the CHR1 text block at x=139: "On starting your journey, you
+      receive an amulet from a town guard. A gift from the Count." (three
+      29-cell lines), "You find an artefact:", "The Amulet", "Who should receive
+      that (1-6)?", "(L)eave it" — rows 92/100/108/116 then 132/148/164.  The
+      text block is **ink-mask exact** against the archived emulator capture
+      `ref/emu/amulet_newgame.png` (palette-independent, like the round-result
+      test); `tests/port_amulet_test.py` (`make golden-port`).  The town-guard
+      sprite overlaid on the viewport and the give-item effect are follow-ups
+      (P-4).
 - [x] Inn + Temple sub-prompts.  Neither the Inn nor the Temple is a `D5`
       first-person interior (that earlier note was a misconception — there is no
       such state).  The **Inn screen *is* the boot main menu**: the game starts

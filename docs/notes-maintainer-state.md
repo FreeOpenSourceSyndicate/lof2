@@ -92,6 +92,18 @@ buildings) and `LOF_WATCH` the party-record segment's gold (+0x72 dword) and HP
 party is undamaged, so a *wounded* save is needed to observe the heal cost.  This
 is the next concrete step; no transaction was guessed.  Plan recorded in PLAN P-7.
 
+**Plan re-ordered + P-4 first slice (2026-11-23).** Per the owner, the queue was
+re-ordered by player-visible priority (progression > survival > combat >
+fidelity; P-3 demoted because the shipped monster gate aborts, P-2 blocked on
+G-018). The top item is now **P-4 (town exit)**. Its first verifiable slice
+landed: the **give-artefact (amulet) page** (`lof --amulet [--save GAMEn]`),
+composing the play-screen chrome (MSCR + TWN00 viewport + party panel) + the
+engine's narration; the text block (rows 92/100/108/116/132/148/164) is
+**ink-mask exact** vs `ref/emu/amulet_newgame.png` (`tests/port_amulet_test.py`,
+`make golden-port`). Remaining P-4: the town-guard sprite overlaid on the TWN00
+viewport, the give-item effect (add the amulet to a character's inventory), the
+24-frame ANIM transition, and the `--ui` town->wilderness wiring.
+
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 
 Lane M, sole active agent (lof2/M-6). Read the rules, guess register, owner

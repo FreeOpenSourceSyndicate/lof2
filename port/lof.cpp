@@ -341,6 +341,39 @@ static bool compose_encounter_screen(const std::string& dir, const char* intro,
     return true;
 }
 
+// The give-artefact (amulet) page shown when leaving town for the first time:
+// the play-screen chrome (MSCR + the town viewport + the party panel) with the
+// engine's narration in the right-hand text block (CHR1, x=139).  The text is
+// the engine's own: "On starting your journey, you receive an amulet from a
+// town guard. A gift from the Count." (word-wrapped to three 29-cell lines),
+// "You find an artefact:", "The Amulet", "Who should receive that (1-6)?",
+// "(L)eave it".  Line rows are 92/100/108/116 then 132/148/164 -- verified by
+// diffing the archived capture ref/emu/amulet_newgame.png against MSCR (the
+// text region is uniform MSCR index 7 except the glyphs).  The narration and
+// the two prompts are light green, the artefact name and "(L)eave it" black.
+// The viewport is TWN00 (the town scene; the capture overlays a town-guard
+// sprite, a follow-up).  Verified by ink mask (palette-independent) in
+// tests/port_amulet_test.py.
+static bool compose_amulet_screen(const std::string& dir, const SaveGame& sg,
+                                  bool have_sg, Screen& s, std::string& err) {
+    s.resize(320, 200);
+    s.clear(0);
+    if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
+    if (!blit_ega(s, dir + "/EGA/TWN/TWN00", kViewportX, kViewportY, &err))
+        return false;
+    if (!draw_party_and_status(s, dir, sg, have_sg, err)) return false;
+    Font font;
+    if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
+    font.draw_text(s, 139, 92,  "On starting your journey, you", 10);
+    font.draw_text(s, 139, 100, "receive an amulet from a town", 10);
+    font.draw_text(s, 139, 108, "guard. A gift from the Count.", 10);
+    font.draw_text(s, 139, 116, "You find an artefact:", 10);
+    font.draw_text(s, 139, 132, "The Amulet", 0);
+    font.draw_text(s, 139, 148, "Who should receive that (1-6)?", 10);
+    font.draw_text(s, 139, 164, "(L)eave it", 0);
+    return true;
+}
+
 // Compose the per-round combat decision screen.  It is the encounter screen
 // (identical viewport and left panel) with the right-hand text block replaced
 // by the round-decision list.  The row layout is the engine's own printf
@@ -1549,6 +1582,7 @@ int main(int argc, char** argv) {
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
+    bool amulet_flag = false;
     bool decision_flag = false;
     bool round_result_flag = false;
     bool fight_flag = false;
@@ -1571,6 +1605,7 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
+        else if (std::string(argv[i]) == "--amulet") amulet_flag = true;
         else if (std::string(argv[i]) == "--fight") {
             fight_flag = true;
             // Optional "hp[:count]" defender spec.
@@ -1682,6 +1717,24 @@ int main(int argc, char** argv) {
         Screen s;
         if (!compose_encounter_screen(dir, intro.c_str(), encounter_groups, roster,
                                       sprite_ch, sg, have_sg, s, err)) {
+            fprintf(stderr, "lof: %s\n", err.c_str());
+            return 1;
+        }
+        if (have_cursor) draw_cursor(s, cur_x, cur_y);
+        if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
+        if (!headless) present_sdl(s, "Legend of Faerghail");
+        return 0;
+    }
+    if (amulet_flag) {
+        std::string err;
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) {
+            sg = load_save(save);
+            have_sg = sg.ok;
+        }
+        Screen s;
+        if (!compose_amulet_screen(dir, sg, have_sg, s, err)) {
             fprintf(stderr, "lof: %s\n", err.c_str());
             return 1;
         }
