@@ -81,6 +81,17 @@ yet the oracle shows "joins", reinforcing that the join targets a separate
 `[0xb036]` structure, not the save party.  Also fixed a stale HANDOFF note:
 the defender-row `+0x06` was already derived/implemented (`-(10*(4-rec[+0x29]))`).
 
+**P-7 investigation (2026-11-23).** Started on town transactions (the next area).
+Found that string-ref navigation is unreliable: code and data live in separate
+segments, so the ds<->image offset mapping is not constant (the "finds no place"
+string maps at image-0x3C821, but "Thyn." / "welcome to our" do not).  The
+building greetings/options are data-driven.  The reliable decode path is runtime:
+drive the emulator (`lof-native`; golden `shop`/`temple_bldg` scenarios reach the
+buildings) and `LOF_WATCH` the party-record segment's gold (+0x72 dword) and HP
+(+0x22 word) while pressing the heal/bank/rest keys — but the add-char golden
+party is undamaged, so a *wounded* save is needed to observe the heal cost.  This
+is the next concrete step; no transaction was guessed.  Plan recorded in PLAN P-7.
+
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 
 Lane M, sole active agent (lof2/M-6). Read the rules, guess register, owner
