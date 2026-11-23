@@ -1424,6 +1424,28 @@ static void test_bank() {
     assert(char_gold(c) == 100 && char_bank(c) == 0);
 }
 
+static void test_joint_deposit() {
+    // Joint deposit pools every present member's gold into the recipient.
+    SaveGame g;
+    g.chars.resize(3);
+    for (int i = 0; i < 3; i++) {
+        g.chars[i].present = 1;
+        g.chars[i].raw[kCharWeight64] = 0xff;  // weight_max = 65535
+        g.chars[i].raw[kCharWeight64 + 1] = 0xff;
+    }
+    g.chars[0].raw[kCharGold72] = 10;
+    g.chars[1].raw[kCharGold72] = 20;
+    g.chars[2].raw[kCharGold72] = 30;
+    assert(joint_deposit(g, 1));
+    assert(char_gold(g.chars[0]) == 0);
+    assert(char_gold(g.chars[1]) == 60);
+    assert(char_gold(g.chars[2]) == 0);
+    SaveGame h;
+    h.chars.resize(1);
+    h.chars[0].present = 1;
+    assert(!joint_deposit(h, 0));  // no gold at all
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
@@ -1432,6 +1454,7 @@ int main(int argc, char** argv) {
     test_temple_heal();
     test_temple_revive();
     test_bank();
+    test_joint_deposit();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).

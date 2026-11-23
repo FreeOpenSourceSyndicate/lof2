@@ -346,6 +346,12 @@ Progress:
       when short), `bank_withdraw()` the reverse; empty input = all.  CLI
       `--bank-deposit N AMT` / `--bank-withdraw N AMT` (AMT 0 = all); pinned by
       `char_test::test_bank` + the bank check in `port_building_test.py`.
+      **Joint deposit / Gather gold DONE 2026-11-23:** the shared routine
+      `0x212f:0x79ba` (image `0x28caa`) pools every present member's gold into a
+      chosen recipient (weight-checked); `joint_deposit(SaveGame&, target)` +
+      `lof --joint-deposit N`; pinned by `char_test::test_joint_deposit` + the
+      joint-deposit check in `port_building_test.py`.  Emporium buy/sell/repair
+      and House-of-Trades training remain open (interactive item UIs).
 - [x] Encounter screen (`--encounter`): the wandering-monster screen the engine
       draws when it spawns enemies (first met from the wilderness).  It reuses
       the play screen's chrome — `EGA/UP/MSCR`, the party/status panel (its

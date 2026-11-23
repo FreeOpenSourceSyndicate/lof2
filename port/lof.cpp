@@ -1615,6 +1615,7 @@ int main(int argc, char** argv) {
     uint32_t bank_deposit_amt = 0;  // amount (0 = all)
     int bank_withdraw_do = 0;       // 1-based char to withdraw for (0 = off)
     uint32_t bank_withdraw_amt = 0; // amount (0 = all)
+    int joint_deposit_do = 0;       // 1-based recipient for --joint-deposit
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
@@ -1660,6 +1661,7 @@ int main(int argc, char** argv) {
             bank_withdraw_do = atoi(argv[++i]);
             bank_withdraw_amt = (uint32_t)strtoul(argv[++i], nullptr, 10);
         }
+        else if (std::string(argv[i]) == "--joint-deposit" && i + 1 < argc) joint_deposit_do = atoi(argv[++i]);
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
@@ -1860,6 +1862,25 @@ int main(int argc, char** argv) {
         fprintf(stderr, "lof: %s %u for character %d (gold %u, account %u)\n",
                 is_dep ? "deposited" : "withdrew", amt, who,
                 char_gold(sg.chars[idx]), char_bank(sg.chars[idx]));
+        return 0;
+    }
+    if (joint_deposit_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --joint-deposit needs a valid --save\n"); return 1; }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: --joint-deposit needs --amulet-out\n"); return 1; }
+        if (!joint_deposit(sg, joint_deposit_do - 1)) {
+            fprintf(stderr, "lof: joint deposit to character %d failed (no gold or too heavy)\n",
+                    joint_deposit_do);
+            return 1;
+        }
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        fprintf(stderr, "lof: joint deposit -> character %d (gold %u)\n",
+                joint_deposit_do, char_gold(sg.chars[joint_deposit_do - 1]));
         return 0;
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||

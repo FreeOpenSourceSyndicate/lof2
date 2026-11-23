@@ -468,6 +468,29 @@ bool bank_withdraw(SaveChar& c, uint32_t amount) {
 uint32_t char_gold(const SaveChar& c) { return rd32(c.raw.data(), kCharGold72); }
 uint32_t char_bank(const SaveChar& c) { return rd32(c.raw.data(), kCharBank76); }
 
+bool joint_deposit(SaveGame& g, int target) {
+    uint32_t total = 0;
+    for (auto& c : g.chars)
+        if (c.present) total += char_gold(c);
+    if (total == 0) return false;
+    if (target < 0 || target >= (int)g.chars.size() || g.chars[target].present == 0)
+        return false;
+    SaveChar& t = g.chars[target];
+    uint8_t* tr = t.raw.data();
+    long after = (long)rd16(tr, kCharWeight66) - (long)char_gold(t) + (long)total;
+    if (after > (long)rd16(tr, kCharWeight64)) return false;
+    for (auto& c : g.chars) {
+        if (!c.present) continue;
+        wr32(c.raw.data(), kCharGold72, 0);
+        CharSheet s = decode_char(c.raw.data());
+        wr16(c.raw.data(), kCharWeight66, (uint16_t)(weight_base(s) + carried_item_weight(s)));
+    }
+    wr32(t.raw.data(), kCharGold72, total);
+    CharSheet s = decode_char(t.raw.data());
+    wr16(t.raw.data(), kCharWeight66, (uint16_t)(weight_base(s) + carried_item_weight(s)));
+    return true;
+}
+
 uint16_t save_location(const SaveGame& g) {
     return (uint16_t)(g.loc_tens * 10 + g.loc_ones);
 }

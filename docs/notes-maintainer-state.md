@@ -172,6 +172,16 @@ Empty input = all.  Implemented `bank_deposit`/`bank_withdraw`/`char_gold`/
 (AMT 0 = all).  Unit-tested (`char_test::test_bank`) and e2e on GAME4 (deposit
 5 then withdraw 5 round-trips, resealed).
 
+**Joint deposit / Gather gold (2026-11-23).** The shared routine `0x212f:0x79ba`
+(image `0x28caa`) behind every "(J)oint deposit" and the emporium "(G)ather
+gold": sums every present member's gold, weight-checks the recipient
+(`+0x64` vs `+0x66` − recipient.gold + total), then moves the total into the
+recipient and zeroes the others.  Implemented `joint_deposit(SaveGame&, target)`
+and `lof --joint-deposit N`.  Unit-tested (`char_test::test_joint_deposit`) and
+e2e on GAME4 (42g pooled into char 1).  Emporium (B)uy (0x6392) / (S)ell /
+(R)epair (0x5938) are interactive item-table UIs with pricing in the runtime
+segment — still open, as are House-of-Trades training/magic/language.
+
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 
 Lane M, sole active agent (lof2/M-6). Read the rules, guess register, owner

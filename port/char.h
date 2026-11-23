@@ -1249,6 +1249,15 @@ bool bank_withdraw(SaveChar& c, uint32_t amount);
 uint32_t char_gold(const SaveChar& c);
 uint32_t char_bank(const SaveChar& c);
 
+// --- Joint deposit / Gather gold (shared routine, image 0x28caa) -----------
+// Sums every present character's gold (+0x72), then after a weight check on the
+// chosen recipient (+0x64 weight_max vs +0x66 weight_cur - target.gold + total)
+// moves the whole total into the recipient and zeroes the others
+// (0x28dd4..0x28e50).  Returns false when there is no gold or the recipient
+// cannot carry the total.  This is the routine behind every "(J)oint deposit"
+// and the emporium's "(G)ather gold".
+bool joint_deposit(SaveGame& g, int target);
+
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
 SaveGame load_save(const std::string& path);

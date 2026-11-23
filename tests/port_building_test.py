@@ -254,6 +254,50 @@ def check_bank_effect() -> int:
     return 0
 
 
+def check_joint_deposit_effect() -> int:
+    # --joint-deposit N pools every present member's gold into the recipient
+    # (shared routine image 0x28caa; also the emporium "(G)ather gold").
+    if not os.path.exists(GAME4):
+        print("port_building_test: SKIP joint-deposit effect (no GAME4)")
+        return 0
+
+    def rec(b, i):
+        return b[4 + i * 410:4 + (i + 1) * 410]
+
+    def gold(r):
+        return r[0x72] | (r[0x72 + 1] << 8) | (r[0x72 + 2] << 16) | (r[0x72 + 3] << 24)
+
+    a = open(GAME4, "rb").read()
+    total = sum(gold(rec(a, i)) for i in range(6) if rec(a, i)[0])
+    if total == 0:
+        print("port_building_test: SKIP joint-deposit effect (no gold)")
+        return 0
+    out = "/tmp/port_joint.sav"
+    r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--joint-deposit", "1", "--save", GAME4, "--amulet-out", out],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        print("port_building_test: FAIL joint-deposit effect (%s)"
+              % r.stderr.decode().strip())
+        return 1
+    b = open(out, "rb").read()
+    if gold(rec(b, 0)) != total:
+        print("port_building_test: FAIL joint-deposit effect (target %d != %d)"
+              % (gold(rec(b, 0)), total))
+        return 1
+    for i in range(1, 6):
+        if rec(b, i)[0] and gold(rec(b, i)) != 0:
+            print("port_building_test: FAIL joint-deposit effect (char %d still has %d)"
+                  % (i + 1, gold(rec(b, i))))
+            return 1
+    if len(b) != 13134 or b[0x2e3a:0x2e3e] == a[0x2e3a:0x2e3e]:
+        print("port_building_test: FAIL joint-deposit effect (save not resealed)")
+        return 1
+    print("port_building_test: ok joint-deposit effect (%dg pooled into char 1, "
+          "resealed)" % total)
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
@@ -261,6 +305,7 @@ def main() -> int:
     rc |= check_temple_heal_effect()
     rc |= check_temple_revive_effect()
     rc |= check_bank_effect()
+    rc |= check_joint_deposit_effect()
     return rc
 
 
