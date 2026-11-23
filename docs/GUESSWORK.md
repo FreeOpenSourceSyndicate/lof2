@@ -271,9 +271,16 @@ zeroes the `0x19a`-byte slot and copies `strlen(record)` bytes into
 that copies **only the name**; no stat byte is copied there.  The port
 therefore prints the engine's own line (" joins the companionship.", image
 `0x44E05`; the full-party sibling is " finds no place in the team to join the
-companions.") but does **not** create a character.  Open: which free slot the
-engine picks and the party capacity (the panel shows six), and where the
-recruit's statistics come from.  Do not synthesise stats until that is read.
+companions.") but does **not** create a character.  **Update 2026-11-23:** the
+slot is the **first empty party slot** (dispatcher prologue `0x1F38C`, 32-bit
+`[bp-6]`/`[bp-4]`, `-1` = none), and it also clears the 12 done-flags
+(`0x1F366`).  But the copy leaves `slot[0]` (present) **0**, and the display
+routine `0x2a7d:0x449a` reads a *different* segment `[0xb0d2]` (vs the copy's
+`[0xb036]`) and skips the detail draw when `present == 0`.  So the join path sets
+only the name and `+0x55`, no stats and no present flag — it does **not** create
+a functional member on its own.  Open: whether `[0xb036]`/`[0xb0d2]` alias, and
+where (if anywhere) `present`/HP are set.  Do not synthesise stats until that is
+read.
 
 ### G-016 — the `SpecType` labels come from record text, not from code
 

@@ -67,6 +67,17 @@ reachable remaining P-2 item is the **recruit stat block (G-018)**.
 **Next.** Recruit stat block (G-018, the only reachable P-2 item); P-7 town
 transactions / P-4 wilderness are the bigger player-facing gaps.
 
+**G-018 sharpened (2026-11-23).** Traced the recruit accept flow: the dispatcher
+prologue (`0x1F31E`) clears the 12 done-flags (`0x1F366`) and picks the **first
+empty party slot** (`0x1F38C`, 32-bit `[bp-6]`/`[bp-4]`).  But the copy
+(`0x1D99A`) leaves `present` (`slot[0]`) **0**, and the display (`0x2a7d:0x449a`)
+reads a *different* segment `[0xb0d2]` (vs the copy's `[0xb036]`) and skips the
+detail draw when `present==0`.  So the join path sets only the name and `+0x55`
+— it does not create a functional member on its own, and the port's current
+text-only behaviour is not contradicted.  The stat/present origin is genuinely
+elsewhere; still blocked (do not synthesise).  Also fixed a stale HANDOFF note:
+the defender-row `+0x06` was already derived/implemented (`-(10*(4-rec[+0x29]))`).
+
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 
 Lane M, sole active agent (lof2/M-6). Read the rules, guess register, owner

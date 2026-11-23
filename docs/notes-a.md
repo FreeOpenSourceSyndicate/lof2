@@ -3588,6 +3588,33 @@ Still open, and deliberately not guessed:
 * `+0xc9` long text blocks are now printed (see below), but the engine pages
   them over the message box; the port prints every line at once.
 
+### Recruit slot search + the present flag (2026-11-23)
+
+The dispatcher's prologue (entry `0x1F31E`) clears the 12 done-flag bytes
+(`[0xb04c]:0x37ee[i]`, `i` from the caller's start index to 12, `0x1F366`) and
+then searches for the **first empty party slot** (`0x1F38C`): `slot[0]==0` over
+slots 0..5, storing the 32-bit slot index in `[bp-6]`/`[bp-4]` (both `-1` = no
+free slot).  The type-1 accept path (`0x20039`) joins when that 32-bit value is
+not `-1`.
+
+The copy (`0x1D99A`) then `memset`s the slot to 0 (`0x2f0e:0x1d2e`, a real
+`rep stosw/stosb` memset) and copies up to 10 bytes of the SNSC record's name
+into `slot[1..]`, NUL-terminated — so **`slot[0]` (present) stays 0**.
+
+The display routine `0x2a7d:0x449a` reads a *different* segment, **`[0xb0d2]`**,
+not the copy's **`[0xb036]`**; it sets `slot[+0x55]=1` unconditionally but, when
+`slot[0]==0`, skips the detail draw (`0x2ed11 -> 0x2ed17 -> 0x2f09d`).  So the
+join path leaves `present=0`, `+0x55=1`, and every stat zero.
+
+**Consequence:** the join path alone does **not** create a functional member.
+The present-flag/stat initialisation (and whether `[0xb036]` and `[0xb0d2]`
+alias or are distinct party images) happens elsewhere or is absent — this is why
+G-018 stays open, and the stat origin is not in this path.  The port's current
+behaviour (print the question and the "joins the companionship." line, mutate
+nothing) is therefore **not contradicted** by the disassembly: there is no
+derived member to add.  A future attempt must first establish whether the two
+segment globals alias and where (if anywhere) `present`/HP are set.
+
 ### `+0xc9` is an entry index into `SYST/TXT<scenario>`, not a file number
 
 The open helper at `0x1D7C2` formats `"SYST\\TXT%d"` from the **scenario number**
