@@ -12,7 +12,7 @@ revision's ~87 % weighted only the *screens* that are built and silently left
 out the gameplay subsystems the queue already lists but that are still at
 0–25 %: overworld travel (P-4), town transactions (P-7), spells (P-5) and the
 monster's turn (P-3). Those rows are now in the table, so the honest whole-game
-figure is **~70 %**; the old screens-and-model figure (~87 %) is kept below for
+figure is **~73 %**; the old screens-and-model figure (~87 %) is kept below for
 continuity. The P-1..P-13 queue is unchanged in order and scope except that
 P-4 records its 2026-11-21 reconnaissance, P-3's estimate now matches the
 reduced scope stated in its own row, and the two small queued guesses (P-14,
@@ -20,14 +20,14 @@ P-15) are added so nothing open is off the list.
 
 ---
 
-## 1. Overall project completion — ~70 %
+## 1. Overall project completion — ~73 %
 
 Weighted by player-visible subsystem, not by line count. Two figures are given
 because the earlier table measured only the finished screens/models and did not
 weight the gameplay still missing:
 
-- **Whole-game table (this revision): ~70 %.** Weights total 100 and the
-  weighted sum is **70.5 %**, rounded to ~70 %. This is the number to quote.
+- **Whole-game table (this revision): ~73 %.** Weights total 100 and the
+  weighted sum is **73.0 %**, rounded to ~73 %. This is the number to quote.
 - **Screens-and-model figure (previous revision): ~87 %** (86.8 %). The same
   rows as then, without the gameplay rows added below; it overstates completion
   because P-3/P-4/P-5/P-7 were not weighted.
@@ -47,7 +47,7 @@ yet), *spells* in combat, and *the monster's turn*; then the fidelity residue
 | VOR intro + credits | 100 % | 3 | `EGA/IN/DRAG`, `EGA/IN/CRED` byte-exact; the credits palette vs DOSBox is P-14 |
 | Boot → menu | 100 % | 4 | `EGA/UP/MSCR` + `MENU`, font |
 | Town screens + buildings | 100 % | 7 | inn, shop/emporium, bank, house, temple (+ heal/revive/rest **prompts**). **Menus only** — the transactions and state effects are P-7 |
-| Town state effects (rest/heal/shop/bank) | 10 % | 6 | the screens exist but do nothing; gold/HP cannot change — P-7 |
+| Town state effects (rest/heal/shop/bank) | 45 % | 6 | inn rest (cost + effect), temple heal, temple revive, bank deposit/withdraw and joint-deposit / gather-gold are implemented and save-persisting; still open: emporium buy/sell/repair and House-of-Trades training/magic/language (interactive item UIs) and the inn spell-memorisation / post-rest reset / clock advance — P-7 |
 | DNGS decode (all 29 levels) | 100 % | 4 | tiles + object layer + header |
 | Dungeon first-person view | 80 % | 11 | Temple (`D5`) depth march pixel-exact. The outdoor (`D0`) composite is exact **for one cell only**; the scenery rule is overfit (**G-013**) — P-9. The outdoor **wall** case is derived and tested (`DP036` at the map edge, `DP001` otherwise) |
 | Object/feature semantics | 55 % | 7 | selector, trigger, type dispatch, text path, once-only gate, the `+0x0e` answer line, the type-16 coffin latch, the type-7 door **move**, the **type-11 teleport** and the **type-18 trap** are live; the map-mutation buttons (12/19/20/21/22) are cut content (unreachable in the shipped maps), so the recruit stat block (**G-018**) is the only reachable P-2 item left |
@@ -61,7 +61,7 @@ yet), *spells* in combat, and *the monster's turn*; then the fidelity residue
 | Save **write** | 100 % | 3 | `build_save`/`write_save_file`; read→write byte-identical on every intact archive save; `--save-out` persists; tampered saves detected and flagged |
 | Overworld / wilderness travel | 28 % | 6 | the wilderness play screen renders and the walk model exists; the **town-exit give-artefact (amulet) page** renders ink-exact (`--amulet`) and its **give-item effect** is implemented (`--amulet-give`); leaving town (the `(C)ontinue` path + guard-sprite viewport + `--ui` wiring), overworld movement and encounter rolls are unported — P-4 |
 | Misc polish (char sheet, all-out msg, depth-2+ sprites, VOR palette) | 15 % | 3 | P-8, P-13, P-12, P-14 |
-| **Weighted total** | **71.0 %** | **100** | |
+| **Weighted total** | **73.0 %** | **100** | |
 
 ---
 
