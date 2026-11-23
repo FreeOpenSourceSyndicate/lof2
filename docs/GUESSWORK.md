@@ -826,3 +826,23 @@ effect value 34 (lantern) as a light source; recorded under G-004.
   `LOF_SEGDUMP` of the segment at the item-use point) and read the item-0 base,
   then decide whether the effect value is f4 (spell index → cast) or a charge
   byte.
+
+- **Round 2 (runtime dump) findings.** A `LOF_DUMP` of the menu and the shop
+  path pins the data layout: DS base = `0x4ac10` (segment `0x4ac1`); the item
+  table is at `DS:0x2cec` (linear `0x4d8fc`), and the runtime record is
+  byte-identical to the file (16-byte name + 7 int16 at +0x10..+0x1c + class
+  +0x1e + effect +0x1f).  The Healing potion's runtime price is 350 at record
+  **+0x12** and its `f4` (+0x18) is 80 = spell 80 "Healing I".  The **buy**
+  core (`0x63f4`) reads price with `es=[0xaf5e]` at `[bx+0xfce]`, so that
+  segment holds the table at item0 offset `0xfbc` (price = +0x12).  The **use**
+  dispatch (`0xea90`) reads `[bx+0xfd5]` with `es=[0xafa8]`.  `0xfd5 - 0xfce`
+  is 7, so if `[0xafa8]` had the *same* item0 base the effect byte would be
+  record +0x19 (f4 high = 0 for the Healing potion, i.e. a no-op) — impossible
+  for a working potion.  Since two 16-aligned segments cannot shift the base by
+  the 1 byte that would put the read on f4 *low* (+0x18 = 80), `[0xafa8]` is
+  **not** the item table at the buy base.  Conclusion: the effect value is not a
+  plain item field; the item's `f4` being a spell index means the faithful heal
+  is **spell-casting** the item's spell (P-5), and the `hp += byte` at `0xea90`
+  reads some other runtime structure.  The `charges` (f3 high) stand-in is kept
+  until spell-casting exists; both shipped potions have f3 high = 1, so the
+  magnitudes are 1 (mechanism exact, value provisional).
