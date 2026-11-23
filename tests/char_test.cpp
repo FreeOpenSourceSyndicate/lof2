@@ -1271,9 +1271,51 @@ static void print_char(FILE* out, const CharSheet& c, size_t i) {
             c.flag0f, c.hp_pct(), c.body24, c.hp_mod(), c.attr_a(), c.attr_b());
 }
 
+static void test_give_item() {
+    // The Amulet -> first empty slot (0), condition 100, charges from the
+    // record, used-slot count incremented (engine add routine 0x69e2..0x6c5f).
+    SaveChar c{};
+    c.present = 1;
+    int slot = give_item(c, kItemAmulet);
+    assert(slot == 0);
+    assert(c.raw[kCharInv82 + 0] == kItemAmulet);
+    assert(c.raw[kCharInv82 + 2] == item_by_index(kItemAmulet)->charges);
+    assert(c.raw[kCharInv82 + 3] == 100);
+    assert(c.raw[kCharInvUsed6b] == 1);
+
+    // A second add takes slot 1 and bumps the used count again.
+    assert(give_item(c, kItemAmulet) == 1);
+    assert(c.raw[kCharInvUsed6b] == 2);
+
+    // Invalid indices are rejected and change nothing.
+    assert(give_item(c, 0) == -1);
+    assert(give_item(c, (int)kItemCount + 5) == -1);
+    assert(c.raw[kCharInvUsed6b] == 2);
+
+    // A heavy item refreshes the carried weight (+0x66); the empty base char has
+    // rations/gold 0, so the total equals the item's own weight.
+    int heavy = 1;
+    while (heavy <= (int)kItemCount && item_by_index(heavy)->weight == 0) heavy++;
+    if (heavy <= (int)kItemCount) {
+        SaveChar h{};
+        h.present = 1;
+        assert(give_item(h, heavy) == 0);
+        uint16_t w = (uint16_t)(h.raw[kCharWeight66] |
+                                (h.raw[kCharWeight66 + 1] << 8));
+        assert(w == (uint16_t)item_by_index(heavy)->weight);
+    }
+
+    // A full inventory (all 48 slots occupied) is refused.
+    SaveChar full{};
+    full.present = 1;
+    for (int i = 0; i < (int)kCharInvCount; i++) full.raw[kCharInv82 + i * 4] = 1;
+    assert(give_item(full, kItemAmulet) == -1);
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
+    test_give_item();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).

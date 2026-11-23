@@ -1177,6 +1177,20 @@ void save_set_party(SaveGame& g, uint16_t cell, uint8_t facing);
 // Set the dungeon location (the two digit bytes at +0x9a2 / +0x9a4).
 void save_set_location(SaveGame& g, uint8_t tens, uint8_t ones);
 
+// "The Amulet" item index (1-based) handed out by the town-exit give-artefact
+// page; char_items.inc lists it as name #120.
+constexpr int kItemAmulet = 120;
+
+// Give a character an item (1-based item-table index), reproducing the engine's
+// item-add routine (image 0x69e2..0x6c5f): scan the 48 inventory slots for the
+// first empty one (item byte +0x82 == 0), store the item index, seed the slot's
+// charges from the item record's +0x13 byte and its condition to 100, increment
+// the used-slot count (+0x6b), and refresh the carried weight (+0x66) the way
+// the engine's post-add recompute does.  Returns the slot index used, or -1 when
+// the inventory is full or the index is invalid.  (The +0x25 "load" tweak at
+// 0x6b3d..0x6b6b is shop bookkeeping and is not reproduced here.)
+int give_item(SaveChar& c, int item_index);
+
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
 SaveGame load_save(const std::string& path);

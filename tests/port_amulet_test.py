@@ -72,6 +72,37 @@ def fail(msg: str) -> int:
     return 1
 
 
+def check_give() -> int:
+    # `--amulet-give N` reproduces the engine's item-add (0x69e2..0x6c5f): the
+    # amulet (item 120) lands in the first empty inventory slot of character N,
+    # condition 100, and the used-slot count (+0x6b) is bumped by one.
+    out = "/tmp/port_amulet_give.sav"
+    cmd = [os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+           "--amulet-give", "1", "--save", SAVE, "--amulet-out", out]
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL)
+    a = open(SAVE, "rb").read()
+    b = open(out, "rb").read()
+
+    def raw(buf, i):
+        return buf[4 + i * 410:4 + (i + 1) * 410]
+
+    r0a, r0b = raw(a, 0), raw(b, 0)
+    if r0a[0] != 1:
+        return fail("save fixture char 0 not present")
+    added = False
+    for k in range(48):
+        o = 0x82 + k * 4
+        if r0a[o] == 0 and r0b[o] == 120 and r0b[o + 3] == 100:
+            added = True
+    if not added:
+        return fail("give: amulet (item 120) not added to an empty slot")
+    if r0b[0x6b] != r0a[0x6b] + 1:
+        return fail("give: inv_used not incremented (%d -> %d)"
+                    % (r0a[0x6b], r0b[0x6b]))
+    return 0
+
+
 def main() -> int:
     if not os.path.exists(ORACLE):
         print("port_amulet_test: SKIP (no oracle capture)")
@@ -97,6 +128,10 @@ def main() -> int:
 
     print("port_amulet_test: ok (give-artefact text block ink matches the "
           "oracle exactly)")
+    rc = check_give()
+    if rc:
+        return rc
+    print("port_amulet_test: ok (--amulet-give adds The Amulet to the slot)")
     return 0
 
 

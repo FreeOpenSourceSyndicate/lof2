@@ -302,6 +302,27 @@ void save_set_location(SaveGame& g, uint8_t tens, uint8_t ones) {
     }
 }
 
+int give_item(SaveChar& c, int item_index) {
+    const ItemRecord* it = item_by_index(item_index);
+    if (!it) return -1;
+    int slot = -1;
+    for (int i = 0; i < (int)kCharInvCount; ++i) {
+        if (c.raw[kCharInv82 + i * 4] == 0) { slot = i; break; }
+    }
+    if (slot < 0) return -1;
+    uint8_t* p = &c.raw[kCharInv82 + slot * 4];
+    p[0] = (uint8_t)item_index;   // item index (image 0x6a4d)
+    p[2] = it->charges;           // charges from item +0x13 (0x6a8e / 0x6ae2)
+    p[3] = 100;                   // condition = 0x64 (0x6aad)
+    c.raw[kCharInvUsed6b] += 1;   // used-slot count (0x6c2a)
+    // Refresh the carried total the way the post-add recompute does.
+    CharSheet sh = decode_char(c.raw.data());
+    uint16_t w = (uint16_t)(weight_base(sh) + carried_item_weight(sh));
+    c.raw[kCharWeight66]     = (uint8_t)(w & 0xff);
+    c.raw[kCharWeight66 + 1] = (uint8_t)(w >> 8);
+    return slot;
+}
+
 uint16_t save_location(const SaveGame& g) {
     return (uint16_t)(g.loc_tens * 10 + g.loc_ones);
 }

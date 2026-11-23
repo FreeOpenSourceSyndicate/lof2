@@ -1583,6 +1583,8 @@ int main(int argc, char** argv) {
     bool temple_revive_flag = false;
     bool encounter_flag = false;
     bool amulet_flag = false;
+    int amulet_give = 0;          // 1-based character to receive the amulet (0 = none)
+    std::string amulet_out;       // where --amulet-give writes the updated save
     bool decision_flag = false;
     bool round_result_flag = false;
     bool fight_flag = false;
@@ -1606,6 +1608,11 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
         else if (std::string(argv[i]) == "--amulet") amulet_flag = true;
+        else if (std::string(argv[i]) == "--amulet-give" && i + 1 < argc) {
+            amulet_give = atoi(argv[++i]);
+            amulet_flag = true;
+        }
+        else if (std::string(argv[i]) == "--amulet-out" && i + 1 < argc) amulet_out = argv[++i];
         else if (std::string(argv[i]) == "--fight") {
             fight_flag = true;
             // Optional "hp[:count]" defender spec.
@@ -1732,6 +1739,23 @@ int main(int argc, char** argv) {
         if (!save.empty()) {
             sg = load_save(save);
             have_sg = sg.ok;
+        }
+        if (amulet_give > 0) {
+            if (!have_sg) { fprintf(stderr, "lof: --amulet-give needs --save\n"); return 1; }
+            int idx = amulet_give - 1;
+            if (idx < 0 || idx >= (int)sg.chars.size() || sg.chars[idx].present == 0) {
+                fprintf(stderr, "lof: --amulet-give %d: no present character\n", amulet_give);
+                return 1;
+            }
+            if (amulet_out.empty()) { fprintf(stderr, "lof: --amulet-give needs --amulet-out\n"); return 1; }
+            int slot = give_item(sg.chars[idx], kItemAmulet);
+            if (slot < 0) { fprintf(stderr, "lof: inventory full\n"); return 1; }
+            if (!write_save_file(amulet_out, build_save(sg))) {
+                fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+                return 1;
+            }
+            fprintf(stderr, "lof: gave %s to character %d (slot %d)\n",
+                    item_by_index(kItemAmulet)->name.c_str(), amulet_give, slot);
         }
         Screen s;
         if (!compose_amulet_screen(dir, sg, have_sg, s, err)) {

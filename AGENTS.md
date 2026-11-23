@@ -286,9 +286,13 @@ Progress:
       that (1-6)?", "(L)eave it" — rows 92/100/108/116 then 132/148/164.  The
       text block is **ink-mask exact** against the archived emulator capture
       `ref/emu/amulet_newgame.png` (palette-independent, like the round-result
-      test); `tests/port_amulet_test.py` (`make golden-port`).  The town-guard
-      sprite overlaid on the viewport and the give-item effect are follow-ups
-      (P-4).
+      test); `tests/port_amulet_test.py` (`make golden-port`).  The **give-item
+      effect** is implemented too: `give_item()` reproduces the engine's add
+      routine (image `0x69e2..0x6c5f`) — first empty slot, charges from item
+      +0x13, condition 100, `inv_used`++ — and `lof --amulet-give N --save S
+      --amulet-out O` applies it and writes a sealed save.  The town-guard
+      sprite overlaid on the viewport and the `--ui` town->wilderness wiring are
+      follow-ups (P-4).
 - [x] Inn + Temple sub-prompts.  Neither the Inn nor the Temple is a `D5`
       first-person interior (that earlier note was a misconception — there is no
       such state).  The **Inn screen *is* the boot main menu**: the game starts

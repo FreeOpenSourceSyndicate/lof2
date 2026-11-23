@@ -104,6 +104,15 @@ engine's narration; the text block (rows 92/100/108/116/132/148/164) is
 viewport, the give-item effect (add the amulet to a character's inventory), the
 24-frame ANIM transition, and the `--ui` town->wilderness wiring.
 
+**Give-item effect (2026-11-23).** Continued P-4: derived the engine's item-add
+routine (image `0x69e2..0x6c5f` — scan 48 slots for the first empty one, store
+the item, seed `charges` from item +0x13, set `condition`=100, `inc` the used
+count +0x6b at `0x6c2a`, refresh the carried weight) and implemented
+`give_item()` in `port/char`. `lof --amulet-give N --save S --amulet-out O`
+applies it and writes a sealed save. The amulet viewport is a *different scene*
+(78.8% differs from TWN00), not an overlay, so it stays best-effort. Pinned by
+`char_test::test_give_item` + `port_amulet_test.py`.
+
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 
 Lane M, sole active agent (lof2/M-6). Read the rules, guess register, owner
