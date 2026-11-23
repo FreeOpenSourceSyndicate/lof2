@@ -5,6 +5,43 @@ previous maintainer was interrupted mid-work and their state was unclear. Read
 this first, then `docs/HANDOFF.md` (the technical reference) and
 `docs/WORKSTREAMS.md` (who owns what).
 
+## Session 2026-11-23 (fortieth session) — M-6: type-7 door move + answer-gate fix
+
+Sole active agent (lof2/M-6). Green baseline first: fixed the stale
+`tests/answer_path_test.py` effect assertion (it looked for "would join"; the
+code prints the engine's own " joins the companionship."), committed and pushed
+(`0dfc726`), then ran the full `make check` → **HEALTHY** (emulator golden sweep
+and drop-in golden screens both pass).
+
+**G-017 resolved — the type-7 door moves the party.** The `[0x3b15]` reader was
+"not found" only because it sits in an asm gap; a raw byte search of the unpacked
+image (`LOF.EXE[0x54F0:]` via `tools/mz.py load()`) finds it at image `0x2C1F6`
+(`cmp es:[0x3b15],0 ; jne 0x2c22f`). That routine does **not** move the party: it
+only *skips* the normal walk-buffer commit when the flag is set, then clears it,
+so the handler's own writes (`0x20AE0/0x20AF0/0x20B05`) are the teleport. The save
+loader (`0x1C93F..0x1C971`) proves the global roles: `+0x9a2` ones -> `0x37fa`,
+`+0x9a4` tens -> `0x460e`, `+0x9a0` cell -> `0x3824`, `+0x9a6` facing -> `0x3d2`.
+So a door's `+0xe4`/`+0xe6`/`+0xe8` are location ones/tens and cell; the
+destination is `tens*10+ones`. Implemented `DoorTarget::destination_location()`,
+`dungeon_follow_door()` and wired it into `fire_cell_event()` (both the `--walk`
+loop and the interactive `--ui` loop). SPEC2[0] is the only shipped type-7 record:
+ones=1/tens=1/cell 572 -> DNG11 (32,15).
+
+**Latent bug fixed — no-keyword records never reached the type switch.**
+`answer_fires_effect()` returned true only for `Match`; the dispatcher shows the
+empty-keyword case jumps straight to the type switch (`0x209CE: jmp 0x20AB8`), and
+only a wrong answer skips it (`0x20A6E: jmp 0x1F83C`). Fixed to
+`effect != Mismatch`; updated `dungeon_test::test_answer_branches` (it had
+asserted the old polarity) and the `AnswerEffect` comment.
+
+**Tests.** `tests/dungeon_test.cpp::test_door_follow` (decode + real DNG05->DNG11
+follow at cell 572 + bad-destination no-op); `tests/once_only_test.py` extended to
+assert the end-to-end `--walk` teleport (`(door -> location 11, cell 572)` and
+`walk: x=32 y=15`). `make test` and `make golden-port` both pass.
+
+**Next.** Remaining P-2 per-type effects and the recruit stat block (G-018);
+P-7 town transactions / P-4 wilderness are the bigger player-facing gaps.
+
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 
 Lane M, sole active agent (lof2/M-6). Read the rules, guess register, owner

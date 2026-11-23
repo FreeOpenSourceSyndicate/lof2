@@ -1260,12 +1260,14 @@ static void test_answer_branches(const std::string& dir) {
     r.text_b = "A large warrior asks if he may join you (Yes/No).";
     r.flag_4b = 0;
 
-    // Empty keyword: the record never reads an answer and never prints +0x0e.
+    // Empty keyword: the record never reads an answer and never prints +0x0e,
+    // but it goes straight to the type switch (0x209CE: jmp 0x20AB8), so its
+    // per-type effect *does* fire.
     SpecRecord silent = r;
     silent.keyword.clear();
     assert(classify_answer(silent, "Y") == AnswerEffect::NoAnswerWanted);
     assert(!answer_prints_outcome(silent, classify_answer(silent, "Y")));
-    assert(!answer_fires_effect(classify_answer(silent, "Y")));
+    assert(answer_fires_effect(classify_answer(silent, "Y")));
 
     // Match: the effect fires.  Mismatch: it must not.
     assert(classify_answer(r, "Y") == AnswerEffect::Match);
@@ -1722,6 +1724,50 @@ static void test_stairs(const std::string& dir) {
                 portals);
 }
 
+// A type-7 door teleports the party: SPEC2[0] is the only shipped type-7 record
+// (ones=1, tens=1 -> location 11 = DNG11, cell 572).  The target fields must
+// decode to location 11, and following it must load DNG11 and stand the party on
+// cell 572; a bad destination must leave the party and the map untouched.
+static void test_door_follow(const std::string& dir) {
+    const std::string root = dir + "/..";
+
+    SpecTable spec = load_spec(root + "/SYST/SPEC2");
+    assert(spec.ok && !spec.records.empty());
+    const SpecRecord& r = spec.records[0];
+    assert(r.type == 7);
+    DoorTarget t = door_target(r);
+    assert(t.location == 1 && t.map == 1 && t.cell == 572);
+    assert(t.destination_location() == 11);   // tens*10 + ones
+
+    Dungeon d, ref;
+    std::string err;
+    assert(load_dungeon(dir + "/DNG05", d, &err));
+    assert(load_dungeon(dir + "/DNG11", ref, &err));
+    uint16_t location = 5;
+    DungeonPos pos;
+    assert(dungeon_place_cell(d, pos, 0, 2));
+    const int facing = pos.facing;
+    assert(dungeon_follow_door(root, t.destination_location(), t.cell,
+                               location, d, pos));
+    assert(location == 11);
+    assert(d.tiles == ref.tiles);             // the map really is DNG11
+    DungeonPos expect;
+    assert(dungeon_place_cell(ref, expect, t.cell, facing));
+    assert(pos.x == expect.x && pos.y == expect.y && pos.facing == expect.facing);
+
+    // A bad destination changes nothing.
+    Dungeon d2;
+    assert(load_dungeon(dir + "/DNG05", d2, &err));
+    uint16_t loc2 = 5;
+    DungeonPos p2;
+    assert(dungeon_place_cell(d2, p2, 0, 2));
+    const int x2 = p2.x, y2 = p2.y, f2 = p2.facing;
+    assert(!dungeon_follow_door(root, 77, 0, loc2, d2, p2));
+    assert(loc2 == 5 && p2.x == x2 && p2.y == y2 && p2.facing == f2);
+
+    std::printf("dungeon_test: door follow ok (SPEC2[0] -> DNG11 cell %d)\n", t.cell);
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_render();
@@ -1757,6 +1803,7 @@ int main(int argc, char** argv) {
     test_room_art(dir);
     test_view_depth(dir);
     test_stairs(dir);
+    test_door_follow(dir);
     std::printf("dungeon_test: ok\n");
     return 0;
 }

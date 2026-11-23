@@ -3432,6 +3432,43 @@ run with no key prints nothing.  Pinned by `tests/event_fire_test.py`.
 - `type == 0x10` consults the byte at `[0x7d1c]` (set at `0x1F641`).
 - The signed byte at `record+0xea` and the `0x37ee`-indexed bookkeeping.
 
+### Type-7 door move — resolved 2026-11-23 (G-017)
+
+The type-7 handler (`0x20AD7..0x20B13`) writes the record's `+0xe4`/`+0xe6`/
+`+0xe8` into the engine's party-position globals and raises `[0x3b15]`. The
+reader of `[0x3b15]` was previously "not found" because it sits in an asm gap.
+A raw byte search of the unpacked image (`LOF.EXE[0x54F0:]`, i.e.
+`tools/mz.py load()["image"]`) for the read encoding finds it:
+
+```
+2C1F2: 8e06fcb0   mov  es, [0xb0fc]
+2C1F6: 26803e153b00  cmp byte ptr es:[0x3b15], 0
+2C1FC: 7531       jne  0x2c22f          ; flag set -> skip the walk-buffer commit
+2C1FE: ...        ; flag clear -> commit [0x46d5]->[0x3d2], [0x46d6]->[0x3824]
+2C2BC: 26c606153b00  mov byte ptr es:[0x3b15], 0   ; clear
+```
+
+So the flag is only a guard: it stops the normal post-move commit from
+overwriting a teleport destination. It neither performs nor undoes the move —
+the handler's own writes **are** the move.
+
+The three globals' roles are proven by the save loader (`0x1C93F..0x1C971`):
+
+```
+save +0x9a0 -> es:[0x3824]   cell
+save +0x9a2 -> es:[0x37fa]   location ones digit
+save +0x9a4 -> es:[0x460e]   location tens digit (dword, 0x4610 = high)
+save +0x9a6 -> es:[0x3d2]    facing
+```
+
+Therefore a door's `+0xe4` is the location **ones** digit, `+0xe6` the **tens**
+digit and `+0xe8` the cell, so the destination is `tens*10 + ones`. SPEC2[0] is
+the only shipped type-7 record: ones=1, tens=1, cell=572 -> location 11
+(`DNGS/DNG11`), cell 572. `DoorTarget::destination_location()` and
+`dungeon_follow_door()` implement the move; `tests/dungeon_test.cpp::
+test_door_follow` pins the decode, the real map follow (DNG05 -> DNG11 at 572)
+and the bad-destination no-op.
+
 ## What the recruit (type 1) record still needs
 
 **Solved (2026-11-08): the joining character is `SYST/SNSC[record+0xeb]`.**

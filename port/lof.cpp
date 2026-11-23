@@ -839,13 +839,13 @@ static const std::string* g_event_answer = nullptr;
 static DoorTarget g_door;     // type-7 destination, see door_target()
 static CoffinLatch g_coffin;  // type-16 two-visit latch, see CoffinLatch
 
-static void fire_cell_event(const std::string& dir, uint16_t location,
-                            const Dungeon& d, const DungeonPos& pos,
+static bool fire_cell_event(const std::string& dir, uint16_t& location,
+                            Dungeon& d, DungeonPos& pos,
                             SpecTable* spec, bool* spec_loaded,
                             const SaveGame* sg,
                             const std::string* answer = nullptr) {
     const int idx = d.event_index(pos.x, pos.y);
-    if (idx < 0) return;
+    if (idx < 0) return false;
     if (!*spec_loaded) {
         *spec_loaded = true;
         *spec = load_spec(spec_path(dir, location));
@@ -855,7 +855,7 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
     }
     if (!spec->ok || idx >= (int)spec->records.size()) {
         fprintf(stderr, "lof: event index %d has no SPEC record\n", idx);
-        return;
+        return false;
     }
     const SpecRecord& r = spec->records[(size_t)idx];
 
@@ -869,7 +869,7 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
     // 0x212F6 is `pop si; pop di; mov sp,bp; pop bp; retf`, i.e. a plain return.
     if (r.counter == 1 && type_takes_zero_flag((uint16_t)r.type) &&
         r.arg_e6 < 12 && sg != nullptr) {
-        if (party_done_flags(*sg)[(size_t)r.arg_e6]) return;
+        if (party_done_flags(*sg)[(size_t)r.arg_e6]) return false;
     }
 
     // A type-16 record (lava crossing / sarcophagus) alternates: the visit that
@@ -877,7 +877,7 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
     // (0x1F639 -> 0x21276 skips it).
     if (g_coffin.visit(r.type)) {
         printf("lof: The companions arise out of the coffin.\n");
-        return;
+        return false;
     }
 
     if (!r.text_b.empty()) printf("lof: %s\n", r.text_b.c_str());
@@ -889,11 +889,11 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
     const AnswerEffect effect = classify_answer(r, answer ? *answer : "");
     if (effect == AnswerEffect::NoAnswerWanted ? false : answer == nullptr) {
         printf("lof:   (answer wanted)\n");
-        return;
+        return false;
     }
     if (answer_prints_outcome(r, effect) && !r.text_a.empty())
         printf("lof: %s\n", r.text_a.c_str());
-    if (!answer_fires_effect(effect)) return;
+    if (!answer_fires_effect(effect)) return false;
 
     // A record may also name a long text block: `index_c9` (0xff = none) is an
     // entry index into `SYST/TXT<same scenario number as the SPEC file>`.  The
@@ -976,21 +976,30 @@ static void fire_cell_event(const std::string& dir, uint16_t location,
         }
     }
 
-    // Type 7: a doorway.  The handler (0x20AD7..0x20B13) stores the record's
-    // destination -- +0xe4 -> [0x37fa], +0xe6 -> [0x460e], +0xe8 -> [0x3824]
-    // -- and raises [0x3b15].  The move itself happens wherever that flag is
-    // consumed, which is not decoded yet (GUESSWORK G-017).
+    // Type 7: a doorway.  The handler (0x20AD7..0x20B13) writes the record's
+    // destination straight into the engine's party-position globals -- +0xe4 ->
+    // [0x37fa] (location ones), +0xe6 -> [0x460e] (location tens), +0xe8 ->
+    // [0x3824] (cell) -- and raises [0x3b15].  The save loader proves the global
+    // roles and the flag's only reader (0x2C1F6) merely skips the normal
+    // walk-buffer commit; so the door is a teleport to (tens*10+ones, cell).
+    // See DoorTarget and GUESSWORK G-017 (resolved).
     if (r.type == 7) {
         g_door = door_target(r);
-        printf("lof:   (door -> location %d, map %d, cell %d)\n",
-               g_door.location, g_door.map, g_door.cell);
-        return;
+        const uint16_t dest = g_door.destination_location();
+        printf("lof:   (door -> location %d, cell %d)\n",
+               (int)dest, g_door.cell);
+        if (dungeon_follow_door(dir, dest, g_door.cell, location, d, pos))
+            return true;
+        fprintf(stderr, "lof: cannot follow door to %s cell %d\n",
+                dungeon_map_name(dest).c_str(), g_door.cell);
+        return false;
     }
 
     // Plain-text group with no extra tail work: the event is fully reproduced.
-    if (r.type <= 6) return;
+    if (r.type <= 6) return false;
     printf("lof:   (event type %u at %d,%d: effect not implemented)\n",
            (unsigned)r.type, pos.x, pos.y);
+    return false;
 }
 
 // One movement key press.  Turning keys just turn; a forward key steps, and if
@@ -1251,9 +1260,12 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                 if (walk_key(dir, loc, dng, pos, key, &changed, stair_msg)) {
                     if (changed) { play_dungeon = loc; play_spec_loaded = false; }
                     if (!stair_msg.empty()) printf("lof: %s\n", stair_msg.c_str());
-                    fire_cell_event(dir, loc, dng, pos, &play_spec,
-                                    &play_spec_loaded, &play_sg,
-                                    g_event_answer);
+                    if (fire_cell_event(dir, loc, dng, pos, &play_spec,
+                                        &play_spec_loaded, &play_sg,
+                                        g_event_answer)) {
+                        play_dungeon = loc;      // a door changed the level
+                        play_spec_loaded = false;
+                    }
                     redraw_play();
                 }
             }
@@ -1327,8 +1339,9 @@ static bool walk_loop(const std::string& dir, const std::string& save,
         walk_key(dir, location, d, pos, k, &changed, msg);
         if (!msg.empty()) printf("lof: %s\n", msg.c_str());
         if (location != before) spec_loaded = false;   // stair: new level, new SPEC
-        fire_cell_event(dir, location, d, pos, &spec, &spec_loaded, &sg,
-                        g_event_answer);
+        if (fire_cell_event(dir, location, d, pos, &spec, &spec_loaded, &sg,
+                            g_event_answer))
+            spec_loaded = false;                       // door: new map, new SPEC
     }
     // Persist the walk.  The party position is written back into the save's
     // world block and the file is re-sealed, so a later load resumes here.

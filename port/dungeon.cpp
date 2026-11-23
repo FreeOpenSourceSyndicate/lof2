@@ -1,6 +1,7 @@
 // Dungeon map decoder for Legend of Faerghail (DNGS/DNGnn).
 // See port/dungeon.h and docs/notes-a.md.
 #include "dungeon.h"
+#include "char.h"     // dungeon_map_name() — the DNGS file-name encoding
 
 #include <cstdio>
 #include <cstdlib>
@@ -188,6 +189,22 @@ bool dungeon_place_cell(const Dungeon& d, DungeonPos& p, int cell, int facing) {
     if (cell < 0 || cell >= kDungeonW * kDungeonH) return false;
     p.facing = facing & 3;
     return dungeon_place(d, p, cell % kDungeonW, cell / kDungeonW);
+}
+
+bool dungeon_follow_door(const std::string& dir, uint16_t dest_location,
+                         int cell, uint16_t& location, Dungeon& d,
+                         DungeonPos& pos) {
+    const std::string name = dungeon_map_name(dest_location);
+    if (name.empty()) return false;
+    Dungeon next;
+    std::string err;
+    if (!load_dungeon(dir + "/DNGS/" + name, next, &err)) return false;
+    DungeonPos moved = pos;   // place on a copy; commit only on success
+    if (!dungeon_place_cell(next, moved, cell, pos.facing)) return false;
+    d = next;
+    pos = moved;
+    location = dest_location;
+    return true;
 }
 
 // --- Stairs, holes and portals -------------------------------------------

@@ -108,11 +108,20 @@ def main():
         if TEXT not in out_fresh:
             sys.exit("once_only_test: a fresh party must see the once-only "
                      "record.  Got:\n%s" % out_fresh)
+        # With the flags clear the record fires; it is a type-7 door whose
+        # destination is ones=1, tens=1, cell 572, i.e. location 11 (DNG11) at
+        # (32,15).  The door must teleport the party there (facing unchanged).
+        if "(door -> location 11, cell 572)" not in out_fresh:
+            sys.exit("once_only_test: the type-7 door did not fire.  Got:\n%s"
+                     % out_fresh)
+        if "walk: x=32 y=15 facing=0" not in out_fresh:
+            sys.exit("once_only_test: the door did not teleport the party to "
+                     "DNG11 cell 572.  Got:\n%s" % out_fresh)
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
     print("once_only_test: ok (SPEC2[0] suppressed when the party's +0x38[1] "
-          "is set, shown when clear)")
+          "is set, shown when clear; clear also teleports to DNG11 cell 572)")
 
 
 if __name__ == "__main__":

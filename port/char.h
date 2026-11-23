@@ -123,9 +123,10 @@ struct SpecRecord {
 //   0x20A0E: je  0x20A72                  ; EQUAL   -> the match branch
 //   0x20A10: ...                          ; else    -> the mismatch branch
 //
-// The match branch is the one that reaches the per-type effect switch, so only
-// a correct answer can fire the effect.  `+0x0e` is printed on both branches,
-// with `+0x4b` gating each branch separately:
+// The no-keyword branch (0x209CE) and the match branch both reach the per-type
+// effect switch at 0x20AB8; only a wrong answer skips it (0x20A6E jmp 0x1F83C).
+// `+0x0e` is printed on both answer branches, with `+0x4b` gating each branch
+// separately:
 //
 //   match    (0x20A89 cmp byte [bx+0x4b],0 ; 0x20A8E je 0x20AB8 -> no print)
 //   mismatch (0x20A3D cmp byte [bx+0x4b],0 ; 0x20A42 je 0x20A47 -> print)
@@ -139,18 +140,29 @@ enum class AnswerEffect {
 };
 
 // A type-7 ("would you like to go through?") door's destination, from the
-// effect at image 0x20AD7..0x20B13: the handler copies the record's `+0xe4`
-// into `[0xb05c]:0x37fa`, `+0xe6` (sign-extended) into `[0xb050]:0x460e`,
-// `+0xe8` into `[0xb04e]:0x3824`, and sets `[0xb05e]:0x3b15 = 1`.  All ten
-// shipped type-7 records carry a plausible destination cell (e.g. SPEC2[0] =
-// location 1, map 1, cell 572 = row 15, col 32), so the three fields are the
-// destination (level, map, 36x36 cell) and the byte is a pending flag.
-// Which code *consumes* the flag is not yet decoded -- see GUESSWORK G-017.
+// effect at image 0x20AD7..0x20B13.  The handler writes the record's fields
+// straight into the engine's party-position globals:
+//   +0xe4 -> [0xb05c]:0x37fa   (location ONES digit)
+//   +0xe6 -> [0xb050]:0x460e   (location TENS digit, sign-extended dword)
+//   +0xe8 -> [0xb04e]:0x3824   (36x36 cell index)
+// and raises [0xb05e]:0x3b15.  The save loader (0x1C93F..0x1C971) proves the
+// global roles: save +0x9a2 (ones) -> 0x37fa, +0x9a4 (tens) -> 0x460e,
+// +0x9a0 (cell) -> 0x3824, +0x9a6 (facing) -> 0x3d2.  The flag's only reader
+// (0x2C1F6 `cmp es:[0x3b15],0`) merely *skips* the normal walk-buffer commit so
+// the teleport destination is not overwritten, then clears the flag; it neither
+// performs nor undoes the move.  So the door teleports the party to
+// (tens*10 + ones, cell).  G-017 resolved 2026-11-23.
 struct DoorTarget {
-    int location = 0;   // +0xe4 -> [0x37fa]
-    int map = 0;        // +0xe6 -> [0x460e] (dword, sign-extended)
-    int cell = 0;       // +0xe8 -> [0x3824]
+    int location = 0;   // +0xe4 -> [0x37fa]  (location ONES digit)
+    int map = 0;        // +0xe6 -> [0x460e]  (location TENS digit)
+    int cell = 0;       // +0xe8 -> [0x3824]  (cell index, 0..1295)
     bool pending = false;  // [0x3b15] = 1
+
+    // The party location the door leads to, in the save's encoding
+    // (`save_location()` = tens*10 + ones): +0xe6*10 + +0xe4.
+    uint16_t destination_location() const {
+        return (uint16_t)(map * 10 + location);
+    }
 };
 
 DoorTarget door_target(const SpecRecord& r);
@@ -174,7 +186,8 @@ AnswerEffect classify_answer(const SpecRecord& r, const std::string& answer);
 // Whether the outcome line (`+0x0e`) is printed for this branch.
 bool answer_prints_outcome(const SpecRecord& r, AnswerEffect effect);
 
-// Whether the per-type effect runs for this branch (only on a match).
+// Whether the per-type effect runs for this branch: always, except on a wrong
+// answer to a keyword prompt (no keyword -> straight to the type switch).
 bool answer_fires_effect(AnswerEffect effect);
 
 // Case-insensitive comparison with the same folding the engine uses

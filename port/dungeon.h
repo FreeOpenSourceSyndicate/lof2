@@ -282,6 +282,14 @@ bool dungeon_place_entry(const Dungeon& d, DungeonPos& p);
 // false only if no passable cell exists at all.
 bool dungeon_place_cell(const Dungeon& d, DungeonPos& p, int cell, int facing);
 
+// Follow a type-7 door: load the destination map (`<dir>/DNGS/DNG<nn>` for
+// `dest_location`, the save's tens*10+ones encoding), place the party at `cell`
+// keeping `pos.facing`, and set `location`.  Returns false and leaves
+// `location`, `d` and `pos` unchanged if the map or cell is invalid.
+bool dungeon_follow_door(const std::string& dir, uint16_t dest_location,
+                         int cell, uint16_t& location, Dungeon& d,
+                         DungeonPos& pos);
+
 // --- Stairs, holes and portals -------------------------------------------
 //
 // A stair is a *tile code*, not an object: the low nibble is the direction

@@ -93,7 +93,10 @@ bool answer_prints_outcome(const SpecRecord& r, AnswerEffect effect) {
 }
 
 bool answer_fires_effect(AnswerEffect effect) {
-    return effect == AnswerEffect::Match;
+    // A record with no keyword jumps straight to the type switch
+    // (0x209CE: jmp 0x20AB8), so its effect fires unconditionally; only a
+    // wrong answer suppresses it.
+    return effect != AnswerEffect::Mismatch;
 }
 
 bool parse_spec(const std::vector<uint8_t>& data, SpecTable& out) {

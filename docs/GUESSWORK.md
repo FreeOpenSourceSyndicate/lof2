@@ -275,17 +275,6 @@ companions.") but does **not** create a character.  Open: which free slot the
 engine picks and the party capacity (the panel shows six), and where the
 recruit's statistics come from.  Do not synthesise stats until that is read.
 
-### G-017 — who consumes the type-7 door destination
-
-`0x20AD7..0x20B13` writes a type-7 door's destination into
-`[0xb05c]:0x37fa` (`+0xe4`), `[0xb050]:0x460e` (`+0xe6`, sign-extended) and
-`[0xb04e]:0x3824` (`+0xe8`), then raises `[0xb05e]:0x3b15`.  The three fields
-read as a destination (level, map, 36x36 cell: all ten shipped type-7 records
-carry a cell in `0..1295`, e.g. SPEC2[0] = 1/1/572), and the port stores exactly
-that (`door_target()`), but **no reader of `[0x3b15]` has been found**, so the
-actual party move is not implemented.  Do not invent the move: find the reader
-of `[0x3b15]` (watch it during a door acceptance) before porting it.
-
 ### G-016 — the `SpecType` labels come from record text, not from code
 
 - **Guess:** the names in `port/char.h`'s `SpecType` enum (`SPEC_TYPE_DOOR = 7`,
@@ -336,6 +325,31 @@ of `[0x3b15]` (watch it during a door acceptance) before porting it.
 ---
 
 ## F. Resolved / removed
+
+### G-017 — who consumes the type-7 door destination — **RESOLVED 2026-11-23**
+
+`0x20AD7..0x20B13` writes a type-7 door's destination into
+`[0xb05c]:0x37fa` (`+0xe4`), `[0xb050]:0x460e` (`+0xe6`, sign-extended) and
+`[0xb04e]:0x3824` (`+0xe8`), then raises `[0xb05e]:0x3b15`.
+
+The earlier "no reader of `[0x3b15]`" note was a false negative: the reader is in
+an asm gap the flow-following decompiler skipped. A raw byte search of the
+unpacked image (`LOF.EXE[0x54F0:]`) for the read encoding finds it at image
+**`0x2C1F6`: `cmp byte ptr es:[0x3b15], 0 ; jne 0x2c22f`** (cleared at
+`0x2C2BC`). That routine **does not perform or undo the move**: when the flag is
+clear it commits the normal walk buffer (`[0x46d5]`/`[0x46d6]`) into the party
+position (`0x3d2`/`0x3824`); when the flag is set it *skips* that commit (so the
+teleport destination is not clobbered), then clears the flag. So the move is the
+handler's own writes — the party is teleported to the destination.
+
+The three globals' roles are proven by the save loader (`0x1C93F..0x1C971`):
+save `+0x9a2` (location **ones**) -> `0x37fa`, `+0x9a4` (**tens**) -> `0x460e`,
+`+0x9a0` (**cell**) -> `0x3824`, `+0x9a6` (**facing**) -> `0x3d2`. Therefore a
+door's `+0xe4` is the ones digit, `+0xe6` the tens digit and `+0xe8` the cell, so
+the destination location is `tens*10 + ones` (SPEC2[0] = ones 1 / tens 1 / cell
+572 -> location 11 = `DNGS/DNG11`, cell 572). `DoorTarget::destination_location()`
+encodes this; `dungeon_follow_door()` loads the map, places the party at the cell
+and keeps the facing. Pinned by `tests/dungeon_test.cpp::test_door_follow`.
 
 ### G-011 — "is out of action." row: style, colour and advance (Lane M) — RESOLVED
 
