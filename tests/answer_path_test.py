@@ -27,6 +27,7 @@ SAVE = os.path.join(GAME, "GAMES", "GAME2")
 START_CELL = 1 * 36 + 31          # the recruit cell is (31,2), facing south
 FORWARD = "0x48"
 OUTCOME = "He goes, disappointed."
+EFFECT = "joins the companionship."
 
 
 def checksum(data):
@@ -66,15 +67,15 @@ def main():
     quiet = run(save)
     assert "(answer wanted)" in quiet, quiet
     assert OUTCOME not in quiet, "the outcome line printed before any answer"
-    assert "would join" not in quiet, "the effect fired without an answer"
+    assert EFFECT not in quiet, "the effect fired without an answer"
 
     decline = run(save, "N")
     assert OUTCOME in decline, decline
-    assert "would join" not in decline, "a wrong answer fired the effect"
+    assert EFFECT not in decline, "a wrong answer fired the effect"
 
     accept = run(save, "Y")
     assert OUTCOME in accept, accept
-    assert "would join" in accept, "a correct answer did not fire the effect"
+    assert EFFECT in accept, "a correct answer did not fire the effect"
 
     os.remove(save)
     print("answer_path_test: ok (no answer -> prompt only; N -> line, no effect; "
