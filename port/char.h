@@ -782,6 +782,11 @@ enum CharOffset : size_t {
     // contribute to the carried weight above: each ration weighs 10 and each
     // gold piece weighs 1 (the routine adds `10*+0x70 + word[+0x72]`).
     kCharGold72    = 0x72,  // dword: gold (low word +0x72, high word +0x74)
+    // The bank account is the dword right after gold: the deposit handler prints
+    // "Your account:" from +0x76/+0x78 (0xbc97) and gold from +0x72/+0x74
+    // (0xbcc2).  Deposit adds to +0x76, withdraw subtracts from it (0xbd87 /
+    // 0xbf76).
+    kCharBank76    = 0x76,  // dword: bank account (low word +0x76, high word +0x78)
     kCharRations70 = 0x70,  // byte: rations
     // Hit points.  The character-sheet builder at 28054/28067 reads the current
     // value from +0x22 and divides 100*current by the value at +0x20 to get the
@@ -1230,6 +1235,19 @@ void temple_heal_apply(SaveChar& c);
 // reproduced.  `roll` is the engine's rand(100)+1, in 1..100.
 int temple_revive_cost(const SaveChar& c);
 bool temple_revive(SaveChar& c, int roll);
+
+// --- Bank deposit / withdraw (image 0xbb7a..0xbf7e) ------------------------
+// Each character has a bank account dword (+0x76/+0x78) beside its gold
+// (+0x72/+0x74).  bank_deposit moves `amount` from gold to the account (0xbd57
+// / 0xbd87) and refuses when gold < amount (0xbdca); bank_withdraw is the
+// mirror (account -= amount at 0xbf76, gold += amount in the caller) and
+// refuses when account < amount.  `amount` 0 is a no-op.
+bool bank_deposit(SaveChar& c, uint32_t amount);
+bool bank_withdraw(SaveChar& c, uint32_t amount);
+
+// Read-only accessors for the gold (+0x72) and bank account (+0x76) dwords.
+uint32_t char_gold(const SaveChar& c);
+uint32_t char_bank(const SaveChar& c);
 
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.

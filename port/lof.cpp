@@ -1611,6 +1611,10 @@ int main(int argc, char** argv) {
     int temple_revive_do = 0;       // 1-based char to revive (--temple-revive-do)
     int temple_revive_payer = 0;    // 1-based payer (0 = the revived char)
     int temple_revive_roll = 1;     // engine rand(100)+1; CLI takes it as input
+    int bank_deposit_do = 0;        // 1-based char to deposit for (0 = off)
+    uint32_t bank_deposit_amt = 0;  // amount (0 = all)
+    int bank_withdraw_do = 0;       // 1-based char to withdraw for (0 = off)
+    uint32_t bank_withdraw_amt = 0; // amount (0 = all)
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
@@ -1648,6 +1652,14 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--temple-revive-do" && i + 1 < argc) temple_revive_do = atoi(argv[++i]);
         else if (std::string(argv[i]) == "--temple-revive-payer" && i + 1 < argc) temple_revive_payer = atoi(argv[++i]);
         else if (std::string(argv[i]) == "--temple-revive-roll" && i + 1 < argc) temple_revive_roll = atoi(argv[++i]);
+        else if (std::string(argv[i]) == "--bank-deposit" && i + 2 < argc) {
+            bank_deposit_do = atoi(argv[++i]);
+            bank_deposit_amt = (uint32_t)strtoul(argv[++i], nullptr, 10);
+        }
+        else if (std::string(argv[i]) == "--bank-withdraw" && i + 2 < argc) {
+            bank_withdraw_do = atoi(argv[++i]);
+            bank_withdraw_amt = (uint32_t)strtoul(argv[++i], nullptr, 10);
+        }
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
@@ -1817,6 +1829,37 @@ int main(int argc, char** argv) {
         }
         fprintf(stderr, "lof: revive of character %d %s (paid %d gold)\n",
                 temple_revive_do, ok ? "succeeded" : "failed", cost);
+        return 0;
+    }
+    if (bank_deposit_do > 0 || bank_withdraw_do > 0) {
+        bool is_dep = bank_deposit_do > 0;
+        int who = is_dep ? bank_deposit_do : bank_withdraw_do;
+        uint32_t amt = is_dep ? bank_deposit_amt : bank_withdraw_amt;
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: bank needs a valid --save\n"); return 1; }
+        int idx = who - 1;
+        if (idx < 0 || idx >= (int)sg.chars.size() || sg.chars[idx].present == 0) {
+            fprintf(stderr, "lof: bank %d: no present character\n", who);
+            return 1;
+        }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: bank needs --amulet-out\n"); return 1; }
+        if (amt == 0) amt = is_dep ? char_gold(sg.chars[idx]) : char_bank(sg.chars[idx]);
+        bool ok = is_dep ? bank_deposit(sg.chars[idx], amt)
+                         : bank_withdraw(sg.chars[idx], amt);
+        if (!ok) {
+            fprintf(stderr, "lof: character %d has not enough %s for %u\n", who,
+                    is_dep ? "gold" : "account", amt);
+            return 1;
+        }
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        fprintf(stderr, "lof: %s %u for character %d (gold %u, account %u)\n",
+                is_dep ? "deposited" : "withdrew", amt, who,
+                char_gold(sg.chars[idx]), char_bank(sg.chars[idx]));
         return 0;
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||

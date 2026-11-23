@@ -162,6 +162,15 @@ rich payer: CON 18→17, status→0, hp→1, payer −900).  Not reproduced: the
 experience boost on success (profession-table formula) and the
 cure-condition-only variant.
 
+**Bank deposit/withdraw (2026-11-23).** The bank account is the character dword
+at +0x76/+0x78 (the deposit handler prints "Your account:" from +0x76, 0xbc97).
+Deposit moves gold→account (0xbd57/0xbd87), refusing when gold < amount;
+withdraw is the mirror (account -= amount 0xbf76, gold += amount in the caller).
+Empty input = all.  Implemented `bank_deposit`/`bank_withdraw`/`char_gold`/
+`char_bank` (port/char) and `lof --bank-deposit N AMT` / `--bank-withdraw N AMT`
+(AMT 0 = all).  Unit-tested (`char_test::test_bank`) and e2e on GAME4 (deposit
+5 then withdraw 5 round-trips, resealed).
+
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 
 Lane M, sole active agent (lof2/M-6). Read the rules, guess register, owner

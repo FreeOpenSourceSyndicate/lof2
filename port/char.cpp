@@ -330,6 +330,16 @@ static void wr16(uint8_t* r, int off, uint16_t v) {
     r[off] = (uint8_t)(v & 0xff);
     r[off + 1] = (uint8_t)(v >> 8);
 }
+static uint32_t rd32(const uint8_t* r, int off) {
+    return (uint32_t)r[off] | ((uint32_t)r[off + 1] << 8) |
+           ((uint32_t)r[off + 2] << 16) | ((uint32_t)r[off + 3] << 24);
+}
+static void wr32(uint8_t* r, int off, uint32_t v) {
+    r[off] = (uint8_t)(v & 0xff);
+    r[off + 1] = (uint8_t)((v >> 8) & 0xff);
+    r[off + 2] = (uint8_t)((v >> 16) & 0xff);
+    r[off + 3] = (uint8_t)((v >> 24) & 0xff);
+}
 
 int rest_cost(const SaveGame& g, bool with_rations) {
     int members = 0;
@@ -432,6 +442,31 @@ bool temple_revive(SaveChar& c, int roll) {
     }
     return ok;
 }
+
+bool bank_deposit(SaveChar& c, uint32_t amount) {
+    uint8_t* r = c.raw.data();
+    uint32_t gold = rd32(r, kCharGold72);
+    if (gold < amount) return false;
+    wr32(r, kCharGold72, gold - amount);
+    wr32(r, kCharBank76, rd32(r, kCharBank76) + amount);
+    CharSheet sh = decode_char(c.raw.data());
+    wr16(r, kCharWeight66, (uint16_t)(weight_base(sh) + carried_item_weight(sh)));
+    return true;
+}
+
+bool bank_withdraw(SaveChar& c, uint32_t amount) {
+    uint8_t* r = c.raw.data();
+    uint32_t bank = rd32(r, kCharBank76);
+    if (bank < amount) return false;
+    wr32(r, kCharBank76, bank - amount);
+    wr32(r, kCharGold72, rd32(r, kCharGold72) + amount);
+    CharSheet sh = decode_char(c.raw.data());
+    wr16(r, kCharWeight66, (uint16_t)(weight_base(sh) + carried_item_weight(sh)));
+    return true;
+}
+
+uint32_t char_gold(const SaveChar& c) { return rd32(c.raw.data(), kCharGold72); }
+uint32_t char_bank(const SaveChar& c) { return rd32(c.raw.data(), kCharBank76); }
 
 uint16_t save_location(const SaveGame& g) {
     return (uint16_t)(g.loc_tens * 10 + g.loc_ones);

@@ -204,12 +204,65 @@ def check_temple_revive_effect() -> int:
     return 0
 
 
+def check_bank_effect() -> int:
+    # --bank-deposit N AMT moves gold(+0x72) -> account(+0x76); --bank-withdraw
+    # N AMT moves it back (image 0xbb7a..0xbf7e).
+    if not os.path.exists(GAME4):
+        print("port_building_test: SKIP bank effect (no GAME4)")
+        return 0
+
+    def rec(b, i):
+        return b[4 + i * 410:4 + (i + 1) * 410]
+
+    def dword(r, off):
+        return r[off] | (r[off + 1] << 8) | (r[off + 2] << 16) | (r[off + 3] << 24)
+
+    a = open(GAME4, "rb").read()
+    if dword(rec(a, 0), 0x72) < 5:
+        print("port_building_test: SKIP bank effect (char1 gold < 5)")
+        return 0
+    d1, d2 = "/tmp/port_bank_dep.sav", "/tmp/port_bank_wd.sav"
+    r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--bank-deposit", "1", "5", "--save", GAME4,
+                        "--amulet-out", d1],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        print("port_building_test: FAIL bank effect (deposit: %s)"
+              % r.stderr.decode().strip())
+        return 1
+    b = open(d1, "rb").read()
+    if dword(rec(b, 0), 0x72) != dword(rec(a, 0), 0x72) - 5 or \
+       dword(rec(b, 0), 0x76) != dword(rec(a, 0), 0x76) + 5:
+        print("port_building_test: FAIL bank effect (deposit moved wrong amount)")
+        return 1
+    r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--bank-withdraw", "1", "5", "--save", d1,
+                        "--amulet-out", d2],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        print("port_building_test: FAIL bank effect (withdraw: %s)"
+              % r.stderr.decode().strip())
+        return 1
+    c = open(d2, "rb").read()
+    if dword(rec(c, 0), 0x72) != dword(rec(a, 0), 0x72) or \
+       dword(rec(c, 0), 0x76) != dword(rec(a, 0), 0x76):
+        print("port_building_test: FAIL bank effect (withdraw not restoring)")
+        return 1
+    if len(b) != 13134 or b[0x2e3a:0x2e3e] == a[0x2e3a:0x2e3e]:
+        print("port_building_test: FAIL bank effect (save not resealed)")
+        return 1
+    print("port_building_test: ok bank effect (deposit/withdraw round-trip, "
+          "resealed)")
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
         rc |= check(flag, ref, label)
     rc |= check_temple_heal_effect()
     rc |= check_temple_revive_effect()
+    rc |= check_bank_effect()
     return rc
 
 

@@ -340,7 +340,12 @@ Progress:
       CLI `--temple-revive-do N [--temple-revive-payer M] [--temple-revive-roll
       R]`; pinned by `char_test::test_temple_revive` + the revive check in
       `port_building_test.py`.  The +0x6c experience boost on success and the
-      cure-condition-only variant are not reproduced.
+      cure-condition-only variant are not reproduced.  **Bank deposit/withdraw
+      DONE 2026-11-23:** the bank account is the character dword at +0x76/+0x78
+      (beside gold +0x72/+0x74); `bank_deposit()` moves gold→account (refusing
+      when short), `bank_withdraw()` the reverse; empty input = all.  CLI
+      `--bank-deposit N AMT` / `--bank-withdraw N AMT` (AMT 0 = all); pinned by
+      `char_test::test_bank` + the bank check in `port_building_test.py`.
 - [x] Encounter screen (`--encounter`): the wandering-monster screen the engine
       draws when it spawns enemies (first met from the wilderness).  It reuses
       the play screen's chrome — `EGA/UP/MSCR`, the party/status panel (its

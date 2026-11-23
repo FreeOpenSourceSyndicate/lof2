@@ -1408,6 +1408,22 @@ static void test_temple_revive() {
     assert(temple_revive(z, 1) == false);
 }
 
+static void test_bank() {
+    // Deposit moves gold (+0x72) -> account (+0x76); withdraw moves it back.
+    SaveChar c{};
+    c.raw[0] = 1;
+    c.raw[kCharGold72] = 100;
+    assert(char_gold(c) == 100 && char_bank(c) == 0);
+    assert(bank_deposit(c, 40));
+    assert(char_gold(c) == 60 && char_bank(c) == 40);
+    assert(!bank_deposit(c, 1000));      // not enough gold
+    assert(char_gold(c) == 60 && char_bank(c) == 40);
+    assert(bank_withdraw(c, 40));
+    assert(char_gold(c) == 100 && char_bank(c) == 0);
+    assert(!bank_withdraw(c, 1));        // empty account
+    assert(char_gold(c) == 100 && char_bank(c) == 0);
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
@@ -1415,6 +1431,7 @@ int main(int argc, char** argv) {
     test_rest_effect();
     test_temple_heal();
     test_temple_revive();
+    test_bank();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).
