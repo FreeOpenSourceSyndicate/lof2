@@ -150,8 +150,17 @@ heal sets hp_cur = hp_max (0xab03) and clears a status code (+0x1f, +0x55=1).
 Implemented `temple_heal_cost`/`temple_heal_apply` (port/char) and
 `lof --temple-heal-do N [--temple-heal-payer M] --save S --amulet-out O`.
 Unit-tested (`char_test::test_temple_heal`) and e2e on GAME4 (c1 level 3, cost
-6, 20/24→24/24, resealed).  Still open: (R)evive (type 3, cost level*300) and
-the cure-condition-only variant.
+6, 20/24→24/24, resealed).
+
+**Temple revive effect (2026-11-23).** Continued the same handler (type 3):
+cost = level*300; success iff CON!=0 && CON*4+5 >= rand(100)+1; success clears
+status (+0x1f), decrements CON (if >1) and raises hp_cur to ≥1; failure zeroes
+hp_max/hp_cur.  Implemented `temple_revive_cost`/`temple_revive(c,roll)` and
+`lof --temple-revive-do N [--temple-revive-payer M] [--temple-revive-roll R]`.
+Unit-tested (`char_test::test_temple_revive`) and e2e (constructed dead char +
+rich payer: CON 18→17, status→0, hp→1, payer −900).  Not reproduced: the +0x6c
+experience boost on success (profession-table formula) and the
+cure-condition-only variant.
 
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 

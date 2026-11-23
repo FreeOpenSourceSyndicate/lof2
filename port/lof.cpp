@@ -1608,6 +1608,9 @@ int main(int argc, char** argv) {
     bool inn_rest_rations = false;  // --inn-rest-rations: the "replenished" option
     int temple_heal_do = 0;         // 1-based char to heal (--temple-heal-do)
     int temple_heal_payer = 0;      // 1-based payer (0 = the healed char)
+    int temple_revive_do = 0;       // 1-based char to revive (--temple-revive-do)
+    int temple_revive_payer = 0;    // 1-based payer (0 = the revived char)
+    int temple_revive_roll = 1;     // engine rand(100)+1; CLI takes it as input
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
@@ -1642,6 +1645,9 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--inn-rest-rations") inn_rest_rations = true;
         else if (std::string(argv[i]) == "--temple-heal-do" && i + 1 < argc) temple_heal_do = atoi(argv[++i]);
         else if (std::string(argv[i]) == "--temple-heal-payer" && i + 1 < argc) temple_heal_payer = atoi(argv[++i]);
+        else if (std::string(argv[i]) == "--temple-revive-do" && i + 1 < argc) temple_revive_do = atoi(argv[++i]);
+        else if (std::string(argv[i]) == "--temple-revive-payer" && i + 1 < argc) temple_revive_payer = atoi(argv[++i]);
+        else if (std::string(argv[i]) == "--temple-revive-roll" && i + 1 < argc) temple_revive_roll = atoi(argv[++i]);
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
@@ -1781,6 +1787,36 @@ int main(int argc, char** argv) {
         }
         fprintf(stderr, "lof: healed character %d for %d gold (payer %d)\n",
                 temple_heal_do, cost, p + 1);
+        return 0;
+    }
+    if (temple_revive_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --temple-revive-do needs a valid --save\n"); return 1; }
+        int h = temple_revive_do - 1;
+        if (h < 0 || h >= (int)sg.chars.size() || sg.chars[h].present == 0) {
+            fprintf(stderr, "lof: --temple-revive-do %d: no present character\n", temple_revive_do);
+            return 1;
+        }
+        int p = temple_revive_payer > 0 ? temple_revive_payer - 1 : h;
+        if (p < 0 || p >= (int)sg.chars.size() || sg.chars[p].present == 0) {
+            fprintf(stderr, "lof: --temple-revive-payer %d: no present character\n", p + 1);
+            return 1;
+        }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: --temple-revive-do needs --amulet-out\n"); return 1; }
+        int cost = temple_revive_cost(sg.chars[h]);
+        if (!pay_gold(sg.chars[p], cost)) {
+            fprintf(stderr, "lof: character %d cannot pay %d gold\n", p + 1, cost);
+            return 1;
+        }
+        bool ok = temple_revive(sg.chars[h], temple_revive_roll);
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        fprintf(stderr, "lof: revive of character %d %s (paid %d gold)\n",
+                temple_revive_do, ok ? "succeeded" : "failed", cost);
         return 0;
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||

@@ -334,8 +334,13 @@ Progress:
       `hp_cur = hp_max` (0xab03) and clears a status code (+0x1f).  CLI
       `--temple-heal-do N [--temple-heal-payer M]`; pinned by
       `char_test::test_temple_heal` + the temple-heal check in
-      `port_building_test.py`.  Still open: (R)evive (cost `level*300`) and the
-      cure-condition variant.
+      `port_building_test.py`.  **(R)evive DONE 2026-11-23:** cost
+      `level*300`; success iff `CON!=0 && CON*4+5 >= rand(100)+1`; success
+      clears status, decrements CON (if >1), hp_cur≥1; failure zeroes HP.
+      CLI `--temple-revive-do N [--temple-revive-payer M] [--temple-revive-roll
+      R]`; pinned by `char_test::test_temple_revive` + the revive check in
+      `port_building_test.py`.  The +0x6c experience boost on success and the
+      cure-condition-only variant are not reproduced.
 - [x] Encounter screen (`--encounter`): the wandering-monster screen the engine
       draws when it spawns enemies (first met from the wilderness).  It reuses
       the play screen's chrome — `EGA/UP/MSCR`, the party/status panel (its

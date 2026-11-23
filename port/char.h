@@ -1215,10 +1215,21 @@ void rest_party(SaveGame& g, bool with_rations);
 //   else 0 (nothing to heal).  The heal (0xaa4a..0xab56) sets hp_cur = hp_max
 //   and, if the character carried a status code (+0x1f), clears it and sets
 //   +0x55 = 1.  The payer is a separately chosen character (paid through the
-//   same pay_gold routine as the inn rest).  The (R)evive option (type 3, cost
-//   level*300) and the cure-condition variant are not reproduced here.
+//   same pay_gold routine as the inn rest).  The (R)evive option is reproduced
+//   separately (temple_revive); the cure-condition-only variant is not.
 int temple_heal_cost(const SaveChar& c);
 void temple_heal_apply(SaveChar& c);
+
+// --- Temple (R)evive (image 0x9f88..0xab6a, type 3) ------------------------
+// Price = level(+0x17) * 300 (0xa5b3..0xa5d2).  The revival roll is
+// rand(100)+1 tested against CON(+0x44)*4 + 5 (0xa86d..0xa8ba) and CON must be
+// non-zero; on success CON is decremented (if > 1), status (+0x1f) is cleared
+// and hp_cur (+0x22) is raised to at least 1 (0xaa06); on failure hp_max and
+// hp_cur are zeroed (the body decays).  The +0x6c experience boost the success
+// path also adds (a profession-table formula at 0xa983..0xa9d5) is not
+// reproduced.  `roll` is the engine's rand(100)+1, in 1..100.
+int temple_revive_cost(const SaveChar& c);
+bool temple_revive(SaveChar& c, int roll);
 
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.

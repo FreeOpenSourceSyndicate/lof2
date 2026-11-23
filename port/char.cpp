@@ -414,6 +414,25 @@ void temple_heal_apply(SaveChar& c) {
     }
 }
 
+int temple_revive_cost(const SaveChar& c) {
+    return (int)c.raw[kCharLevel17] * 300;
+}
+
+bool temple_revive(SaveChar& c, int roll) {
+    uint8_t* r = c.raw.data();
+    int con = r[kCharCon44];
+    bool ok = con != 0 && con * 4 + 5 >= roll;
+    if (ok) {
+        if (con > 1) r[kCharCon44] = (uint8_t)(con - 1);
+        r[kCharStatus1f] = 0;
+        if (rd16(r, kCharHpCur22) < 1) wr16(r, kCharHpCur22, 1);
+    } else {
+        wr16(r, kCharHpMax20, 0);
+        wr16(r, kCharHpCur22, 0);
+    }
+    return ok;
+}
+
 uint16_t save_location(const SaveGame& g) {
     return (uint16_t)(g.loc_tens * 10 + g.loc_ones);
 }

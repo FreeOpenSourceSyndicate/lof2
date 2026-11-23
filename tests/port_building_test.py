@@ -145,11 +145,71 @@ def check_temple_heal_effect() -> int:
     return 0
 
 
+def check_temple_revive_effect() -> int:
+    # --temple-revive-do N: cost level*300; roll CON*4+5>=roll -> status 0,
+    # hp_cur>=1, CON--; failure zeroes HP.  Build a dead char + a rich payer.
+    if not os.path.exists(GAME4):
+        print("port_building_test: SKIP temple-revive effect (no GAME4)")
+        return 0
+
+    def base(i):
+        return 4 + i * 410
+
+    a = bytearray(open(GAME4, "rb").read())
+    b0, b1 = base(0), base(1)
+    if a[b0] == 0 or a[b1] == 0 or a[b0 + 0x44] == 0:
+        print("port_building_test: SKIP temple-revive effect (need chars 1/2, CON)")
+        return 0
+    lvl, con = a[b0 + 0x17], a[b0 + 0x44]
+    a[b0 + 0x1f] = 7
+    a[b0 + 0x22] = a[b0 + 0x23] = 0
+    gold0 = 5000
+    a[b1 + 0x72] = gold0 & 0xff
+    a[b1 + 0x73] = (gold0 >> 8) & 0xff
+    a[b1 + 0x74] = a[b1 + 0x75] = 0
+    tmp, out = "/tmp/port_temple_dead.sav", "/tmp/port_temple_revived.sav"
+    open(tmp, "wb").write(a)
+    r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--temple-revive-do", "1", "--temple-revive-payer", "2",
+                        "--temple-revive-roll", "1", "--save", tmp,
+                        "--amulet-out", out],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        print("port_building_test: FAIL temple-revive effect (%s)"
+              % r.stderr.decode().strip())
+        return 1
+    b = open(out, "rb").read()
+    cost = lvl * 300
+    if b[b0 + 0x1f] != 0:
+        print("port_building_test: FAIL temple-revive effect (status not cleared)")
+        return 1
+    hp = b[b0 + 0x22] | (b[b0 + 0x23] << 8)
+    if hp < 1:
+        print("port_building_test: FAIL temple-revive effect (hp_cur %d < 1)" % hp)
+        return 1
+    if b[b0 + 0x44] != con - 1:
+        print("port_building_test: FAIL temple-revive effect (CON %d != %d)"
+              % (b[b0 + 0x44], con - 1))
+        return 1
+    g0 = b[b1 + 0x72] | (b[b1 + 0x73] << 8) | (b[b1 + 0x74] << 16) | (b[b1 + 0x75] << 24)
+    if gold0 - g0 != cost:
+        print("port_building_test: FAIL temple-revive effect (paid %d != %d)"
+              % (gold0 - g0, cost))
+        return 1
+    if len(b) != 13134 or b[0x2e3a:0x2e3e] == a[0x2e3a:0x2e3e]:
+        print("port_building_test: FAIL temple-revive effect (save not resealed)")
+        return 1
+    print("port_building_test: ok temple-revive effect (status->alive, hp>=1, "
+          "CON--, paid %dg, resealed)" % cost)
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
         rc |= check(flag, ref, label)
     rc |= check_temple_heal_effect()
+    rc |= check_temple_revive_effect()
     return rc
 
 

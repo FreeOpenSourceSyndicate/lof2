@@ -1386,12 +1386,35 @@ static void test_temple_heal() {
     assert(c.raw[0x55] == 1);
 }
 
+static void test_temple_revive() {
+    // Temple (R)evive: cost = level*300; success iff CON!=0 && CON*4+5 >= roll.
+    SaveChar c{};
+    c.raw[0] = 1; c.raw[kCharLevel17] = 2; c.raw[kCharCon44] = 10;
+    c.raw[kCharHpMax20] = 20; c.raw[kCharHpCur22] = 0; c.raw[kCharStatus1f] = 7;
+    assert(temple_revive_cost(c) == 600);
+    // roll 45 == CON*4+5 -> success; CON 10->9; status 7->0; hp_cur 0->1.
+    assert(temple_revive(c, 45) == true);
+    assert(c.raw[kCharCon44] == 9);
+    assert(c.raw[kCharStatus1f] == 0);
+    assert((c.raw[kCharHpCur22] | (c.raw[kCharHpCur22 + 1] << 8)) == 1);
+    // roll 46 > 45 -> failure; body decays (hp_max = hp_cur = 0).
+    SaveChar d{};
+    d.raw[0] = 1; d.raw[kCharCon44] = 10; d.raw[kCharHpMax20] = 20; d.raw[kCharHpCur22] = 0;
+    assert(temple_revive(d, 46) == false);
+    assert((d.raw[kCharHpMax20] | (d.raw[kCharHpMax20 + 1] << 8)) == 0);
+    // CON == 0 always fails.
+    SaveChar z{};
+    z.raw[0] = 1; z.raw[kCharCon44] = 0;
+    assert(temple_revive(z, 1) == false);
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
     test_give_item();
     test_rest_effect();
     test_temple_heal();
+    test_temple_revive();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).
