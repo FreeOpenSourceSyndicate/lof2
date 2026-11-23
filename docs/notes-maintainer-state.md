@@ -178,9 +178,17 @@ gold": sums every present member's gold, weight-checks the recipient
 (`+0x64` vs `+0x66` − recipient.gold + total), then moves the total into the
 recipient and zeroes the others.  Implemented `joint_deposit(SaveGame&, target)`
 and `lof --joint-deposit N`.  Unit-tested (`char_test::test_joint_deposit`) and
-e2e on GAME4 (42g pooled into char 1).  Emporium (B)uy (0x6392) / (S)ell /
-(R)epair (0x5938) are interactive item-table UIs with pricing in the runtime
-segment — still open, as are House-of-Trades training/magic/language.
+e2e on GAME4 (42g pooled into char 1).  Emporium (S)ell / (R)epair (0x5938)
+are interactive item-table UIs with pricing in the runtime segment — still
+open, as are House-of-Trades training/magic/language.
+
+**Emporium buy (2026-11-23).** The purchase effect (image `0x63f4`, the common
+0x6458 full-price path): `buy_item()` refuses an uncarried item or short gold,
+else deducts `item.price` (pay_gold), adds the item (give_item) and decrements
+the stock slot unless it is the 0xFF sentinel.  `lof --buy N ITEM`; unit-tested
+(`char_test::test_buy_item`) and e2e on the revive fixture (char 2 buys item 3
+for 9g, inv_used+1).  The interactive 8-slot shop display (0x6c60) and the
+charisma-haggling price variation (0x64c2) are not reproduced.
 
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 

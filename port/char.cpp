@@ -468,6 +468,27 @@ bool bank_withdraw(SaveChar& c, uint32_t amount) {
 uint32_t char_gold(const SaveChar& c) { return rd32(c.raw.data(), kCharGold72); }
 uint32_t char_bank(const SaveChar& c) { return rd32(c.raw.data(), kCharBank76); }
 
+bool buy_item(SaveGame& g, int char_idx, int item_index, ShopData* shop) {
+    if (char_idx < 0 || char_idx >= (int)g.chars.size() || g.chars[char_idx].present == 0)
+        return false;
+    const ItemRecord* it = item_by_index(item_index);
+    if (!it) return false;
+    if (shop && shop->ok && !shop->carries(item_index)) return false;
+    int price = it->price < 0 ? 0 : it->price;
+    SaveChar& c = g.chars[char_idx];
+    if (!pay_gold(c, price)) return false;
+    if (give_item(c, item_index) < 0) {
+        uint8_t* r = c.raw.data();
+        wr32(r, kCharGold72, rd32(r, kCharGold72) + (uint32_t)price);
+        CharSheet sh = decode_char(c.raw.data());
+        wr16(r, kCharWeight66, (uint16_t)(weight_base(sh) + carried_item_weight(sh)));
+        return false;
+    }
+    if (shop && shop->ok && !shop->unlimited(item_index) && shop->stock[item_index - 1] > 0)
+        shop->stock[item_index - 1]--;
+    return true;
+}
+
 bool joint_deposit(SaveGame& g, int target) {
     uint32_t total = 0;
     for (auto& c : g.chars)

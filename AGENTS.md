@@ -350,8 +350,12 @@ Progress:
       `0x212f:0x79ba` (image `0x28caa`) pools every present member's gold into a
       chosen recipient (weight-checked); `joint_deposit(SaveGame&, target)` +
       `lof --joint-deposit N`; pinned by `char_test::test_joint_deposit` + the
-      joint-deposit check in `port_building_test.py`.  Emporium buy/sell/repair
-      and House-of-Trades training remain open (interactive item UIs).
+      joint-deposit check in `port_building_test.py`.  **Emporium buy DONE
+      2026-11-23:** `buy_item()` (image 0x63f4 full-price path) deducts
+      `item.price`, adds the item and decrements stock; `lof --buy N ITEM`;
+      pinned by `char_test::test_buy_item` + the buy check in
+      `port_building_test.py`.  Emporium sell/repair and House-of-Trades training
+      remain open (interactive item UIs).
 - [x] Encounter screen (`--encounter`): the wandering-monster screen the engine
       draws when it spawns enemies (first met from the wilderness).  It reuses
       the play screen's chrome — `EGA/UP/MSCR`, the party/status panel (its

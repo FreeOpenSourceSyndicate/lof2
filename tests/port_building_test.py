@@ -23,6 +23,7 @@ Run via `make golden-port` (or directly).  Needs PIL + numpy and the reference
 PNGs.
 """
 import os
+import re
 import subprocess
 import sys
 
@@ -298,6 +299,60 @@ def check_joint_deposit_effect() -> int:
     return 0
 
 
+def check_buy_effect() -> int:
+    # --buy N ITEM: pay item.price, add the item, inv_used++.  Rich fixture.
+    if not os.path.exists(REVIVE_FIXTURE):
+        print("port_building_test: SKIP buy effect (no fixture)")
+        return 0
+
+    def rec(b, i):
+        return b[4 + i * 410:4 + (i + 1) * 410]
+
+    def gold(r):
+        return r[0x72] | (r[0x72 + 1] << 8) | (r[0x72 + 2] << 16) | (r[0x72 + 3] << 24)
+
+    item = 3  # "Hand axe": cheap, carried by the default shop
+    a = open(REVIVE_FIXTURE, "rb").read()
+    inv_before = [rec(a, 1)[0x82 + i * 4] for i in range(48)]
+    if sum(1 for v in inv_before if v == 0) == 0:
+        print("port_building_test: SKIP buy effect (inventory full)")
+        return 0
+    out = "/tmp/port_buy.sav"
+    r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--buy", "2", str(item), "--save", REVIVE_FIXTURE,
+                        "--amulet-out", out],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        print("port_building_test: FAIL buy effect (%s)"
+              % r.stderr.decode().strip())
+        return 1
+    m = re.search(r"for (\d+) gold", r.stderr.decode())
+    if not m:
+        print("port_building_test: FAIL buy effect (no price in output)")
+        return 1
+    price = int(m.group(1))
+    b = open(out, "rb").read()
+    rb = rec(b, 1)
+    if gold(rec(a, 1)) - gold(rb) != price:
+        print("port_building_test: FAIL buy effect (gold %d->%d, price %d)"
+              % (gold(rec(a, 1)), gold(rb), price))
+        return 1
+    inv_after = [rb[0x82 + i * 4] for i in range(48)]
+    if inv_after.count(item) != inv_before.count(item) + 1:
+        print("port_building_test: FAIL buy effect (item %d not added)" % item)
+        return 1
+    if rb[0x6b] != rec(a, 1)[0x6b] + 1:
+        print("port_building_test: FAIL buy effect (inv_used %d->%d)"
+              % (rec(a, 1)[0x6b], rb[0x6b]))
+        return 1
+    if len(b) != 13134 or b[0x2e3a:0x2e3e] == a[0x2e3a:0x2e3e]:
+        print("port_building_test: FAIL buy effect (save not resealed)")
+        return 1
+    print("port_building_test: ok buy effect (item %d for %dg, inv_used+1, "
+          "resealed)" % (item, price))
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
@@ -306,6 +361,7 @@ def main() -> int:
     rc |= check_temple_revive_effect()
     rc |= check_bank_effect()
     rc |= check_joint_deposit_effect()
+    rc |= check_buy_effect()
     return rc
 
 

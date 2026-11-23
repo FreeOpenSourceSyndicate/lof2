@@ -1446,6 +1446,37 @@ static void test_joint_deposit() {
     assert(!joint_deposit(h, 0));  // no gold at all
 }
 
+static void test_buy_item() {
+    // The item table is compiled-in; pick a cheap, light, in-stock item.
+    int item = -1, price = 0;
+    for (int i = 1; i <= (int)kItemCount; i++) {
+        const ItemRecord* it = item_by_index(i);
+        if (it && it->price > 0 && it->price <= 50 && it->weight <= 100) {
+            item = i; price = it->price; break;
+        }
+    }
+    if (item < 0) return;
+    SaveGame g;
+    g.chars.resize(1);
+    g.chars[0].present = 1;
+    g.chars[0].raw[kCharWeight64] = 0xff;
+    g.chars[0].raw[kCharWeight64 + 1] = 0xff;
+    uint32_t gold = (uint32_t)(price + 10);
+    g.chars[0].raw[kCharGold72] = gold & 0xff;
+    g.chars[0].raw[kCharGold72 + 1] = (gold >> 8) & 0xff;
+    ShopData shop; shop.ok = true; shop.stock[item - 1] = 5;
+    assert(buy_item(g, 0, item, &shop));
+    assert(char_gold(g.chars[0]) == 10);          // paid item.price
+    assert(shop.stock[item - 1] == 4);            // stock decremented
+    assert(g.chars[0].raw[kCharInv82] == (uint8_t)item);  // item in slot 0
+    SaveGame h; h.chars.resize(1); h.chars[0].present = 1;
+    assert(!buy_item(h, 0, item, nullptr));        // cannot afford
+    ShopData empty; empty.ok = true;               // carries nothing
+    SaveGame k; k.chars.resize(1); k.chars[0].present = 1;
+    k.chars[0].raw[kCharGold72] = 0xff; k.chars[0].raw[kCharGold72 + 1] = 0xff;
+    assert(!buy_item(k, 0, item, &empty));
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
@@ -1455,6 +1486,7 @@ int main(int argc, char** argv) {
     test_temple_revive();
     test_bank();
     test_joint_deposit();
+    test_buy_item();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).

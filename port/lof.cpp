@@ -1616,6 +1616,8 @@ int main(int argc, char** argv) {
     int bank_withdraw_do = 0;       // 1-based char to withdraw for (0 = off)
     uint32_t bank_withdraw_amt = 0; // amount (0 = all)
     int joint_deposit_do = 0;       // 1-based recipient for --joint-deposit
+    int buy_do = 0;                 // 1-based char for --buy
+    int buy_item_idx = 0;           // item index to buy
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
@@ -1662,6 +1664,10 @@ int main(int argc, char** argv) {
             bank_withdraw_amt = (uint32_t)strtoul(argv[++i], nullptr, 10);
         }
         else if (std::string(argv[i]) == "--joint-deposit" && i + 1 < argc) joint_deposit_do = atoi(argv[++i]);
+        else if (std::string(argv[i]) == "--buy" && i + 2 < argc) {
+            buy_do = atoi(argv[++i]);
+            buy_item_idx = atoi(argv[++i]);
+        }
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
@@ -1881,6 +1887,29 @@ int main(int argc, char** argv) {
         }
         fprintf(stderr, "lof: joint deposit -> character %d (gold %u)\n",
                 joint_deposit_do, char_gold(sg.chars[joint_deposit_do - 1]));
+        return 0;
+    }
+    if (buy_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --buy needs a valid --save\n"); return 1; }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: --buy needs --amulet-out\n"); return 1; }
+        const ItemRecord* it = item_by_index(buy_item_idx);
+        if (!it) { fprintf(stderr, "lof: --buy %d: no such item\n", buy_item_idx); return 1; }
+        int price = it->price;
+        ShopData shop = load_shop(dir + "/ROST/SHOP");
+        if (!buy_item(sg, buy_do - 1, buy_item_idx, &shop)) {
+            fprintf(stderr, "lof: cannot buy item %d for character %d (price %d)\n",
+                    buy_item_idx, buy_do, price);
+            return 1;
+        }
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        fprintf(stderr, "lof: character %d bought '%s' for %d gold (gold now %u)\n",
+                buy_do, it->name.c_str(), price, char_gold(sg.chars[buy_do - 1]));
         return 0;
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||

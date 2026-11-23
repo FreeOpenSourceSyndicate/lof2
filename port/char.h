@@ -1258,6 +1258,18 @@ uint32_t char_bank(const SaveChar& c);
 // and the emporium's "(G)ather gold".
 bool joint_deposit(SaveGame& g, int target);
 
+// --- Emporium buy (purchase effect, image 0x63f4) --------------------------
+struct ShopData;  // defined below (ROST/SHOP)
+// Buy item `item_index` (1-based, item_by_index order) for character
+// `char_idx` (0-based).  Refuses if the shop does not carry it (ShopData::
+// carries) or the character cannot pay item.price; otherwise deducts the price
+// (pay_gold), adds the item (give_item) and decrements the stock slot unless it
+// is the 0xFF unlimited sentinel.  The interactive 8-slot shop display (0x6c60)
+// and the charisma-haggling price variation (the rare 0x64c2 branch) are not
+// reproduced -- this is the normal full-price purchase (the common 0x6458 path).
+// `shop` may be null to skip the stock check.  Returns true on a completed buy.
+bool buy_item(SaveGame& g, int char_idx, int item_index, ShopData* shop);
+
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
 SaveGame load_save(const std::string& path);
