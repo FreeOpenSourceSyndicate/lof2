@@ -798,3 +798,31 @@ effect value 34 (lantern) as a light source; recorded under G-004.
   read which table supplies the base sprite and the scenery.  Note `0x3B72` is
   **not** it — that is a data offset passed to the string printer
   (`0x18d:0x16a8`).
+
+### G-019 — item use-effect magnitude field (heal/poison) (Lane M)
+
+- **What:** `use_item_effect()` applies the item's use-effect byte (item +0x1f):
+  effect 10 heals HP and effect 3 poisons HP by the value `item.charges`
+  (the item record's f3 high byte).  The cure effects (30/31) are
+  magnitude-independent and exact; the heal/poison *amount* is the guess.
+- **Source of truth / what is pinned:** the use dispatch `0x0e89d` reads one
+  byte `es:[bx+0xfd5]` (bx = item<<5, `es = [0xafa8]`) and applies it
+  (`hp += al` for effect 10 at `0x0eab5`, `hp -= al` for effect 3 at
+  `0x0e9e7`).  The item record layout is 16-byte name + 7 int16 at record
+  +0x10..+0x1c + class (+0x1e) + effect (+0x1f), and the *buy* handler reads
+  price at `es:[bx+0xfce]` with `es=[0xaf5e]`, which pins price = record +0x12.
+- **Why unclear:** the buy handler and the use handler read **different
+  segments** (`[0xaf5e]` vs `[0xafa8]`), so the item-table base differs and the
+  byte at `0xfd5` cannot be mapped to a fixed record field from static data
+  alone (neither `mov [0xafa8]` nor `mov [0xaf5e]` appears as a direct store in
+  the image — they are set via an indirect/copy path not yet located).  The
+  item's f4 field (record +0x18) is a **1-based spell index** (`spec.py`): the
+  Healing potion has f4=80 = spell 80 "Healing I", so the faithful path is
+  likely *spell casting* (P-5), not a raw byte add.  The port therefore uses
+  `charges` (f3 high) as a stand-in: for the shipped potions this is 1, so the
+  heal/poison magnitudes are small but the mechanism (`+=`/`-=` + clamp, status
+  flags) is exact.
+- **To settle it:** locate the routine that loads `[0xafa8]` / `[0xaf5e]` (a
+  `LOF_SEGDUMP` of the segment at the item-use point) and read the item-0 base,
+  then decide whether the effect value is f4 (spell index → cast) or a charge
+  byte.
