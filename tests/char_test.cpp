@@ -1367,11 +1367,31 @@ static void test_rest_effect() {
     assert(r.raw[kCharRations70] == 14);
 }
 
+static void test_temple_heal() {
+    // Temple (H)eal: cost = max(1, (hp_max-hp_cur)*level/2); effect hp_cur=hp_max.
+    SaveChar c{};
+    c.raw[0] = 1; c.raw[kCharLevel17] = 2;
+    c.raw[kCharHpMax20] = 24; c.raw[kCharHpCur22] = 20;   // missing 4, level 2 -> 4
+    assert(temple_heal_cost(c) == 4);
+    SaveChar full{};
+    full.raw[0] = 1; full.raw[kCharHpMax20] = 10; full.raw[kCharHpCur22] = 10;
+    assert(temple_heal_cost(full) == 0);
+    SaveChar m1{};  // missing 1, level 1 -> 0 -> clamped to 1
+    m1.raw[0] = 1; m1.raw[kCharLevel17] = 1; m1.raw[kCharHpMax20] = 10; m1.raw[kCharHpCur22] = 9;
+    assert(temple_heal_cost(m1) == 1);
+    c.raw[kCharStatus1f] = 3;   // a condition is also cured
+    temple_heal_apply(c);
+    assert((c.raw[kCharHpCur22] | (c.raw[kCharHpCur22 + 1] << 8)) == 24);
+    assert(c.raw[kCharStatus1f] == 0);
+    assert(c.raw[0x55] == 1);
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
     test_give_item();
     test_rest_effect();
+    test_temple_heal();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).

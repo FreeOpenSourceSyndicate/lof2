@@ -142,6 +142,17 @@ save.  Unit-tested (`char_test::test_rest_effect`) and e2e on GAME2 (payer 4
 pays 12g, wounded char 9→11, resealed).  Still open: the spell-memorisation
 pass, the post-rest 32-slot reset, and the clock advance.
 
+**Temple heal effect (2026-11-23).** Located the Temple (H)eal handler by the
+print-site of "Whose wounds should" (image 0x9f88..0xab6a) and derived it:
+cost = max(1,(hp_max-hp_cur)*level/2) for a wounded character (0 when full),
+paid from a separately chosen payer through the same pay_gold routine; the
+heal sets hp_cur = hp_max (0xab03) and clears a status code (+0x1f, +0x55=1).
+Implemented `temple_heal_cost`/`temple_heal_apply` (port/char) and
+`lof --temple-heal-do N [--temple-heal-payer M] --save S --amulet-out O`.
+Unit-tested (`char_test::test_temple_heal`) and e2e on GAME4 (c1 level 3, cost
+6, 20/24→24/24, resealed).  Still open: (R)evive (type 3, cost level*300) and
+the cure-condition-only variant.
+
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
 
 Lane M, sole active agent (lof2/M-6). Read the rules, guess register, owner

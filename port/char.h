@@ -1209,6 +1209,17 @@ int rest_cost(const SaveGame& g, bool with_rations);
 bool pay_gold(SaveChar& c, int cost);
 void rest_party(SaveGame& g, bool with_rations);
 
+// --- Temple (H)eal (image 0x9f88..0xab6a) ----------------------------------
+// The price for healing a wounded character (type-1 path, 0x9fde..0xa53c):
+//   max(1, (hp_max(+0x20) - hp_cur(+0x22)) * level(+0x17) / 2)  when wounded,
+//   else 0 (nothing to heal).  The heal (0xaa4a..0xab56) sets hp_cur = hp_max
+//   and, if the character carried a status code (+0x1f), clears it and sets
+//   +0x55 = 1.  The payer is a separately chosen character (paid through the
+//   same pay_gold routine as the inn rest).  The (R)evive option (type 3, cost
+//   level*300) and the cure-condition variant are not reproduced here.
+int temple_heal_cost(const SaveChar& c);
+void temple_heal_apply(SaveChar& c);
+
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
 SaveGame load_save(const std::string& path);

@@ -1606,6 +1606,8 @@ int main(int argc, char** argv) {
     int inn_rest_pay_cost = 2;
     int inn_rest_do = 0;            // 1-based payer for --inn-rest-do (0 = off)
     bool inn_rest_rations = false;  // --inn-rest-rations: the "replenished" option
+    int temple_heal_do = 0;         // 1-based char to heal (--temple-heal-do)
+    int temple_heal_payer = 0;      // 1-based payer (0 = the healed char)
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
@@ -1638,6 +1640,8 @@ int main(int argc, char** argv) {
         }
         else if (std::string(argv[i]) == "--inn-rest-do" && i + 1 < argc) inn_rest_do = atoi(argv[++i]);
         else if (std::string(argv[i]) == "--inn-rest-rations") inn_rest_rations = true;
+        else if (std::string(argv[i]) == "--temple-heal-do" && i + 1 < argc) temple_heal_do = atoi(argv[++i]);
+        else if (std::string(argv[i]) == "--temple-heal-payer" && i + 1 < argc) temple_heal_payer = atoi(argv[++i]);
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
@@ -1743,6 +1747,40 @@ int main(int argc, char** argv) {
         }
         fprintf(stderr, "lof: rested; character %d paid %d gold%s\n", inn_rest_do, cost,
                 inn_rest_rations ? " (rations replenished)" : "");
+        return 0;
+    }
+    if (temple_heal_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --temple-heal-do needs a valid --save\n"); return 1; }
+        int h = temple_heal_do - 1;
+        if (h < 0 || h >= (int)sg.chars.size() || sg.chars[h].present == 0) {
+            fprintf(stderr, "lof: --temple-heal-do %d: no present character\n", temple_heal_do);
+            return 1;
+        }
+        int p = temple_heal_payer > 0 ? temple_heal_payer - 1 : h;
+        if (p < 0 || p >= (int)sg.chars.size() || sg.chars[p].present == 0) {
+            fprintf(stderr, "lof: --temple-heal-payer %d: no present character\n", p + 1);
+            return 1;
+        }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: --temple-heal-do needs --amulet-out\n"); return 1; }
+        int cost = temple_heal_cost(sg.chars[h]);
+        if (cost == 0) {
+            fprintf(stderr, "lof: character %d is already at full health\n", temple_heal_do);
+            return 1;
+        }
+        if (!pay_gold(sg.chars[p], cost)) {
+            fprintf(stderr, "lof: character %d cannot pay %d gold\n", p + 1, cost);
+            return 1;
+        }
+        temple_heal_apply(sg.chars[h]);
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        fprintf(stderr, "lof: healed character %d for %d gold (payer %d)\n",
+                temple_heal_do, cost, p + 1);
         return 0;
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||

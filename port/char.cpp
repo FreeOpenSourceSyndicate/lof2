@@ -397,6 +397,23 @@ void rest_party(SaveGame& g, bool with_rations) {
     }
 }
 
+int temple_heal_cost(const SaveChar& c) {
+    const uint8_t* r = c.raw.data();
+    int missing = rd16(r, kCharHpMax20) - rd16(r, kCharHpCur22);
+    if (missing <= 0) return 0;
+    long cost = (long)missing * r[kCharLevel17] / 2;
+    return cost < 1 ? 1 : (int)cost;
+}
+
+void temple_heal_apply(SaveChar& c) {
+    uint8_t* r = c.raw.data();
+    wr16(r, kCharHpCur22, rd16(r, kCharHpMax20));  // hp_cur = hp_max
+    if (r[kCharStatus1f] != 0) {                    // cure condition (0xab41)
+        r[kCharStatus1f] = 0;
+        r[0x55] = 1;
+    }
+}
+
 uint16_t save_location(const SaveGame& g) {
     return (uint16_t)(g.loc_tens * 10 + g.loc_ones);
 }

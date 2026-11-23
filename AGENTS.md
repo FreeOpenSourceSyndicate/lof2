@@ -328,7 +328,14 @@ Progress:
       magic (`+0x69 += max(1,+0x68>>3)`, clamped).  Pinned by
       `char_test::test_rest_effect` + the rest-effect check in the test.  Still
       open: the spell-memorisation pass, the post-rest 32-slot reset, and the
-      clock advance.
+      clock advance.  **Temple (H)eal effect DONE 2026-11-23:** handler at image
+      `0x9f88..0xab6a`; cost = `max(1,(hp_max-hp_cur)*level/2)` (0 when full),
+      paid from a chosen payer via the same `pay_gold`; the heal sets
+      `hp_cur = hp_max` (0xab03) and clears a status code (+0x1f).  CLI
+      `--temple-heal-do N [--temple-heal-payer M]`; pinned by
+      `char_test::test_temple_heal` + the temple-heal check in
+      `port_building_test.py`.  Still open: (R)evive (cost `level*300`) and the
+      cure-condition variant.
 - [x] Encounter screen (`--encounter`): the wandering-monster screen the engine
       draws when it spawns enemies (first met from the wilderness).  It reuses
       the play screen's chrome — `EGA/UP/MSCR`, the party/status panel (its

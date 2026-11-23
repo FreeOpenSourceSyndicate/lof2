@@ -31,6 +31,7 @@ from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME = os.path.join(ROOT, "game")
+GAME4 = os.path.join(GAME, "GAMES", "GAME4")
 
 # flag -> (reference PNG, viewport-tile label used in messages)
 BUILDINGS = [
@@ -92,10 +93,63 @@ def check(flag, ref, label):
     return 0
 
 
+def check_temple_heal_effect() -> int:
+    # --temple-heal-do N applies the derived heal (image 0x9f88..0xab6a): cost =
+    # max(1, (hp_max-hp_cur)*level/2), hp_cur set to hp_max, paid from the payer.
+    if not os.path.exists(GAME4):
+        print("port_building_test: SKIP temple-heal effect (no GAME4)")
+        return 0
+
+    def rec(buf, i):
+        return buf[4 + i * 410:4 + (i + 1) * 410]
+
+    def hp(r):
+        return r[0x22] | (r[0x22 + 1] << 8)
+
+    def hpmax(r):
+        return r[0x20] | (r[0x20 + 1] << 8)
+
+    def gold(r):
+        return r[0x72] | (r[0x72 + 1] << 8) | (r[0x72 + 2] << 16) | (r[0x72 + 3] << 24)
+
+    a = open(GAME4, "rb").read()
+    r0 = rec(a, 0)
+    cost = max(1, (hpmax(r0) - hp(r0)) * r0[0x17] // 2) if hp(r0) < hpmax(r0) else 0
+    if cost == 0 or gold(r0) < cost:
+        print("port_building_test: SKIP temple-heal effect (GAME4 c1 not healable)")
+        return 0
+    out = "/tmp/port_temple_heal.sav"
+    r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--temple-heal-do", "1", "--save", GAME4,
+                        "--amulet-out", out],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        print("port_building_test: FAIL temple-heal effect (%s)"
+              % r.stderr.decode().strip())
+        return 1
+    b = open(out, "rb").read()
+    r0b = rec(b, 0)
+    if hp(r0b) != hpmax(r0b):
+        print("port_building_test: FAIL temple-heal effect (hp %d/%d not full)"
+              % (hp(r0b), hpmax(r0b)))
+        return 1
+    if gold(r0) - gold(r0b) != cost:
+        print("port_building_test: FAIL temple-heal effect (paid %d != %d)"
+              % (gold(r0) - gold(r0b), cost))
+        return 1
+    if len(b) != 13134 or a[0x2e3a:0x2e3e] == b[0x2e3a:0x2e3e]:
+        print("port_building_test: FAIL temple-heal effect (save not resealed)")
+        return 1
+    print("port_building_test: ok temple-heal effect (hp->full, paid %dg, "
+          "resealed)" % cost)
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
         rc |= check(flag, ref, label)
+    rc |= check_temple_heal_effect()
     return rc
 
 
