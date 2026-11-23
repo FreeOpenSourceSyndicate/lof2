@@ -3615,6 +3615,17 @@ nothing) is therefore **not contradicted** by the disassembly: there is no
 derived member to add.  A future attempt must first establish whether the two
 segment globals alias and where (if anywhere) `present`/HP are set.
 
+**Cross-check — the slot array is not the save party.**  GAME2's six save records
+are *all* present (Decker, Siegurd, Handy, Merlin, Cassandra, Assanla), so the
+disassembly's full-party branch (`0x20062`, which prints `<Name> finds no place
+in the team to join the companions.`) would fire for GAME2.  Yet the port's
+recruit test drives GAME2 to the recruit cell and expects the *success* line
+"Siegurd joins the companionship." (from the player's report).  The two only
+agree if the slot-search array `[0xb036]` is **not** the six save records'
+`present` bytes — i.e. the join copies into a separate (pending) structure.  The
+port keeps the oracle's success line and mutates nothing; resolving this is part
+of G-018.
+
 ### `+0xc9` is an entry index into `SYST/TXT<scenario>`, not a file number
 
 The open helper at `0x1D7C2` formats `"SYST\\TXT%d"` from the **scenario number**

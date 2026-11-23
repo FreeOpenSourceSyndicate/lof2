@@ -75,7 +75,10 @@ reads a *different* segment `[0xb0d2]` (vs the copy's `[0xb036]`) and skips the
 detail draw when `present==0`.  So the join path sets only the name and `+0x55`
 — it does not create a functional member on its own, and the port's current
 text-only behaviour is not contradicted.  The stat/present origin is genuinely
-elsewhere; still blocked (do not synthesise).  Also fixed a stale HANDOFF note:
+elsewhere; still blocked (do not synthesise).  GAME2 is a full party (6/6
+present), so the disassembly's "finds no place" branch (`0x20062`) would fire —
+yet the oracle shows "joins", reinforcing that the join targets a separate
+`[0xb036]` structure, not the save party.  Also fixed a stale HANDOFF note:
 the defender-row `+0x06` was already derived/implemented (`-(10*(4-rec[+0x29]))`).
 
 ## Session 2026-11-23 (thirty-ninth session) — M-6 takeover: plan refresh
