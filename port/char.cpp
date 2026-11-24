@@ -495,9 +495,17 @@ std::string use_item_effect(SaveChar& c, int item_index) {
     uint8_t* r = c.raw.data();
     int val = it->charges;
     switch (it->effect) {
-    case 10: {  // heal HP by charges, clamped to hp_max
+    case 10: {  // heal HP; a healing spell's block byte 6 is the amount
+        // The engine's action-3 "use object" casts the item's spell (item +0x18)
+        // and the effect-15 (healing) handler adds spell block byte 6 (image
+        // 0x2718, handler 0xf848), capped at hp_max.  Fall back to the item's
+        // charge count only when the item casts no healing spell.
+        int heal = val;
+        const SpellRecord* sp = item_spell(item_index);
+        if (sp && sp->data[kSpellEffectByte] == 15)
+            heal = sp->data[6];
         uint16_t hp = rd16(r, kCharHpCur22), mx = rd16(r, kCharHpMax20);
-        uint32_t nh = (uint32_t)hp + (uint32_t)val;
+        uint32_t nh = (uint32_t)hp + (uint32_t)heal;
         if (nh > mx) nh = mx;
         wr16(r, kCharHpCur22, (uint16_t)nh);
         return "heals";

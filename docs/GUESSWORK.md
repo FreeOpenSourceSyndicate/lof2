@@ -861,3 +861,15 @@ effect value 34 (lantern) as a light source; recorded under G-004.
   reads some other runtime structure.  The `charges` (f3 high) stand-in is kept
   until spell-casting exists; both shipped potions have f3 high = 1, so the
   magnitudes are 1 (mechanism exact, value provisional).
+
+- **RESOLVED 2026-11-23 (heal magnitude).**  The spell effect dispatch (image
+  `0xf5c0`, indexed by `byte8-1` through a 63-entry jump table) was located: cs
+  base image `0xd9f0`, so the table is image `0x1060e` (`cs:0x2c1e`).  The
+  effect-15 (healing) handler at image `0xf848` does `heal = spell record byte 6`
+  (`es:[spell*0x24+0x2718]`), then `hp_cur += heal` capped at `hp_max`.  The
+  Healing potion casts spell 80 (Healing I, `data[6]=8`, `data[8]=15`), so it
+  heals **8** HP.  The port's `use_item_effect` case 10 now uses `spell.data[6]`
+  for effect-15 spells (falling back to `charges` only when the item casts no
+  healing spell); the poison (effect 3) magnitude is still the charge count (its
+  spell path is not yet decoded).  Pinned by `char_test::test_use_item`
+  (Healing I -> +8) and the use-effect check in `port_building_test.py`.

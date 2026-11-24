@@ -1478,7 +1478,9 @@ static void test_buy_item() {
 }
 
 static void test_use_item() {
-    // Effect 10 (healing potion): hp += charges, clamped to hp_max.
+    // Effect 10 (healing potion): a healing spell (effect 15) heals its block
+    // byte 6 (image 0x2718, handler 0xf848), else the charge count; clamped to
+    // hp_max.  The Healing potion casts spell 80 (Healing I), byte 6 = 8.
     int heal = -1, charges = 0;
     for (int i = 1; i <= (int)kItemCount; i++) {
         const ItemRecord* x = item_by_index(i);
@@ -1486,12 +1488,20 @@ static void test_use_item() {
     }
     if (heal > 0) {
         SaveChar c{};
-        c.raw[kCharHpMax20] = 24;
+        c.raw[kCharHpMax20] = 40;
         c.raw[kCharHpCur22] = 20;
         std::string v = use_item_effect(c, heal);
         assert(v == "heals");
-        int expect = 20 + charges; if (expect > 24) expect = 24;
+        int amt = charges;
+        const SpellRecord* sp = item_spell(heal);
+        if (sp && sp->data[kSpellEffectByte] == 15) amt = sp->data[6];
+        int expect = 20 + amt; if (expect > 40) expect = 40;
         assert((c.raw[kCharHpCur22] | (c.raw[kCharHpCur22 + 1] << 8)) == expect);
+    }
+    // Explicit: the Healing potion (spell 80, Healing I) heals exactly 8.
+    {
+        const SpellRecord* s80 = spell_by_index(80);
+        assert(s80 && s80->data[kSpellEffectByte] == 15 && s80->data[6] == 8);
     }
     // Effect 3 (poison): hp -= charges and the poisoned state is set.
     int poison = -1;

@@ -2015,5 +2015,9 @@ audit were moved there:
   dispatch instruction (`0xf5f0`) — invalid.  So the code-segment base must be
   captured at runtime: set `LOF_TRACE_IP=1F6C0:1F6D0` (linear of image `0xf5c0`
   = image+0x10100) while a caster casts in combat, read the real `cs`, then the
-  table is `cs:0x2c1e`.  Triggering a cast needs a save with a memorised-spell
-  caster in an encounter — the remaining P-5 blocker.
+  table is `cs:0x2c1e`.  **SOLVED 2026-11-23:** the cs base is image `0xd9f0` (the routine is at
+  `cs:0x1bd0`), so the jump table is image `0x1060e` and every one of the 63
+  entries lands on a valid inline case-block.  Effect 15 (healing) -> `0xf848`:
+  `heal = spell.data[6]` capped at hp_max.  Most codes (3-6,8,10-13,16-18) jump
+  to `0xf826` (a bare `sub ax,ax; pop si; mov sp,bp` = no-op return); others:
+  1->`0xf5f2`, 2->`0xf6b8`, 7->`0xf762`, 9->`0xf7da`, 14->`0xf7f6`.
