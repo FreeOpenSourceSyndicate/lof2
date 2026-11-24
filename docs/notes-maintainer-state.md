@@ -2216,3 +2216,31 @@ skill offsets; tracked as open.
 Captures: `ref/emu/training/` (cost + rank + both "improves!" frames for all
 five professions) and `ref/emu/charsheet_rank09.png` (the character sheet with
 a patched Rank 09 — confirms the level/exp patches and shows the P-8 layout).
+
+### Training stat gains (observed, level 1->2)
+
+Each training level shows two `<name> profits from training, <skill> improves!`
+messages.  Skills seen: Attack, Defence, Concentration, Trap detecting,
+Stalking.  Observed set (native chars for 2,3,7,9,10; profession-byte-patched
+Decker for 0,1,4,5,8,11 — the patched ones keep Decker's stats, so they may be
+stat-influenced and should be treated as a first-level sample only):
+
+| prof | gains (level 1->2) |
+|---|---|
+| 0 Warrior     | Defence, Attack |
+| 1 Barbarian   | Trap detecting, Defence |
+| 2 Rogue       | Trap detecting, Stalking |
+| 3 Smith       | Attack, Attack |
+| 4 Scout       | Attack, Attack |
+| 5 Priest      | Concentration, Concentration |
+| 6 Druid       | (not captured) |
+| 7 Magician    | Concentration, Concentration |
+| 8 Illusionist | Defence, Defence |
+| 9 Paladin     | Attack, Defence |
+| 10 Healer     | Concentration, Concentration |
+| 11 Monk       | Defence, Attack |
+
+The exact selection rule (fixed per profession vs rotating per level vs driven
+by the char's top stats) is not yet derived.  `level_up()` still increments
++0x30..+0x36 and Str/Dex/Wis, so it does NOT reproduce these messages — rework
+is open (needs the skill offsets + the selection rule).
