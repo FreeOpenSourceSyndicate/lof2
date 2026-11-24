@@ -2125,3 +2125,24 @@ audit were moved there:
   — the run needs a longer ceiling / adaptive keys.  Next: capture the gold
   (`+0x72`) delta with `LOF_WATCH`/`LOF_CAP` across the training, then wire the
   cost into `level_up` callers.  Gold is per-character (`+0x72` dword).
+- **P-7 building party panel — needs a matching save 2026-11-23:** the DOSBox
+  oracles (`ref/oracle/house.png` etc.) show a 3x2 party-slot grid in the
+  top-right (`y 0..52, x 140..320`): each slot is numbered; an occupied slot
+  shows name (small-caps) / profession / status, an empty slot shows `HT`/`FP`.
+  The port's `compose_building_screen` draws only MSCR + tile + text, so this
+  region is BLANK — `port_building_test` masks exactly it
+  (`mask[0:52,140:320]=False`), so the gap is currently accepted.  Reproducing
+  the grid needs a save whose party equals the oracle's (slot 1 = "Stiletto",
+  Warrior, GOOD; slots 2..6 empty) to verify the occupied-slot rendering; no
+  shipped/archived save matches (the oracle party was a bespoke DOSBox capture
+  party), so implementing the layout blind would be a guess.  Next: build such a
+  save (or re-capture the oracle with a known save) then draw the grid.
+- **House-of-Trades training nav — needs a valid party 2026-11-23:** driving the
+  emulator with `LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x23,0x14,0x02` (gap 250 and
+  450, 2600/4000 frames) does NOT reach the House: the screenshots land on the
+  add-character 6-slot screen ("hit 27" in every box) with no viewport tile or
+  House text, i.e. the add-char flow (0x1e,0x03) does not produce a party that
+  the town/`H` navigation can use.  `ref/oracle/house.png`'s party (Stiletto) is
+  not in any save.  To capture the training gold cost, first get a real party in
+  (load a save that starts in town, or finish the add-char flow), then `H` -> `T`
+  -> digit, watching `+0x72`.
