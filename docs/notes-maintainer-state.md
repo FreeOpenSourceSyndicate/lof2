@@ -2031,3 +2031,12 @@ audit were moved there:
   globals (skip); 7 doubles `char+0x4e` (field `kCharSeed4e`, meaning uncertain
   — deferred).  No shipped spell uses effect 1 (only 14: spells 25/75, 15:
   healers); the drain path is exercised synthetically.
+- **P-5 cast-flow MP (2026-11-23):** current/max MP are `+0x69`/`+0x68`
+  (byte).  A full scan of the image finds only MP *additions* —
+  `add es:[bx+si+0x69],al` at `0x8646` (rest), `0x98be`, `0x25d22`, and
+  `inc/add es:[bx+si+0x68]` at `0x97fc`/`0x98d6` (level-up) — **no `sub`/`dec`
+  of either field**.  So the cast's MP *cost* is not a direct field write
+  reachable statically; the "tries to perform magic, but can't." strings
+  (`0x43140`, `0x43330`) gate it but the deduction path/mechanism needs a
+  runtime trace (or the spell-selection routine).  `--cast` therefore applies
+  the effect without an MP cost for now; the cost is the next P-5 sub-task.

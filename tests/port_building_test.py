@@ -392,6 +392,49 @@ def check_use_effect() -> int:
     return 0
 
 
+def check_cast_effect() -> int:
+    # --cast N SPELL applies a spell's effect (apply_spell_effect): effect 14
+    # (spell 25) sets target +0x12 = 6; effect 15 (spell 80, Healing I) heals.
+    if not os.path.exists(GAME4):
+        print("port_building_test: SKIP cast effect (no GAME4)")
+        return 0
+
+    def rec(b, i):
+        return b[4 + i * 410:4 + (i + 1) * 410]
+
+    out = "/tmp/port_cast.sav"
+    r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--cast", "1", "25", "--save", GAME4, "--amulet-out", out],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        print("port_building_test: FAIL cast effect (%s)"
+              % r.stderr.decode().strip())
+        return 1
+    r1 = rec(open(out, "rb").read(), 0)
+    v = r1[0x12] | (r1[0x13] << 8)
+    if v != 6:
+        print("port_building_test: FAIL cast effect (effect 14: +0x12=%d, want 6)" % v)
+        return 1
+    a = open(GAME4, "rb").read()
+    hp0 = rec(a, 0)[0x22] | (rec(a, 0)[0x23] << 8)
+    mx0 = rec(a, 0)[0x20] | (rec(a, 0)[0x21] << 8)
+    r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--cast", "1", "80", "--save", GAME4, "--amulet-out", out],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        print("port_building_test: FAIL cast heal (%s)"
+              % r.stderr.decode().strip())
+        return 1
+    hp1 = rec(open(out, "rb").read(), 0)[0x22] | (rec(open(out, "rb").read(), 0)[0x23] << 8)
+    if hp1 < hp0 or hp1 > mx0:
+        print("port_building_test: FAIL cast heal (hp %d -> %d, max %d)"
+              % (hp0, hp1, mx0))
+        return 1
+    print("port_building_test: ok cast effect (effect 14 -> +0x12=6; Healing I "
+          "hp %d -> %d)" % (hp0, hp1))
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
@@ -402,6 +445,7 @@ def main() -> int:
     rc |= check_joint_deposit_effect()
     rc |= check_buy_effect()
     rc |= check_use_effect()
+    rc |= check_cast_effect()
     return rc
 
 
