@@ -573,12 +573,22 @@ LevelUpResult level_up(SaveChar& c, int hp_gain) {
     res.hp_gain = hp_gain;
     add_word(&r[0x22], hp_gain);   // current HP (+0x22)
     add_word(&r[0x20], hp_gain);   // max HP (+0x20)
-    for (int off : {0x30, 0x32, 0x34, 0x36})
-        if (r[off] < 0x64) r[off]++;
-    struct { int off; const char* name; } attrs[] = {
-        {0x45, "Strength"}, {0x46, "Dexterity"}, {0x48, "Wisdom"}};
-    for (auto& a : attrs)
-        if (r[a.off] < 0x13) { r[a.off]++; res.improved.push_back(a.name); }
+    // The routine (image 0x9144..0x96E6) then increments the four capped-100
+    // skill-value bytes at +0x30/+0x32/+0x34/+0x36 (each `cmp ...,0x64; inc`).
+    // It never writes the attribute bytes +0x45/+0x46/+0x48, so Str/Dex/Wis are
+    // NOT gained on level-up (the earlier port incremented them — that was a
+    // misreading; the House of Trades *messages* name the skills, which come
+    // from a higher display layer, not this routine).
+    static const int kSkillOff[4] = {0x30, 0x32, 0x34, 0x36};
+    for (int n = 0; n < 4; n++) {
+        int off = kSkillOff[n];
+        if (r[off] < 0x64) {
+            r[off]++;
+            char label[16];
+            std::snprintf(label, sizeof label, "skill+0x%02x", off);
+            res.improved.push_back(label);
+        }
+    }
     return res;
 }
 

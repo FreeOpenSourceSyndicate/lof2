@@ -1623,24 +1623,25 @@ static void test_consume_spell_slot() {
 }
 
 static void test_level_up() {
-    // Level-up (image 0x9144..0x96E6): level++, HP cur/max += gain, four
-    // capped-100 fields (+0x30/32/34/36), and Str/Dex/Wis capped at 19.
+    // Level-up (image 0x9144..0x96E6): level++, HP cur/max += gain, and the
+    // four capped-100 skill-value bytes (+0x30/32/34/36).  It does NOT touch the
+    // attribute bytes +0x45/+0x46/+0x48 (Str/Dex/Wis) — those are unchanged.
     SaveChar c{};
     c.raw[0x17] = 3;                       // level
     c.raw[0x22] = 10; c.raw[0x23] = 0;     // hp cur = 10
     c.raw[0x20] = 20; c.raw[0x21] = 0;     // hp max = 20
     c.raw[0x30] = 5; c.raw[0x32] = 0x64; c.raw[0x34] = 5; c.raw[0x36] = 5;
     c.raw[0x45] = 18;                      // Str
-    c.raw[0x46] = 19;                      // Dex (already at cap)
+    c.raw[0x46] = 19;                      // Dex
     c.raw[0x48] = 10;                      // Wis
     LevelUpResult lr = level_up(c, 5);
     assert(lr.new_level == 4);
     assert((c.raw[0x22] | (c.raw[0x23] << 8)) == 15);  // hp cur 10 + 5
     assert((c.raw[0x20] | (c.raw[0x21] << 8)) == 25);  // hp max 20 + 5
     assert(c.raw[0x30] == 6 && c.raw[0x32] == 0x64 && c.raw[0x34] == 6 &&
-           c.raw[0x36] == 6);
-    assert(c.raw[0x45] == 19 && c.raw[0x46] == 19 && c.raw[0x48] == 11);
-    assert(lr.improved.size() == 2);  // Str 18->19 and Wis 10->11; Dex capped
+           c.raw[0x36] == 6);              // +0x32 stays capped at 0x64
+    assert(c.raw[0x45] == 18 && c.raw[0x46] == 19 && c.raw[0x48] == 10);
+    assert(lr.improved.size() == 3);       // +0x30, +0x34, +0x36 (0x32 capped)
 }
 
 static void test_training_cost() {

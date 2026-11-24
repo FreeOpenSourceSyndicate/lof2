@@ -2206,12 +2206,16 @@ font's "0" carries a diagonal stroke; the zoomed captures confirm 2250/1500.)
 **The level-up gains COMBAT SKILLS, not Str/Dex/Wis.**  The messages are
 `The Grand Board of Trades decides that <name> enters the <N> Rank.` then
 `<name> profits from training, <skill> improves!` (twice, one per gained
-skill).  The port's `level_up()` currently increments +0x30..+0x36 and
-Str/Dex/Wis with "Strength/Dexterity/Wisdom improves!" — that does **not**
-match the oracle (real gains are the profession's two skills).  Reworking
-`level_up()` to the real per-profession skill pairs + gold cost needs the
-remaining professions (0,1,4,5,6,8,11 — GAME4's party has 0,5,6) and the
-skill offsets; tracked as open.
+skill).  The engine's level-up routine (image `0x9144..0x96E6`) increments the
+level (`+0x17`), both HP words (`+0x20`/`+0x22`) and the four capped-100 bytes
+`+0x30`/`+0x32`/`+0x34`/`+0x36` (each `cmp byte,0x64; inc`), and **never writes
+the attribute bytes `+0x45`/`+0x46`/`+0x48`** — so Str/Dex/Wis are *not* gained
+on level-up.  The port's `level_up()` now matches this (it previously also
+incremented Str/Dex/Wis, which was a misreading).  Reproducing the two
+`<skill> improves!` messages still needs the per-character source of the two
+active skill *names* (the four `+0x30..+0x36` bytes are most likely two skills ×
+(value, progress), which is why two — not four — messages appear); tracked as
+open.
 
 Captures: `ref/emu/training/` (cost + rank + both "improves!" frames for all
 five professions) and `ref/emu/charsheet_rank09.png` (the character sheet with
@@ -2241,9 +2245,11 @@ stat-influenced and should be treated as a first-level sample only):
 | 11 Monk       | Defence, Attack |
 
 The exact selection rule (fixed per profession vs rotating per level vs driven
-by the char's top stats) is not yet derived.  `level_up()` still increments
-+0x30..+0x36 and Str/Dex/Wis, so it does NOT reproduce these messages — rework
-is open (needs the skill offsets + the selection rule).
+by the char's top stats) is not yet derived.  `level_up()` now matches the
+routine (increments HP + the four `+0x30..+0x36` skill bytes, and does **not**
+touch Str/Dex/Wis), so the *effect* is faithful; reproducing the two named
+`<skill> improves!` messages still needs the per-character skill-index source
+(needs the skill offsets + the selection rule), tracked as open.
 
 ## EGA/ANIM/AN00..AN53 are combat attack sprites, not a town transition (2026-11-24)
 
