@@ -736,7 +736,8 @@ static bool compose_temple_screen(const std::string& dir, Screen& s, std::string
 // `temple_heal`/`temple_revive` frames (ref/oracle/temple_heal.png,
 // temple_revive.png).
 static bool compose_temple_prompt(const std::string& dir, const char* line0,
-                                  const char* line1, Screen& s, std::string& err) {
+                                  const char* line1, Screen& s, std::string& err,
+                                  const SaveGame* sg = nullptr) {
     s.resize(320, 200);
     s.clear(0);
     if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
@@ -746,6 +747,7 @@ static bool compose_temple_prompt(const std::string& dir, const char* line0,
     font.draw_text(s, 139, 92, line0, 15);
     font.draw_text(s, 139, 100, line1, 15);
     font.draw_text(s, 139, 116, "(C)ontinue", 0);
+    if (sg && !draw_party_grid(s, dir, *sg, err)) return false;
     return true;
 }
 
@@ -758,7 +760,8 @@ static bool compose_temple_prompt(const std::string& dir, const char* line0,
 // white (15) for the question and "(C)ontinue" and black (0) for the three
 // option rows.  Verified against the emulator `inn_rest` frame
 // (ref/oracle/inn_rest.png).
-static bool compose_inn_rest_screen(const std::string& dir, Screen& s, std::string& err) {
+static bool compose_inn_rest_screen(const std::string& dir, Screen& s, std::string& err,
+                                    const SaveGame* sg = nullptr) {
     s.resize(320, 200);
     s.clear(0);
     if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
@@ -777,6 +780,7 @@ static bool compose_inn_rest_screen(const std::string& dir, Screen& s, std::stri
     };
     for (const auto& r : kText)
         font.draw_text(s, 139, r.y, r.text, r.idx);
+    if (sg && !draw_party_grid(s, dir, *sg, err)) return false;
     return true;
 }
 
@@ -787,7 +791,8 @@ static bool compose_inn_rest_screen(const std::string& dir, Screen& s, std::stri
 // strings 0x412bf/0x412d7); its formula is not yet derived, so it is a
 // parameter (default 2 = the 1-member oracle `ref/emu/inn_rest_pay.png`).
 static bool compose_inn_rest_pay_screen(const std::string& dir, int cost, Screen& s,
-                                        std::string& err) {
+                                        std::string& err,
+                                        const SaveGame* sg = nullptr) {
     s.resize(320, 200);
     s.clear(0);
     if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
@@ -800,6 +805,7 @@ static bool compose_inn_rest_pay_screen(const std::string& dir, int cost, Screen
     font.draw_text(s, 139, 100, buf, 15);
     font.draw_text(s, 139, 108, "who pays (1-6)?", 15);
     font.draw_text(s, 139, 124, "(C)ontinue", 0);
+    if (sg && !draw_party_grid(s, dir, *sg, err)) return false;
     return true;
 }
 
@@ -2165,11 +2171,11 @@ int main(int argc, char** argv) {
         const SaveGame* sgptr = nullptr;
         if (!save.empty()) { bsg = load_save(save); if (bsg.ok) sgptr = &bsg; }
         bool ok = temple_heal_flag   ? compose_temple_prompt(dir, "Whose wounds should",
-                                                             "we heal (1-6)?", s, err)
+                                                             "we heal (1-6)?", s, err, sgptr)
                   : temple_revive_flag ? compose_temple_prompt(dir, "Who should be revived",
-                                                             "(1-6)?", s, err)
-                  : inn_rest_flag      ? compose_inn_rest_screen(dir, s, err)
-                  : inn_rest_pay_flag  ? compose_inn_rest_pay_screen(dir, inn_rest_pay_cost, s, err)
+                                                             "(1-6)?", s, err, sgptr)
+                  : inn_rest_flag      ? compose_inn_rest_screen(dir, s, err, sgptr)
+                  : inn_rest_pay_flag  ? compose_inn_rest_pay_screen(dir, inn_rest_pay_cost, s, err, sgptr)
                   : temple_flag  ? compose_temple_screen(dir, s, err, sgptr)
                   : house_flag    ? compose_house_screen(dir, s, err, sgptr)
                   : bank_flag   ? compose_bank_screen(dir, s, err, sgptr)

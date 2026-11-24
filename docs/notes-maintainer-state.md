@@ -2156,3 +2156,8 @@ audit were moved there:
   `--house` PIXEL-EXACT (1.0000) vs `ref/oracle/house.png`; the play screen's
   match rises 97.2% -> 98.6%.  New test `port_building_test::check_building_party_panel`;
   `port_ui_town_test` now refs buildings with `--save`.
+- **Party grid on the prompt screens 2026-11-23:** extended `draw_party_grid`
+  to the temple heal/revive prompt, the Inn rest prompt and the Inn "who pays"
+  prompt (they share the MSCR + TWN03/TWN05 chrome and the oracles show the same
+  grid).  These oracles use bespoke parties, so the exact grid can't be pinned
+  from the shipped saves; the grid structure matches (same 1029-px layout).
