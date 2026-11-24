@@ -2007,6 +2007,13 @@ audit were moved there:
   Effect 1's handler (`0xf5f2`) does `sub hp_max(+0x20),5` then clamps
   `hp_cur(+0x22)<=hp_max` — i.e. a drain/curse.  Target selection (`0x11dd6`)
   reads byte 6 (`0x2718`) as a range and draws `rand(range)+1` to pick.  **Next
-  step:** pin the code-segment base so `cs:0x2c1e` maps to a file offset (the
-  table words there look like handler ip offsets, not image offsets), then read
-  the healing handler (byte 8 = 15) and its magnitude byte.
+  step:** the effect dispatch is a **switch**, so its handlers are inline
+  case-blocks (no `push bp` prologues) — that is why no table candidate yields
+  function starts.  Tried two cs bases statically and neither is right:
+  `cs:0x2c1e` as image `0x2c1e` gives data, and as image `0xf5c0+0x2c1e`
+  (`0x121de`) gives a table whose entry 15 (effect 16) points *into* the
+  dispatch instruction (`0xf5f0`) — invalid.  So the code-segment base must be
+  captured at runtime: set `LOF_TRACE_IP=1F6C0:1F6D0` (linear of image `0xf5c0`
+  = image+0x10100) while a caster casts in combat, read the real `cs`, then the
+  table is `cs:0x2c1e`.  Triggering a cast needs a save with a memorised-spell
+  caster in an encounter — the remaining P-5 blocker.
