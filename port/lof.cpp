@@ -1659,6 +1659,7 @@ int main(int argc, char** argv) {
     int use_item_idx = 0;           // item index to use
     int cast_do = 0;                // 1-based target char for --cast
     int cast_spell = 0;             // 1-based spell index to cast
+    int spells_do = 0;              // 1-based char for --spells
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
@@ -1717,6 +1718,7 @@ int main(int argc, char** argv) {
             cast_do = atoi(argv[++i]);
             cast_spell = atoi(argv[++i]);
         }
+        else if (std::string(argv[i]) == "--spells" && i + 1 < argc) spells_do = atoi(argv[++i]);
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
@@ -2023,6 +2025,28 @@ int main(int argc, char** argv) {
         }
         fprintf(stderr, "lof: cast '%s' on character %d (%s); hp %u -> %u\n",
                 sp->name.c_str(), cast_do, verb.c_str(), hp_before, hp_of(c));
+        return 0;
+    }
+    if (spells_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --spells needs a valid --save\n"); return 1; }
+        if (spells_do - 1 < 0 || spells_do - 1 >= (int)sg.chars.size()) {
+            fprintf(stderr, "lof: --spells %d: no such character\n", spells_do);
+            return 1;
+        }
+        auto slots = spell_slots(sg.chars[spells_do - 1]);
+        if (slots.empty()) {
+            printf("lof: character %d has no memorised spells\n", spells_do);
+            return 0;
+        }
+        printf("lof: character %d memorised spells:", spells_do);
+        for (auto& sl : slots) {
+            const SpellRecord* sp = spell_by_index(sl.index);
+            printf(" [%d] %s (lvl %d)", sl.index, sp ? sp->name.c_str() : "?", sl.level);
+        }
+        printf("\n");
         return 0;
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||

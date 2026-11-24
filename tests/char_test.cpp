@@ -1566,6 +1566,26 @@ static void test_apply_spell_effect() {
     }
 }
 
+static void test_spell_slots() {
+    // Memorised-spell slots at +0x142+2n (index) / +0x143+2n (level).  The cast
+    // routine reads slot 0's index; the stored level equals the spell record's
+    // byte 9 (e.g. Healing I = spell 80 has data[9] == 10).
+    SaveChar c{};
+    c.raw[kCharSkill142 + 0] = 80;  // Healing I
+    c.raw[kCharSkill142 + 1] = 10;
+    c.raw[kCharSkill142 + 2] = 0;   // empty slot
+    c.raw[kCharSkill142 + 3] = 0;
+    c.raw[kCharSkill142 + 4] = 1;   // spell 1
+    c.raw[kCharSkill142 + 5] = 8;
+    auto s = spell_slots(c);
+    assert(s.size() == 2);
+    assert(s[0].index == 80 && s[0].level == 10);
+    assert(s[1].index == 1 && s[1].level == 8);
+    // The stored level matches the spell record's byte 9 for Healing I.
+    const SpellRecord* h = spell_by_index(80);
+    assert(h && h->data[9] == 10 && h->data[kSpellEffectByte] == 15);
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
@@ -1578,6 +1598,7 @@ int main(int argc, char** argv) {
     test_buy_item();
     test_use_item();
     test_apply_spell_effect();
+    test_spell_slots();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).

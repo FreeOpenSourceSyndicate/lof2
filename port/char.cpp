@@ -515,6 +515,16 @@ std::string apply_spell_effect(SaveChar& t, const SpellRecord& sp) {
     }
 }
 
+std::vector<SpellSlot> spell_slots(const SaveChar& c) {
+    std::vector<SpellSlot> out;
+    for (int n = 0; n < 4; n++) {
+        int idx = c.raw[kCharSkill142 + 2 * n];
+        if (idx == 0) continue;
+        out.push_back({idx, c.raw[kCharSkill142 + 2 * n + 1]});
+    }
+    return out;
+}
+
 std::string use_item_effect(SaveChar& c, int item_index) {
     const ItemRecord* it = item_by_index(item_index);
     if (!it) return "";

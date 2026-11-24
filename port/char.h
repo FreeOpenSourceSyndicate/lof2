@@ -737,9 +737,14 @@ enum CharOffset : size_t {
     // depleted current value), so it is projected verbatim, not recomputed.
     kCharMagMax68  = 0x68,  // byte: maximum magic points
     kCharMagCur69  = 0x69,  // byte: current magic points
-    // The four seeded (value, level) skill pairs: +0x142+2n / +0x143+2n, n=0..3,
-    // copied from rec[0x3b+2n] / rec[0x3c+2n] by the init routine's tail loop.
-    kCharSkill142  = 0x142, // byte: first of four seeded skill values (stride 2)
+    // The four (index, level) slots at +0x142+2n / +0x143+2n.  Seeded from
+    // rec[0x3b+2n] / rec[0x3c+2n] by the init routine's tail loop, but at run
+    // time they are the character's MEMORISED-SPELL slots: the cast routine
+    // (image 0xf240) reads slot 0's +0x142 byte as a spell index and +0x143 as
+    // that spell's level (= record byte 9), and saves hold real spells (e.g.
+    // Lara: slot 0 = Healing I, index 80, level 10).  `spell_slots()` exposes
+    // the non-empty slots.
+    kCharSkill142  = 0x142, // byte: first of four (spell index) slots (stride 2)
     // ---- inventory array ----------------------------------------------------
     // The character carries 48 inventory slots of 4 bytes, based at +0x82
     // (ends at +0x82 + 48*4 = +0x142, exactly where the skill pairs begin).
@@ -1290,6 +1295,15 @@ std::string use_item_effect(SaveChar& c, int item_index);
 // `hp_max` (`0xf848`); 1 = drain `hp_max` by 5 (min 0), clamp `hp_cur`
 // (`0xf5f2`); 14 = set `+0x12` = 6 (`0xf7f6`).
 std::string apply_spell_effect(SaveChar& t, const SpellRecord& sp);
+
+// One memorised-spell slot (char +0x142+2n index, +0x143+2n level).  The cast
+// routine (image 0xf240) reads these; the level equals the spell record's byte
+// 9.  `spell_slots()` returns the non-empty slots in order (0 = empty).
+struct SpellSlot {
+    int index = 0;  // spell index (+0x142+2n)
+    int level = 0;  // stored level (+0x143+2n), == spell record byte 9
+};
+std::vector<SpellSlot> spell_slots(const SaveChar& c);
 
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.

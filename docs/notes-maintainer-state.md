@@ -2054,3 +2054,13 @@ audit were moved there:
   `apply_spell_effect()` already implements.  Remaining cast-flow work is the
   UI integration (decision action-4 -> spell selection -> round resolution) and
   the XP award formula.
+- **P-5 memorised-spell slots 2026-11-23:** char `+0x142+2n` (spell index) /
+  `+0x143+2n` (level) are the character's memorised-spell slots, **not** "skill
+  pairs" (the earlier label).  Verified from saves: GAME4 Lara = `(80,10)`
+  Healing I, `(81,8)` Light, `(82,8)` Fear evil, `(83,7)` Blessing; Gandalf =
+  `(1,8)` Burning hands, `(2,4)` Light, `(3,7)` Magic arrow, `(4,5)` Shield I.
+  The stored level equals the spell record's byte 9.  Exposed as
+  `spell_slots()` (port/char.{h,cpp}) + `lof --spells N`; pinned by
+  `char_test::test_spell_slots`.  The class-seed still fills these from
+  rec[0x3b]/[0x3c] (starting spells per class).  This is the caster's spell
+  list the cast routine (0xf240) consumes.
