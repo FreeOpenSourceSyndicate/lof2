@@ -2244,3 +2244,18 @@ The exact selection rule (fixed per profession vs rotating per level vs driven
 by the char's top stats) is not yet derived.  `level_up()` still increments
 +0x30..+0x36 and Str/Dex/Wis, so it does NOT reproduce these messages — rework
 is open (needs the skill offsets + the selection rule).
+
+## EGA/ANIM/AN00..AN53 are combat attack sprites, not a town transition (2026-11-24)
+
+The `docs/notes-b.md` §3c guess that the 24 `EGA/ANIM` frames are a
+"leaving-town transition" is **wrong**.  They are six sprite groups of four
+frames each (`an{0..5}{0..3}`), each a small EGA sprite (~40-64 px wide x 57
+tall): group 0 a knight swinging a sword+shield (four attack frames), group 1 a
+staff-bearer, group 2 an axeman, group 3 a robed figure, group 4 a wolf, group 5
+a skeleton.  They are **combat attack animations**, preloaded once the party
+reaches a place where encounters can occur -- the INT 21h open trace opens them
+right after the town exit, ahead of the first wilderness encounter.  The town
+exit itself is *instantaneous*: the outdoor map just loads, there is no wipe to
+reproduce (the P-4 town exit is DONE without any animation work).  Using these
+as the per-attack animation in the port's combat is optional cosmetic polish,
+not a transition.
