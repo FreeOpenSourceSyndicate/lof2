@@ -2073,3 +2073,11 @@ audit were moved there:
   -> 13; caster does not melee).  `combat_test` now links char.cpp + data.cpp
   (it calls spell_by_index).  Still open: the interactive `--ui` decision ->
   spell-slot/target selection, and the practice-XP award.
+- **P-5 --ui cast selection 2026-11-23:** at the `--ui` combat DECISION state a
+  digit `1`-`6` toggles that (present) member's action to `kActCastSpell` (its
+  slot-0 memorised spell) or back to attack, logging `lof: <name> will cast
+  <spell>`; any other key commits the round.  Driven head-lessly via
+  `--ui-keys "32,32,79,67,51,13,81"` (space,space,O=play, C=combat, 3=Lara
+  casts, Enter=commit, Q=quit) with `--save GAME4`; pinned by `port_ui_test`
+  (`cast ok`).  Still open: choosing slot/target beyond slot 0, and the
+  practice-XP award.

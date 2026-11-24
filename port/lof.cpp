@@ -1395,7 +1395,26 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
             compose_town_screen(dir, town_name_from_save(save_path), town_screen, e2);
             state = TOWN;
         } else if (state == DECISION) {
-            // Any key commits the round: resolve it, then show the table.
+            // A digit 1-6 selects that (present) member to cast its slot-0
+            // memorised spell this round, if it has one; pressing it again
+            // reverts to attack.  Any other key commits the round.
+            if (key >= '1' && key <= '6') {
+                size_t idx = (size_t)(key - '1');
+                if (idx < combat_party.size() && combat_party[idx].spell > 0) {
+                    Combatant& m = combat_party[idx];
+                    if (m.action == kActCastSpell) {
+                        m.action = kActAttack;
+                        fprintf(stderr, "lof: %s will attack\n", m.name.c_str());
+                    } else {
+                        m.action = kActCastSpell;
+                        const SpellRecord* sp = spell_by_index(m.spell);
+                        fprintf(stderr, "lof: %s will cast %s\n", m.name.c_str(),
+                                sp ? sp->name.c_str() : "?");
+                    }
+                    continue;  // don't commit; wait for another key
+                }
+            }
+            // Any other key commits the round: resolve it, then show the table.
             RoundResult rr = resolve_round(combat_rng, combat_party, combat_monsters);
             std::vector<RoundRow> rows;
             for (const CombatRoundRow& cr : rr.rows) {

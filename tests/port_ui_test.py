@@ -75,6 +75,28 @@ def main() -> int:
         print("port_ui_test: FAIL play (match=%.1f%% < %.0f%%)" % (100 * p, 100 * PLAY_MIN_MATCH))
         rc = 1
 
+    # Cast path: from play, 'C' opens the combat decision, a digit selects a
+    # caster (GAME4's Lara, Healing I), Enter commits.  The decision log confirms
+    # the queued cast.
+    game4 = os.path.join(GAME, "GAMES", "GAME4")
+    if os.path.exists(game4):
+        r = subprocess.run(
+            [os.path.join(ROOT, "lof"), "--dir", GAME, "--headless", "--ui",
+             "--ui-keys", "32,32,79,67,51,13,81", "--save", game4,
+             "--shot", SHOT],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        err = r.stderr.decode()
+        if r.returncode != 0:
+            print("port_ui_test: FAIL cast path (%s)" % err.strip())
+            rc = 1
+        elif "will cast Healing I" not in err:
+            print("port_ui_test: FAIL cast path (no 'will cast Healing I')")
+            rc = 1
+        else:
+            print("port_ui_test: cast ok (Lara casts Healing I at the decision)")
+    else:
+        print("port_ui_test: SKIP cast (no GAME4)")
+
     return rc
 
 
