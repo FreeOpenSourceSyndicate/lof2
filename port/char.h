@@ -1321,6 +1321,12 @@ struct LevelUpResult {
 };
 LevelUpResult level_up(SaveChar& c, int hp_gain);
 
+// The House-of-Trades training fee for a profession index (0..11).  Measured
+// from DOSBox by patching + re-sealing a save and reading "The costs of
+// training for <name> amount to <fee>"; it is level-independent.  Returns 0
+// for an out-of-range profession (see docs/notes-maintainer-state.md).
+uint32_t training_cost(uint8_t profession);
+
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
 SaveGame load_save(const std::string& path);

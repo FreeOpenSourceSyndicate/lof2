@@ -2178,16 +2178,30 @@ patching a save's char level/exp/gold and **re-sealing** the save checksum
 (the alternating ADD/XOR fold over `[0,0x2e3a)`, seed 1, NUL=1 — patching
 without reseal makes the engine print "GAMES\GAMEn is not a valid save game!"):
 
-| profession (idx) | cost | 2 stat gains shown |
-|---|---|---|
-| Rogue (2)      | 1500  | Trap detecting, Stalking |
-| Smith (3)      | 1500  | Attack, Attack |
-| Magician (7)   | 22500 | Concentration, Concentration |
-| Paladin (9)    | 2000  | Attack, Defence |
-| Healer (10)    | 15000 | Concentration, Concentration |
+Full 12-profession table, measured by patching the profession byte (+0x1b) and
+re-sealing (the panel shows the new profession, the fee follows it):
 
-Decker (Paladin) cost 2000 at level 1→2 **and** level 5→6, so the cost is
-level-independent.  Casters (Concentration) cost ~10x the physical classes.
+| prof | name | cost | 2 stat gains shown |
+|---|---|---|---|
+| 0  | Warrior     | 2000 | (captured) |
+| 1  | Barbarian   | 2000 | |
+| 2  | Rogue       | 1500 | Trap detecting, Stalking |
+| 3  | Smith       | 1500 | Attack, Attack |
+| 4  | Scout       | 2000 | |
+| 5  | Priest      | 2250 | |
+| 6  | Druid       | 2250 | |
+| 7  | Magician    | 2250 | Concentration, Concentration |
+| 8  | Illusionist | 2250 | |
+| 9  | Paladin     | 2000 | Attack, Defence |
+| 10 | Healer      | 1500 | Concentration, Concentration |
+| 11 | Monk        | 1500 | |
+
+Grouped by fee: {2,3,10,11}=1500, {0,1,4,9}=2000, {5,6,7,8}=2250.
+Decker (Paladin) cost 2000 at level 1→2 **and** level 5→6, so the fee is
+level-independent.  Implemented as `training_cost(profession)` in
+`port/char.{h,cpp}` (pinned by `tests/char_test.cpp::test_training_cost`).
+(An earlier reading of Magician/Healer as 22500/15000 was a 10x misread — the
+font's "0" carries a diagonal stroke; the zoomed captures confirm 2250/1500.)
 
 **The level-up gains COMBAT SKILLS, not Str/Dex/Wis.**  The messages are
 `The Grand Board of Trades decides that <name> enters the <N> Rank.` then

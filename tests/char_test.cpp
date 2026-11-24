@@ -1622,6 +1622,16 @@ static void test_level_up() {
     assert(lr.improved.size() == 2);  // Str 18->19 and Wis 10->11; Dex capped
 }
 
+static void test_training_cost() {
+    // DOSBox-measured House-of-Trades fee by profession (level-independent);
+    // see docs/notes-maintainer-state.md.
+    static const uint16_t want[12] = {
+        2000, 2000, 1500, 1500, 2000, 2250,
+        2250, 2250, 2250, 2000, 1500, 1500};
+    for (uint8_t p = 0; p < 12; p++) assert(training_cost(p) == want[p]);
+    assert(training_cost(12) == 0);  // out of range
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
@@ -1637,6 +1647,7 @@ int main(int argc, char** argv) {
     test_spell_slots();
     test_consume_spell_slot();
     test_level_up();
+    test_training_cost();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).

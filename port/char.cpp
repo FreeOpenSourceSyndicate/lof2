@@ -556,6 +556,15 @@ LevelUpResult level_up(SaveChar& c, int hp_gain) {
     return res;
 }
 
+uint32_t training_cost(uint8_t profession) {
+    // Measured from DOSBox (docs/notes-maintainer-state.md); level-independent.
+    static const uint16_t kCost[12] = {
+        2000, 2000, 1500, 1500, 2000, 2250,   // 0..5
+        2250, 2250, 2250, 2000, 1500, 1500,   // 6..11
+    };
+    return profession < 12 ? kCost[profession] : 0;
+}
+
 std::string use_item_effect(SaveChar& c, int item_index) {
     const ItemRecord* it = item_by_index(item_index);
     if (!it) return "";
