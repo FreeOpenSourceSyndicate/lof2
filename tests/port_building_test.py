@@ -435,10 +435,57 @@ def check_cast_effect() -> int:
     return 0
 
 
+def check_building_party_panel() -> int:
+    """The building screens show the shared 3x2 party grid in the top-right.
+    Build a synthetic save whose slot 1 matches the house oracle's party
+    (Stiletto / Warrior / 10% / Good; slots 2-6 empty), render --house with it
+    and require the whole screen to be pixel-exact against house.png."""
+    game2 = os.path.join(GAME, "GAMES", "GAME2")
+    oracle = os.path.join(ROOT, "ref", "oracle", "house.png")
+    if not (os.path.exists(game2) and os.path.exists(oracle)):
+        print("port_building_test: SKIP party grid (no GAME2/house.png)")
+        return 0
+
+    d = bytearray(open(game2, "rb").read())
+
+    def rec(i):
+        return 4 + i * 410
+
+    for i in range(1, 6):
+        d[rec(i)] = 0                       # slots 2-6 empty
+    r = rec(0)
+    d[r + 0] = 1                            # slot 1 present
+    nm = b"Stiletto"
+    d[r + 1:r + 1 + 14] = nm + b"\x00" * (14 - len(nm))
+    d[r + 0x1b] = 0                         # profession Warrior
+    d[r + 0x1e] = 10                        # panel stat 10%
+    d[r + 0x1f] = 0                         # status Good
+    sav = "/tmp/port_building_stiletto.sav"
+    open(sav, "wb").write(d)
+
+    shot = "/tmp/port_building_panel.png"
+    subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                    "--house", "--save", sav, "--cursor", "0,0", "--shot", shot],
+                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    port = np.asarray(Image.open(shot).convert("RGB")).astype(int)
+    ref = np.asarray(Image.open(oracle).convert("RGB")).astype(int)
+    if port.shape != ref.shape:
+        print("port_building_test: FAIL party grid (size %s != %s)"
+              % (port.shape, ref.shape))
+        return 1
+    diff = int((port != ref).any(2).sum())
+    if diff:
+        print("port_building_test: FAIL party grid (%d px differ)" % diff)
+        return 1
+    print("port_building_test: ok party grid (house.png pixel-exact)")
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
         rc |= check(flag, ref, label)
+    rc |= check_building_party_panel()
     rc |= check_temple_heal_effect()
     rc |= check_temple_revive_effect()
     rc |= check_bank_effect()

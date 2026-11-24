@@ -2146,3 +2146,13 @@ audit were moved there:
   not in any save.  To capture the training gold cost, first get a real party in
   (load a save that starts in town, or finish the add-char flow), then `H` -> `T`
   -> digit, watching `+0x72`.
+- **P-7 building party grid DONE 2026-11-23:** the town/emporium/bank/house/temple
+  screens now overlay the SAME 3x2 party grid the play screen uses.  Refactored
+  `draw_party_grid` out of `draw_party_and_status` (grid = name/prof/+0x1e%/
+  status at cols 148/208/268 rows 9/37, plus the fixed 50x3 white HP gauge at
+  (x,y+18) that every oracle shows full-width regardless of HP).  `compose_building_screen`
+  and the `--ui` town/building paths now pass the loaded save.  A synthetic save
+  (GAME2 with slot 1 = Stiletto/Warrior/10%/Good, slots 2-6 empty) renders
+  `--house` PIXEL-EXACT (1.0000) vs `ref/oracle/house.png`; the play screen's
+  match rises 97.2% -> 98.6%.  New test `port_building_test::check_building_party_panel`;
+  `port_ui_town_test` now refs buildings with `--save`.

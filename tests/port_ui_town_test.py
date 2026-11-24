@@ -79,10 +79,10 @@ def main():
     # round-trip back to town.
     tests = [
         ("town",            P,               "--town",    True),
-        ("emporium",        P + ",69",       "--emporium", False),
-        ("bank",            P + ",66",       "--bank",    False),
-        ("house",           P + ",72",       "--house",   False),
-        ("temple",          P + ",84",       "--temple",  False),
+        ("emporium",        P + ",69",       "--emporium", True),
+        ("bank",            P + ",66",       "--bank",    True),
+        ("house",           P + ",72",       "--house",   True),
+        ("temple",          P + ",84",       "--temple",  True),
         ("amulet (leave)",  P + ",67",       "--amulet",  True),
         ("emporium->town",  P + ",69,32",    "--town",    True),
     ]

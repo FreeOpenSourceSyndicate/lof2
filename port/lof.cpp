@@ -123,9 +123,12 @@ static void draw_cursor(Screen& s, int x, int y) {
 // matching a DOSBox capture; the roster panel is pixel-exact.  The play screen
 // and the encounter screen both draw it (the encounter oracle's panel is
 // byte-identical to the play oracle's).
-static bool draw_party_and_status(Screen& s, const std::string& dir,
-                                  const SaveGame& sg, bool have_sg, std::string& err) {
-    if (!have_sg) return true;
+// The shared 3x2 party grid (cols 148/208/268, rows 9/37): each slot shows the
+// name (small-caps white), the profession (black), the +0x1e stat (dark gray,
+// "%d" + '%') and the status word (white).  Used by the play screen AND the
+// town building screens (the character sheet shares the same grid).
+static bool draw_party_grid(Screen& s, const std::string& dir,
+                            const SaveGame& sg, std::string& err) {
     Font small;
     if (!small.load(dir + "/EGA/UP/CHR2", &err)) return false;
     std::vector<std::string> profs = profession_names();
@@ -164,8 +167,21 @@ static bool draw_party_and_status(Screen& s, const std::string& dir,
         size_t si = c.raw[kCharStatus1f];
         if (si < status.size())
             small.draw_small(s, x + 21, y + 12, status[si], 15);
+        // The fixed HP gauge under the "HT" label: a 50x3 white (15) bar at
+        // (x, y+18).  Oracle (ref/oracle/house.png, round_result.png) shows it
+        // full-width regardless of the character's HP, for every occupied slot.
+        for (int by = 0; by < 3; by++)
+            for (int bx = 0; bx < 50; bx++)
+                s.put(x + bx, y + 18 + by, 15);
         slot++;
     }
+    return true;
+}
+
+static bool draw_party_and_status(Screen& s, const std::string& dir,
+                                  const SaveGame& sg, bool have_sg, std::string& err) {
+    if (!have_sg) return true;
+    if (!draw_party_grid(s, dir, sg, err)) return false;
 
     // Lower-left status box.  It is drawn with the *full* CHR1 face at a 6-px
     // pitch, five label lines at y = 136/144/160/176/184:
@@ -566,7 +582,8 @@ struct TownTextRow { int y; const char* text; uint8_t idx; };
 // town-menu street, TWN01/02/04 are the Emporium/Bank/House exteriors.
 static bool compose_building_screen(const std::string& dir, const char* tile,
                                     const TownTextRow* rows, size_t n,
-                                    Screen& s, std::string& err) {
+                                    Screen& s, std::string& err,
+                                    const SaveGame* sg = nullptr) {
     s.resize(320, 200);
     s.clear(0);
     if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
@@ -575,6 +592,9 @@ static bool compose_building_screen(const std::string& dir, const char* tile,
     if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
     for (size_t i = 0; i < n; i++)
         font.draw_text(s, 139, rows[i].y, rows[i].text, rows[i].idx);
+    // The 3x2 party grid sits in the top-right (y 9..49), clear of the text
+    // (y >= 88); the building screens show it exactly like the play screen.
+    if (sg && !draw_party_grid(s, dir, *sg, err)) return false;
     return true;
 }
 
@@ -603,7 +623,8 @@ static const char* town_name_from_save(const std::string& save_path) {
 // every glyph matches a CHR1 cell exactly.  `name` is the town name the engine
 // selects from the save (see town_name_from_save).
 static bool compose_town_screen(const std::string& dir, const char* name,
-                                Screen& town, std::string& err) {
+                                Screen& town, std::string& err,
+                                const SaveGame* sg = nullptr) {
     std::string row = std::string(name) + ". Which building do you";
     TownTextRow kText[] = {
         { 92, "You enter the proud town of", 15},
@@ -617,7 +638,7 @@ static bool compose_town_screen(const std::string& dir, const char* name,
         {188, "(C)ontinue", 15},
     };
     return compose_building_screen(dir, "TWN00", kText,
-                                   sizeof(kText) / sizeof(kText[0]), town, err);
+                                   sizeof(kText) / sizeof(kText[0]), town, err, sg);
 }
 
 // Compose the Emporium screen: MSCR + the shop exterior EGA/TWN/TWN01 + the
@@ -627,7 +648,8 @@ static bool compose_town_screen(const std::string& dir, const char* name,
 // white (15) on the light-gray MSCR box, the options black (0).  The strings
 // are the engine's own (LOF.EXE ds:0x5B71/0x5B8B/0x5BA5/...); the greeting
 // wraps after "what" (the engine's own row break, not a reflow).
-static bool compose_emporium_screen(const std::string& dir, Screen& s, std::string& err) {
+static bool compose_emporium_screen(const std::string& dir, Screen& s, std::string& err,
+                            const SaveGame* sg = nullptr) {
     static const TownTextRow kText[] = {
         { 92, "Well hi, wealthy heroes, what", 15},
         {100, "would you like, huh?", 15},
@@ -638,13 +660,14 @@ static bool compose_emporium_screen(const std::string& dir, Screen& s, std::stri
         {172, "(C)ontinue", 15},
     };
     return compose_building_screen(dir, "TWN01", kText,
-                                   sizeof(kText) / sizeof(kText[0]), s, err);
+                                   sizeof(kText) / sizeof(kText[0]), s, err, sg);
 }
 
 // Compose the Bank screen: MSCR + the bank exterior EGA/TWN/TWN02 + the
 // teller's greeting and the account menu.  Strings are the engine's own
 // (LOF.EXE ds:0x631C/0x634D/...); decoded from the emulator's Bank frame.
-static bool compose_bank_screen(const std::string& dir, Screen& s, std::string& err) {
+static bool compose_bank_screen(const std::string& dir, Screen& s, std::string& err,
+                        const SaveGame* sg = nullptr) {
     static const TownTextRow kText[] = {
         { 92, "Greetings, brave heroes, what", 15},
         {100, "can we do for you?", 15},
@@ -655,13 +678,14 @@ static bool compose_bank_screen(const std::string& dir, Screen& s, std::string& 
         {172, "(C)ontinue", 15},
     };
     return compose_building_screen(dir, "TWN02", kText,
-                                   sizeof(kText) / sizeof(kText[0]), s, err);
+                                   sizeof(kText) / sizeof(kText[0]), s, err, sg);
 }
 
 // Compose the House of trades screen: MSCR + the hall exterior EGA/TWN/TWN04 +
 // the Board's greeting and the training menu.  Strings are the engine's own
 // (LOF.EXE ds:0x6855/0x686F/0x688C/...); decoded from the emulator's frame.
-static bool compose_house_screen(const std::string& dir, Screen& s, std::string& err) {
+static bool compose_house_screen(const std::string& dir, Screen& s, std::string& err,
+                         const SaveGame* sg = nullptr) {
     static const TownTextRow kText[] = {
         { 92, "The Grand Board of Trades", 15},
         {100, "greets you in Thyn.", 15},
@@ -673,7 +697,7 @@ static bool compose_house_screen(const std::string& dir, Screen& s, std::string&
         {172, "(C)ontinue", 15},
     };
     return compose_building_screen(dir, "TWN04", kText,
-                                   sizeof(kText) / sizeof(kText[0]), s, err);
+                                   sizeof(kText) / sizeof(kText[0]), s, err, sg);
 }
 
 // Compose the Temple screen: MSCR + the temple exterior EGA/TWN/TWN05 in the
@@ -681,7 +705,8 @@ static bool compose_house_screen(const std::string& dir, Screen& s, std::string&
 // full 120x119 cell blitted at the viewport origin, pixel-exact against the
 // emulator's `temple_bldg` frame.  Strings are the engine's own
 // (LOF.EXE ds:0x5086/0x5095/0x50a3/0x50b4/0x50ce/0x50de).
-static bool compose_temple_screen(const std::string& dir, Screen& s, std::string& err) {
+static bool compose_temple_screen(const std::string& dir, Screen& s, std::string& err,
+                          const SaveGame* sg = nullptr) {
     s.resize(320, 200);
     s.clear(0);
     if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
@@ -698,6 +723,7 @@ static bool compose_temple_screen(const std::string& dir, Screen& s, std::string
     };
     for (const auto& r : kText)
         font.draw_text(s, 139, r.y, r.text, r.idx);
+    if (sg && !draw_party_grid(s, dir, *sg, err)) return false;
     return true;
 }
 
@@ -1329,7 +1355,7 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                         // shows the building menu instead of a first-person view.
                         std::string e2;
                         if (compose_town_screen(dir, town_name_from_save(save_path),
-                                                town_screen, e2)) {
+                                                town_screen, e2, &play_sg)) {
                             have_play = false;
                             state = TOWN;
                         }
@@ -1380,10 +1406,10 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
         } else if (state == TOWN) {
             if (key == 'Q') break;
             std::string e2;
-            if (key == 'E') { compose_emporium_screen(dir, town_screen, e2); state = EMPORIUM; }
-            else if (key == 'B') { compose_bank_screen(dir, town_screen, e2); state = BANK; }
-            else if (key == 'H') { compose_house_screen(dir, town_screen, e2); state = HOUSE; }
-            else if (key == 'T') { compose_temple_screen(dir, town_screen, e2); state = TEMPLE; }
+            if (key == 'E') { compose_emporium_screen(dir, town_screen, e2, &play_sg); state = EMPORIUM; }
+            else if (key == 'B') { compose_bank_screen(dir, town_screen, e2, &play_sg); state = BANK; }
+            else if (key == 'H') { compose_house_screen(dir, town_screen, e2, &play_sg); state = HOUSE; }
+            else if (key == 'T') { compose_temple_screen(dir, town_screen, e2, &play_sg); state = TEMPLE; }
             else if (key == 'I') { state = INTRO; frame = intro.size() - 1; }  // Inn = boot menu
             else if (key == 'C') {
                 compose_amulet_screen(dir, play_sg, play_sg.ok, town_screen, e2);
@@ -1395,7 +1421,8 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
             // leave-town step; the wilderness transition that follows it needs
             // a wilderness map and is the remaining P-4 piece.)
             std::string e2;
-            compose_town_screen(dir, town_name_from_save(save_path), town_screen, e2);
+            compose_town_screen(dir, town_name_from_save(save_path), town_screen, e2,
+                                &play_sg);
             state = TOWN;
         } else if (state == DECISION) {
             // A digit 1-6 selects that (present) member to cast its slot-0
@@ -2134,17 +2161,20 @@ int main(int argc, char** argv) {
         inn_rest_flag || inn_rest_pay_flag || temple_heal_flag || temple_revive_flag) {
         std::string err;
         Screen s;
+        SaveGame bsg;
+        const SaveGame* sgptr = nullptr;
+        if (!save.empty()) { bsg = load_save(save); if (bsg.ok) sgptr = &bsg; }
         bool ok = temple_heal_flag   ? compose_temple_prompt(dir, "Whose wounds should",
                                                              "we heal (1-6)?", s, err)
                   : temple_revive_flag ? compose_temple_prompt(dir, "Who should be revived",
                                                              "(1-6)?", s, err)
                   : inn_rest_flag      ? compose_inn_rest_screen(dir, s, err)
                   : inn_rest_pay_flag  ? compose_inn_rest_pay_screen(dir, inn_rest_pay_cost, s, err)
-                  : temple_flag  ? compose_temple_screen(dir, s, err)
-                  : house_flag    ? compose_house_screen(dir, s, err)
-                  : bank_flag   ? compose_bank_screen(dir, s, err)
-                  : emporium_flag ? compose_emporium_screen(dir, s, err)
-                                : compose_town_screen(dir, town_name_from_save(save), s, err);
+                  : temple_flag  ? compose_temple_screen(dir, s, err, sgptr)
+                  : house_flag    ? compose_house_screen(dir, s, err, sgptr)
+                  : bank_flag   ? compose_bank_screen(dir, s, err, sgptr)
+                  : emporium_flag ? compose_emporium_screen(dir, s, err, sgptr)
+                                : compose_town_screen(dir, town_name_from_save(save), s, err, sgptr);
         if (!ok) {
             fprintf(stderr, "lof: %s\n", err.c_str());
             return 1;
