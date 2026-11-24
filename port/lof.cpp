@@ -1422,10 +1422,44 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                 state = AMULET;
             }
         } else if (state == EMPORIUM || state == BANK || state == HOUSE ||
-                   state == TEMPLE || state == AMULET) {
-            // Any key returns to the town hub.  (The AMULET page is the
-            // leave-town step; the wilderness transition that follows it needs
-            // a wilderness map and is the remaining P-4 piece.)
+                   state == TEMPLE) {
+            // Any key returns to the town hub.
+            std::string e2;
+            compose_town_screen(dir, town_name_from_save(save_path), town_screen, e2,
+                                &play_sg);
+            state = TOWN;
+        } else if (state == AMULET) {
+            // The leave-town step.  (L)eave it, (C)ontinue or a member digit
+            // 1-6 all head out; a digit also hands the amulet to that member.
+            // The destination is the region's outdoor map, DNG<tens>0 (the
+            // emulator opens DNGS\DNG10 here), entered at the party's saved
+            // cell/facing -- the position is preserved across the town visit.
+            bool leave = (key == 'L' || key == 'C' || (key >= '1' && key <= '6'));
+            if (leave) {
+                if (key >= '1' && key <= '6') {
+                    int idx = key - '1';
+                    if (idx < (int)play_sg.chars.size() &&
+                        play_sg.chars[idx].raw[kCharPresent] != 0)
+                        give_item(play_sg.chars[idx], kItemAmulet);
+                }
+                uint16_t outdoor = (uint16_t)(play_sg.loc_tens * 10);
+                std::string e3;
+                if (load_dungeon(dir + "/DNGS/" + dungeon_map_name(outdoor), dng,
+                                 &e3)) {
+                    play_dungeon = outdoor;
+                    // The party is now on the outdoor map: its location ones
+                    // digit becomes 0 (so the status box titles the region,
+                    // loc % 10 -> scenario 0).  Cell/facing are preserved.
+                    play_sg.loc_ones = (uint8_t)(outdoor % 10);
+                    place_party_from_save(dng, play_sg, pos);
+                    have_dng = true;
+                    redraw_play();
+                    have_play = true;
+                    state = PLAY;
+                    continue;
+                }
+            }
+            // No outdoor map (or a non-leaving key): return to the town hub.
             std::string e2;
             compose_town_screen(dir, town_name_from_save(save_path), town_screen, e2,
                                 &play_sg);

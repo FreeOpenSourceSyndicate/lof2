@@ -27,6 +27,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME = os.path.join(ROOT, "game")
 SAVE_SRC = os.path.join(GAME, "GAMES", "GAME2")
 TOWN_SAVE = "/tmp/port_ui_town.sav"
+TOWN_EXIT_SAVE = "/tmp/port_ui_town_exit.sav"
 UI_SHOT = "/tmp/port_ui_town_shot.png"
 REF_SHOT = "/tmp/port_ui_town_ref.png"
 
@@ -68,6 +69,36 @@ def check(name, keys, flag, with_save=False):
     return ok
 
 
+def make_town_exit_save():
+    """A save in town whose region is 1, so leaving town lands on DNG10 (the
+    same outdoor map as the slot-2 save)."""
+    d = bytearray(open(SAVE_SRC, "rb").read())
+    d[0x9A2] = 8   # ones -> DNG18 (no map): the engine stays in town
+    d[0x9A4] = 1   # tens -> outdoor map DNG10 (matches GAME2's own region)
+    open(TOWN_EXIT_SAVE, "wb").write(d)
+
+
+def check_town_exit():
+    """(C)ontinue -> amulet page -> (L)eave it leaves town into the wilderness;
+    the resulting play screen must equal a direct load of the wilderness save."""
+    make_town_exit_save()
+    subprocess.run(
+        [os.path.join(ROOT, "lof"), "--dir", GAME, "--headless", "--ui",
+         "--save", TOWN_EXIT_SAVE, "--ui-keys", "32,32,79,67,76", "--shot", UI_SHOT],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    a = load(UI_SHOT)
+    # Reference: load the wilderness save directly through the same --ui path
+    # (its PLAY state) and shoot that play screen.
+    subprocess.run(
+        [os.path.join(ROOT, "lof"), "--dir", GAME, "--headless", "--ui",
+         "--save", SAVE_SRC, "--ui-keys", "32,32,79", "--shot", REF_SHOT],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    b = load(REF_SHOT)
+    ok = a.shape == b.shape and bool((a == b).all())
+    print("port_ui_town_test: %s town exit -> wilderness play" % ("ok" if ok else "FAIL"))
+    return ok
+
+
 def main():
     if not os.path.exists(SAVE_SRC):
         print("port_ui_town_test: SKIP (no %s)" % SAVE_SRC)
@@ -89,6 +120,8 @@ def main():
     for name, keys, flag, ws in tests:
         if not check(name, keys, flag, ws):
             rc = 1
+    if not check_town_exit():
+        rc = 1
     return rc
 
 
