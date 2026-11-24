@@ -1196,6 +1196,8 @@ static std::vector<Combatant> build_party_combatants(const SaveGame& sg,
         k.max_hp = r[0x20] | (r[0x21] << 8);
         k.action = r[0x0f];
         k.target = r[0x0e];
+        auto slots = spell_slots(c);
+        k.spell = slots.empty() ? 0 : slots[0].index;
         k.exp = (uint32_t)r[0x6c] | ((uint32_t)r[0x6d] << 8) |
                 ((uint32_t)r[0x6e] << 16) | ((uint32_t)r[0x6f] << 24);
         // The prelude's hit score, from this member's combat row and the

@@ -2064,3 +2064,12 @@ audit were moved there:
   `char_test::test_spell_slots`.  The class-seed still fills these from
   rec[0x3b]/[0x3c] (starting spells per class).  This is the caster's spell
   list the cast routine (0xf240) consumes.
+- **P-5 round casting 2026-11-23:** `Combatant::spell` (set from
+  `spell_slots()[0].index` in `build_party_combatants`) + `cast_combat_spell()`
+  in `resolve_round`: a member whose action is `kActCastSpell` casts its slot-0
+  spell instead of meleeing — effect 15 heals the most-wounded living ally by
+  `data[6]` (capped at max_hp), effect 1 drains a defender's max_hp by 5.
+  Pinned by `combat_test::test_cast_round` (Lara casts Healing I on a 5/40 ally
+  -> 13; caster does not melee).  `combat_test` now links char.cpp + data.cpp
+  (it calls spell_by_index).  Still open: the interactive `--ui` decision ->
+  spell-slot/target selection, and the practice-XP award.

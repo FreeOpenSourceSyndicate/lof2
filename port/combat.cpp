@@ -112,6 +112,44 @@ Combatant* first_live_any(std::vector<Combatant>& v) {
     return nullptr;
 }
 
+// Apply a party member's cast spell to the combat model.  Only the effects that
+// change combat HP are modelled: 15 (heal) restores the most-wounded living
+// ally by spell data[6], capped at max_hp; 1 (drain) lowers a defender's max_hp
+// by 5 (min 0) and clamps its hp.  Other effects (14, damage) have no combat-HP
+// model here.
+void cast_combat_spell(Combatant& caster, std::vector<Combatant>& party,
+                       std::vector<Combatant>& defenders) {
+    if (caster.spell <= 0) return;
+    const SpellRecord* sp = spell_by_index(caster.spell);
+    if (!sp) return;
+    switch (sp->data[kSpellEffectByte]) {
+    case 15: {
+        Combatant* t = nullptr;
+        int worst = 0;
+        for (auto& a : party) {
+            if (a.hp <= 0 || a.max_hp <= 0) continue;
+            int missing = a.max_hp - a.hp;
+            if (missing > worst) { worst = missing; t = &a; }
+        }
+        if (!t) t = &caster;
+        t->hp += sp->data[6];
+        if (t->hp > t->max_hp) t->hp = t->max_hp;
+        return;
+    }
+    case 1: {
+        Combatant* t = first_live(defenders, caster.target);
+        if (!t) t = first_live_any(defenders);
+        if (!t) return;
+        t->max_hp -= 5;
+        if (t->max_hp < 0) t->max_hp = 0;
+        if (t->hp > t->max_hp) t->hp = t->max_hp;
+        return;
+    }
+    default:
+        return;
+    }
+}
+
 }  // namespace
 
 RoundResult resolve_round(CombatRng& rng, std::vector<Combatant>& party,
@@ -127,7 +165,12 @@ RoundResult resolve_round(CombatRng& rng, std::vector<Combatant>& party,
     // Party phase: every live member whose action is Attack.
     for (size_t i = 0; i < party.size(); i++) {
         Combatant& m = party[i];
-        if (!alive(m) || m.action != kActAttack) continue;
+        if (!alive(m)) continue;
+        if (m.action == kActCastSpell) {
+            cast_combat_spell(m, party, defenders);
+            continue;
+        }
+        if (m.action != kActAttack) continue;
         Combatant* tgt = first_live(defenders, m.target);
         if (!tgt) tgt = first_live_any(defenders);
         if (!tgt) break;

@@ -25,7 +25,7 @@ EGA_DECODE_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I p
 
 # (Maintainer — combat) the derived melee formula, generator and round model.
 COMBAT_TEST = $(CXX) -O2 -std=c++17 -Wall -Wextra -Wno-unused-parameter -I port \
-    -o combat_test tests/combat_test.cpp port/combat.cpp && \
+    -o combat_test tests/combat_test.cpp port/combat.cpp port/char.cpp port/data.cpp && \
     ./combat_test; rc=$$?; rm -f combat_test; exit $$rc
 
 # (Agent A — dungeons) the event fire path: a real save, one forward step, and

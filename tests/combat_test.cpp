@@ -204,6 +204,36 @@ static void test_round() {
     check(res2.rows[0].hp_delta == 0, "no damage with no defenders");
 }
 
+static void test_cast_round() {
+    // A party member with action Cast Spell casts its slot-0 spell during the
+    // round.  Spell 80 (Healing I, effect 15, data[6] == 8) heals the
+    // most-wounded living ally by 8, capped at max_hp; the caster does not
+    // melee.
+    CombatRng rng;
+    rng.seed = 1;
+    std::vector<Combatant> party(2);
+    party[0].name = "Lara";
+    party[0].hp = 30;
+    party[0].max_hp = 30;
+    party[0].action = kActCastSpell;
+    party[0].spell = 80;
+    party[1].name = "Decker";
+    party[1].hp = 5;
+    party[1].max_hp = 40;
+    party[1].action = kActDefend;
+    std::vector<Combatant> monsters(1);
+    monsters[0].marker = 1;
+    monsters[0].name = "Mercenary";
+    monsters[0].hp = 8;
+    monsters[0].max_hp = 8;
+    monsters[0].melee.hit_score = 0;  // never hits, so only the heal shows
+    RoundResult res = resolve_round(rng, party, monsters);
+    check(party[1].hp == 13, "Healing I healed the wounded ally by 8");
+    check(res.rows[1].hp_delta == 8, "the healed ally's row shows +8");
+    check(res.rows[0].attack == 1, "the caster's row is Passed (acted)");
+    check(monsters[0].hp == 8, "the caster did not melee");
+}
+
 // The prelude's hit score (image 0x13744..0x13806), hand-computed.
 static void test_hit_score() {
     PartyRow atk, tgt;
@@ -355,12 +385,13 @@ int main() {
     test_xp_table();
     test_weapon_break();
     test_round();
+    test_cast_round();
     test_trap_damage();
     if (failures) {
         fprintf(stderr, "combat_test: %d failure(s)\n", failures);
         return 1;
     }
     printf("combat_test: ok (rng sequence, melee formula, attack count, pct, cap, "
-           "hit score, hand pick, xp table, round, trap damage)\n");
+           "hit score, hand pick, xp table, round, cast round, trap damage)\n");
     return 0;
 }

@@ -116,6 +116,7 @@ struct Combatant {
     int max_hp = 0;
     int action = kActAttack; // +0x0f
     int target = 0;          // +0x0e
+    int spell = 0;           // +0x142 slot 0: the spell cast when action == kActCastSpell
     MeleeInputs melee;
     uint32_t exp = 0;        // character +0x6c
 };
