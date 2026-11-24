@@ -2040,3 +2040,17 @@ audit were moved there:
   (`0x43140`, `0x43330`) gate it but the deduction path/mechanism needs a
   runtime trace (or the spell-selection routine).  `--cast` therefore applies
   the effect without an MP cost for now; the cost is the next P-5 sub-task.
+- **P-5 cast routine located 2026-11-23 (image `0xf240`..`0xf3ad`):** it reads
+  the acting char's memorised-spell slot `+0x142` (spell index; the paired
+  `+0x143` holds the spell's level = record byte 9, filled by the rest
+  memorisation pass at `0x841e`), calls the **effect dispatch `0xf5c0`** with
+  `(spell, ?, ?, ?, char)` to apply the effect, then computes a *practice-XP*
+  value and adds it to `char+0x6c` (32-bit XP): roughly
+  `((v*100)/(x+1) + 100) * (level/15)`, where `x = 0x212f:0x93d6(char)` and
+  `v` comes from a profession table (`[0xafb2]:[prof->+0xbf2]`,
+  `[0xafb4]:[->+0xc0e]`) subtracted from `[bp-0x10]`.  **No MP is deducted** —
+  `+0x68`/`+0x69` are only ever *added* (rest / level-up).  So MP is not a
+  casting cost; casting's functional core is the effect dispatch, which
+  `apply_spell_effect()` already implements.  Remaining cast-flow work is the
+  UI integration (decision action-4 -> spell selection -> round resolution) and
+  the XP award formula.
