@@ -44,6 +44,7 @@ golden-port:
 	python3 tests/port_inn_test.py
 	python3 tests/port_inn_rest_pay_test.py
 	python3 tests/port_ui_test.py
+	python3 tests/port_ui_town_test.py
 	python3 tests/port_walk_test.py
 	python3 tests/port_dungeon_view_test.py
 	python3 tests/port_vor_test.py

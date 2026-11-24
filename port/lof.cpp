@@ -1272,8 +1272,10 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
     // PLAY -> DECISION -> RESULT -> PLAY is the engine's combat entry: the
     // decision prompt (image 0x1810E) then the round resolution (0x17982) and
     // its table.  `C` in play opens a round against the pinned Mercenary group.
-    enum { INTRO, PLAY, DECISION, RESULT } state = INTRO;
+    enum { INTRO, PLAY, DECISION, RESULT, TOWN, EMPORIUM, BANK, HOUSE, TEMPLE,
+           AMULET } state = INTRO;
     Screen combat_screen;
+    Screen town_screen;
     std::vector<Combatant> combat_party, combat_monsters;
     CombatRng combat_rng;
     combat_rng.seed = 1;
@@ -1299,6 +1301,9 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
     for (;;) {
         if (state == INTRO) win.present(intro[frame]);
         else if (state == DECISION || state == RESULT) win.present(combat_screen);
+        else if (state == TOWN || state == EMPORIUM || state == BANK ||
+                 state == HOUSE || state == TEMPLE || state == AMULET)
+            win.present(town_screen);
         else if (have_play) win.present(play_screen);
         int key = -1; bool quit = false;
         if (!win.wait_key(&key, &quit)) break;   // no SDL: nothing to drive it
@@ -1307,16 +1312,26 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
             bool on_menu = (frame + 1 == intro.size());
             if (on_menu && key == 'O') {
                 SaveGame sg = load_save(save_path);
-                if (sg.ok && load_dungeon(
-                                 dir + "/DNGS/" + dungeon_map_name(save_location(sg)),
-                                 dng, &err)) {
-                    place_party_from_save(dng, sg, pos);
+                if (sg.ok) {
                     play_sg = sg;
                     play_dungeon = save_location(sg);
-                    have_dng = true;
-                    redraw_play();
-                    have_play = true;
-                    state = PLAY;
+                    if (load_dungeon(dir + "/DNGS/" + dungeon_map_name(play_dungeon),
+                                     dng, &err)) {
+                        place_party_from_save(dng, sg, pos);
+                        have_dng = true;
+                        redraw_play();
+                        have_play = true;
+                        state = PLAY;
+                    } else {
+                        // No map for this location: the engine stays in town and
+                        // shows the building menu instead of a first-person view.
+                        std::string e2;
+                        if (compose_town_screen(dir, town_name_from_save(save_path),
+                                                town_screen, e2)) {
+                            have_play = false;
+                            state = TOWN;
+                        }
+                    }
                 }
             } else if (on_menu && key == 'Q') {
                 break;
@@ -1357,6 +1372,26 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                     redraw_play();
                 }
             }
+        } else if (state == TOWN) {
+            if (key == 'Q') break;
+            std::string e2;
+            if (key == 'E') { compose_emporium_screen(dir, town_screen, e2); state = EMPORIUM; }
+            else if (key == 'B') { compose_bank_screen(dir, town_screen, e2); state = BANK; }
+            else if (key == 'H') { compose_house_screen(dir, town_screen, e2); state = HOUSE; }
+            else if (key == 'T') { compose_temple_screen(dir, town_screen, e2); state = TEMPLE; }
+            else if (key == 'I') { state = INTRO; frame = intro.size() - 1; }  // Inn = boot menu
+            else if (key == 'C') {
+                compose_amulet_screen(dir, play_sg, play_sg.ok, town_screen, e2);
+                state = AMULET;
+            }
+        } else if (state == EMPORIUM || state == BANK || state == HOUSE ||
+                   state == TEMPLE || state == AMULET) {
+            // Any key returns to the town hub.  (The AMULET page is the
+            // leave-town step; the wilderness transition that follows it needs
+            // a wilderness map and is the remaining P-4 piece.)
+            std::string e2;
+            compose_town_screen(dir, town_name_from_save(save_path), town_screen, e2);
+            state = TOWN;
         } else if (state == DECISION) {
             // Any key commits the round: resolve it, then show the table.
             RoundResult rr = resolve_round(combat_rng, combat_party, combat_monsters);
@@ -1384,9 +1419,11 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
     }
     win.close();
     if (!shot.empty()) {
-        const Screen& s = (state == DECISION || state == RESULT)
-                              ? combat_screen
-                              : (have_play ? play_screen : intro[frame]);
+        const Screen& s = (state == DECISION || state == RESULT) ? combat_screen
+                          : (state == TOWN || state == EMPORIUM || state == BANK ||
+                             state == HOUSE || state == TEMPLE || state == AMULET)
+                                ? town_screen
+                                : (have_play ? play_screen : intro[frame]);
         if (!save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return false; }
     }
     return true;

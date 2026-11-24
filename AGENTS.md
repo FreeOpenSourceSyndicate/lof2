@@ -247,6 +247,17 @@ Progress:
       scripted menu frame is byte-identical to the direct `--shot` menu and that
       the scripted `O` transition reproduces the play screen (~94.2% vs the
       DOSBox capture, the same residue as `--play`).
+- [x] `--ui` **town hub** (P-4): when the opened save's location has no DNGS
+      map, the engine "stays in town" and `run_ui` enters a `TOWN` state
+      (MSCR + `TWN00` + "Which building do you want to visit?" + the
+      E/B/I/H/T/C menu). `E`/`B`/`H`/`T` open the Emporium/Bank/House/Temple
+      screens, `I` returns to the boot menu (the Inn), and `C` opens the
+      amulet (leave-town) page; any key in a building returns to town. Each
+      frame is **byte-identical** to the matching standalone renderer
+      (`--town`/`--emporium`/.../`--amulet`). The in-town fixture is a save
+      whose location bytes are patched to 8 (`DNGS/DNG08` is absent). Guarded
+      by `tests/port_ui_town_test.py` (`make golden-port`). Still open: the
+      amulet `(C)` -> wilderness transition and outdoor movement (P-4).
 - [x] VOR preloader: `EGA/IN/DRAG` (dragon title) then `EGA/IN/CRED` (credits).
       Both are pure image blits, so the port reproduces each *pixel-exactly*
       from the game data. Guarded by `tests/port_vor_test.py` (`make
