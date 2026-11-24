@@ -533,6 +533,29 @@ void consume_spell_slot(SaveChar& c, int slot) {
     if (c.raw[lo + 1] == 0) c.raw[lo] = 0;   // forgotten when exhausted
 }
 
+LevelUpResult level_up(SaveChar& c, int hp_gain) {
+    LevelUpResult res;
+    uint8_t* r = c.raw.data();
+    auto add_word = [](uint8_t* p, int v) {
+        int w = p[0] | (p[1] << 8);
+        w += v;
+        p[0] = (uint8_t)(w & 0xff);
+        p[1] = (uint8_t)((w >> 8) & 0xff);
+    };
+    r[0x17]++;
+    res.new_level = r[0x17];
+    res.hp_gain = hp_gain;
+    add_word(&r[0x22], hp_gain);   // current HP (+0x22)
+    add_word(&r[0x20], hp_gain);   // max HP (+0x20)
+    for (int off : {0x30, 0x32, 0x34, 0x36})
+        if (r[off] < 0x64) r[off]++;
+    struct { int off; const char* name; } attrs[] = {
+        {0x45, "Strength"}, {0x46, "Dexterity"}, {0x48, "Wisdom"}};
+    for (auto& a : attrs)
+        if (r[a.off] < 0x13) { r[a.off]++; res.improved.push_back(a.name); }
+    return res;
+}
+
 std::string use_item_effect(SaveChar& c, int item_index) {
     const ItemRecord* it = item_by_index(item_index);
     if (!it) return "";

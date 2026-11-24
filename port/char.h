@@ -1310,6 +1310,17 @@ std::vector<SpellSlot> spell_slots(const SaveChar& c);
 // spell (+0x142+2n = 0) when they reach 0 (image 0x12A1E).
 void consume_spell_slot(SaveChar& c, int slot);
 
+// The level-up routine (image 0x9144..0x96E6): level (+0x17) += 1, HP (current
+// +0x22 and max +0x20) += hp_gain (the engine's rand(10)+1), the four capped-100
+// fields +0x30/+0x32/+0x34/+0x36 += 1, and Strength/Dexterity/Wisdom
+// (+0x45/+0x46/+0x48) += 1 capped at 19.  `hp_gain` is the caller's roll.
+struct LevelUpResult {
+    int hp_gain = 0;
+    int new_level = 0;
+    std::vector<std::string> improved;  // attributes that actually rose
+};
+LevelUpResult level_up(SaveChar& c, int hp_gain);
+
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
 SaveGame load_save(const std::string& path);

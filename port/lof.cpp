@@ -1712,6 +1712,8 @@ int main(int argc, char** argv) {
     int cast_do = 0;                // 1-based target char for --cast
     int cast_spell = 0;             // 1-based spell index to cast
     int spells_do = 0;              // 1-based char for --spells
+    int train_do = 0;               // 1-based char for --train
+    int train_hp = 5;               // HP gain roll for --train
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
@@ -1771,6 +1773,10 @@ int main(int argc, char** argv) {
             cast_spell = atoi(argv[++i]);
         }
         else if (std::string(argv[i]) == "--spells" && i + 1 < argc) spells_do = atoi(argv[++i]);
+        else if (std::string(argv[i]) == "--train" && i + 2 < argc) {
+            train_do = atoi(argv[++i]);
+            train_hp = atoi(argv[++i]);
+        }
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
         else if (std::string(argv[i]) == "--decision") decision_flag = true;
@@ -2098,6 +2104,28 @@ int main(int argc, char** argv) {
             const SpellRecord* sp = spell_by_index(sl.index);
             printf(" [%d] %s (x%d)", sl.index, sp ? sp->name.c_str() : "?", sl.charges);
         }
+        printf("\n");
+        return 0;
+    }
+    if (train_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --train needs a valid --save\n"); return 1; }
+        if (train_do - 1 < 0 || train_do - 1 >= (int)sg.chars.size() ||
+            sg.chars[train_do - 1].present == 0) {
+            fprintf(stderr, "lof: --train %d: no such character\n", train_do);
+            return 1;
+        }
+        LevelUpResult lr = level_up(sg.chars[train_do - 1], train_hp);
+        if (!amulet_out.empty() &&
+            !write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        printf("lof: character %d -> level %d (+%d hp); improved:",
+               train_do, lr.new_level, lr.hp_gain);
+        for (auto& s : lr.improved) printf(" %s", s.c_str());
         printf("\n");
         return 0;
     }

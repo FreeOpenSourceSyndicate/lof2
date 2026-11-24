@@ -2099,3 +2099,14 @@ audit were moved there:
   `play_sg.chars[m.index]`'s slot 0).  `SpellSlot.level` renamed to `charges`.
   Pinned by `char_test::test_consume_spell_slot` and
   `port_ui_test::check_cast_charges` (Lara casts Healing I twice: 10->9->8).
+- **P-7 level-up / training 2026-11-23:** decoded the level-up routine (image
+  `0x9144..0x96E6`).  Entry `0x9144` increments the level (`+0x17`), then prints
+  it; `0x9164` adds `rand(10)+1` to HP current (`+0x22`) and max (`+0x20`); four
+  capped-100 fields `+0x30/+0x32/+0x34/+0x36` increment; then `+0x45` (Str),
+  `+0x46` (Dex), `+0x48` (Wis) increment capped at 19 (`0x13`).  Implemented as
+  `level_up(SaveChar&, hp_gain)` (returns the new level + improved attributes) and
+  `lof --train N HP [--amulet-out]`.  Pinned by `char_test::test_level_up`.  The
+  gold cost and the House-of-Trades `(T)raining` menu trigger are NOT wired yet
+  (the routine itself deducts no gold — the cost lives in the caller), so
+  `--train` applies the effect directly.  This is the stat-gain body shared by the
+  level-up and the paid training.
