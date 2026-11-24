@@ -1431,6 +1431,13 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                 r[0x6d] = (uint8_t)((m.exp >> 8) & 0xff);
                 r[0x6e] = (uint8_t)((m.exp >> 16) & 0xff);
                 r[0x6f] = (uint8_t)((m.exp >> 24) & 0xff);
+                if (m.action == kActCastSpell && m.spell > 0) {
+                    int before = play_sg.chars[m.index].raw[kCharSkill142 + 1];
+                    consume_spell_slot(play_sg.chars[m.index], 0);
+                    fprintf(stderr, "lof: %s cast: charges %d -> %d\n",
+                            m.name.c_str(), before,
+                            play_sg.chars[m.index].raw[kCharSkill142 + 1]);
+                }
                 fprintf(stderr, "lof: round end: %s hp %d\n", m.name.c_str(), m.hp);
             }
             std::vector<RoundRow> rows;
@@ -2089,7 +2096,7 @@ int main(int argc, char** argv) {
         printf("lof: character %d memorised spells:", spells_do);
         for (auto& sl : slots) {
             const SpellRecord* sp = spell_by_index(sl.index);
-            printf(" [%d] %s (lvl %d)", sl.index, sp ? sp->name.c_str() : "?", sl.level);
+            printf(" [%d] %s (x%d)", sl.index, sp ? sp->name.c_str() : "?", sl.charges);
         }
         printf("\n");
         return 0;

@@ -85,6 +85,29 @@ def check_round_trip() -> int:
     return 0
 
 
+def check_cast_charges() -> int:
+    """Casting consumes the memorised-spell charge (+0x143), decremented per cast.
+
+    Two cast rounds by Lara (GAME4, Healing I, 10 charges) must show 10->9 then
+    9->8 (image 0x12A1E decrements +0x143).
+    """
+    game4 = os.path.join(GAME, "GAMES", "GAME4")
+    if not os.path.exists(game4):
+        print("port_ui_test: SKIP cast-charges (no GAME4)")
+        return 0
+    r = subprocess.run(
+        [os.path.join(ROOT, "lof"), "--dir", GAME, "--headless", "--ui",
+         "--ui-keys", "32,32,79,67,51,13,13,67,51,13,81", "--save", game4,
+         "--shot", SHOT],
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    err = r.stderr.decode()
+    if "charges 10 -> 9" not in err or "charges 9 -> 8" not in err:
+        print("port_ui_test: FAIL cast-charges (expected 10->9 then 9->8)")
+        return 1
+    print("port_ui_test: cast-charges ok (Healing I 10->9->8)")
+    return 0
+
+
 def main() -> int:
     if not os.path.exists(PLAY_ORACLE):
         print("port_ui_test: SKIP (no oracle capture)")
@@ -136,6 +159,7 @@ def main() -> int:
         print("port_ui_test: SKIP cast (no GAME4)")
 
     rc |= check_round_trip()
+    rc |= check_cast_charges()
 
     return rc
 

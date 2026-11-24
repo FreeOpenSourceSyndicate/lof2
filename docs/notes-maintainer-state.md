@@ -2089,3 +2089,13 @@ audit were moved there:
   encounter for testing.  Logs `lof: combat start: <name> hp <n>` /
   `lof: round end: ...`.  Pinned by `port_ui_test::check_round_trip` (GAME2 vs
   2x200: Decker 10->8 round 1, round 2 starts at 8 then 8->6).
+- **P-5 cast-charge consumption 2026-11-23:** disassembling the cast path (image
+  `0x12A1E`, `dec es:[bx+0x143]` then `cmp ...,0; mov es:[bx+0x142],0`) shows
+  `+0x143` is the **remaining-cast count**, not a spell level: it is decremented
+  per cast and the spell is forgotten when it hits 0.  It is initialised to the
+  spell record's byte 9 by the rest-memorisation pass (so Lara's Healing I = 10
+  casts, not "level 10").  `consume_spell_slot(SaveChar&, slot)` implements it and
+  is wired into the `--ui` cast path (the `Combatant` slot-0 cast consumes
+  `play_sg.chars[m.index]`'s slot 0).  `SpellSlot.level` renamed to `charges`.
+  Pinned by `char_test::test_consume_spell_slot` and
+  `port_ui_test::check_cast_charges` (Lara casts Healing I twice: 10->9->8).

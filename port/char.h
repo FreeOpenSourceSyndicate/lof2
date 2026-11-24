@@ -737,13 +737,13 @@ enum CharOffset : size_t {
     // depleted current value), so it is projected verbatim, not recomputed.
     kCharMagMax68  = 0x68,  // byte: maximum magic points
     kCharMagCur69  = 0x69,  // byte: current magic points
-    // The four (index, level) slots at +0x142+2n / +0x143+2n.  Seeded from
+    // The four (index, charges) slots at +0x142+2n / +0x143+2n.  Seeded from
     // rec[0x3b+2n] / rec[0x3c+2n] by the init routine's tail loop, but at run
     // time they are the character's MEMORISED-SPELL slots: the cast routine
-    // (image 0xf240) reads slot 0's +0x142 byte as a spell index and +0x143 as
-    // that spell's level (= record byte 9), and saves hold real spells (e.g.
-    // Lara: slot 0 = Healing I, index 80, level 10).  `spell_slots()` exposes
-    // the non-empty slots.
+    // (image 0x12A1E) reads slot 0's +0x142 byte as a spell index, decrements
+    // +0x143 (remaining casts) and forgets the spell when it reaches 0.  The
+    // count is initialised to the spell record's byte 9 (e.g. Lara: Healing I,
+    // index 80, 10 casts).  `spell_slots()` exposes the non-empty slots.
     kCharSkill142  = 0x142, // byte: first of four (spell index) slots (stride 2)
     // ---- inventory array ----------------------------------------------------
     // The character carries 48 inventory slots of 4 bytes, based at +0x82
@@ -1296,14 +1296,19 @@ std::string use_item_effect(SaveChar& c, int item_index);
 // (`0xf5f2`); 14 = set `+0x12` = 6 (`0xf7f6`).
 std::string apply_spell_effect(SaveChar& t, const SpellRecord& sp);
 
-// One memorised-spell slot (char +0x142+2n index, +0x143+2n level).  The cast
-// routine (image 0xf240) reads these; the level equals the spell record's byte
-// 9.  `spell_slots()` returns the non-empty slots in order (0 = empty).
+// One memorised-spell slot (char +0x142+2n index, +0x143+2n remaining casts).
+// The cast routine (image 0x12A1E) reads the index, decrements +0x143, and
+// clears the slot (+0x142 = 0) when the count reaches 0.  The count is
+// initialised to the spell record's byte 9 by the rest-memorisation pass.
 struct SpellSlot {
-    int index = 0;  // spell index (+0x142+2n)
-    int level = 0;  // stored level (+0x143+2n), == spell record byte 9
+    int index = 0;    // spell index (+0x142+2n), 0 = empty
+    int charges = 0;  // remaining casts (+0x143+2n)
 };
 std::vector<SpellSlot> spell_slots(const SaveChar& c);
+
+// Casting a slot decrements its remaining casts (+0x143+2n) and forgets the
+// spell (+0x142+2n = 0) when they reach 0 (image 0x12A1E).
+void consume_spell_slot(SaveChar& c, int slot);
 
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.

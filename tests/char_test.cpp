@@ -1579,11 +1579,26 @@ static void test_spell_slots() {
     c.raw[kCharSkill142 + 5] = 8;
     auto s = spell_slots(c);
     assert(s.size() == 2);
-    assert(s[0].index == 80 && s[0].level == 10);
-    assert(s[1].index == 1 && s[1].level == 8);
-    // The stored level matches the spell record's byte 9 for Healing I.
+    assert(s[0].index == 80 && s[0].charges == 10);
+    assert(s[1].index == 1 && s[1].charges == 8);
+    // The stored charge count matches the spell record's byte 9 for Healing I.
     const SpellRecord* h = spell_by_index(80);
     assert(h && h->data[9] == 10 && h->data[kSpellEffectByte] == 15);
+}
+
+static void test_consume_spell_slot() {
+    // Casting a slot decrements +0x143; the spell is forgotten (+0x142 = 0)
+    // when the count reaches 0 (image 0x12A1E).
+    SaveChar c{};
+    c.raw[kCharSkill142 + 0] = 80;  // Healing I, 2 casts
+    c.raw[kCharSkill142 + 1] = 2;
+    consume_spell_slot(c, 0);
+    assert(c.raw[kCharSkill142 + 0] == 80 && c.raw[kCharSkill142 + 1] == 1);
+    consume_spell_slot(c, 0);
+    assert(c.raw[kCharSkill142 + 0] == 0 && c.raw[kCharSkill142 + 1] == 0);
+    // Consuming an empty slot is a no-op.
+    consume_spell_slot(c, 0);
+    assert(c.raw[kCharSkill142 + 0] == 0);
 }
 
 int main(int argc, char** argv) {
@@ -1599,6 +1614,7 @@ int main(int argc, char** argv) {
     test_use_item();
     test_apply_spell_effect();
     test_spell_slots();
+    test_consume_spell_slot();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).

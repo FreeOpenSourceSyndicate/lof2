@@ -525,6 +525,14 @@ std::vector<SpellSlot> spell_slots(const SaveChar& c) {
     return out;
 }
 
+void consume_spell_slot(SaveChar& c, int slot) {
+    if (slot < 0 || slot > 3) return;
+    int lo = kCharSkill142 + 2 * slot;
+    if (c.raw[lo] == 0) return;             // empty slot: nothing to consume
+    if (c.raw[lo + 1] > 0) c.raw[lo + 1]--;  // dec remaining casts
+    if (c.raw[lo + 1] == 0) c.raw[lo] = 0;   // forgotten when exhausted
+}
+
 std::string use_item_effect(SaveChar& c, int item_index) {
     const ItemRecord* it = item_by_index(item_index);
     if (!it) return "";
