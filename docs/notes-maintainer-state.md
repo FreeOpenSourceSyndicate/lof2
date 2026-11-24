@@ -2081,3 +2081,11 @@ audit were moved there:
   casts, Enter=commit, Q=quit) with `--save GAME4`; pinned by `port_ui_test`
   (`cast ok`).  Still open: choosing slot/target beyond slot 0, and the
   practice-XP award.
+- **P-5 combat round-trip 2026-11-23:** the `--ui` DECISION handler now writes
+  each round's HP (`+0x22`) and practice XP (`+0x6c`) back into `play_sg`, so the
+  next round starts from the real (wounded) state instead of the save's full HP.
+  Before this, every `C` rebuilt `combat_party` from the unchanged save, so combat
+  never accumulated.  `--ui-encounter C:HP` (default `2:8`) overrides the pinned
+  encounter for testing.  Logs `lof: combat start: <name> hp <n>` /
+  `lof: round end: ...`.  Pinned by `port_ui_test::check_round_trip` (GAME2 vs
+  2x200: Decker 10->8 round 1, round 2 starts at 8 then 8->6).

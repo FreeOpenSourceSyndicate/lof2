@@ -47,6 +47,44 @@ def load(path):
     return np.asarray(Image.open(path).convert("RGB")).astype(int)
 
 
+def check_round_trip() -> int:
+    """The round's HP must persist into the next round (write-back into the save).
+
+    Two rounds against tough monsters (2x200 HP) so the defenders survive and
+    hit; the combat-start HP of round 2 must equal the round-end HP of round 1,
+    and at least one member must actually lose HP in round 1 (so the check bites).
+    """
+    game2 = os.path.join(GAME, "GAMES", "GAME2")
+    if not os.path.exists(game2):
+        print("port_ui_test: SKIP round-trip (no GAME2)")
+        return 0
+    r = subprocess.run(
+        [os.path.join(ROOT, "lof"), "--dir", GAME, "--headless", "--ui",
+         "--ui-keys", "32,32,79,67,13,13,67,13,81", "--ui-encounter", "2:200",
+         "--save", game2, "--shot", SHOT],
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    err = r.stderr.decode()
+    starts, ends = [], []
+    for line in err.splitlines():
+        if "combat start:" in line:
+            starts.append(line.split("combat start:", 1)[1].strip())
+        elif "round end:" in line:
+            ends.append(line.split("round end:", 1)[1].strip())
+    n = len(starts) // 2
+    if n == 0 or len(starts) != len(ends) or len(starts) % 2:
+        print("port_ui_test: FAIL round-trip (%d starts, %d ends)" % (len(starts), len(ends)))
+        return 1
+    for i in range(n):
+        if ends[i] != starts[n + i]:
+            print("port_ui_test: FAIL round-trip (%s -> %s)" % (ends[i], starts[n + i]))
+            return 1
+    if starts[:n] == ends[:n]:
+        print("port_ui_test: FAIL round-trip (no HP change in round 1)")
+        return 1
+    print("port_ui_test: round-trip ok (round-2 start == round-1 end)")
+    return 0
+
+
 def main() -> int:
     if not os.path.exists(PLAY_ORACLE):
         print("port_ui_test: SKIP (no oracle capture)")
@@ -96,6 +134,8 @@ def main() -> int:
             print("port_ui_test: cast ok (Lara casts Healing I at the decision)")
     else:
         print("port_ui_test: SKIP cast (no GAME4)")
+
+    rc |= check_round_trip()
 
     return rc
 

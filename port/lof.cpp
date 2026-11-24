@@ -1266,7 +1266,7 @@ static void place_party_from_save(const Dungeon& d, const SaveGame& sg,
 
 static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                    const std::string& save_path, const std::vector<int>& keys,
-                   const std::string& shot) {
+                   const std::string& shot, int enc_count = 2, int enc_hp = 8) {
     Window win;
     win.open("Legend of Faerghail", 320, 200);
     win.script(keys);
@@ -1345,7 +1345,10 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
             if (key == 'C' && have_play) {
                 combat_party = build_party_combatants(
                     play_sg, -1, encounter_defender_row(dir, 0, 12, 8));
-                combat_monsters = build_defenders(2, 8);
+                combat_monsters = build_defenders(enc_count, enc_hp);
+                for (const Combatant& m : combat_party)
+                    fprintf(stderr, "lof: combat start: %s hp %d\n",
+                            m.name.c_str(), m.hp);
                 if (!compose_decision_screen(dir, 24, play_sg, true, combat_screen,
                                              err)) {
                     fprintf(stderr, "lof: %s\n", err.c_str());
@@ -1416,6 +1419,20 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
             }
             // Any other key commits the round: resolve it, then show the table.
             RoundResult rr = resolve_round(combat_rng, combat_party, combat_monsters);
+            // Persist the round's HP/XP into the save so the next round starts
+            // from the real state (the play screen does not show HP, but combat
+            // must accumulate rather than reset to full HP every round).
+            for (const Combatant& m : combat_party) {
+                if (m.index < 0 || m.index >= (int)play_sg.chars.size()) continue;
+                uint8_t* r = play_sg.chars[m.index].raw.data();
+                r[0x22] = (uint8_t)(m.hp & 0xff);
+                r[0x23] = (uint8_t)((m.hp >> 8) & 0xff);
+                r[0x6c] = (uint8_t)(m.exp & 0xff);
+                r[0x6d] = (uint8_t)((m.exp >> 8) & 0xff);
+                r[0x6e] = (uint8_t)((m.exp >> 16) & 0xff);
+                r[0x6f] = (uint8_t)((m.exp >> 24) & 0xff);
+                fprintf(stderr, "lof: round end: %s hp %d\n", m.name.c_str(), m.hp);
+            }
             std::vector<RoundRow> rows;
             for (const CombatRoundRow& cr : rr.rows) {
                 RoundRow row;
@@ -1613,8 +1630,15 @@ int main(int argc, char** argv) {
     if (ui) {
         std::string ui_save = dir + "/GAMES/GAME2";
         std::vector<int> ui_keys;
+        int ui_enc_count = 2, ui_enc_hp = 8;
         for (int i = 1; i < argc; i++) {
             if (std::string(argv[i]) == "--save" && i + 1 < argc) ui_save = argv[++i];
+            else if (std::string(argv[i]) == "--ui-encounter" && i + 1 < argc) {
+                std::string v = argv[++i];
+                size_t c = v.find(':');
+                ui_enc_count = atoi(v.substr(0, c).c_str());
+                ui_enc_hp = c == std::string::npos ? 8 : atoi(v.substr(c + 1).c_str());
+            }
             else if (std::string(argv[i]) == "--ui-keys" && i + 1 < argc) {
                 // comma-separated key codes, decimal or 0x-hex, e.g.
                 // "32,32,79" (space,space,'O') or "79,0x40000052" ('O', up-arrow)
@@ -1642,7 +1666,7 @@ int main(int argc, char** argv) {
             return 1;
         }
         std::vector<Screen> intro = {title, cred, menu};
-        if (!run_ui(dir, intro, ui_save, ui_keys, shot)) return 1;
+        if (!run_ui(dir, intro, ui_save, ui_keys, shot, ui_enc_count, ui_enc_hp)) return 1;
         return 0;
     }
 
