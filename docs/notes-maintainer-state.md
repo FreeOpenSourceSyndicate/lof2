@@ -2259,3 +2259,33 @@ exit itself is *instantaneous*: the outdoor map just loads, there is no wipe to
 reproduce (the P-4 town exit is DONE without any animation work).  Using these
 as the per-attack animation in the port's combat is optional cosmetic polish,
 not a transition.
+
+## Character sheet (P-8) findings (2026-11-24)
+
+Investigating the char sheet for P-8 produced four grounded facts:
+
+1. **The palette is NOT custom.**  The char-sheet oracle (`ref/oracle/charsheet.png`)
+   has exactly the same 10-colour set as the combat oracle
+   (`ref/oracle/combat.png`): light-gray `(170,170,170)`, black, dark-green
+   `(0,85,0)`, pale-green `(170,255,170)`, red `(170,0,0)`, yellow-green
+   `(170,255,0)`, green `(0,170,0)`, brown `(170,85,0)`, dark-yellow
+   `(170,170,0)`, bright-green `(0,255,0)`.  The port already renders the combat
+   with these colours (combat match 0.96), so the char sheet can use the same
+   standard palette.  The PLAN note "palette lacks the oracle's red/yellow" was
+   a misdiagnosis -- it referred to the analysis *emulator's* palette, not DOSBox.
+2. **The portrait is a composite of `CHAR1` sprite parts**, not one 120x119
+   asset.  Rendering every `EGA/CHAR{0,1,2,3}` image shows the pieces: a bare
+   face at `CHAR1/CH67`, a breastplate at `CHAR1/CH68`, plus helmet/arm parts.
+   `CHAR3/CH00..CH21` are the full-body class/creature sprites (a knight at
+   CH00 etc.), ~119x119 but different art from the close-up portrait.  So the
+   portrait is layered, not a single blit.
+3. **Layout.**  Left: the portrait (black bg) over the location block (black bg).
+   Right: the shared 3x2 party grid (light-gray bg), a decorative divider (the
+   dragon-eye strip), then the stat text on the light-gray panel.  Text fields
+   are documented in `docs/notes-b.md` section "character sheet"
+   (Rnk +0x17, Hit +0x22/+0x20, Magic +0x69/+0x68, State +0x1b profession,
+   Str/Con/Dex/Int/Wis +0x45/+0x44/+0x46/+0x47/+0x48, Experience, Weight).
+4. **Reach path is still open.**  It is NOT the combat config's `1` (that is
+   "Enter Kill-Rank") nor the encounter screen's `1`.  The sheet is a separate
+   screen reached by a key not yet pinned; the port should expose it via a
+   `--charsheet` direct render (like `--town`) rather than guessing the path.
