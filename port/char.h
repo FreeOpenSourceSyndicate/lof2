@@ -1201,6 +1201,15 @@ constexpr int kItemAmulet = 120;
 // 0x6b3d..0x6b6b is shop bookkeeping and is not reproduced here.)
 int give_item(SaveChar& c, int item_index);
 
+// Combine the item in inventory `slot` with its paired item (the item's f5
+// index) if that pair is also carried (item effects 15/40).  Removes both and
+// adds the result item, whose index is max(a,b)+1 -- verified against the
+// table: Emerald(94)+Corona(95)->Keystaff(96), Keystaff(96)+Ring(184)->
+// Staff(185), Dry clay(166)+Some water(167)->Lump of clay(168).  Returns true
+// when a pair was combined; false when the item is not combinable or its
+// partner is absent (the engine's "That doesn't seem to work." case).
+bool combine_item(SaveChar& c, int slot);
+
 // --- Inn-rest cost + effect (image 0x820a..0x8680) --------------------------
 // The night's-rest price, derived from the counting loop at 0x823a..0x83a9:
 //   2 * present_members  [+ 3 * sum_over_members(min(14, (weight_max(+0x64) -

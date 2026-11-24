@@ -1271,6 +1271,27 @@ static void print_char(FILE* out, const CharSheet& c, size_t i) {
             c.flag0f, c.hp_pct(), c.body24, c.hp_mod(), c.attr_a(), c.attr_b());
 }
 
+static void test_combine_item() {
+    // Emerald(94)+Corona(95) -> Keystaff(96); result index = max(a,b)+1.
+    SaveChar c{};
+    c.present = 1;
+    int a = give_item(c, 94);
+    int b = give_item(c, 95);
+    assert(a >= 0 && b >= 0);
+    assert(combine_item(c, a));
+    bool keystaff=false, emerald=false, corona=false;
+    for (int i=0;i<(int)kCharInvCount;i++){int idx=c.raw[kCharInv82+i*4];
+        if(idx==96)keystaff=true; if(idx==94)emerald=true; if(idx==95)corona=true;}
+    assert(keystaff && !emerald && !corona);
+    assert(c.raw[kCharInvUsed6b] == 1);
+    // No partner -> false, inventory unchanged.
+    SaveChar d{}; d.present=1;
+    int e = give_item(d, 94);
+    assert(e >= 0);
+    assert(!combine_item(d, e));
+    assert(d.raw[kCharInv82 + e*4] == 94);
+}
+
 static void test_give_item() {
     // The Amulet -> first empty slot (0), condition 100, charges from the
     // record, used-slot count incremented (engine add routine 0x69e2..0x6c5f).
@@ -1636,6 +1657,7 @@ int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
     test_give_item();
+    test_combine_item();
     test_rest_effect();
     test_temple_heal();
     test_temple_revive();

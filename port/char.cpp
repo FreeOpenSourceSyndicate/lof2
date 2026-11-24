@@ -323,6 +323,32 @@ int give_item(SaveChar& c, int item_index) {
     return slot;
 }
 
+bool combine_item(SaveChar& c, int slot) {
+    if (slot < 0 || slot >= (int)kCharInvCount) return false;
+    uint8_t* pa = &c.raw[kCharInv82 + slot * 4];
+    int a_idx = pa[0];
+    if (a_idx == 0) return false;
+    const ItemRecord* a = item_by_index(a_idx);
+    if (!a || (a->effect != 15 && a->effect != 40)) return false;
+    int b_idx = a->f5;
+    if (b_idx < 1) return false;
+    int bslot = -1;
+    for (int i = 0; i < (int)kCharInvCount; ++i) {
+        if (i == slot) continue;
+        if (c.raw[kCharInv82 + i * 4] == (uint8_t)b_idx) { bslot = i; break; }
+    }
+    if (bslot < 0) return false;  // partner not carried
+    int c_idx = (a_idx > b_idx ? a_idx : b_idx) + 1;
+    if (!item_by_index(c_idx)) return false;
+    for (int k = 0; k < 4; ++k) {
+        c.raw[kCharInv82 + slot * 4 + k] = 0;
+        c.raw[kCharInv82 + bslot * 4 + k] = 0;
+    }
+    c.raw[kCharInvUsed6b] -= 2;
+    give_item(c, c_idx);
+    return true;
+}
+
 static uint16_t rd16(const uint8_t* r, int off) {
     return (uint16_t)(r[off] | (r[off + 1] << 8));
 }
