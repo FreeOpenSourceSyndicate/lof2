@@ -278,11 +278,19 @@ Progress:
       `Str/Con/Dex/Int/Wis %02d`, `State...` + status, `Experience %011ld`,
       `Weight... %04d / %04d` — weights /10); **labels green (8), values +
       separators black (0)**; options `(E)xchange gold/rations` / `(S)how next
-      page` / `(C)ontinue` black.  Whole screen **0.9885** vs
-      `ref/oracle/charsheet.png` (portrait exact, stat text ~0.995); residue =
-      the dynamic time-of-day line (save "Evening" vs oracle "Midnight!"), the
-      status-block value dashes and the shared grid HP gauge — **BLK-M002**.
-      Guarded by `tests/port_charsheet_test.py` (`make golden-port`).
+      page` / `(C)ontinue` black.  Whole screen **0.9960** vs
+      `ref/oracle/charsheet.png` — the class portrait **and the entire 3x2 party
+      grid are pixel-exact**; the residue is the dynamic time-of-day line (save
+      "Evening" vs oracle "Midnight!") plus sparse capture-noise specks
+      (BLK-M002).  **Party-grid gauges (derived 2026-11-24):** `draw_party_grid`
+      draws two colour-15 bars under the "HT"/"HP" labels — the upper (rows
+      `y+18..20`) `hp_cur*50/hp_max` px, the lower (rows `y+22..24`)
+      `mp_cur*50/mp_max` px drawn only when the character has magic (`+0x68`
+      max > 0).  A full-HP slot is 50 px, a 9/11 slot 40 px (integer division).
+      This also corrects the shared town/building grids (`house.png` stays
+      pixel-exact).  Guarded by `tests/port_charsheet_test.py` (`make
+      golden-port`): portrait exact, grid exact, stat panel >= 0.99, whole >=
+      0.995.
 - [x] LOF town + building screens (`--town`, `--emporium`, `--bank`, `--house`,
       `--temple`): all share one shape — the HUD background `EGA/UP/MSCR` with a
       town-scene tile blitted into the 120x119 viewport at (10,11) plus `CHR1`

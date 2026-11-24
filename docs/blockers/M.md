@@ -61,7 +61,7 @@ resolved.
 
 ---
 
-## BLK-M002 — Character-sheet / party-grid detail residue (status-block dashes, HP gauge position, gender profession table)
+## BLK-M002 — Character-sheet detail residue (status-block dashes, gender profession table)
 
 - **Blocked lane:** M (maintainer)
 - **Responsible:** Maintainer
@@ -70,30 +70,23 @@ resolved.
 - **Dependencies:** —
 
 The `lof --charsheet` screen (`port/lof.cpp`, `compose_charsheet_screen`) now
-matches `ref/oracle/charsheet.png` at **0.9885** whole-screen with the class
-portrait **pixel-exact** (`tests/port_charsheet_test.py`). Three small residues
-remain, none of which affect gameplay:
+matches `ref/oracle/charsheet.png` at **0.9960** whole-screen with the class
+portrait and the **entire 3x2 party grid pixel-exact**
+(`tests/port_charsheet_test.py`). Two small residues remain, neither affecting
+gameplay:
 
-1. **Spirits/Rations value dashes (char-sheet-specific, ~32 px).** The
+1. **Spirits/Rations value dashes (char-sheet-specific, ~135 px).** The
    character sheet's location/status box (green, index 8) draws the
-   `Spirits  `/`Rations  ` labels but the *values* are not reproduced: the
-   oracle shows a few index-4 (dark-red) dashes at y≈182 (x≈74,84–87,110,125),
-   not a regular 6-px-pitch string. The status-block value drawer for the
-   char-sheet's "placeholder" branch has not been decoded; the dashes are
-   omitted rather than guessed.
+   `Spirits  `/`Rations  ` labels but the *values* are not reproduced. The
+   oracle shows a handful of index-4 (dark-red) 2-px specks at y≈182
+   (x≈74,84–87,108–109,124–129) that do **not** form a readable string and are
+   in a palette index (4) the sheet uses nowhere else for text — most likely
+   DOSBox-capture noise (compare the index-6 specks in the stat panel below),
+   not an engine draw. The status-block value drawer for the char-sheet's
+   "placeholder" branch has not been decoded; the specks are omitted rather than
+   guessed.
 
-2. **Party-grid HP gauge position (shared with the play screen, ~480 px).** The
-   shared `draw_party_grid` draws ONE 50×3 white bar at `(x, y+18)` under the
-   "HT" label. The oracle shows, for some slots (Handy; all of the lower row), a
-   SECOND bar 4 px lower (`y+22`) — i.e. an "HP" gauge the port does not draw —
-   and the third column's upper bar is 40 px wide, not 50. The rule that decides
-   when the second bar appears (and the per-slot width) is undecoded. The
-   char-sheet grid is *index-identical* to the play grid (`ref/oracle/play.png`,
-   0 diff between the two oracles), so this is the same pre-existing
-   `draw_party_grid` inaccuracy the play screen already carries; fixing it fixes
-   both.
-
-3. **Gender-variant profession table.** The char-sheet disassembly
+2. **Gender-variant profession table.** The char-sheet disassembly
    (`0x2676e`) selects the profession string from a table indexed by
    `record[+0x18]` (a sex/class selector); a gender-variant table
    (`gender_profession_names()`, e.g. Priest→Priestess) is visible in the
@@ -101,6 +94,23 @@ remain, none of which affect gameplay:
    race+profession line so the sheet agrees with the party grid (which also uses
    it). Which sex value selects which table is not proven; the only oracle
    (Decker, male) is satisfied either way.
+
+**Resolved (2026-11-24) — party-grid proportional gauges.** The earlier report
+that the grid carried a ~480 px mismatch is fixed. `draw_party_grid` now draws
+the engine's **two** gauges under the "HT"/"HP" labels, both colour 15 (pale
+green under the sheet palette):
+  * the **upper** bar (rows `y+18..20`) fills `hp_cur*50/hp_max` px — a full-HP
+    slot is 50 px, a 9/11-HP slot 40 px (= `9*50/11`, integer division);
+  * the **lower** bar (rows `y+22..24`) fills `mp_cur*50/mp_max` px and is drawn
+    **only when the character has magic** (`+0x68` max > 0).
+Both gauges are derived from `ref/oracle/charsheet.png`: the six slots match
+**0 diff**, and the shared `ref/oracle/house.png` grid stays pixel-exact
+(`tests/port_building_test.py`). This also corrects the town/building grids.
+
+The remaining stat-panel residue (~74 px) is sparse index-6 (brown) specks in
+the DOSBox capture on a few label glyphs — the port's green label colour is
+consistent with the rest of each glyph, so these are capture noise, not an
+engine draw.
 
 The dynamic time-of-day line also differs (the GAME2 save says "Evening", the
 oracle was captured at "Midnight!") — that is correct save-derived behaviour, not

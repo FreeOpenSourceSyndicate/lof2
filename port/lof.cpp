@@ -167,12 +167,35 @@ static bool draw_party_grid(Screen& s, const std::string& dir,
         size_t si = c.raw[kCharStatus1f];
         if (si < status.size())
             small.draw_small(s, x + 21, y + 12, status[si], 15);
-        // The fixed HP gauge under the "HT" label: a 50x3 white (15) bar at
-        // (x, y+18).  Oracle (ref/oracle/house.png, round_result.png) shows it
-        // full-width regardless of the character's HP, for every occupied slot.
+        // The engine draws two proportional gauges under the "HT"/"HP" labels:
+        // an upper bar (rows y+18..20) filled by current/max hit points and a
+        // lower bar (rows y+22..24) filled by current/max magic, the latter only
+        // when the character has magic (max > 0).  Both are 50 px wide at full,
+        // colour 15 (pale green under the sheet's attribute palette).  Measured
+        // from ref/oracle/charsheet.png: full-HP slots fill 50 px, a 9/11-HP slot
+        // fills 40 px (= 9*50/11 integer division), and only magic-bearing slots
+        // (Handy 1, Merlin 3, Cassandra 2) show the lower bar.
+        auto rdw = [](const uint8_t* r, int o) {
+            return (int)(r[o] | (r[o + 1] << 8));
+        };
+        int hp_cur = rdw(c.raw.data(), kCharHpCur22);
+        int hp_max = rdw(c.raw.data(), kCharHpMax20);
+        int hp_w = hp_max > 0 ? hp_cur * 50 / hp_max : 0;
+        if (hp_w < 0) hp_w = 0;
+        if (hp_w > 50) hp_w = 50;
         for (int by = 0; by < 3; by++)
-            for (int bx = 0; bx < 50; bx++)
+            for (int bx = 0; bx < hp_w; bx++)
                 s.put(x + bx, y + 18 + by, 15);
+        int mp_cur = c.raw[kCharMagCur69];
+        int mp_max = c.raw[kCharMagMax68];
+        if (mp_max > 0) {
+            int mp_w = mp_cur * 50 / mp_max;
+            if (mp_w < 0) mp_w = 0;
+            if (mp_w > 50) mp_w = 50;
+            for (int by = 0; by < 3; by++)
+                for (int bx = 0; bx < mp_w; bx++)
+                    s.put(x + bx, y + 22 + by, 15);
+        }
         slot++;
     }
     return true;

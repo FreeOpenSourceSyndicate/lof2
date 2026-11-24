@@ -12,13 +12,14 @@ DOSBox capture ref/oracle/charsheet.png.
 
 Assertions:
   * the 120x119 portrait region is pixel-exact (it is a single sprite blit);
+  * the 3x2 party grid (names/professions/stat%/HT+HP gauges) is pixel-exact;
   * the stat-panel text region matches >= 99% (the tiny residue is the CHR1
-    six-px-overlap artefact seen on every text screen);
-  * the whole screen matches >= 98.5%.  The fixed residue is (a) the dynamic
+    six-px-overlap artefact seen on every text screen, plus a handful of
+    palette-index specks in the DOSBox capture);
+  * the whole screen matches >= 99.5%.  The fixed residue is (a) the dynamic
     time-of-day line (the save says "Evening" while the oracle was captured at
-    "Midnight!"), (b) the Spirits/Rations value dashes (BLK-M, undecoded), and
-    (c) the shared party-grid HP gauge, which differs identically on the play
-    screen and is not char-sheet-specific.
+    "Midnight!") and (b) the Spirits/Rations value dashes (BLK-M002,
+    undecoded).
 
 Run via `make golden-port` (or directly).  Needs PIL + numpy and the oracle PNG.
 """
@@ -35,7 +36,7 @@ ORACLE = os.path.join(ROOT, "ref", "oracle", "charsheet.png")
 SHOT = "/tmp/port_charsheet_test.png"
 SAVE = os.path.join(GAME, "GAMES", "GAME2")
 
-MIN_WHOLE = 0.985
+MIN_WHOLE = 0.995
 MIN_STAT = 0.99
 
 
@@ -62,6 +63,13 @@ def main() -> int:
     portrait = diff[11:130, 10:130]
     if portrait.any():
         print("port_charsheet_test: FAIL (portrait differs in %d px)" % int(portrait.sum()))
+        return 1
+
+    # The 3x2 party grid: every occupied slot cell must be pixel-exact (names,
+    # professions, stat%, stats and the proportional HT/HP gauges).
+    grid = diff[6:72, 140:318]
+    if grid.any():
+        print("port_charsheet_test: FAIL (party grid differs in %d px)" % int(grid.sum()))
         return 1
 
     # Stat panel text (below the divider, right of the viewport column).
