@@ -178,9 +178,24 @@ How to use each section:
      a `sub …+0x85, 2` on the shield (`[bp-0x30]`, `0x17658`) or armour
      (`[bp-0x3e]`, `0x1777A`) slot, plus the rust variant that zeroes the slot
      (`0x17290`); `B` is the three ability messages (`0x12846`, `0x13D7D`,
-     `0x1471C`).  **Their guards are not decoded**, so the port leaves both
-     false — the next step is to read back from `0x1764F`/`0x1777A` to the
-     branch that reaches them.
+     `0x1471C`).  **`P` guard PARTIALLY DERIVED 2026-11-23:** the damage routine is the big melee
+     function at image `0x1370C` (locals: shield slot `[bp-0x30]`, armour slot
+     `[bp-0x3e]`, both init `-1`).  The guard, image `0x17545`..`0x1759B`, is:
+     `roll = rand(100)+1` (`0x1753F` pushes 100 into `0x2a7d:0x2f6a`),
+     `threshold = 100 - row[+0x07]` (`0x1754e` reads the row arg `[bp+0xa]`),
+     and **if `roll > threshold` and `[bp-0x5a] != 0** then: if the member's
+     **Dexterity** (`char[+0x46]`) `> 0xb` and a shield is equipped
+     (`[bp-0x30] >= 0`) damage the **shield** (`0x17658`), else if an armour
+     slot is equipped (`[bp-0x3e] >= 0`) damage the **armour** (`0x1777A`) —
+     each `slot[+0x85] -= 2` and sets the `P` flag.  `[bp-0x5a]` is cleared to
+     0 only when the wielded item's `f11` (`[bx+0xfdb]`) is `0x15` (`0x16062`),
+     so it is a per-attack "damageable" gate defaulting on.  **Not yet
+     ported**: implementing it inserts a `rand(100)` draw into the round, which
+     shifts the RNG sequence the pinned round-result/`--fight` tests lock in, so
+     it must be placed at the exact engine point (needs the `[bp+6]`/`[bp+0xa]`
+     attacker/defender arg convention confirmed).  The port still leaves `P`
+     false.  `B` (the three ability-improved messages `0x12846`/`0x13D7D`/
+     `0x1471C`) is still unlocated.
   4. **The defender rows** (`+0x258 + 72*group + 12*member`) — **DERIVED
      2026-11-21.**  Builder at image `0x27A1E`: `row[+0x01]` = monster index,
      `+0x02` = `combat[+0x4c]`, `+0x04` = `100*hp/(8*combat[+0x2c])`,

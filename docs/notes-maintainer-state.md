@@ -1987,3 +1987,11 @@ audit were moved there:
   bits `&4`, `&1`, `&0x10`) with the effect/target work after; the 14-byte
   spell block is `[flags, ...]` per `char_spells.inc`.  This is the 12-20h task;
   it also fixes potion magnitudes, so it is the highest-value next target.
+- **P-11 (`P`/`B` round flags) progress 2026-11-23:** the `P` (shield/armour
+  damage) guard is now derived from the big melee routine at image `0x1370C`:
+  `roll=rand(100)+1`, threshold `=100-row[+0x07]`; on `roll>threshold` and
+  `[bp-0x5a]!=0`, damage the shield (if Dex `char[+0x46]>0xb` and a shield is
+  equipped) else the armour, each `slot[+0x85]-=2` + set the `P` flag.
+  `[bp-0x5a]` clears when the wielded item's `f11==0x15` (`0x16062`).  Not yet
+  ported (the extra `rand(100)` would shift the pinned RNG sequence); `B` still
+  unlocated.  Details in GUESSWORK G-012 3c.
