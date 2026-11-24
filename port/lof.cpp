@@ -1347,8 +1347,8 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                     play_sg, -1, encounter_defender_row(dir, 0, 12, 8));
                 combat_monsters = build_defenders(enc_count, enc_hp);
                 for (const Combatant& m : combat_party)
-                    fprintf(stderr, "lof: combat start: %s hp %d\n",
-                            m.name.c_str(), m.hp);
+                    fprintf(stderr, "lof: combat start: %s hp %d exp %u\n",
+                            m.name.c_str(), m.hp, m.exp);
                 if (!compose_decision_screen(dir, 24, play_sg, true, combat_screen,
                                              err)) {
                     fprintf(stderr, "lof: %s\n", err.c_str());
@@ -1438,7 +1438,8 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
                             m.name.c_str(), before,
                             play_sg.chars[m.index].raw[kCharSkill142 + 1]);
                 }
-                fprintf(stderr, "lof: round end: %s hp %d\n", m.name.c_str(), m.hp);
+                fprintf(stderr, "lof: round end: %s hp %d exp %u\n",
+                        m.name.c_str(), m.hp, m.exp);
             }
             std::vector<RoundRow> rows;
             for (const CombatRoundRow& cr : rr.rows) {

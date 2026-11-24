@@ -2110,3 +2110,18 @@ audit were moved there:
   (the routine itself deducts no gold — the cost lives in the caller), so
   `--train` applies the effect directly.  This is the stat-gain body shared by the
   level-up and the paid training.
+- **P-5 XP persistence verified 2026-11-23:** the combat-start / round-end logs
+  now carry the party member's 32-bit XP (`+0x6c`), so `port_ui_test::check_round_trip`
+  verifies BOTH HP and XP persist across rounds and that XP actually accumulates
+  (party damage -> `m.exp += damage * xp_mult`, image 0x14D80).  GAME2 vs 2x200:
+  Decker hp 10->8 and exp 379->389 in round 1, round 2 starts at 8 / 389.
+- **P-7 training gold cost — BLOCKED on emulator capture 2026-11-23:** the
+  level-up body (0x9144) deducts no gold; the training cost lives in its caller,
+  which the traced decompilation never reached (the training menu was not
+  exercised during the `analysis/lof.asm` capture), so the cost formula is not in
+  the asm.  Driving the emulator to the House `(T)raining` (keys
+  `0x1e,0x03,0x2e,0x2e,0x23,0x14,<digit>`, i.e. add-char -> leave inn -> H -> T
+  -> char) timed out at 200s without reaching the routine at `LOF_TRACE_IP=19000:19260`
+  — the run needs a longer ceiling / adaptive keys.  Next: capture the gold
+  (`+0x72`) delta with `LOF_WATCH`/`LOF_CAP` across the training, then wire the
+  cost into `level_up` callers.  Gold is per-character (`+0x72` dword).

@@ -17,6 +17,7 @@ tests use, so a regression in the transitions is caught without a display.
 Run via `make golden-port` (or directly).  Needs PIL + numpy and the oracle PNG.
 """
 import os
+import re
 import subprocess
 import sys
 
@@ -79,9 +80,16 @@ def check_round_trip() -> int:
             print("port_ui_test: FAIL round-trip (%s -> %s)" % (ends[i], starts[n + i]))
             return 1
     if starts[:n] == ends[:n]:
-        print("port_ui_test: FAIL round-trip (no HP change in round 1)")
+        print("port_ui_test: FAIL round-trip (no HP/XP change in round 1)")
         return 1
-    print("port_ui_test: round-trip ok (round-2 start == round-1 end)")
+    # XP must accumulate (party damage -> experience), image 0x14D80.
+    def exp_of(s):
+        m = re.search(r"exp (\d+)", s)
+        return int(m.group(1)) if m else 0
+    if all(exp_of(ends[i]) == exp_of(starts[i]) for i in range(n)):
+        print("port_ui_test: FAIL round-trip (no XP gained)")
+        return 1
+    print("port_ui_test: round-trip ok (round-2 start == round-1 end; HP lost, XP gained)")
     return 0
 
 
