@@ -2161,3 +2161,44 @@ audit were moved there:
   prompt (they share the MSCR + TWN03/TWN05 chrome and the oracles show the same
   grid).  These oracles use bespoke parties, so the exact grid can't be pinned
   from the shipped saves; the grid structure matches (same 1029-px layout).
+
+## House-of-Trades training — DOSBox captures 2026-11-24
+
+DOSBox is available again (apt `dosbox 0.74-3` installs cleanly on Debian 13;
+`tools/capture_dosbox.sh` still reproduces the menu oracle at 1.0000).  Used it
+to finally pin the training step that had been blocked.
+
+**Navigation.**  `O`+`2` loads GAME2 (wilderness DNG10); a random encounter
+spawns on load.  `W` withdraws, then `Down`,`Up` walks into the town of Thyn
+(the walk is RNG-flaky — an encounter can divert it to the Temple dungeon).
+Town `(H)ouse of trades` → `(T)raining` → `(N)` selects member N.
+
+**Training cost is PROFESSION-dependent (level-independent).**  Measured by
+patching a save's char level/exp/gold and **re-sealing** the save checksum
+(the alternating ADD/XOR fold over `[0,0x2e3a)`, seed 1, NUL=1 — patching
+without reseal makes the engine print "GAMES\GAMEn is not a valid save game!"):
+
+| profession (idx) | cost | 2 stat gains shown |
+|---|---|---|
+| Rogue (2)      | 1500  | Trap detecting, Stalking |
+| Smith (3)      | 1500  | Attack, Attack |
+| Magician (7)   | 22500 | Concentration, Concentration |
+| Paladin (9)    | 2000  | Attack, Defence |
+| Healer (10)    | 15000 | Concentration, Concentration |
+
+Decker (Paladin) cost 2000 at level 1→2 **and** level 5→6, so the cost is
+level-independent.  Casters (Concentration) cost ~10x the physical classes.
+
+**The level-up gains COMBAT SKILLS, not Str/Dex/Wis.**  The messages are
+`The Grand Board of Trades decides that <name> enters the <N> Rank.` then
+`<name> profits from training, <skill> improves!` (twice, one per gained
+skill).  The port's `level_up()` currently increments +0x30..+0x36 and
+Str/Dex/Wis with "Strength/Dexterity/Wisdom improves!" — that does **not**
+match the oracle (real gains are the profession's two skills).  Reworking
+`level_up()` to the real per-profession skill pairs + gold cost needs the
+remaining professions (0,1,4,5,6,8,11 — GAME4's party has 0,5,6) and the
+skill offsets; tracked as open.
+
+Captures: `ref/emu/training/` (cost + rank + both "improves!" frames for all
+five professions) and `ref/emu/charsheet_rank09.png` (the character sheet with
+a patched Rank 09 — confirms the level/exp patches and shows the P-8 layout).
