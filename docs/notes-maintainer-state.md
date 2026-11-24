@@ -1995,3 +1995,18 @@ audit were moved there:
   `[bp-0x5a]` clears when the wielded item's `f11==0x15` (`0x16062`).  Not yet
   ported (the extra `rand(100)` would shift the pinned RNG sequence); `B` still
   unlocated.  Details in GUESSWORK G-012 3c.
+- **P-5 (spells) reconnaissance 2026-11-23:** the cast *decision* is at image
+  `0x19690` in the combat round: spell record byte 0 (`es:[spell*0x24+0x2712]`)
+  is a flag byte — bit 0 or 2 (1|4) -> pick a target (`0x212f:0x789c`) and set
+  `char[+0xd]=target, +0xe=spell, +0xf]=4` (action "Cast Spell"); bit 4 (0x10)
+  -> auto-target; otherwise the enemy-target picker `0x18cea` runs.  The spell
+  record is **0x24 bytes at base 0x2712**; byte 8 (effect code, already the
+  port's `kSpellEffectByte=8`) is at `0x271a`.  The *effect dispatch* is image
+  `0xf5c0`: read byte 8, `-1`, index a **63-entry jump table at `cs:0x2c1e`**
+  (`cmp ax,0x3e; jbe; add ax,ax; jmp word cs:[bx+0x2c1e]`, `0xf5df..0xf5ed`).
+  Effect 1's handler (`0xf5f2`) does `sub hp_max(+0x20),5` then clamps
+  `hp_cur(+0x22)<=hp_max` — i.e. a drain/curse.  Target selection (`0x11dd6`)
+  reads byte 6 (`0x2718`) as a range and draws `rand(range)+1` to pick.  **Next
+  step:** pin the code-segment base so `cs:0x2c1e` maps to a file offset (the
+  table words there look like handler ip offsets, not image offsets), then read
+  the healing handler (byte 8 = 15) and its magnitude byte.
