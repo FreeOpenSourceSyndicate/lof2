@@ -193,6 +193,11 @@ static void test_round() {
     check(res.rows[1].hp_delta == 0, "Siegurd was not hit");
     check(res.rows[1].attack == 1, "the defender row is not Failed");
     check(!res.party_wiped && !res.defenders_wiped, "nobody wiped");
+    // P/B round-result columns are not produced for shipped encounters: the P
+    // (parry) event needs a *monster* attack to land on an equipped party
+    // member (blocked on the monster-attack path, P-3), and B is untouched.
+    // Both stay false, so the port shows the engine's blank columns (P-11).
+    for (const auto& row : res.rows) check(!row.p && !row.b, "P/B columns stay blank");
 
     // A member with no live target and no defenders left reports Failed.
     CombatRng rng2;

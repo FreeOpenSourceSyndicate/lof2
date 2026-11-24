@@ -2295,3 +2295,27 @@ Investigating the char sheet for P-8 produced four grounded facts:
    "Enter Kill-Rank") nor the encounter screen's `1`.  The sheet is a separate
    screen reached by a key not yet pinned; the port should expose it via a
    `--charsheet` direct render (like `--town`) rather than guessing the path.
+
+## P-11 — the `P`/`B` round-result columns stay blank (documented, not guessed)
+
+The round-result melee table has three `*`/`-` columns `W`/`P`/`B`.  `W`
+(weapon break) is derived and implemented (`MeleeResult::weapon_broken`,
+`weapon_f0`/`weapon_broken`).  `P` and `B` are **effectively unreachable in the
+shipped data**, so the port leaves both false and shows the engine's blank
+columns — reproducing a value the engine never produces would be a guess.
+
+- **`P` (parry).**  The guard is derived (`0x1756D`..`0x1759D`): defender
+  dexterity `+0x46 > 11`, a shield in the armour slot `[bp-0x30]`, then
+  `sub slot[+0x85], 2` and `P = 1`, gated on `[0xafc2]:0x3de9 == 0`.  But the
+  `P` event runs in the **defender** path, and the only defender with inventory
+  is a party member — it needs a *monster attack to land*.  That path is the
+  monster-turn gate (P-3), which in every shipped encounter aborts because the
+  gate reads the **next row's HP low byte** (`row[+0x16]`), rows are built with
+  HP a multiple of 8, so it never equals `0xff` for the shipped 8/16-HP
+  Mercenary.  Until P-3 produces a landing monster attack, `P` cannot fire.
+- **`B` (untouched).**  Three sites reference it (`0x12846`/`0x13D7D`/`0x1471C`)
+  but no derivation ties it to a reachable branch; the flag byte is likely
+  `[0xafdc]+0x560A` (beside `W` `+0x5608`, `P` `+0x5609`).
+
+Pinned as a regression by `tests/combat_test.cpp::test_round`
+(`P/B columns stay blank`).  Revisit only once P-3 (monster attacks) exists.
