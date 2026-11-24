@@ -20,6 +20,7 @@ work.
 | ID | Blocked lane | Responsible | Priority | Status | Depends on |
 |----|--------------|-------------|----------|--------|------------|
 | BLK-M001 | M (maintainer) | Maintainer | Medium | Resolved | — |
+| BLK-M002 | M (maintainer) | Maintainer | Low | Open | — |
 
 ---
 
@@ -57,3 +58,50 @@ port's menu text is pixel-exact and the play-screen status/panel text is exact.
 `(C)ontinue` regions to zero diff, so a real font regression (mapping or advance)
 fails the test. `AGENTS.md`'s "Known font-rendering gap" section is rewritten as
 resolved.
+
+---
+
+## BLK-M002 — Character-sheet / party-grid detail residue (status-block dashes, HP gauge position, gender profession table)
+
+- **Blocked lane:** M (maintainer)
+- **Responsible:** Maintainer
+- **Priority:** Low
+- **Status:** Open
+- **Dependencies:** —
+
+The `lof --charsheet` screen (`port/lof.cpp`, `compose_charsheet_screen`) now
+matches `ref/oracle/charsheet.png` at **0.9885** whole-screen with the class
+portrait **pixel-exact** (`tests/port_charsheet_test.py`). Three small residues
+remain, none of which affect gameplay:
+
+1. **Spirits/Rations value dashes (char-sheet-specific, ~32 px).** The
+   character sheet's location/status box (green, index 8) draws the
+   `Spirits  `/`Rations  ` labels but the *values* are not reproduced: the
+   oracle shows a few index-4 (dark-red) dashes at y≈182 (x≈74,84–87,110,125),
+   not a regular 6-px-pitch string. The status-block value drawer for the
+   char-sheet's "placeholder" branch has not been decoded; the dashes are
+   omitted rather than guessed.
+
+2. **Party-grid HP gauge position (shared with the play screen, ~480 px).** The
+   shared `draw_party_grid` draws ONE 50×3 white bar at `(x, y+18)` under the
+   "HT" label. The oracle shows, for some slots (Handy; all of the lower row), a
+   SECOND bar 4 px lower (`y+22`) — i.e. an "HP" gauge the port does not draw —
+   and the third column's upper bar is 40 px wide, not 50. The rule that decides
+   when the second bar appears (and the per-slot width) is undecoded. The
+   char-sheet grid is *index-identical* to the play grid (`ref/oracle/play.png`,
+   0 diff between the two oracles), so this is the same pre-existing
+   `draw_party_grid` inaccuracy the play screen already carries; fixing it fixes
+   both.
+
+3. **Gender-variant profession table.** The char-sheet disassembly
+   (`0x2676e`) selects the profession string from a table indexed by
+   `record[+0x18]` (a sex/class selector); a gender-variant table
+   (`gender_profession_names()`, e.g. Priest→Priestess) is visible in the
+   disassembly. The port uses the plain `profession_names()` table for the
+   race+profession line so the sheet agrees with the party grid (which also uses
+   it). Which sex value selects which table is not proven; the only oracle
+   (Decker, male) is satisfied either way.
+
+The dynamic time-of-day line also differs (the GAME2 save says "Evening", the
+oracle was captured at "Midnight!") — that is correct save-derived behaviour, not
+a blocker (same as the play screen).

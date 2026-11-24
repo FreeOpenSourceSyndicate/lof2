@@ -288,6 +288,148 @@ static bool compose_play_screen(const std::string& dir, const std::string& play,
     return draw_party_and_status(s, dir, sg, have_sg, err);
 }
 
+// The character-sheet screen programs a non-standard EGA attribute palette: the
+// intro/menu screens use the BIOS stock set, but the detail view reprograms the
+// attribute controller (INT 10h AH=10h AL=02h) with the selectors the game
+// installs at start-up (00..07, 10..17).  Under it index 8 is dark green
+// (0,85,0) and index 15 pale green (170,255,170).  Recovered from the emulator's
+// attribute-register dump at the sheet frame and verified against the DOSBox
+// capture ref/oracle/charsheet.png (the party grid matches it index-for-index).
+static const uint8_t kCharSheetAttr[16] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+};
+
+// Compose the in-game character sheet (`--charsheet`): the play-screen chrome
+// (MSCR + the shared 3x2 party grid) with the selected member's portrait blitted
+// into the 120x119 viewport, the location/status box in the sheet's green, and
+// the stat block on the right panel.  The portrait is a single sprite,
+// EGA/CHAR3/CH<profession> (the emulator's open trace for the sheet opens only
+// `ega\char3\ch09` for the Paladin Decker; it matches the oracle 1.0000 at
+// (10,11)).  The stat text uses the engine's own format strings (image
+// 0x2676e): "%-10s:" name, " a " + lower-case alignment, race-adjective +
+// profession, "Rnk %02d", "Hit point %04d / %04d", "Magic.... %04d / %04d",
+// "Str/Con/Dex/Int/Wis %02d", "State...  " + status, "Experience %011ld",
+// "Weight... %04d / %04d" (weights divided by 10).  Text is the CHR1 full face
+// at a 6-px pitch: name/options in black (0), the rest dark green (8).
+static bool compose_charsheet_screen(const std::string& dir, const SaveGame& sg,
+                                     bool have_sg, int member, Screen& s,
+                                     std::string& err) {
+    s.resize(320, 200);
+    s.clear(0);
+    s.pal.set_from_attr(kCharSheetAttr);
+    if (!blit_ega(s, dir + "/EGA/UP/MSCR", 0, 0, &err)) return false;
+    if (have_sg && !draw_party_grid(s, dir, sg, err)) return false;
+
+    const SaveChar* c = nullptr;
+    if (have_sg && member >= 0 && member < (int)sg.chars.size())
+        c = &sg.chars[member];
+    else if (have_sg && !sg.chars.empty())
+        c = &sg.chars[0];
+
+    if (c) {
+        CharSheet ch = decode_char(c->raw.data());
+        // Portrait: the profession selects the class portrait bank.
+        char ppath[64];
+        snprintf(ppath, sizeof ppath, "%s/EGA/CHAR3/CH%02d", dir.c_str(),
+                 (int)c->raw[kCharProf1b]);
+        blit_ega(s, ppath, kViewportX, kViewportY, &err);
+        err.clear();
+
+        Font box;
+        if (!box.load(dir + "/EGA/UP/CHR1", &err)) return false;
+
+        // Location/status box, same rows as the play screen but in green (8).
+        std::vector<std::string> scen = scenario_names();
+        std::vector<std::string> face = facing_names();
+        int loc = (int)save_location(sg);
+        int sindex = loc % 10;
+        std::string title = (sindex >= 0 && sindex < (int)scen.size())
+                                ? scen[sindex] : "    Scenario !!      ";
+        box.draw_text(s, 6, 136, title, 8);
+        std::string heading = (sg.facing < face.size()) ? face[sg.facing]
+                                                        : "    Direction !!     ";
+        box.draw_text(s, 6, 144, heading, 8);
+        if (sg.time_of_day >= 0) {
+            std::vector<std::string> tod = time_of_day_names();
+            if (sg.time_of_day < (int)tod.size())
+                box.draw_text(s, 6, 160, tod[sg.time_of_day], 8);
+        }
+        box.draw_text(s, 6, 176, "Spirits  ", 8);
+        box.draw_text(s, 6, 184, "Rations  ", 8);
+
+        // Stat block.
+        std::vector<std::string> align = alignment_lower_names();
+        std::vector<std::string> adj = race_adjective_names();
+        std::vector<std::string> prof = profession_names();
+        std::vector<std::string> status = status_short_names();
+        uint8_t ai = c->raw[0x19];
+        uint8_t ri = c->raw[0x1a];
+        uint8_t pi = c->raw[0x1b];
+
+        char line[128];
+        // Name (black) then ": a <alignment>" (green).
+        snprintf(line, sizeof line, "%-10s:", c->name.c_str());
+        box.draw_text(s, 139, 92, line, 0);
+        std::string al = (ai < align.size()) ? align[ai] : "??";
+        box.draw_text(s, 205, 92, " a " + al, 8);
+        // Race-adjective + profession, the same table the party grid uses.  (The
+        // engine selects the profession string from a table indexed by
+        // record[+0x18]; the plain profession table matches the grid, so that is
+        // what is used here.  A gender-variant table is visible in the
+        // disassembly but its exact selection is not reproduced — see BLK-M.)
+        std::string race = (ri < adj.size()) ? adj[ri] : "??";
+        std::string pr = (pi < prof.size()) ? prof[pi] : "??";
+        box.draw_text(s, 139, 100, race + pr, 8);
+
+        // Labels are green (8), values (and their separators) black (0), both at
+        // the engine's column positions.
+        box.draw_text(s, 139, 116, "Rnk ", 8);
+        snprintf(line, sizeof line, "%02d  ", ch.level17);
+        box.draw_text(s, 163, 116, line, 0);
+        box.draw_text(s, 187, 116, "Hit point ", 8);
+        snprintf(line, sizeof line, "%04d / %04d", ch.hp_cur, ch.hp_max);
+        box.draw_text(s, 247, 116, line, 0);
+        box.draw_text(s, 187, 124, "Magic.... ", 8);
+        snprintf(line, sizeof line, "%04d / %04d", ch.mag_cur69, ch.mag_max68);
+        box.draw_text(s, 247, 124, line, 0);
+        box.draw_text(s, 139, 132, "Str ", 8);
+        snprintf(line, sizeof line, "%02d", ch.str45);
+        box.draw_text(s, 163, 132, line, 0);
+        box.draw_text(s, 139, 140, "Con ", 8);
+        snprintf(line, sizeof line, "%02d  ", ch.con44);
+        box.draw_text(s, 163, 140, line, 0);
+        {
+            std::string st = (c->raw[kCharStatus1f] < status.size())
+                                 ? status[c->raw[kCharStatus1f]] : "??";
+            box.draw_text(s, 187, 140, "State...  ", 8);
+            box.draw_text(s, 247, 140, st, 0);
+        }
+        box.draw_text(s, 139, 148, "Dex ", 8);
+        snprintf(line, sizeof line, "%02d  ", ch.dex46);
+        box.draw_text(s, 163, 148, line, 0);
+        box.draw_text(s, 187, 148, "Experience ", 8);
+        snprintf(line, sizeof line, "%011ld", (long)ch.exp);
+        box.draw_text(s, 253, 148, line, 0);
+        box.draw_text(s, 139, 156, "Int ", 8);
+        snprintf(line, sizeof line, "%02d", ch.int47);
+        box.draw_text(s, 163, 156, line, 0);
+        box.draw_text(s, 139, 164, "Wis ", 8);
+        snprintf(line, sizeof line, "%02d  ", ch.wis48);
+        box.draw_text(s, 163, 164, line, 0);
+        box.draw_text(s, 187, 164, "Weight... ", 8);
+        snprintf(line, sizeof line, "%04d / %04d", ch.weight_cur / 10,
+                 ch.weight_max / 10);
+        box.draw_text(s, 247, 164, line, 0);
+
+        box.draw_text(s, 139, 172, "(E)xchange gold/rations", 0);
+        box.draw_text(s, 139, 180, "(S)how next page", 0);
+        box.draw_text(s, 139, 188, "(C)ontinue", 0);
+    }
+    return true;
+}
+
+
 // One enemy group on the encounter screen: the monster record id in the
 // scenario's SYST/NSC<dd> table (which selects the plural name and, via the
 // record's +0x48 field, the CHAR0 sprite) plus the group's size and rank.
@@ -1753,6 +1895,8 @@ int main(int argc, char** argv) {
 // panel layout were recovered by matching the decoded assets against a
 // DOSBox capture of save slot 2 (ref/oracle/play.png).
     std::string play, save;
+    bool charsheet_flag = false;
+    int charsheet_member = 0;      // 0-based party slot for --charsheet
     bool town_flag = false;
     bool emporium_flag = false;
     bool bank_flag = false;
@@ -1802,6 +1946,11 @@ int main(int argc, char** argv) {
         if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
         else if (std::string(argv[i]) == "--save" && i + 1 < argc) save = argv[++i];
         else if (std::string(argv[i]) == "--town") town_flag = true;
+        else if (std::string(argv[i]) == "--charsheet") {
+            charsheet_flag = true;
+            if (i + 1 < argc && argv[i + 1][0] >= '0' && argv[i + 1][0] <= '9')
+                charsheet_member = atoi(argv[++i]) - 1;  // 1-based on the CLI
+        }
         else if (std::string(argv[i]) == "--emporium") emporium_flag = true;
         else if (std::string(argv[i]) == "--bank") bank_flag = true;
         else if (std::string(argv[i]) == "--house") house_flag = true;
@@ -2195,6 +2344,21 @@ int main(int argc, char** argv) {
                train_do, lr.new_level, lr.hp_gain);
         for (auto& s : lr.improved) printf(" %s", s.c_str());
         printf("\n");
+        return 0;
+    }
+    if (charsheet_flag) {
+        std::string err;
+        Screen s;
+        SaveGame bsg;
+        bool have_sg = false;
+        if (!save.empty()) { bsg = load_save(save); have_sg = bsg.ok; }
+        if (!compose_charsheet_screen(dir, bsg, have_sg, charsheet_member, s, err)) {
+            fprintf(stderr, "lof: %s\n", err.c_str());
+            return 1;
+        }
+        if (have_cursor) draw_cursor(s, cur_x, cur_y);
+        if (have_shot && !save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return 1; }
+        if (!headless) present_sdl(s, "Legend of Faerghail");
         return 0;
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||

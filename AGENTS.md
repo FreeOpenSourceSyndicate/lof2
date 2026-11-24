@@ -262,6 +262,27 @@ Progress:
       Both are pure image blits, so the port reproduces each *pixel-exactly*
       from the game data. Guarded by `tests/port_vor_test.py` (`make
       golden-port`); no DOSBox capture needed.
+- [x] Character-sheet screen (`--charsheet [N] [--save GAMEn]`, P-8): the play
+      chrome (`EGA/UP/MSCR` + the shared 3x2 party grid) with the selected
+      member's **class portrait** `EGA/CHAR3/CH<profession>` blitted plainly at
+      the viewport origin (10,11), the location/status box and the right-panel
+      stat block.  The portrait is a **single sprite**, not a composite — the
+      emulator's open trace for the sheet opens only `ega\char3\ch09` for the
+      Paladin Decker — and matches the oracle **1.0000**.  The sheet is drawn
+      under a **non-standard attribute palette** (`00..07, 10..17`: index 8 dark
+      green, 15 pale green), recovered from the emulator's attribute-register
+      dump; under it the grid and status-box labels index-match the DOSBox
+      capture.  Stat strings are the engine's own formats (image `0x2676e`):
+      `%-10s:` name (black=0), ` a ` + lower-case alignment, race-adjective +
+      profession (`Rnk %02d`, `Hit point %04d / %04d`, `Magic.... %04d / %04d`,
+      `Str/Con/Dex/Int/Wis %02d`, `State...` + status, `Experience %011ld`,
+      `Weight... %04d / %04d` — weights /10); **labels green (8), values +
+      separators black (0)**; options `(E)xchange gold/rations` / `(S)how next
+      page` / `(C)ontinue` black.  Whole screen **0.9885** vs
+      `ref/oracle/charsheet.png` (portrait exact, stat text ~0.995); residue =
+      the dynamic time-of-day line (save "Evening" vs oracle "Midnight!"), the
+      status-block value dashes and the shared grid HP gauge — **BLK-M002**.
+      Guarded by `tests/port_charsheet_test.py` (`make golden-port`).
 - [x] LOF town + building screens (`--town`, `--emporium`, `--bank`, `--house`,
       `--temple`): all share one shape — the HUD background `EGA/UP/MSCR` with a
       town-scene tile blitted into the 120x119 viewport at (10,11) plus `CHR1`
