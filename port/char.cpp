@@ -489,6 +489,32 @@ bool buy_item(SaveGame& g, int char_idx, int item_index, ShopData* shop) {
     return true;
 }
 
+std::string apply_spell_effect(SaveChar& t, const SpellRecord& sp) {
+    uint8_t* r = t.raw.data();
+    switch (sp.data[kSpellEffectByte]) {
+    case 15: {  // heal = spell block byte 6, capped at hp_max (handler 0xf848)
+        uint16_t hp = rd16(r, kCharHpCur22), mx = rd16(r, kCharHpMax20);
+        uint32_t nh = (uint32_t)hp + (uint32_t)sp.data[6];
+        if (nh > mx) nh = mx;
+        wr16(r, kCharHpCur22, (uint16_t)nh);
+        return "heals";
+    }
+    case 1: {  // drain: hp_max -= 5 (min 0), clamp hp_cur (handler 0xf5f2)
+        int mx = (int)(int16_t)rd16(r, kCharHpMax20) - 5;
+        if (mx < 0) mx = 0;
+        wr16(r, kCharHpMax20, (uint16_t)mx);
+        if ((int16_t)rd16(r, kCharHpCur22) > mx)
+            wr16(r, kCharHpCur22, (uint16_t)mx);
+        return "drains";
+    }
+    case 14:  // set the target's +0x12 word to 6 (handler 0xf7f6)
+        wr16(r, 0x12, 6);
+        return "affects";
+    default:
+        return "";
+    }
+}
+
 std::string use_item_effect(SaveChar& c, int item_index) {
     const ItemRecord* it = item_by_index(item_index);
     if (!it) return "";
@@ -496,16 +522,15 @@ std::string use_item_effect(SaveChar& c, int item_index) {
     int val = it->charges;
     switch (it->effect) {
     case 10: {  // heal HP; a healing spell's block byte 6 is the amount
-        // The engine's action-3 "use object" casts the item's spell (item +0x18)
-        // and the effect-15 (healing) handler adds spell block byte 6 (image
-        // 0x2718, handler 0xf848), capped at hp_max.  Fall back to the item's
-        // charge count only when the item casts no healing spell.
-        int heal = val;
+        // The engine's action-3 "use object" casts the item's spell (item +0x18);
+        // the effect-15 (healing) handler adds spell block byte 6 (handler
+        // 0xf848).  Fall back to the item's charge count only when the item
+        // casts no healing spell.
         const SpellRecord* sp = item_spell(item_index);
         if (sp && sp->data[kSpellEffectByte] == 15)
-            heal = sp->data[6];
+            return apply_spell_effect(c, *sp);
         uint16_t hp = rd16(r, kCharHpCur22), mx = rd16(r, kCharHpMax20);
-        uint32_t nh = (uint32_t)hp + (uint32_t)heal;
+        uint32_t nh = (uint32_t)hp + (uint32_t)val;
         if (nh > mx) nh = mx;
         wr16(r, kCharHpCur22, (uint16_t)nh);
         return "heals";

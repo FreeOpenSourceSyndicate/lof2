@@ -1657,6 +1657,8 @@ int main(int argc, char** argv) {
     int buy_item_idx = 0;           // item index to buy
     int use_do = 0;                 // 1-based char for --use
     int use_item_idx = 0;           // item index to use
+    int cast_do = 0;                // 1-based target char for --cast
+    int cast_spell = 0;             // 1-based spell index to cast
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
@@ -1710,6 +1712,10 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--use" && i + 2 < argc) {
             use_do = atoi(argv[++i]);
             use_item_idx = atoi(argv[++i]);
+        }
+        else if (std::string(argv[i]) == "--cast" && i + 2 < argc) {
+            cast_do = atoi(argv[++i]);
+            cast_spell = atoi(argv[++i]);
         }
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
@@ -1985,6 +1991,38 @@ int main(int argc, char** argv) {
         }
         fprintf(stderr, "lof: character %d used '%s' (%s); hp %u -> %u\n",
                 use_do, it->name.c_str(), verb.c_str(), hp_before, hp_of(c));
+        return 0;
+    }
+    if (cast_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --cast needs a valid --save\n"); return 1; }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: --cast needs --amulet-out\n"); return 1; }
+        if (cast_do - 1 < 0 || cast_do - 1 >= (int)sg.chars.size() ||
+            sg.chars[cast_do - 1].present == 0) {
+            fprintf(stderr, "lof: --cast %d: no such character\n", cast_do);
+            return 1;
+        }
+        const SpellRecord* sp = spell_by_index(cast_spell);
+        if (!sp) { fprintf(stderr, "lof: --cast: no such spell %d\n", cast_spell); return 1; }
+        SaveChar& c = sg.chars[cast_do - 1];
+        auto hp_of = [](const SaveChar& sc) {
+            return (uint16_t)(sc.raw[kCharHpCur22] | (sc.raw[kCharHpCur22 + 1] << 8));
+        };
+        uint16_t hp_before = hp_of(c);
+        std::string verb = apply_spell_effect(c, *sp);
+        if (verb.empty()) {
+            fprintf(stderr, "lof: spell %d ('%s') has no derived character effect\n",
+                    cast_spell, sp->name.c_str());
+            return 1;
+        }
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        fprintf(stderr, "lof: cast '%s' on character %d (%s); hp %u -> %u\n",
+                sp->name.c_str(), cast_do, verb.c_str(), hp_before, hp_of(c));
         return 0;
     }
     if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||

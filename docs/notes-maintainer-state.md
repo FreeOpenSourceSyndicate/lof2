@@ -2021,3 +2021,13 @@ audit were moved there:
   `heal = spell.data[6]` capped at hp_max.  Most codes (3-6,8,10-13,16-18) jump
   to `0xf826` (a bare `sub ax,ax; pop si; mov sp,bp` = no-op return); others:
   1->`0xf5f2`, 2->`0xf6b8`, 7->`0xf762`, 9->`0xf7da`, 14->`0xf7f6`.
+- **P-5 effect layer implemented 2026-11-23:** `apply_spell_effect(SaveChar&,
+  const SpellRecord&)` dispatches on the spell's effect byte (data[8]) and
+  applies the grounded handlers — **15** heal `data[6]` capped (0xf848),
+  **1** drain `hp_max`−5 / clamp `hp_cur` (0xf5f2), **14** set `+0x12`=6
+  (0xf7f6).  Exposed as `lof --cast N SPELL` (writes the save like `--use`).
+  `use_item_effect` case 10 now routes a healing-spell item through it.
+  Pinned by `char_test::test_apply_spell_effect`.  Effects 2/9 set visual
+  globals (skip); 7 doubles `char+0x4e` (field `kCharSeed4e`, meaning uncertain
+  — deferred).  No shipped spell uses effect 1 (only 14: spells 25/75, 15:
+  healers); the drain path is exercised synthetically.

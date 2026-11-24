@@ -1529,6 +1529,43 @@ static void test_use_item() {
     }
 }
 
+static void test_apply_spell_effect() {
+    // Effect 15 (healing): heal = spell block byte 6, capped (handler 0xf848).
+    // Healing I (spell 80) has data[6]=8.
+    const SpellRecord* s80 = spell_by_index(80);
+    assert(s80 && s80->data[kSpellEffectByte] == 15 && s80->data[6] == 8);
+    {
+        SaveChar c{};
+        c.raw[kCharHpMax20] = 40;
+        c.raw[kCharHpCur22] = 20;
+        assert(apply_spell_effect(c, *s80) == "heals");
+        assert((c.raw[kCharHpCur22] | (c.raw[kCharHpCur22 + 1] << 8)) == 28);
+    }
+    // Effect 1 (drain): hp_max -= 5, min 0, hp_cur clamped (handler 0xf5f2).
+    {
+        SpellRecord d{}; d.data[kSpellEffectByte] = 1;
+        SaveChar c{};
+        c.raw[kCharHpMax20] = 20; c.raw[kCharHpMax20 + 1] = 0;
+        c.raw[kCharHpCur22] = 20; c.raw[kCharHpCur22 + 1] = 0;
+        assert(apply_spell_effect(c, d) == "drains");
+        assert((c.raw[kCharHpMax20] | (c.raw[kCharHpMax20 + 1] << 8)) == 15);
+        assert((c.raw[kCharHpCur22] | (c.raw[kCharHpCur22 + 1] << 8)) == 15);
+        // Floor at zero when hp_max < 5.
+        SaveChar z{};
+        z.raw[kCharHpMax20] = 3; z.raw[kCharHpCur22] = 3;
+        assert(apply_spell_effect(z, d) == "drains");
+        assert((z.raw[kCharHpMax20] | (z.raw[kCharHpMax20 + 1] << 8)) == 0);
+        assert((z.raw[kCharHpCur22] | (z.raw[kCharHpCur22 + 1] << 8)) == 0);
+    }
+    // Effect 14: target +0x12 word set to 6 (handler 0xf7f6).
+    {
+        SpellRecord e{}; e.data[kSpellEffectByte] = 14;
+        SaveChar c{};
+        assert(apply_spell_effect(c, e) == "affects");
+        assert((c.raw[0x12] | (c.raw[0x13] << 8)) == 6);
+    }
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
@@ -1540,6 +1577,7 @@ int main(int argc, char** argv) {
     test_joint_deposit();
     test_buy_item();
     test_use_item();
+    test_apply_spell_effect();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).

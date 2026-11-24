@@ -1283,6 +1283,14 @@ bool buy_item(SaveGame& g, int char_idx, int item_index, ShopData* shop);
 // (removal from the slot) is the caller's job in the engine and not applied here.
 std::string use_item_effect(SaveChar& c, int item_index);
 
+// Apply a spell's effect (dispatch on its data byte 8) to one character, as the
+// combat cast routine's effect handlers do.  Returns a short description, or ""
+// when the effect is not a single-character effect (visual/global, party-wide,
+// or not yet decoded).  Grounded handlers: 15 = heal `data[6]`, capped at
+// `hp_max` (`0xf848`); 1 = drain `hp_max` by 5 (min 0), clamp `hp_cur`
+// (`0xf5f2`); 14 = set `+0x12` = 6 (`0xf7f6`).
+std::string apply_spell_effect(SaveChar& t, const SpellRecord& sp);
+
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.
 SaveGame load_save(const std::string& path);
