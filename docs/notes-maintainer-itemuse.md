@@ -122,3 +122,37 @@ lane** with **lane-lettered** IDs (`docs/blockers/{A,B,M}.md`, IDs
 `BLK-<lane><nnn>`), so lanes no longer share a counter and cannot collide. See
 the hub `docs/BLOCKERS.md` for the convention and the old→new ID map
 (`BLK-005 → BLK-B002`, `BLK-006 → BLK-B003`, etc.).
+
+## The item-use effect dispatch (image 0xE89D) — full map
+
+The "use object" handler switches on the item record's effect byte
+`es:[slot*0x20 + 0xfdb]` (= item record +0x1f, base `0xfbc`).  Decoded from the
+flat image with capstone:
+
+```
+0xE89D  mov al, es:[bx+0xfdb]     ; effect
+        cmp ax, 0xa               ; == 10  -> 0xEA90
+        ; ax <= 10 -> chain at 0xE8B1:  1 -> 0xE8CA, 2 -> 0xE95E, 3 -> 0xE9C2
+        ; ax  > 10 -> chain at 0xEDB0: 0x13(19) -> 0xEB32, 0x17(23) -> 0xEB4E,
+        ;                                0x1e(30) -> 0xEBE4, 0x1f(31) -> 0xECE2
+        ; anything else -> 0xDF38 (sub ax,ax ; retf  == return 0, no state change)
+```
+
+So the **only** effect codes the generic use path acts on are
+`{1, 2, 3, 10, 19, 23, 30, 31}`; every other effect byte is a no-op on "use".
+
+- **Implemented** (`use_item_effect`): 1 (enchant weapon), 2 (enchant armour),
+  3 (Poison I), 10 (heal), 30 (Antidote I / cure poison), 31 (Antidote II / cure
+  illness), and **23 (Poison II, added 2026-11-24)**: handler `0xEB4E` does
+  `sub es:[char+0x22], item[+0x19]` (the `damage` byte) then `char+0x1f = 4`
+  (Ill), printing `<name> didn't take much to it, and goes green in the face!`
+  (string `0x5e3e`).  Item "Poison II" (class 9) carries `damage = 24`.
+- **Open — 19 (scrolls/parchments/maps).**  Handler `0xEB32` pushes the 32-bit
+  global `es:[0x37fe/0x3800]` and calls `0x1cfe:0x7e2` with `(2, dword)`; the
+  callee is not yet decoded.  Items: Pergament, Scroll, Magic protect.,
+  Protection, Document, Boring map, True scroll (class 6).  Do not guess.
+- **Lantern (34) / Torch (35) are NOT in the use dispatch.**  They fall through
+  to the `return 0` default, i.e. "using" them changes no state.  Their light
+  role (if any) is passive / carried, not a use-effect — the earlier "lantern
+  consumes oil + tinderbox" idea is unverified and is *not* implemented.  The
+  port's no-op for 34/35 is faithful to the dispatch.

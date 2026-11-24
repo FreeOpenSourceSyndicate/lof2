@@ -1548,6 +1548,23 @@ static void test_use_item() {
         assert(use_item_effect(q, cure) == "cures the poison");
         assert(q.raw[kCharStatus1f] == 0 && q.raw[0x57] == 0 && q.raw[0x58] == 0);
     }
+    // Effect 23 (Poison II): hp_cur -= item.damage (+0x19), status -> 4 (Ill)
+    // (handler image 0xEB4E; string 0x5e3e).  "Poison II" carries damage 24.
+    int poison2 = -1;
+    for (int i = 1; i <= (int)kItemCount; i++) {
+        const ItemRecord* x = item_by_index(i);
+        if (x && x->effect == 23) { poison2 = i; break; }
+    }
+    if (poison2 > 0) {
+        const ItemRecord* x = item_by_index(poison2);
+        assert(x && x->name == "Poison II" && x->damage == 24);
+        SaveChar c{};
+        c.raw[kCharHpCur22] = 50; c.raw[kCharHpCur22 + 1] = 0;
+        assert(use_item_effect(c, poison2) ==
+               "doesn't take much to it, and goes green in the face");
+        assert((c.raw[kCharHpCur22] | (c.raw[kCharHpCur22 + 1] << 8)) == 26);
+        assert(c.raw[kCharStatus1f] == 4);
+    }
 }
 
 static void test_apply_spell_effect() {

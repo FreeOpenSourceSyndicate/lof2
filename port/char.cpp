@@ -642,6 +642,17 @@ std::string use_item_effect(SaveChar& c, int item_index) {
     case 31:  // cure illness (state 4 -> clear +0x1f)
         if (r[kCharStatus1f] == 4) { r[kCharStatus1f] = 0; return "cures the illness"; }
         return "finds no illness to cure";
+    case 23: {  // Poison II (item class 9, e.g. "Poison II"): the handler at
+                // image 0xEB4E does `sub es:[char+0x22], item[+0x19]` (the item's
+                // damage byte) then sets char+0x1f = 4 (Ill), printing
+                // "<name> didn't take much to it, and goes green in the face!"
+                // (string 0x5e3e).  hp_cur is a plain word subtract (no clamp),
+                // exactly as the engine does.
+        wr16(r, kCharHpCur22,
+             (uint16_t)(rd16(r, kCharHpCur22) - (uint16_t)it->damage));
+        r[kCharStatus1f] = 4;
+        return "doesn't take much to it, and goes green in the face";
+    }
     default:
         return "";
     }
