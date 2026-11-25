@@ -2319,3 +2319,38 @@ columns — reproducing a value the engine never produces would be a guess.
 
 Pinned as a regression by `tests/combat_test.cpp::test_round`
 (`P/B columns stay blank`).  Revisit only once P-3 (monster attacks) exists.
+
+## Emporium repair / sell, inn spell-memorisation (2026-11-24)
+
+The **code-segment → flat-image mapping is solved**: a far-call target
+`lcall seg:off` is at `img[seg*16+off]` (see AGENTS.md).  With it the runtime
+math library decodes (`0x2f0e`): `0x1efe`=32×32 multiply, `0x204a`=unsigned
+32÷32, `0x1e62`=signed 32÷32, `0x1dec`=the MS-C RNG (LCG).  This unblocked the
+Emporium routines.
+
+**Repair — DONE.**  Handler image `0x6172..0x638a` (the `[bp+6] != 0` branch of
+`0x5938`).  `cost = price(+0x12) - (condition(+0x85) * price)/100` (LXMUL then
+LDIV by 100).  Magic artefacts (`item.spell` = f4 low byte != 0) are refused
+("Oh!, a magic artefact... I can't repair that for you.", `0x4112`); a pristine
+item (condition >= 100) needs no repair (`0x419e`); otherwise a payer is chosen
+("Who'll pay (1-6)?", `0x421c`), the fee paid via `pay_gold`, and the slot's
+condition set to 100 (`0x6378`).  Port: `repair_cost()` / `repair_item()` +
+`lof --repair N SLOT [--repair-payer M]`; pinned by `char_test::test_repair`
+and the repair check in `port_building_test.py` (GAME2 Small shield 92→100, 1g).
+
+**Sell — still blocked (BLK-B006).**  The `[bp+6] == 0` branch (`0x5C24`):
+`base = f(cond, price) - price/25` (floor 1), `bonus = (price/100)*(g(char[+0x25])+1)`,
+`final = base + bonus`.  `f` = `0x2f0e:0x1efe`/`0x1e62` (now decoded), but `g` =
+`0x2a7d:0x2f6a` calls the RNG `0x1dec` then `0x2f0e:0x1f32` — i.e. the bonus has
+a **random haggling** component, and `char[+0x85]`/`char[+0x25]` identities are
+unconfirmed.  Do not guess the sell price.
+
+**Inn spell-memorisation — structure decoded, blocked on runtime data.**  Loop
+image `0x8416..0x8487`: for each slot `s` in `0..char[+0x6a)`, `school =
+0x212f:0x9342(char)`, `spell = [0xaf62]:0xc0e + school*2` (school base) `+ s`,
+then the slot's cast count `+0x143` = `spell.data[9]`.  `0x9342` maps the
+profession byte `+0x1b` through a 12-entry jump table (image `0x2a6a6`) to a
+school id: `{0,1,2,4,9,11} -> -1` (no magic), `3 -> 5`, `5 -> 3`, `6 -> 2`,
+`7 -> 0`, `8 -> 1`, `10 -> 4` (elemental schools).  The **school base table
+`[0xaf62]:0xc0e` is runtime data** not in the file image, so memorisation stays
+unimplemented until a `LOF_SEGDUMP` supplies it.
