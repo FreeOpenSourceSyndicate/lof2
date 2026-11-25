@@ -2657,3 +2657,24 @@ town" on a missing map, matching the port's town heuristic.  (No port bug there.
 unblock: a **genuine in-town save** — a save made while the party is standing in a
 town with the town menu on screen — so navigation starts from the menu directly.
 Requested from the owner.  Do **not** synthesise `SCHOOL_BASE` (Rule #1).
+
+## Shipped "fresh install" saves are a WILDERNESS start, not in-town (2026-11-25)
+
+`downloads/ext_msdos/legfaer/GAMES/` ships `GAME1/2/3/5` (the "fresh install"
+saves).  All four are the **same start**: location `ones=0, tens=1` -> **`DNG10`**
+("Valley of Faerghail", `town_sel=1` = Thyn region), party Decker/Siegurd/Handy/
+Merlin/Cassandra/Assanla.  `DNG10` is a real outdoor map file, so this is the
+**wilderness**, not a town (towns have no `DNGS` map).  Loading the valid one
+(`GAME2`) in the emulator renders "Valley of Faerghail / Facing North / Dawn".
+
+Checksum status: **GAME2 and GAME3 are valid**; **GAME1 and GAME5 are corrupt**
+(stored trailer != fold over `[0,0x2e3a)`), so the engine rejects them with
+"The file GAMES\GAMEn is not a valid game:" + "(C)ontinue".  (`GAME1.SAV` at the
+release root is a 0-byte stub.)
+
+Conclusion: there is **no shipped in-town save** — an in-town save must be
+synthesised (town entry is a runtime state, not a save field: the town hub is
+`image 0x53E0`, key dispatch `B`->Bank`0x739a`, `C`->leave`0x557a`,
+`E`->Emporium`0x5680`, `H`->House`0x873c`, `I`->Inn`0x7646`, `T`->Temple`0x9e5e`,
+but `0x53E0` is not referenced by any `E8`/`9A`/word table in the image — it is
+reached through a computed dispatch still to be located).
