@@ -2678,3 +2678,40 @@ synthesised (town entry is a runtime state, not a save field: the town hub is
 `E`->Emporium`0x5680`, `H`->House`0x873c`, `I`->Inn`0x7646`, `T`->Temple`0x9e5e`,
 but `0x53E0` is not referenced by any `E8`/`9A`/word table in the image — it is
 reached through a computed dispatch still to be located).
+
+## Emporium SELL price — refined static decode + the inconsistency (2026-11-25)
+
+Re-traced the sell-price routine (`0x5C24..0x5E54`) and the gold credit
+(`0x611A`) directly from the assembly.  **Corrects** the earlier "inherently
+random price" note (the credited gold does *not* read the haggle term where I
+can see it — but see the inconsistency below, so this is not yet trusted).
+
+- **Condition term** (`[bp-0x16]`/`[bp-0x14]`, 32-bit signed):
+  `cond = price*condition/100 - price/25`, floored to **1** (`0x5C8D..0x5CA3`).
+  `price` = item `+0xfce` (idx<<5); `condition` = inv-slot byte `+0x85`.
+- **Haggle base** (`[bp-0x12]`/`[bp-0x10]`): `(price/100)*(haggle+1)`,
+  `haggle = rand15/charisma(+0x25)`; `rand15` = MS-C LCG `0x30ECC`, seed
+  `[0xaf06]`.
+- **Cap loop** (`0x5CFB..0x5D2E`): while `(haggle_base + cond) > price-10`,
+  decrement `[bp-0x12]` (haggle_base).  So the *sum* is capped at `price-10`.
+- **Branch** (`0x5D30`): if `cond>=10 && haggle_base>=10` -> normal path
+  `0x5DA8->0x5E54` (displays `[bp-0x16]+[bp-8]`); else `0x5D4C` (displays
+  `[bp-0x16]`).
+- **Gold credit** (`0x611A`): `char+0x72 += [bp-0x16]/[bp-0x14]` (i.e. the
+  **condition term**), after a weight check (`0x5D60`: `+0x66 + [bp-0x16] <=
+  +0x64`, else "too heavy").
+
+**INCONSISTENCY (why this is NOT implemented):** under this reading the cap loop
+adjusts only `haggle_base`, which is then never credited — i.e. the loop would be
+dead code, which is implausible.  So the true credited price is almost certainly
+the **capped sum** `min(haggle_base + cond, price-10)` and `[bp-0x16]` must hold
+that sum at `0x611A` via a write I have not located (or the gold-add reads a
+different local on the real path).  Rule #1: **do not guess**.  Needs a
+**scripted sell** with a known seed to settle (OT-006).
+
+**Empirical verification blocked by timing:** the golden `shop` scenario reaches
+the Emporium (`LOF_NO_TIMER=1 LOF_CMDLEN=3 LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x12
+LOF_KEYGAP=250`, frames 1600), but reproducing it ad-hoc to add sell keys landed
+on the play screen (empty party grid) both times — the exact key frames matter.
+A DOSBox capture of a real sell (price shown + gold delta) would settle the
+formula fastest.
