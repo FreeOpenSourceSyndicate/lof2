@@ -2630,3 +2630,30 @@ may be a relocated/relative table) before trusting them.  Next step to unblock:
 capture `SCHOOL_BASE` at runtime (drive the House learn screen, dump
 `[0xb09e]:0xc0f` like the memorisation table was captured).  Do **not** synthesise
 the capacity (Rule #1).
+
+## spell_capacity — callers mapped; capture needs a genuine in-town save (2026-11-25)
+
+`spell_capacity` (`0x212f:0x93d6`, image `0x2A6C6`) has **8 call sites** (image
+offsets): `0x8D19`, `0x8DBB` (learn-magic flow), `0x9BAC`, `0xD4B0`,
+`0xF301`, `0xF31A` (spell-cast path), `0x12B09`, `0x12B22` (combat-cast).  The
+learn **info screen** (`0x8DB8`) *displays* `remaining = capacity - char[+0x6a]`,
+so reading that on-screen number would give `capacity` directly (then
+`SCHOOL_BASE[S] = capacity*15/min(15,level)`).
+
+**`SCHOOL_BASE` (`[0xb09e]:0xc0f`) is built at runtime** — the known memorisation
+table `{1,33,59,80,100,118,127}` does **not** appear as contiguous bytes in a
+`LOF_DUMP` of either the menu or a loaded save, so it can't be recovered by a raw
+memory search; a live capture (trace the routine's `es` load, or read the learn
+screen) is required.
+
+**Town entry confirmed (good news):** loading a save whose location has no DNGS
+map (patched `ones=8`, `DNG08` absent) in the analysis emulator renders the
+**town street viewport + the party panel** — so the engine really does "stay in
+town" on a missing map, matching the port's town heuristic.  (No port bug there.)
+
+**Blocker:** driving the patched in-town save through town-menu -> House -> (L)earn
+-> character -> info screen in the slow analysis emulator was not reliable
+(key-timing vs the long save load; captures landed on the play screen).  Cleanest
+unblock: a **genuine in-town save** — a save made while the party is standing in a
+town with the town menu on screen — so navigation starts from the menu directly.
+Requested from the owner.  Do **not** synthesise `SCHOOL_BASE` (Rule #1).
