@@ -85,3 +85,15 @@ can never clobber the slot fixtures above). Play one with
 Both map files (`game/DNGS/DNG11`, `game/DNGS/DNG43`) exist in the release, so the
 port's `--play auto --save saves/<file>` renders them.  (The old "D8/D9 never
 used" / "maps ≤ DNG13" notes predate these deeper two-digit maps.)
+
+* `dng01-Joanna-f969c0ed.sav` — **"Monastery of Sagacita"** (entrance), map
+  **`DNG01`**, lead **Joanna**. Party: Joanna, Skol, Elzndra, Merlin, Claudia,
+  Dorgir. Facing `E`, time-of-day 1 (Dawn), morale 1. **Two high-level casters:**
+  Joanna (prof 10, **lvl 12**, magic 17/18) and Skol (prof 5, **lvl 11**, magic
+  14/14) — the rest are lvl 1–2. This is the **deepest / highest-level** fixture
+  (the others are ≤ lvl 4).  Caveat (owner-supplied): both high-level members'
+  XP (`+0x6c`) is a large value that is **negative signed** (`0xFFFF…`) because
+  the owner levelled them via an out-of-combat-heal negative-XP quirk — so XP-gated
+  features (House training threshold) behave oddly on these two, but their
+  level/HP/magic/stat fields are what the stat-recompute tests need.  `GAME1`
+  (`dng11-…`) is one dungeon level **deeper** than this entrance.
