@@ -1778,6 +1778,9 @@ static void test_level_up() {
     m.raw[kCharCon44] = 16;
     m.raw[kCharBaseCon60] = 10;            // < Con -> raised to 16
     m.raw[kCharHpMax20] = 30; m.raw[kCharHpCur22] = 30;
+    m.raw[0x10] = 0xff; m.raw[0x11] = 0xff;  // PC marker (+0x10 == 0xFFFF)
+    m.raw[kCharBase1c] = 100;              // base stat
+    m.raw[kCharSpeed56] = 1;               // speed
     level_up(m, 5);
     // magic max: table[prof 5][level 4] = 4, +1 (Wis>15) = 5, then the Wis
     // bonus adds one more to the max => 6.  magic cur equals it.
@@ -1787,6 +1790,10 @@ static void test_level_up() {
     assert((m.raw[kCharWeight64] | (m.raw[kCharWeight64 + 1] << 8)) == 4200);
     // base Con tracks Con.
     assert(m.raw[kCharBaseCon60] == 16);
+    // base stat: prof 5 base-table 3, (level-1)=3 divides 3 -> -10.  speed:
+    // prof 5 speed-table 5, level 4 does not divide 5 -> unchanged.
+    assert(m.raw[kCharBase1c] == 90);
+    assert(m.raw[kCharSpeed56] == 1);
 }
 
 static void test_training_cost() {

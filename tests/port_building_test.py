@@ -588,8 +588,33 @@ def check_training_effect() -> int:
     if (rb[0x64] | (rb[0x65] << 8)) != 4200:
         print("port_building_test: FAIL training effect (weight max != 4200)")
         return 1
+    if rb[0x1c] != 90:   # base stat: (level-1)=3 divides prof-5 base table 3
+        print("port_building_test: FAIL training effect (base stat %d != 90)"
+              % rb[0x1c])
+        return 1
+    # Speed nudge: Joanna (prof 10, level 4 -> 5; speed table 5, 5 % 5 == 0).
+    r0j = rec(a, 4)
+    if r0j[0x1b] == 10 and r0j[0x17] == 4 and r0j[0x56] < 0xff:
+        outj = "/tmp/port_trained_j.sav"
+        rj = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                             "--train", "5", "5", "--save", GAME4,
+                             "--amulet-out", outj],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        if rj.returncode != 0:
+            print("port_building_test: FAIL training effect (Joanna %s)"
+                  % rj.stderr.decode().strip())
+            return 1
+        rbj = rec(open(outj, "rb").read(), 4)
+        if rbj[0x56] != r0j[0x56] + 1:
+            print("port_building_test: FAIL training effect (Joanna speed %d != %d)"
+                  % (rbj[0x56], r0j[0x56] + 1))
+            return 1
+        if rbj[0x1c] != 90:
+            print("port_building_test: FAIL training effect (Joanna base %d != 90)"
+                  % rbj[0x1c])
+            return 1
     print("port_building_test: ok training effect (Lara -> level 4, magic 6/6, "
-          "weight max 4200)")
+          "weight max 4200, base 90; Joanna speed+1, base 90)")
     return 0
 
 

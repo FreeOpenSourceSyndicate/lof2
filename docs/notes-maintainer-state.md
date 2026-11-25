@@ -2401,3 +2401,20 @@ GAME4 chars).  The routine also nudges speed (+0x56) and the base stat (+0x1c)
 under conditions not yet fully decoded (image `0x9920..0x99E0`: a table lookup
 `[0xaf72]:0xc00` + `div`, and a `+0x1c -= 0xa` branch) — those are left
 untouched (still open); they do not affect magic/weight.
+
+### Level-up speed / base-stat nudges (2026-11-24)
+
+The same derived-stat recompute (image `0x991F..0x99A8`, guarded by the PC flag
+`char[+0x10] == 0xFFFF`) also nudges two more fields, now in `level_up()`:
+- **speed (+0x56)** += 1 when the new level divides the profession speed table
+  (`[0xaf72]:0xc00`, bytes) `{3,3,4,4,3,5,5,5,5,3,5,4}`.
+- **base stat (+0x1c)** -= 10 when (level-1) divides the profession base table
+  (`[0xaf74]:0xb6c`, bytes) `{2,2,3,3,2,3,4,4,4,2,4,2}` (and level > 1).
+Both reproduce every shipped character exactly from a start of speed 1 / base
+100 — e.g. Conan (prof 0) and Siegmund (prof 9) reach speed 2 and base 90
+precisely at level 3 (speed table 3, base table 2 both divide).  The routine's
+final `0x1b83:0x1e8` call sets `+0x1d = Dex<16 ? 10 : Dex*5-65` (verified for all
+12 chars) and then recomputes the total defence (+0x1e) from armour; since Dex
+does not change on level-up the +0x1d recompute is a no-op here, and +0x1e is
+already maintained by the equip logic — both are therefore not re-applied in
+`level_up()`.

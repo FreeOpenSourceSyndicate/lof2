@@ -709,6 +709,22 @@ LevelUpResult level_up(SaveChar& c, int hp_gain) {
         r[kCharMagMax68] += (uint8_t)b;
     }
     if (r[kCharBaseCon60] < r[kCharCon44]) r[kCharBaseCon60] = r[kCharCon44];
+    // Speed (+0x56) and base stat (+0x1c) nudges (image 0x991F..0x99A8), for PCs
+    // (+0x10 == 0xFFFF).  Every shipped character's speed and +0x1c reproduce
+    // from base 1 / base 100 with these: speed += 1 when the level divides the
+    // profession's speed table; base stat -= 10 when (level-1) divides the
+    // profession's base table (and level>1).  Captured tables [0xaf72]:0xc00 and
+    // [0xaf74]:0xb6c.
+    static const uint8_t kSpeedPerLevel[12] = {3, 3, 4, 4, 3, 5, 5, 5, 5, 3, 5, 4};
+    static const uint8_t kBaseStatPerLevel[12] = {2, 2, 3, 3, 2, 3, 4, 4, 4, 2, 4, 2};
+    if (rd16(r, 0x10) == 0xffff && prof < 12) {
+        if (kSpeedPerLevel[prof] != 0 && new_level % kSpeedPerLevel[prof] == 0)
+            r[kCharSpeed56]++;
+        int lm1 = new_level - 1;
+        if (lm1 != 0 && kBaseStatPerLevel[prof] != 0 &&
+            lm1 % kBaseStatPerLevel[prof] == 0)
+            r[kCharBase1c] -= 10;
+    }
     return res;
 }
 
