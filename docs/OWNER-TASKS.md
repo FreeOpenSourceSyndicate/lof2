@@ -55,7 +55,10 @@ Rules for this file:
 
 ### OT-007 — Capture the VOR credits (CRED) page under DOSBox (settles the P-14 palette)
 
-- **Status: open (needs DOSBox, which this agent's sandbox cannot run — no root).**
+- **Status: closed — M-7 did it (installed DOSBox via sudo, captured the CRED page).**
+  Result: DOSBox renders VOR with the STOCK set; the port's CRED == DOSBox 100%
+  (so P-14 was a non-issue). Saved `ref/oracle/vor_cred.png`; see
+  `docs/notes-vor-palette.md`.
 - **What:** VOR fades its own 5-table palette and leaves the bright table active
   (confirmed from the image: tables at `0x55c6..0x55f9`, routine `0xF83`), but
   AGENTS.md's "menu renders as STOCK in DOSBox" caveat makes it ambiguous whether

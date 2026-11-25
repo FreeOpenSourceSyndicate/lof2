@@ -68,6 +68,25 @@ def main() -> int:
             print("port_vor_test: FAIL (%s match=%.2f%%, %d px differ)" % (name, 100 * match, n))
             return 1
         print("port_vor_test: ok (%s matches %s exactly)" % (name, asset))
+
+    # Palette guard against the real DOSBox oracle: the CRED credits page,
+    # captured from the original under DOSBox (ref/oracle/vor_cred.png), must be
+    # reproduced pixel-exactly.  This pins that the port renders VOR with the
+    # same palette DOSBox shows (STOCK) — a palette change would break it.
+    oracle = os.path.join(ROOT, "ref", "oracle", "vor_cred.png")
+    if os.path.exists(oracle):
+        subprocess.run(
+            [BIN, "--dir", GAME, "--headless", "--shot", "/tmp/port_vor_test_cred.png",
+             "--shot-frame", "1"],
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        a = np.asarray(Image.open("/tmp/port_vor_test_cred.png").convert("RGB")).astype(int)
+        b = np.asarray(Image.open(oracle).convert("RGB")).astype(int)
+        if a.shape == b.shape:
+            frac = float((np.abs(a - b).sum(2) == 0).mean())
+            if frac < 1.0:
+                print("port_vor_test: FAIL (CRED vs DOSBox oracle %.2f%%)" % (100 * frac))
+                return 1
+            print("port_vor_test: ok (CRED matches DOSBox oracle exactly — palette is STOCK)")
     return 0
 
 

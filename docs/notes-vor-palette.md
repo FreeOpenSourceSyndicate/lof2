@@ -103,3 +103,28 @@ correct and P-14 is a non-issue; if DOSBox honours T4 literally (index 6 = 0x06
 yellow-green, 8..15 = 0x10..0x17), the port needs a VOR-specific T4 palette.
 This dichotomy can only be resolved by capturing the CRED page under DOSBox
 (`tools/capture_dosbox.sh`) and comparing RGB per index — do not guess.
+
+## M-7 RESOLUTION 2026-11-24 — P-14 is a NON-ISSUE (port is already correct)
+
+DOSBox was installed and the original captured (timeline of START.BAT frames).
+Result: **DOSBox renders BOTH VOR stills with the STOCK 16-colour set**, exactly
+like the port, despite VOR programming T4 via `INT 10h AH=10h AL=02h`:
+
+* Every captured VOR frame used only STOCK-set colours (`notSTOCK=0`).
+* The dragon title `EGA/IN/DRAG` matches the port (STOCK) at **94.8%** — the
+  ~5% residue is the DOSBox fade timing (the capture landed on a mid-fade frame;
+  the port draws the post-fade still).  Its colours include the STOCK brown
+  `(170,85,0)` and NONE of the T4-only colours, so it is definitively STOCK.
+* The credits page `EGA/IN/CRED` matches the port (STOCK) **100.00% pixel-exact**
+  against the DOSBox capture `ref/oracle/vor_cred.png` (saved).
+
+So DOSBox maps the programmed "bright" attribute values to the standard colours,
+the same way for VOR as for the LOF menu (consistent with the AGENTS.md menu
+caveat).  **Do not add a VOR-specific palette** — `port/vor.cpp`'s STOCK
+(`kEgaAttr`) is already the correct, DOSBox-matching palette.  The earlier
+"81.3%" was a comparison against a fade frame, not a palette bug.
+
+Oracle captures committed: `ref/oracle/vor_cred.png` (100% match) and
+`ref/oracle/vor_drag.png` (the fade frame; DRAG is pinned by the data-exact
+check in `port_vor_test.py`).  The test now also asserts the port CRED equals
+`ref/oracle/vor_cred.png` pixel-for-pixel, so a palette regression is caught.
