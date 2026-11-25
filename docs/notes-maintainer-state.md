@@ -2504,3 +2504,22 @@ single oracle value. A faithful port is possible by feeding `rand15` from a
 rand->price end-to-end still need confirmation against a *scripted sell* with a
 known seed (OT-006). **Not implemented / not guessed** (Rule #1). Buy-side
 `[0xaf52]:0x4616==1` is a buy-only "fixed price" flag (absent from the sell path).
+
+### Clock primitive (P-4 recon, 2026-11-24)
+
+The game clock phase is the dword at save offset `0x9b6` (low `+0x9b6`, high
+`+0x9b8`), mirrored to global `[0x3b0c:0x3b0e]` (es segment `[0xb072]`). The time
+routine (image `0x25BE2..0x25C24`) **advances it by 1 phase per step** and wraps
+it to 0 once it exceeds 7:
+```
+add word [0x3b0c],1 ; adc word [0x3b0e],0
+if high!=0 || low>7 -> { low=high=0 }     ; so the phase is 0..7 (8 phases,
+                                           ; Midnight..Evening, table ds:0x0f04)
+```
+Right after the increment the same routine iterates the six party slots
+(`0x19a*i`) doing per-step updates (`char[+0x57]=4`, `char[+0x22] += <per-member
+amount>[i]`) — i.e. per-time-step regeneration. The **rest** advance count and
+this per-step regen are the P-4 clock model, still to be pinned (how many steps a
+rest/wait adds). This is the hard P-4 item (AGENTS.md flags it) — delegated to
+M-6 as a research decode (see the parallel note in the reply). The port does NOT
+yet advance the clock on rest (`rest_party` handles cost/HP/rations/magic only).
