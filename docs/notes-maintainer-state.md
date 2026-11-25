@@ -2774,3 +2774,37 @@ seed 1, add even / xor odd, NUL->1 over `[0,0x2e3a)`), load with `O`+slot, press
 STILL TO DO: decode the "cannot at the moment" gate + the spell-list picker +
 the slot write + the cost, then implement `learn_magic()` + a port test (the
 in-town learn screen is now a reachable oracle).
+
+
+## Learn-magic — FULLY decoded via the emulator (2026-11-25)
+
+Reached the House-of-Trades learn screen (see the earlier note) and traced the
+whole routine.  **No per-spell picker** — the guild teaches *all* available
+spells for one fee.
+
+Flow (image offsets):
+- House `0x873c` dispatches: `T`(0x54)->mode 0 (training), `L`(0x4c)->mode 1
+  (learn magic), `A`(0x41)->mode 2 (language) -> shared `0x8894` (pick char;
+  `+0x10`==-1 gate, which all normal chars already satisfy) -> learn routine
+  `0x89da(mode, charidx)`.
+- **Gate 1** (`0x8C7D`): passes if `prof(+0x1b)==3||4` **or** the inventory
+  holds item `0x28` (40).  Else prints the first "cannot" message (0x4d15..).
+- **Gate 2** (`0x8D3A`): `char[+0x6a] >= spell_capacity(char)` -> the *observed*
+  **"cannot, at the moment learn new spells"** (strings 0x4d52/0x4d6d/0x4d7d).
+  So **`+0x6a` = learned-spell count**, capacity = `spell_capacity()` (level-based).
+- `N = capacity - +0x6a`; **cost = N * [0xaf56:0x381e]** (the per-spell price,
+  measured **15**).  Prompt: **"The Wise demand for N new spells C$, who'll pay
+  (1-6)?"**.  Paying with a member short of gold prints **"You haven't enough
+  money on you to pay our demanded sum."**
+- On payment: **"The Wise of The Grand Board of Trades teach <name> the extra
+  spells that she makes note of ..."** then **"Concentration improves!"**.  It
+  learns all `N` at once (no picker).
+
+Emulator evidence: Joanna (HEALER prof10, item 40 in bag, `+0x6a` set to 0,
+1000g): "The Wise demand for 4 new spells 60$. Who'll pay (1-6)?" (4*15=60)
+-> pay -> "teach Joanna the extra spells ... Concentration improves!".
+
+STILL TO IMPLEMENT (`learn_magic()`): the write of the N spells into the
+learned-spellbook array + `+0x6a += N`, and the `spell_capacity()` formula.
+NB the 4-slot array at `+0x142` is the *memorised/castable* set, NOT the learned
+count (`+0x6a`); clearing `+0x142` did not lift gate 2, clearing `+0x6a` did.
