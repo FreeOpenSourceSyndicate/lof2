@@ -1246,6 +1246,16 @@ int rest_cost(const SaveGame& g, bool with_rations);
 bool pay_gold(SaveChar& c, int cost);
 void rest_party(SaveGame& g, bool with_rations);
 
+// One "time passes" tick on the map (image 0x25BE2..0x25D30): advance the clock
+// phase by 1, wrapping past 7 back to 0 (0x25C01..0x25C24), then for each present
+// member set the timer byte +0x57 = 4 and regenerate magic: if MP_max(+0x68)!=0
+// and MP_cur(+0x69) < MP_max, MP_cur += max(1, MP_max>>3), clamped.  HP is NOT
+// changed by the plain tick (the HP-regen array is always zero in this path); the
+// full HP/MP restore is the inn rest (`rest_party`).  `g.time_of_day` is kept in
+// sync with the clock dword at save offset 0x9b6.  NOTE: how many ticks a step or
+// a rest performs is not yet pinned (docs/notes-clock.md §4) — this is one tick.
+void world_tick(SaveGame& g);
+
 // --- Temple (H)eal (image 0x9f88..0xab6a) ----------------------------------
 // The price for healing a wounded character (type-1 path, 0x9fde..0xa53c):
 //   max(1, (hp_max(+0x20) - hp_cur(+0x22)) * level(+0x17) / 2)  when wounded,

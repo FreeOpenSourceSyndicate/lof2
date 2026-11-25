@@ -468,6 +468,35 @@ void rest_party(SaveGame& g, bool with_rations) {
     }
 }
 
+void world_tick(SaveGame& g) {
+    // Clock: advance the phase dword (save 0x9b6 == g.world[0x16]) by 1, wrap
+    // past 7 back to 0 (image 0x25C01..0x25C24).
+    const int idx = (int)kSaveTimeOfDay - (int)kSaveCharsEnd;   // 0x9b6 - 0x9a0
+    uint32_t phase = 0;
+    bool have_world = idx >= 0 && (size_t)(idx + 4) <= g.world.size();
+    if (have_world) phase = rd32(g.world.data(), idx);
+    else if (g.time_of_day >= 0) phase = (uint32_t)g.time_of_day;
+    phase += 1;
+    if (phase > 7) phase = 0;
+    if (have_world) wr32(g.world.data(), idx, phase);
+    g.time_of_day = (int)phase;
+
+    // Per-member regen (image 0x25C34..0x25D30): timer +0x57 = 4, magic only —
+    // HP is untouched (the HP-regen array is always zero in this path).
+    for (SaveChar& c : g.chars) {
+        if (c.raw[0] == 0) continue;
+        uint8_t* r = c.raw.data();
+        r[0x57] = 4;
+        if (r[kCharMagMax68] != 0 && r[kCharMagCur69] < r[kCharMagMax68]) {
+            int gain = r[kCharMagMax68] >> 3;
+            if (gain < 1) gain = 1;
+            int cur = r[kCharMagCur69] + gain;
+            if (cur > r[kCharMagMax68]) cur = r[kCharMagMax68];
+            r[kCharMagCur69] = (uint8_t)cur;
+        }
+    }
+}
+
 int temple_heal_cost(const SaveChar& c) {
     const uint8_t* r = c.raw.data();
     int missing = rd16(r, kCharHpMax20) - rd16(r, kCharHpCur22);

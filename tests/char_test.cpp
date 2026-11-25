@@ -1292,6 +1292,52 @@ static void test_combine_item() {
     assert(d.raw[kCharInv82 + e*4] == 94);
 }
 
+static void test_world_tick() {
+    // world_tick: clock phase +1 wrap >7->0 (0x25C01), timer +0x57=4, MP regen
+    // max(1,MPmax>>3) clamped, HP unchanged (docs/notes-clock.md).
+    SaveGame g;
+    g.world.assign(kSaveChecksum - kSaveCharsEnd, 0);
+    const int idx = (int)kSaveTimeOfDay - (int)kSaveCharsEnd;   // clock word index
+    g.world[idx] = 6;
+    g.time_of_day = 6;
+    SaveChar c{};
+    c.raw[0] = 1;                       // present
+    c.raw[kCharMagMax68] = 24;          // MP max
+    c.raw[kCharMagCur69] = 0;           // MP cur
+    c.raw[kCharHpMax20] = 20; c.raw[kCharHpMax20 + 1] = 0;
+    c.raw[kCharHpCur22] = 5; c.raw[kCharHpCur22 + 1] = 0;
+    g.chars.push_back(c);
+
+    // Tick 1: 6 -> 7; MP 0 -> max(1,24>>3=3) = 3; HP untouched; timer = 4.
+    world_tick(g);
+    assert(g.time_of_day == 7);
+    assert(g.world[idx] == 7);
+    assert(g.chars[0].raw[kCharMagCur69] == 3);
+    assert((g.chars[0].raw[kCharHpCur22] | (g.chars[0].raw[kCharHpCur22 + 1] << 8)) == 5);
+    assert(g.chars[0].raw[0x57] == 4);
+
+    // Tick 2: 7 -> 0 (wrap); MP 3 -> 6.
+    world_tick(g);
+    assert(g.time_of_day == 0);
+    assert(g.world[idx] == 0);
+    assert(g.chars[0].raw[kCharMagCur69] == 6);
+
+    // MP regen clamps at max: push cur near max and tick.
+    g.chars[0].raw[kCharMagCur69] = 22;
+    world_tick(g);
+    assert(g.chars[0].raw[kCharMagCur69] == 24);
+
+    // MP max 0 -> no regen at all.
+    g.chars[0].raw[kCharMagMax68] = 0;
+    g.chars[0].raw[kCharMagCur69] = 5;
+    world_tick(g);
+    assert(g.chars[0].raw[kCharMagCur69] == 5);
+
+    // build_save() persists the advanced clock (world covers save offset 0x9b6).
+    std::vector<uint8_t> bytes = build_save(g);
+    assert(bytes[kSaveTimeOfDay] == g.world[idx]);
+}
+
 static void test_remove_sell() {
     // remove_item: shift later 4-byte slots down, clear last, inv_count-- (image
     // 0x212f:0x7b6e).  sell_item: gold dword += price then remove (0x611A).
@@ -1922,6 +1968,7 @@ int main(int argc, char** argv) {
     synthetic_rost_checksum();
     test_give_item();
     test_remove_sell();
+    test_world_tick();
     test_combine_item();
     test_rest_effect();
     test_temple_heal();

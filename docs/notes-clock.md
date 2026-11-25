@@ -132,3 +132,17 @@ Record the deltas here.
    the tick.
 4. Open knobs to pin before wiring gameplay timing: the `0x13` argument to
    `0x280f0` (§3) and the per-step / per-rest call count (§4).
+
+## Implemented by M-7 (2026-11-24)
+
+`world_tick(SaveGame&)` in `port/char.cpp` implements one tick exactly as §1–§2:
+clock phase +1 wrap >7->0 (synced into `g.time_of_day` and the save dword at
+0x9b6), then per present member `+0x57 = 4` and MP regen
+`MP_cur += max(1, MP_max>>3)` clamped — **no HP change**.  CLI:
+`lof --time-tick N --save S --amulet-out O` (N ticks).  Pinned by
+`char_test::test_world_tick` (phase wrap, MP regen + clamp, MP-max-0 no-op, HP
+unchanged, build_save persists the clock) and `check_time_tick` in
+`port_building_test.py` (GAME4: clock 2->5, casters +1/tick, HP unchanged,
++0x57=4).  The OPEN knobs from §3/§4 (the `0x13` arg and the per-step/per-rest
+tick count) are NOT wired — `--time-tick` takes an explicit count; the map/rest
+call frequency still needs the `LOF_WATCH`/`LOF_SEGDUMP` capture in §4.

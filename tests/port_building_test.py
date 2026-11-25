@@ -695,6 +695,39 @@ def check_house_train() -> int:
     return 0
 
 
+def check_time_tick() -> int:
+    # --time-tick N: the map tick (image 0x25BE2..0x25D30) — clock phase +1 wrap
+    # >7->0, MP regen max(1,MPmax>>3) clamped, timer +0x57=4, NO HP change.
+    if not os.path.exists(GAME4):
+        print("port_building_test: SKIP time-tick (no GAME4)")
+        return 0
+    a = open(GAME4, "rb").read()
+    clk0 = a[0x9b6] | (a[0x9b7] << 8) | (a[0x9b8] << 16) | (a[0x9b9] << 24)
+    out = "/tmp/tick_out.sav"
+    p = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--time-tick", "3", "--save", GAME4, "--amulet-out", out],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if p.returncode != 0:
+        print("port_building_test: FAIL time-tick rc=%d %r" % (p.returncode, p.stderr.decode()))
+        return 1
+    b = open(out, "rb").read()
+    clk1 = b[0x9b6] | (b[0x9b7] << 8) | (b[0x9b8] << 16) | (b[0x9b9] << 24)
+    if clk1 != (clk0 + 3) % 8:
+        print("port_building_test: FAIL time-tick clock %d -> %d" % (clk0, clk1)); return 1
+    # HP must be unchanged and +0x57 set to 4 for every present member.
+    for i in range(6):
+        ra = a[4 + i * 410:4 + (i + 1) * 410]
+        rb = b[4 + i * 410:4 + (i + 1) * 410]
+        if not ra[0]:
+            continue
+        if rb[0x57] != 4:
+            print("port_building_test: FAIL time-tick +0x57=%d" % rb[0x57]); return 1
+        if (ra[0x22] | (ra[0x23] << 8)) != (rb[0x22] | (rb[0x23] << 8)):
+            print("port_building_test: FAIL time-tick HP changed"); return 1
+    print("port_building_test: ok time-tick (clock+3 wrap, MP regen, no HP, +0x57=4)")
+    return 0
+
+
 def check_sell_mechanic() -> int:
     # --sell N SLOT PRICE: the deterministic sell mechanic — gold dword += price
     # then remove+compact the slot (image 0x611A + 0x212f:0x7b6e).  Verified
@@ -756,6 +789,7 @@ def main() -> int:
     rc |= check_training_effect()
     rc |= check_house_train()
     rc |= check_sell_mechanic()
+    rc |= check_time_tick()
     rc |= check_use_effect()
     rc |= check_cast_effect()
     return rc

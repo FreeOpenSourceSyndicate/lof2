@@ -1955,6 +1955,7 @@ int main(int argc, char** argv) {
     int sell_do = 0;               // 1-based char for --sell
     int sell_slot = 0;             // 0-based inventory slot to sell
     int sell_price = 0;            // gold the item sells for
+    int time_tick_n = 0;           // number of map ticks for --time-tick
     int repair_do = 0;              // 1-based char for --repair
     int repair_slot = 0;            // 0-based inventory slot to repair
     int repair_payer = -1;          // 1-based payer for --repair-payer (-1 = owner)
@@ -2035,6 +2036,9 @@ int main(int argc, char** argv) {
             sell_do = atoi(argv[++i]);
             sell_slot = atoi(argv[++i]);
             sell_price = atoi(argv[++i]);
+        }
+        else if (std::string(argv[i]) == "--time-tick" && i + 1 < argc) {
+            time_tick_n = atoi(argv[++i]);
         }
         else if (std::string(argv[i]) == "--repair" && i + 2 < argc) {
             repair_do = atoi(argv[++i]);
@@ -2431,6 +2435,21 @@ int main(int argc, char** argv) {
                house_train_do, tr.level.new_level, tr.gold_cost);
         for (auto& s : tr.level.improved) printf(" %s", s.c_str());
         printf("\n");
+        return 0;
+    }
+    if (time_tick_n > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --time-tick needs a valid --save\n"); return 1; }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: --time-tick needs --amulet-out\n"); return 1; }
+        for (int i = 0; i < time_tick_n; ++i) world_tick(sg);
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        printf("lof: advanced %d tick(s), time of day now %d\n",
+               time_tick_n, sg.time_of_day);
         return 0;
     }
     if (sell_do > 0) {
