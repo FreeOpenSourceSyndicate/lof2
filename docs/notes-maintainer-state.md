@@ -2523,3 +2523,16 @@ this per-step regen are the P-4 clock model, still to be pinned (how many steps 
 rest/wait adds). This is the hard P-4 item (AGENTS.md flags it) — delegated to
 M-6 as a research decode (see the parallel note in the reply). The port does NOT
 yet advance the clock on rest (`rest_party` handles cost/HP/rations/magic only).
+
+### Effect 19 (scrolls/maps) — resolved as map-file I/O (not a spell), 2026-11-24
+
+The use-dispatch handler for effect 19 (image `0xEB32`) pushes the party-location
+dword (`[0xafa2]:0x37fe/0x3800`) and `2`, then `lcall 0x1cfe:0x7e2`. That routine
+(image `0x1D7C2`, i.e. `0x1cfe*16+0x7e2`) formats a path from the location
+(`0x1bde` sprintf, strings at `ds:0x7d83/0x7d8e`), then `x<<2` and file I/O
+(`0x18d:0x2d74` open, `0x18d:0x2cd0` read/write). In other words effect 19 is the
+**exploration-map persistence** routine (save/load the explored-map bitmap for the
+party's location), NOT a castable spell. The port does not persist exploration
+bitmaps the same way, so effect 19 cannot be ported as a spell effect and stays a
+documented no-op (Rule #1 — not guessed). This closes the P-6 "effect 19" question:
+it is map I/O, not unimplemented spell logic.
