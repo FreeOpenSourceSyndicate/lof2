@@ -1339,6 +1339,20 @@ std::vector<SpellSlot> spell_slots(const SaveChar& c);
 // spell (+0x142+2n = 0) when they reach 0 (image 0x12A1E).
 void consume_spell_slot(SaveChar& c, int slot);
 
+// The rest-memorisation pass (image 0x841E..0x8487): for each of the character's
+// +0x6a spell slots `s`, the slot's remaining casts (+0x143+2s) is reset to
+// spell data byte 9 of `spell index = school_base(school) + s`, where the school
+// comes from the profession via `spell_school(prof)`.  `spell_school` maps the
+// profession byte (+0x1b) through the engine's 12-entry table (image 0x2a6a6):
+//   {0,1,2,4,9,11} and >=12 -> -1 (no magic); 3 -> 5; 5 -> 3; 6 -> 2;
+//   7 -> 0; 8 -> 1; 10 -> 4.
+// The school base (first spell index per school, from the captured runtime
+// table [0xaf62]:0xc0e) is {1, 33, 59, 80, 100, 118, 127} for schools 0..6.
+// Verified against every shipped caster: e.g. Lara prof 5 (school 3, base 80)
+// holds spells 80..83 with casts {10,8,8,7} == their data[9].
+int spell_school(uint8_t profession);
+void refresh_spell_casts(SaveChar& c);
+
 // The level-up routine (image 0x9144..0x96E6): level (+0x17) += 1, HP (current
 // +0x22 and max +0x20) += hp_gain (the engine's rand(10)+1), the four capped-100
 // fields +0x30/+0x32/+0x34/+0x36 += 1, and Strength/Dexterity/Wisdom

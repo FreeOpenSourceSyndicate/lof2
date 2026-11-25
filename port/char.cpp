@@ -430,6 +430,9 @@ void rest_party(SaveGame& g, bool with_rations) {
             if (cur > r[kCharMagMax68]) cur = r[kCharMagMax68];
             r[kCharMagCur69] = (uint8_t)cur;
         }
+        // Spell memorisation (image 0x841E..0x8487): restore every spell slot's
+        // cast count from the spell's data byte 9.
+        refresh_spell_casts(c);
     }
 }
 
@@ -605,6 +608,30 @@ void consume_spell_slot(SaveChar& c, int slot) {
     if (c.raw[lo] == 0) return;             // empty slot: nothing to consume
     if (c.raw[lo + 1] > 0) c.raw[lo + 1]--;  // dec remaining casts
     if (c.raw[lo + 1] == 0) c.raw[lo] = 0;   // forgotten when exhausted
+}
+
+int spell_school(uint8_t profession) {
+    switch (profession) {
+    case 3:  return 5;
+    case 5:  return 3;
+    case 6:  return 2;
+    case 7:  return 0;
+    case 8:  return 1;
+    case 10: return 4;
+    default: return -1;   // warrior/other: no magic (prof > 11 also lands here)
+    }
+}
+
+void refresh_spell_casts(SaveChar& c) {
+    static const uint8_t kBase[7] = {1, 33, 59, 80, 100, 118, 127};
+    uint8_t* r = c.raw.data();
+    int school = spell_school(r[kCharProf1b]);
+    if (school < 0) return;
+    int n = r[kCharFlag6a];   // +0x6a: number of spell slots
+    for (int s = 0; s < n && s < 4; s++) {
+        const SpellRecord* sp = spell_by_index(kBase[school] + s);
+        if (sp) r[kCharSkill142 + 2 * s + 1] = sp->data[9];
+    }
 }
 
 LevelUpResult level_up(SaveChar& c, int hp_gain) {

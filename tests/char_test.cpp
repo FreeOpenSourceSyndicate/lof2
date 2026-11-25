@@ -1716,6 +1716,36 @@ static void test_consume_spell_slot() {
     assert(c.raw[kCharSkill142 + 0] == 0);
 }
 
+static void test_spell_memorisation() {
+    // Rest refreshes each spell slot's casts (+0x143+2s) to spell data[9], with
+    // the spell index = school_base(spell_school(prof)) + s (image 0x841E..0x8487).
+    // spell_school (image 0x2a6a6): prof 5 -> school 3 (base 80), 7 -> 0 (base 1).
+    assert(spell_school(5) == 3);
+    assert(spell_school(7) == 0);
+    assert(spell_school(10) == 4);
+    assert(spell_school(0) == -1 && spell_school(12) == -1);
+    // Lara-like: prof 5, four slots 80..83 with casts drained to 0.
+    SaveChar c{};
+    c.raw[kCharProf1b] = 5;
+    c.raw[kCharFlag6a] = 4;                 // four spell slots
+    for (int s = 0; s < 4; s++) {
+        c.raw[kCharSkill142 + 2 * s] = (uint8_t)(80 + s);
+        c.raw[kCharSkill142 + 2 * s + 1] = 0;
+    }
+    refresh_spell_casts(c);
+    assert(c.raw[kCharSkill142 + 1] == 10);  // spell 80 data[9]
+    assert(c.raw[kCharSkill142 + 3] == 8);   // spell 81
+    assert(c.raw[kCharSkill142 + 5] == 8);   // spell 82
+    assert(c.raw[kCharSkill142 + 7] == 7);   // spell 83
+    // A non-caster is untouched.
+    SaveChar n{};
+    n.raw[kCharProf1b] = 0;
+    n.raw[kCharFlag6a] = 0;
+    n.raw[kCharSkill142 + 1] = 3;
+    refresh_spell_casts(n);
+    assert(n.raw[kCharSkill142 + 1] == 3);
+}
+
 static void test_level_up() {
     // Level-up (image 0x9144..0x96E6): level++, HP cur/max += gain, and the
     // four capped-100 skill-value bytes (+0x30/32/34/36).  It does NOT touch the
@@ -1764,6 +1794,7 @@ int main(int argc, char** argv) {
     test_apply_spell_effect();
     test_spell_slots();
     test_consume_spell_slot();
+    test_spell_memorisation();
     test_level_up();
     test_training_cost();
     synthetic_rost_load();

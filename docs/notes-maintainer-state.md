@@ -2354,3 +2354,27 @@ school id: `{0,1,2,4,9,11} -> -1` (no magic), `3 -> 5`, `5 -> 3`, `6 -> 2`,
 `7 -> 0`, `8 -> 1`, `10 -> 4` (elemental schools).  The **school base table
 `[0xaf62]:0xc0e` is runtime data** not in the file image, so memorisation stays
 unimplemented until a `LOF_SEGDUMP` supplies it.
+
+### Runtime data-table capture (2026-11-24)
+
+`./lof-native --dir game --headless --frames 300 --shot /dev/null` with
+`LOF_DUMP=/tmp/lof_mem.bin LOF_DEBUG=1` dumps the full 1 MB linear space and
+prints the segment registers.  At the menu the game's `ds = 0x4c92`
+(base `0x4c920`), so `ds:X` = `0x4c920 + X`.  The far-pointer variables hold
+`[0xaf4a]=0x468e` (the arena) and `[0xaf5e/0xaf62/0xaf64/0xaf68]=0x4c92` (their
+tables live in DGROUP itself).  Reading them:
+- **profession base table** `[0xaf68]:0xb7a` = 12 words
+  `2000,2000,1500,1500,2000,2250,2250,2250,2250,2000,1500,1500` — **identical to
+  `training_cost()`** (so the temple XP boost reuses the training-fee table).
+- **spell school-base table** `[0xaf62]:0xc0e` = bytes (stride 2)
+  `{1,33,59,80,100,118,127}` for schools 0..6.
+- **spell table** `[0xaf64]:0x2712`-relative (36-byte records, `data[9]` = casts);
+  **item table** `[0xaf5e]:0xfbc`-relative (32-byte records).
+
+The **spell-memorisation pass** is now implemented (`refresh_spell_casts`,
+`port/char.cpp`; called by `rest_party`).  It is confirmed for every caster,
+e.g. GAME4 Lara prof 5 -> school 3 (base 80) holds slots 80/81/82/83 with casts
+10/8/8/7 == their `data[9]`; Laladil prof 6 -> school 2 (base 59) holds 59/60
+(8/6); Joanna prof 10 -> school 4 (base 100) holds 100..103; Gandalf prof 7 ->
+school 0 (base 1) holds 1..4.  Note +0x6a (the port's `kCharFlag6a`) is, for
+casters, the **spell-slot count** the loop bounds on (Lara 4, Laladil 2).
