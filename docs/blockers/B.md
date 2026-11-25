@@ -20,6 +20,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
 | BLK-B003 | B (characters/items) | Agent B | Medium | Resolved | — |
 | BLK-B004 | B (characters/items) | Maintainer | Medium | **Resolved (2026-11-18)**: dispatcher+state+printer grounded; **column meanings derived from the decompilation** — W = weapon damaged, P = shield/armour damaged, B = ability improved, Attack = Passed/Failed. Owner play corroborated `P`; OT-003 (optional W/B corroboration) closed as not-needed | — |
 | BLK-B005 | B (characters/items) | Agent B | Medium | Resolved | — |
+| BLK-B006 | B (characters/items) | Maintainer | Low | **Open** (2026-11-24): Emporium sell/repair price partially decoded (image `0x5938`/`0x5C24`), blocked on the 3 runtime math helpers `0x2f0e:{0x1efe,0x1e62,0x2f6a}`; do not guess the price — sell/repair left unimplemented | — |
 
 ---
 
@@ -330,3 +331,46 @@ than implemented by lane M. Requested:
    record (and expose the `0x0C` byte if the tamper marker should be surfaced).
 3. Add a `tests/char_test.cpp` case against the committed fixtures
    `ref/rost/ROST1.cheat`, `ref/rost/ROST2.banked` and `game/ROST/ROST`.
+
+---
+
+## BLK-B006 — Emporium (S)ell / (R)epair price formula (blocked on 3 runtime helpers)
+
+- **Blocked lane:** B (characters/items)
+- **Responsible:** Maintainer
+- **Priority:** Low
+- **Status:** Open — partial decode (2026-11-24); blocked on runtime math helpers
+- **Dependencies:** —
+
+**What.** The Emporium `(S)ell` / `(R)epair` handler is image `0x5938` (strings
+`0x3f13` "Who wants to sell wares (1-6)?" / `0x3f34` "Whose wares should be
+repaired (1-6)?").  The `[bp+6]` argument selects sell (`== 0`, branch `0x5C24`)
+vs repair (`!= 0`, branch `0x6172`).  The **buy** path is already implemented
+(full price, `buy_item()`); only sell/repair prices are missing.
+
+**Sell-price structure decoded (image `0x5C24`..`0x5D30`).** For the chosen
+character's item slot (`[bp-0x2a]`, `char_index*0x19a` base in `[0xaf4a]`):
+
+```
+price   = item[+0x12]                         ; record+0x12, the price field
+cond    = char[si+0x85]                        ; the item slot's condition byte
+; call A = 0x2f0e:0x1efe(price, cond)  then  0x2f0e:0x1e62(...)
+base    = A - price/25 ; if base < 1: base = 1 ; 0x5C86 `div si`(si=0x19)
+bonus   = (price/100) * (char[+0x25] + 1)       ; 0x2f0e:0x2f6a + `div 0x64` + `mul cx`
+final   = base + bonus                          ; 0x5D16 add [bp-0x16]
+```
+
+The condition byte `+0x85` and `char[+0x25]` (a Charisma-like stat) feed the
+price, matching the "condition/Charisma scaling" note in `docs/notes-b.md`.
+
+**Blocker.** The three far helpers `0x2f0e:0x1efe`, `0x2f0e:0x1e62` and
+`0x2f0e:0x2f6a` are not decoded.  Segment `0x2f0e` is the runtime math library;
+the far `segment:offset` → flat-image mapping is **not** constant (the same
+caveat that blocks the string tables, see P-7), so these cannot be read from the
+flat image without a runtime segment dump.  `0x1efe` also appears in the temple
+experience boost (`0xA983`), so decoding it unblocks both.
+
+**To settle it.** `LOF_SEGDUMP` the `0x2f0e` segment at the sell point, or
+identify the helpers as the MS-C large-model long-multiply/divide primitives
+(`__aFulmul`/`__aFldiv`) and reproduce their integer semantics.  Do **not**
+guess the sell price; the current port leaves sell/repair unimplemented.
