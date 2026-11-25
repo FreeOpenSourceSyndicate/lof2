@@ -1386,6 +1386,13 @@ struct LevelUpResult {
     int new_level = 0;
     std::vector<std::string> improved;  // fields that actually rose
 };
+// Recompute derived stats at the character's current level: magic max (+0x68)
+// from the profession x level table plus the Wisdom/Intelligence bonuses
+// (image 0x96F7..0x9901), magic cur, weight max (+0x64), base Con (+0x60),
+// and the speed/base-stat nudges.  Called by level_up(); also callable on
+// its own to verify the absolute fields against a saved character.
+void recompute_derived_stats(SaveChar& c);
+
 LevelUpResult level_up(SaveChar& c, int hp_gain);
 
 // The House-of-Trades training fee for a profession index (0..11).  Measured

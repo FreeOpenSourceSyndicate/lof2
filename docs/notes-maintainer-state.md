@@ -2568,3 +2568,30 @@ for memorisation). The 12 per-profession branches live at the jump-table targets
 (choose which of the school's spells to add, consume cost, fill slot
 `+0x142+2*[+0x6a]`, bump `+0x6a`), and `SCHOOL_BASE` + the 12 branch factors need
 decode/runtime capture. The gate + capacity formula above are the derived spine.
+
+## GAME3 high-level fixture validates the derived-stat recompute (2026-11-25)
+
+Owner upload GAME3 -> `saves/dng01-Joanna-f969c0ed.sav` ("Monastery of Sagacita"
+entrance, DNG01; GAME1 `dng11` is one level deeper).  Party lead Joanna; **two
+high-level casters**: Joanna (prof 10, lvl 12) and Skol (prof 5, lvl 11).  Their
+XP is large-negative (owner's negative-XP levelling quirk) — harmless for the
+stat fields.
+
+Validation of `recompute_derived_stats()` (image `0x96F7..0x9901`) against GAME3:
+* **Joanna lvl12 magic max 18**, **Skol lvl11 magic max 14**, **Elzndra lvl2 5**,
+  weights 4900/5100/3850 — all reproduce exactly (levels 11–12 were previously
+  untested; the old fixtures were ≤ lvl 4).  `char_test::test_recompute_high_level`.
+* The disassembly re-confirms the exact formula, including the **deliberate
+  double application** of the Wisdom/Intelligence bonuses to the magic MAX:
+  `+0x68 = table[prof][lvl]` (`0x9733`), `+1 if Wis>15` (`0x9763`),
+  `+2 if Int>15` (`0x978B`), then `+1 if Wis>15` again (`0x97D9/0x97FC`) and
+  `+{1|2} if Int>15` (2 when Int>18) again (`0x9886`).  So the port was already
+  correct; do not "simplify" the double bonus.
+* **Caveat — level-1 creation values differ from this routine.**  A freshly
+  *created* lvl-1 character has a different magic max than the level-up recompute
+  would give (GAME3 Merlin prof7 lvl1 Int19: stored `+0x68`=3 = creation value,
+  while the level-up recompute yields 5).  The recompute models the LEVEL-UP path
+  only; do not assert it against lvl-1 creation saves.  (Char creation's own
+  magic logic is not yet decoded — if it ever matters, file it.)
+* Factored `recompute_derived_stats(SaveChar&)` out of `level_up()` (behaviour
+  unchanged) so it is testable directly.

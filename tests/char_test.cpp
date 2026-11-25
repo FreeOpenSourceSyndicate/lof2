@@ -1893,6 +1893,32 @@ static void test_level_up() {
     assert(m.raw[kCharSpeed56] == 1);
 }
 
+static void test_recompute_high_level() {
+    // New owner fixture (saves/dng01-Joanna-f969c0ed.sav): a party with level
+    // 11-12 casters, validating the magic-max profession x level table + the
+    // Wisdom/Intelligence bonuses well beyond the earlier level<=4 fixtures.
+    // A single recompute reproduces only the ABSOLUTE fields (magic max +0x68,
+    // weight max +0x64); speed (+0x56) and base stat (+0x1c) are cumulative
+    // per-level nudges, so they are not asserted here.
+    SaveGame g = load_save("saves/dng01-Joanna-f969c0ed.sav");
+    if (g.chars.size() < 6) { printf("char_test: skip recompute_high_level (no fixture)\n"); return; }
+    int checked = 0;
+    for (auto& ch : g.chars) {
+        uint8_t* r = ch.raw.data();
+        if (r[0] == 0) continue;      // empty slot
+        if (r[0x17] < 2) continue;    // level 1 = creation value, not this routine
+        SaveChar t = ch;
+        recompute_derived_stats(t);
+        uint8_t* tr = t.raw.data();
+        uint16_t got_w = tr[kCharWeight64] | (tr[kCharWeight64 + 1] << 8);
+        uint16_t want_w = r[kCharWeight64] | (r[kCharWeight64 + 1] << 8);
+        assert(tr[kCharMagMax68] == r[kCharMagMax68]);  // magic max reproduces
+        assert(got_w == want_w);                        // weight max reproduces
+        checked++;
+    }
+    assert(checked >= 3);  // Joanna (lvl 12), Skol (lvl 11), Elzndra (lvl 2)
+}
+
 static void test_training_cost() {
     // DOSBox-measured House-of-Trades fee by profession (level-independent);
     // see docs/notes-maintainer-state.md.
@@ -1983,6 +2009,7 @@ int main(int argc, char** argv) {
     test_consume_spell_slot();
     test_spell_memorisation();
     test_level_up();
+    test_recompute_high_level();
     test_training_cost();
     test_training_model();
     synthetic_rost_load();
