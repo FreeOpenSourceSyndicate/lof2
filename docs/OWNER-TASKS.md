@@ -53,10 +53,22 @@ Rules for this file:
   derived-but-unverified implementation.
 - **Action now:** none — I will ping when a feature is ready to sample.
 
+### OT-007 — Capture the VOR credits (CRED) page under DOSBox (settles the P-14 palette)
+
+- **Status: open (needs DOSBox, which this agent's sandbox cannot run — no root).**
+- **What:** VOR fades its own 5-table palette and leaves the bright table active
+  (confirmed from the image: tables at `0x55c6..0x55f9`, routine `0xF83`), but
+  AGENTS.md's "menu renders as STOCK in DOSBox" caveat makes it ambiguous whether
+  DOSBox honours that palette literally for the credits. Only a real capture
+  settles it.
+- **Action:** with DOSBox available, run `tools/capture_dosbox.sh` on the VOR
+  credits (press a key after the dragon) → save `ref/oracle/vor_cred.png`. I then
+  compare RGB per index and implement the VOR palette exactly (no guess).
+- **Unblocks:** P-14 (VOR credits/DRAG colours) and the test upgrade to compare RGB.
+
 ## Done
 
 ### OT-004 — What "out of action" means, and what shows the state (ANSWERED, closed)
-
 - **Status: closed — answered from the decompilation; no owner action needed.**
 - **What it means (derived, image `0x18839` / `0x18720`):**
   A party member is "out of action" when its per-character field `+0x49` is
