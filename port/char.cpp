@@ -664,6 +664,51 @@ LevelUpResult level_up(SaveChar& c, int hp_gain) {
             res.improved.push_back(label);
         }
     }
+    // Derived-stat recompute (image 0x96F7..0x9901), which the same routine runs
+    // after the level/HP/skill gains.  Verified to reproduce every shipped
+    // character's magic max (+0x68) and weight max (+0x64):
+    //  - magic max (+0x68) = per-(profession,level) table magic_max[prof][level]
+    //    (only for level < 16), +1 if Wisdom>15, +2 if Intelligence>15 (bonus
+    //    only when the table value is non-zero);
+    //  - magic cur (+0x69) = the magic max, then +1 if Wisdom>15 and +{1|2} if
+    //    Intelligence>15 (2 when Int>18), mirroring the same bonuses onto the max;
+    //  - weight max (+0x64) = Str*350 if Str<=15 else Str*100+3400;
+    //  - base Con (+0x60) = max(+0x60, Con).
+    static const uint8_t kMagicMax[12][16] = {
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},                     // 0
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},                     // 1
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},                     // 2
+        {0,1,2,4,5,6,8,10,11,13,14,15,16,18,19,20},            // 3
+        {0,0,0,0,0,0,1,1,2,2,2,2,2,2,2,2},                     // 4
+        {0,1,2,3,4,5,6,7,9,10,11,12,13,15,16,17},              // 5
+        {0,1,2,3,4,5,6,7,9,10,11,12,13,15,16,17},              // 6
+        {0,1,2,4,5,6,8,10,11,13,14,15,16,18,19,20},            // 7
+        {0,1,2,4,5,6,8,10,11,13,14,15,16,18,19,20},            // 8
+        {0,0,0,1,1,2,2,3,3,4,4,5,5,5,5,5},                     // 9
+        {0,1,2,4,5,6,8,10,11,13,14,15,16,18,19,20},            // 10
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},                     // 11
+    };
+    int prof = r[kCharProf1b], new_level = r[0x17];
+    int wis = r[kCharWis48], intel = r[kCharInt47];
+    if (new_level < 16 && prof < 12) {
+        int mm = kMagicMax[prof][new_level];
+        if (mm != 0) {
+            if (wis > 15) mm += 1;
+            if (intel > 15) mm += 2;
+        }
+        r[kCharMagMax68] = (uint8_t)mm;
+    }
+    r[kCharMagCur69] = r[kCharMagMax68];
+    if (wis > 15 && r[kCharMagMax68] != 0) { r[kCharMagCur69]++; r[kCharMagMax68]++; }
+    int str = r[kCharStr45];
+    int wmax = (str <= 15) ? str * 350 : str * 100 + 3400;
+    wr16(r, kCharWeight64, (uint16_t)wmax);
+    if (intel > 15 && r[kCharMagMax68] != 0) {
+        int b = (intel > 18) ? 2 : 1;
+        r[kCharMagCur69] += (uint8_t)b;
+        r[kCharMagMax68] += (uint8_t)b;
+    }
+    if (r[kCharBaseCon60] < r[kCharCon44]) r[kCharBaseCon60] = r[kCharCon44];
     return res;
 }
 

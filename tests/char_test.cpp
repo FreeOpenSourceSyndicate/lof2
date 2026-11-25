@@ -1766,6 +1766,27 @@ static void test_level_up() {
            c.raw[0x36] == 6);              // +0x32 stays capped at 0x64
     assert(c.raw[0x45] == 18 && c.raw[0x46] == 19 && c.raw[0x48] == 10);
     assert(lr.improved.size() == 3);       // +0x30, +0x34, +0x36 (0x32 capped)
+
+    // Derived-stat recompute (image 0x96F7..0x9901), verified vs every shipped
+    // character's magic max (+0x68) and weight max (+0x64).
+    SaveChar m{};
+    m.raw[kCharProf1b] = 5;                 // wizard: school 3, base 80
+    m.raw[0x17] = 3;                        // -> level 4
+    m.raw[kCharStr45] = 12;
+    m.raw[kCharWis48] = 19;                 // > 15
+    m.raw[kCharInt47] = 12;                 // not > 15
+    m.raw[kCharCon44] = 16;
+    m.raw[kCharBaseCon60] = 10;            // < Con -> raised to 16
+    m.raw[kCharHpMax20] = 30; m.raw[kCharHpCur22] = 30;
+    level_up(m, 5);
+    // magic max: table[prof 5][level 4] = 4, +1 (Wis>15) = 5, then the Wis
+    // bonus adds one more to the max => 6.  magic cur equals it.
+    assert(m.raw[kCharMagMax68] == 6);
+    assert(m.raw[kCharMagCur69] == 6);
+    // weight max = Str 12 (<=15) * 350.
+    assert((m.raw[kCharWeight64] | (m.raw[kCharWeight64 + 1] << 8)) == 4200);
+    // base Con tracks Con.
+    assert(m.raw[kCharBaseCon60] == 16);
 }
 
 static void test_training_cost() {

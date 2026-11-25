@@ -550,6 +550,49 @@ def check_building_party_panel() -> int:
     return 0
 
 
+def check_training_effect() -> int:
+    # --train N HP: level++, HP cur/max += hp, and the derived-stat recompute
+    # (image 0x96F7..0x9901): magic max/cur from the profession x level table
+    # plus the Wisdom/Intelligence bonuses, weight max from Strength, and base
+    # Con = max(+0x60, Con).  GAME4 char 3 (Lara: prof 5, level 3, Wis 19,
+    # Int 12, Str 12) -> level 4, magic max/cur 6, weight max 4200.
+    if not os.path.exists(GAME4):
+        print("port_building_test: SKIP training effect (no GAME4)")
+        return 0
+
+    def rec(b, i):
+        return b[4 + i * 410:4 + (i + 1) * 410]
+
+    a = open(GAME4, "rb").read()
+    r0 = rec(a, 2)   # Lara (0-based index 2 == --train 3)
+    if r0[0x1b] != 5 or r0[0x17] != 3 or r0[0x48] <= 15 or r0[0x47] > 15:
+        print("port_building_test: SKIP training effect (Lara stats differ)")
+        return 0
+    out = "/tmp/port_trained.sav"
+    r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--train", "3", "5", "--save", GAME4,
+                        "--amulet-out", out],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        print("port_building_test: FAIL training effect (%s)"
+              % r.stderr.decode().strip())
+        return 1
+    rb = rec(open(out, "rb").read(), 2)
+    if rb[0x17] != 4:
+        print("port_building_test: FAIL training effect (level %d != 4)" % rb[0x17])
+        return 1
+    if rb[0x68] != 6 or rb[0x69] != 6:
+        print("port_building_test: FAIL training effect (magic %d/%d != 6/6)"
+              % (rb[0x68], rb[0x69]))
+        return 1
+    if (rb[0x64] | (rb[0x65] << 8)) != 4200:
+        print("port_building_test: FAIL training effect (weight max != 4200)")
+        return 1
+    print("port_building_test: ok training effect (Lara -> level 4, magic 6/6, "
+          "weight max 4200)")
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
@@ -561,6 +604,7 @@ def main() -> int:
     rc |= check_joint_deposit_effect()
     rc |= check_buy_effect()
     rc |= check_repair_effect()
+    rc |= check_training_effect()
     rc |= check_use_effect()
     rc |= check_cast_effect()
     return rc

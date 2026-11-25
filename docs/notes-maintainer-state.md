@@ -2378,3 +2378,26 @@ e.g. GAME4 Lara prof 5 -> school 3 (base 80) holds slots 80/81/82/83 with casts
 (8/6); Joanna prof 10 -> school 4 (base 100) holds 100..103; Gandalf prof 7 ->
 school 0 (base 1) holds 1..4.  Note +0x6a (the port's `kCharFlag6a`) is, for
 casters, the **spell-slot count** the loop bounds on (Lara 4, Laladil 2).
+
+### Level-up derived-stat recompute (2026-11-24)
+
+The level-up function does NOT stop at the skill bytes; it continues (image
+`0x96F7..0x9901`, same function, no retf in between) with a derived-stat
+recompute, now implemented in `level_up()` (`port/char.cpp`):
+- **magic max (+0x68)** = `magicMax[prof][level]` (captured runtime table
+  `[0xaf70]:0xa38`, 12 professions x 16 levels) for level<16; then +1 if
+  Wisdom(+0x48)>15 and +2 if Intelligence(+0x47)>15 (only when the table value
+  is nonzero).  Rows: prof 0/1/2/11 = all 0; prof 3/7/8/10 identical
+  `0,1,2,4,5,6,8,10,11,13,14,15,16,18,19,20`; prof 5/6 `0,1,2,3,4,5,6,7,9,10,
+  11,12,13,15,16,17`; prof 4 `0,0,0,0,0,0,1,1,2,2,2,2,2,2,2,2`; prof 9
+  `0,0,0,1,1,2,2,3,3,4,4,5,5,5,5,5`.
+- **magic cur (+0x69)** = the magic max, plus the same Wis/Int bonuses.
+- **weight max (+0x64)** = `Str*350` if Str<=15 else `Str*100+3400`.
+- **base Con (+0x60)** = `max(+0x60, Con(+0x44))` (this is the divisor in the
+  revive XP boost).
+
+Verified to reproduce every shipped character's +0x68 and +0x64 exactly (all six
+GAME4 chars).  The routine also nudges speed (+0x56) and the base stat (+0x1c)
+under conditions not yet fully decoded (image `0x9920..0x99E0`: a table lookup
+`[0xaf72]:0xc00` + `div`, and a `+0x1c -= 0xa` branch) — those are left
+untouched (still open); they do not affect magic/weight.
