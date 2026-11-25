@@ -64,3 +64,42 @@ expected 320x200) and produced no `[3C0]` attribute-write trace, so the
 programmed palette could not be read directly from the emulator. A DOSBox
 capture (step 1) is the reliable way to pin the exact colours before writing
 code — no value should be guessed.
+
+## M-7 update 2026-11-24 — tables located; the routine decoded
+
+The five tables ARE in the unpacked VOR image, but **not** at linear 0x19EFF (that
+was a coincidental dump structure — M-6's byte pattern is not present in the
+image).  The real offsets (unpacked image, located by searching for the bright
+T4 byte pattern and checking the 0x11 stride):
+
+```
+T1 @image 0x55c6  00 00 10 10 00 10 00 10 00 01 02 01 04 05 06 10 00
+T2 @image 0x55d7  00 10 02 03 10 05 10 07 00 03 03 11 06 05 06 07 00
+T3 @image 0x55e8  00 10 02 03 04 05 06 07 10 03 12 03 06 15 14 07 00
+T4 @image 0x55f9  00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17 00  <- bright
+```
+(T0 is the all-black table; the fade routine starts at `ds:0x4834` = T0 which is a
+zero region, then `+0x11` to T1..T4.  So image `0x55c6` = T1, i.e. `ds:0x4845`.)
+
+The palette routine is **image `0xF83`** (`analysis/vor.asm` line 1507):
+```
+0xF83  lea si,[0x4834]        ; T0
+0xF87  mov cx,5               ; five tables
+0xF8A  mov ah,0x10; mov al,2  ; INT 10h AH=10h AL=02h, ES:DX = ds:si
+0xF8E  push ds; pop es; mov dx,si; int 0x10
+0xF94  [6x lcall 0x1039:0x1c0 — delay]
+0xFB4  add si,0x11; loop      ; next table
+```
+So VOR **fades T0->T1->T2->T3->T4 and leaves T4 active** (the last loop
+iteration).  There is no other palette-program in VOR (grep: only this one
+`lea si`/`AH=10h AL=2` block), so both DRAG and CRED render under **T4 =
+`00 01 02 03 04 05 06 07 10 11 12 13 14 15 16 17`**.
+
+**Remaining ambiguity (still needs DOSBox to settle):** AGENTS.md notes the same
+programmed set `00..07 10..17` renders as the STOCK colours in DOSBox for the
+*menu*.  If DOSBox likewise renders T4's attrs (0x10..0x17, and 0x06) as
+stock-equivalent for VOR, then the port's existing STOCK (`kEgaAttr`) is already
+correct and P-14 is a non-issue; if DOSBox honours T4 literally (index 6 = 0x06
+yellow-green, 8..15 = 0x10..0x17), the port needs a VOR-specific T4 palette.
+This dichotomy can only be resolved by capturing the CRED page under DOSBox
+(`tools/capture_dosbox.sh`) and comparing RGB per index — do not guess.
