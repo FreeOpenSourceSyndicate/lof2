@@ -2536,3 +2536,35 @@ party's location), NOT a castable spell. The port does not persist exploration
 bitmaps the same way, so effect 19 cannot be ported as a spell effect and stays a
 documented no-op (Rule #1 — not guessed). This closes the P-6 "effect 19" question:
 it is map I/O, not unimplemented spell logic.
+
+### Learn magic / language — decoded gate + capacity formula (P-7 recon, 2026-11-24)
+
+House shared action `0x89DA` (called for modes: `(T)`=0 handled by its own gate,
+`(L)` magic = mode 1, `(A)` language = mode 2). The **learn-magic gate** (mode 1,
+`0x8C01`): a character may learn magic iff **profession `+0x1b` == 3 or 4**
+(`0x8C33/0x8C37`) **OR carries the spellbook, item `0x28` (=40),** in any inventory
+slot (`0x8C92`; several GAME4 members carry item 40). With neither, it prints the
+"cannot learn" line (`0x4d15/0x4d2c` + name + `0x4d35`).
+
+The learnable count is `spell_capacity(char) - char[+0x6a]` (learned spells). The
+info screen (`0x8DB8`) shows that remainder; the per-spell cost is
+`remainder * [0xaf56]:0x381e` (`0x8E48`).
+
+**`spell_capacity`** = `0x212f:0x93d6` (image `0x2A6C6`): a 12-entry profession
+jump-table (`cs:[bx-0x6b78]`, prof `+0x1b`) sets a school factor `S`
+(`-1` = cannot cast); then at the common end `0x2A790`:
+```
+level = char[+0x17]; if level > 15 level = 15;
+cap = SCHOOL_BASE[S] * level / 15        (signed); if cap == 0 cap = 1;
+return (S == -1) ? 0 : cap;
+```
+`SCHOOL_BASE` is a signed-byte table at `[0xb09e]:0xc0f` (per school factor; needs
+a runtime capture — like the `[0xaf62]:0xc0e` school-base table already captured
+for memorisation). The 12 per-profession branches live at the jump-table targets
+(`0x30a16,0x2fd9f,0x29e2d,0x2a53e,0x2f4c1,0x2f4c1,0x2d3f3,0x2197e,0x2c2b0,
+0x21616,0x264f6,0x238f0`) and must each be read to map prof -> school factor.
+
+**Not implemented** (Rule #1): the full learn flow is an interactive picker
+(choose which of the school's spells to add, consume cost, fill slot
+`+0x142+2*[+0x6a]`, bump `+0x6a`), and `SCHOOL_BASE` + the 12 branch factors need
+decode/runtime capture. The gate + capacity formula above are the derived spine.
