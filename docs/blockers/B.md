@@ -363,14 +363,15 @@ final   = base + bonus                          ; 0x5D16 add [bp-0x16]
 The condition byte `+0x85` and `char[+0x25]` (a Charisma-like stat) feed the
 price, matching the "condition/Charisma scaling" note in `docs/notes-b.md`.
 
-**Blocker.** The three far helpers `0x2f0e:0x1efe`, `0x2f0e:0x1e62` and
-`0x2f0e:0x2f6a` are not decoded.  Segment `0x2f0e` is the runtime math library;
-the far `segment:offset` → flat-image mapping is **not** constant (the same
-caveat that blocks the string tables, see P-7), so these cannot be read from the
-flat image without a runtime segment dump.  `0x1efe` also appears in the temple
-experience boost (`0xA983`), so decoding it unblocks both.
-
-**To settle it.** `LOF_SEGDUMP` the `0x2f0e` segment at the sell point, or
-identify the helpers as the MS-C large-model long-multiply/divide primitives
-(`__aFulmul`/`__aFldiv`) and reproduce their integer semantics.  Do **not**
-guess the sell price; the current port leaves sell/repair unimplemented.
+**Blocker (updated 2026-11-24).**  The far `segment:offset` → flat-image mapping is
+**solved for code**: `flat = stored_seg*16 + off` (see AGENTS.md "CODE-segment
+mapping").  With that, the helpers decode to the MS-C runtime math library:
+`0x2f0e:0x1efe` = 32×32 multiply (low 32), `0x204a` = unsigned 32÷32, `0x1e62` =
+signed 32÷32.  So the sell-price arithmetic is now readable.  What is **not**
+yet pinned: (a) the **haggling randomisation** — `0x2a7d:0x2f6a` (the
+`char[+0x25]` transform) calls the RNG `0x1dec` and then `0x1f32`, i.e. the
+bonus has a random component (Charisma haggling); (b) the identities of
+`char[+0x85]` (item condition) and `char[+0x25]` (a Charisma-like stat) and the
+`0x1f32(rand, stat)` semantics.  Do **not** guess the sell price; sell/repair
+stay unimplemented until those are pinned (needs a live `LOF_SEGDUMP` of the
+party segment plus a DOSBox sell capture to validate the gold delta).
