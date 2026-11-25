@@ -2471,3 +2471,36 @@ cost expression, and the effect write (the `0x8DB8+` magic step and the
 language store). Also needs a save fixture holding a spellbook (item `#0x28`) to
 verify — file as part of OT-005. `0x212f:0x93d6` (the spell-cap function) is a
 useful future decode.
+
+### Emporium SELL price — decoded spine (2026-11-24)
+
+Emporium dispatch (image `0x57D4`): `B`->buy `0x6392`, `S`->`0x5938(0)` (sell),
+`R`->`0x5938(1)` (repair), `G`->joint deposit `0x212f:0x79ba`, `C`->leave.
+`0x5938` is a shared sell/repair menu:
+1. Prompt (`0x3f13/0x3f2c` sell, `0x3f34/0x3f4b` repair), pick character
+   (`0x212f:0x789c`), skip if inventory empty (`+0x6b`).
+2. Show the item list / pick an item (`0x212f:0x547e`); arrows/space to move,
+   `C` to cancel, confirm -> `0x5818`.
+3. **Sell price** (mode 0, image `0x5C24..0x5D4A`), 32-byte item records
+   (`idx<<5`), item price at `+0xfce`:
+   - **condition term** = `(price * condition) / 100 - price/25`, where
+     `condition` = the inventory slot's byte `+0x85` (slot base `+0x82`, so
+     item byte +3). Helpers: `0x1efe` = unsigned 32x32 mul (image `0x30FDE`);
+     `0x1e62` = signed 32/32 divide (image `0x30F42`, div by 100); the trailing
+     `price/25` is `div 0x19`.
+   - **haggle base** = `(price/100) * (haggle+1)` where
+     `haggle = rand15 / charisma` (`char[+0x25]`), via signed divide `0x1f32`
+     (image `0x31012`), and `rand15` is `0x1dec` (image `0x30ECC`) — the **same
+     MS-C LCG as `CombatRng`** (`seed*0x343FD+0x269EC3`, returns
+     `(seed>>16)&0x7FFF`), global seed at `[0xaf06]`.
+   - **final** = haggle base + condition term, then decremented until it is
+     `< price - 10` (the sell can never reach list price), with a floor.
+4. Confirm (`0x5818`, "who gets the gold") -> remove the item, `add` gold to the
+   character.
+
+So the sell price is **inherently random** (charisma-seeded LCG) — there is no
+single oracle value. A faithful port is possible by feeding `rand15` from a
+`CombatRng` seeded by charisma, but the exact cap floor / signedness and the
+rand->price end-to-end still need confirmation against a *scripted sell* with a
+known seed (OT-006). **Not implemented / not guessed** (Rule #1). Buy-side
+`[0xaf52]:0x4616==1` is a buy-only "fixed price" flag (absent from the sell path).
