@@ -1572,6 +1572,27 @@ static void test_joint_deposit() {
     assert(!joint_deposit(h, 0));  // no gold at all
 }
 
+static void test_sell_price() {
+    // Shop sell price (image 0x5C24..0x5CA3): max(1, price*condition/100 -
+    // price/25).  Grounded by the emulator sell screen: Leather armour (price
+    // 15, condition 100%) offers exactly 15 gold.
+    int leather = -1, studded = -1, scale = -1;
+    for (int i = 1; i <= kItemCount; i++) {
+        const ItemRecord* it = item_by_index(i);
+        if (!it) break;
+        if (it->name == "Leather armour") leather = i;
+        else if (it->name == "Studded leather") studded = i;
+        else if (it->name == "Scale mail") scale = i;
+    }
+    assert(leather > 0 && studded > 0 && scale > 0);
+    assert(sell_price(leather, 100) == 15);   // 15 - 15/25(=0)  [emulator-verified]
+    assert(sell_price(studded, 100) == 24);   // 25 - 25/25(=1)
+    assert(sell_price(scale, 100) == 53);     // 55 - 55/25(=2)
+    assert(sell_price(scale, 50) == 25);      // 55*50/100(=27) - 2
+    assert(sell_price(scale, 0) == 1);        // floor to 1
+    assert(sell_price(0, 100) == 0);          // invalid item
+}
+
 static void test_repair() {
     // Emporium repair (image 0x6172): cost = price - (condition*price)/100,
     // magic items (spell != 0) and pristine items (condition >= 100) refused,
@@ -2003,6 +2024,7 @@ int main(int argc, char** argv) {
     test_joint_deposit();
     test_buy_item();
     test_repair();
+    test_sell_price();
     test_use_item();
     test_apply_spell_effect();
     test_spell_slots();

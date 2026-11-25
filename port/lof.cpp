@@ -1954,7 +1954,9 @@ int main(int argc, char** argv) {
     int house_train_hp = 5;         // HP gain roll for --house-train
     int sell_do = 0;               // 1-based char for --sell
     int sell_slot = 0;             // 0-based inventory slot to sell
-    int sell_price = 0;            // gold the item sells for
+    int sell_manual_price = 0;     // gold the item sells for (--sell)
+    int sell_auto_do = 0;          // 1-based char for --sell-auto (computed price)
+    int sell_auto_slot = 0;        // 0-based inventory slot for --sell-auto
     int time_tick_n = 0;           // number of map ticks for --time-tick
     int repair_do = 0;              // 1-based char for --repair
     int repair_slot = 0;            // 0-based inventory slot to repair
@@ -2035,7 +2037,11 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--sell" && i + 3 < argc) {
             sell_do = atoi(argv[++i]);
             sell_slot = atoi(argv[++i]);
-            sell_price = atoi(argv[++i]);
+            sell_manual_price = atoi(argv[++i]);
+        }
+        else if (std::string(argv[i]) == "--sell-auto" && i + 2 < argc) {
+            sell_auto_do = atoi(argv[++i]);
+            sell_auto_slot = atoi(argv[++i]);
         }
         else if (std::string(argv[i]) == "--time-tick" && i + 1 < argc) {
             time_tick_n = atoi(argv[++i]);
@@ -2463,7 +2469,7 @@ int main(int argc, char** argv) {
             return 1;
         }
         if (amulet_out.empty()) { fprintf(stderr, "lof: --sell needs --amulet-out\n"); return 1; }
-        if (!sell_item(sg.chars[sell_do - 1], sell_slot, (uint32_t)sell_price)) {
+        if (!sell_item(sg.chars[sell_do - 1], sell_slot, (uint32_t)sell_manual_price)) {
             fprintf(stderr, "lof: --sell %d slot %d: empty or invalid\n",
                     sell_do, sell_slot);
             return 1;
@@ -2473,7 +2479,48 @@ int main(int argc, char** argv) {
             return 1;
         }
         printf("lof: character %d sold slot %d for %d gold\n",
-               sell_do, sell_slot, sell_price);
+               sell_do, sell_slot, sell_manual_price);
+        return 0;
+    }
+    if (sell_auto_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --sell-auto needs a valid --save\n"); return 1; }
+        if (sell_auto_do - 1 < 0 || sell_auto_do - 1 >= (int)sg.chars.size() ||
+            !sg.chars[sell_auto_do - 1].present) {
+            fprintf(stderr, "lof: --sell-auto %d: no such character\n", sell_auto_do);
+            return 1;
+        }
+        SaveChar& c = sg.chars[sell_auto_do - 1];
+        if (sell_auto_slot < 0 || sell_auto_slot >= (int)kCharInvCount) {
+            fprintf(stderr, "lof: --sell-auto: bad slot %d\n", sell_auto_slot); return 1;
+        }
+        uint8_t* p = &c.raw[kCharInv82 + sell_auto_slot * kCharInvStride];
+        int item = p[0];
+        if (item == 0) {
+            fprintf(stderr, "lof: --sell-auto %d slot %d: empty\n", sell_auto_do, sell_auto_slot);
+            return 1;
+        }
+        int cond = p[3];
+        int price = sell_price(item, cond);
+        uint16_t wmax = (uint16_t)(c.raw[kCharWeight64] | (c.raw[kCharWeight64 + 1] << 8));
+        uint16_t wcur = (uint16_t)(c.raw[kCharWeight66] | (c.raw[kCharWeight66 + 1] << 8));
+        if ((uint32_t)wcur + (uint32_t)price > wmax) {
+            fprintf(stderr, "lof: --sell-auto: too heavy (gold would exceed carry weight)\n");
+            return 1;
+        }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: --sell-auto needs --amulet-out\n"); return 1; }
+        if (!sell_item(c, sell_auto_slot, (uint32_t)price)) {
+            fprintf(stderr, "lof: --sell-auto %d slot %d: failed\n", sell_auto_do, sell_auto_slot);
+            return 1;
+        }
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        printf("lof: character %d sold slot %d (item %d, cond %d) for %d gold\n",
+               sell_auto_do, sell_auto_slot, item, cond, price);
         return 0;
     }
     if (repair_do > 0) {

@@ -775,6 +775,54 @@ def check_sell_mechanic() -> int:
     return 0
 
 
+def check_sell_auto() -> int:
+    # --sell-auto N SLOT: computes the sell price via sell_price() (image
+    # 0x5C24..0x5CA3: max(1, price*cond/100 - price/25)), weight-checks, then
+    # applies gold+=price + remove+compact.  Verify gold rises by exactly the
+    # printed price and the slot is removed.
+    if not os.path.exists(GAME4):
+        print("port_building_test: SKIP sell-auto (no GAME4)")
+        return 0
+    a = open(GAME4, "rb").read()
+    idx = None
+    for i in range(6):
+        r = a[4 + i * 410:4 + (i + 1) * 410]
+        if r[0] and r[0x6b] >= 2 and r[0x82] and r[0x82 + 4]:
+            idx = i
+            break
+    if idx is None:
+        print("port_building_test: SKIP sell-auto (no suitable character)")
+        return 0
+    r = a[4 + idx * 410:4 + (idx + 1) * 410]
+    gold0 = r[0x72] | (r[0x73] << 8) | (r[0x74] << 16) | (r[0x75] << 24)
+    used0 = r[0x6b]
+    out = "/tmp/sell_auto_out.sav"
+    p = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--sell-auto", str(idx + 1), "0", "--save", GAME4,
+                        "--amulet-out", out],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if p.returncode != 0:
+        print("port_building_test: FAIL sell-auto rc=%d %r" % (p.returncode, p.stderr.decode()))
+        return 1
+    import re
+    m = re.search(rb"for (\d+) gold", p.stdout)
+    if not m:
+        print("port_building_test: FAIL sell-auto no price in output %r" % p.stdout)
+        return 1
+    price = int(m.group(1))
+    if price < 1:
+        print("port_building_test: FAIL sell-auto price %d" % price); return 1
+    b = open(out, "rb").read()
+    r2 = b[4 + idx * 410:4 + (idx + 1) * 410]
+    gold1 = r2[0x72] | (r2[0x73] << 8) | (r2[0x74] << 16) | (r2[0x75] << 24)
+    if gold1 != gold0 + price:
+        print("port_building_test: FAIL sell-auto gold %d -> %d (price %d)" % (gold0, gold1, price)); return 1
+    if r2[0x6b] != used0 - 1:
+        print("port_building_test: FAIL sell-auto used %d -> %d" % (used0, r2[0x6b])); return 1
+    print("port_building_test: ok sell-auto (price %d computed, gold+price, removed)" % price)
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
@@ -789,6 +837,7 @@ def main() -> int:
     rc |= check_training_effect()
     rc |= check_house_train()
     rc |= check_sell_mechanic()
+    rc |= check_sell_auto()
     rc |= check_time_tick()
     rc |= check_use_effect()
     rc |= check_cast_effect()

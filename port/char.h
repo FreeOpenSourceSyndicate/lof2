@@ -1227,6 +1227,9 @@ bool remove_item(SaveChar& c, int slot);
 // `docs/notes-maintainer-state.md` sell decode); this is the deterministic
 // remove+pay mechanic.  Returns false if the slot is empty.
 bool sell_item(SaveChar& c, int slot, uint32_t price);
+// Shop sell price credited to the character's gold (image 0x5C24..0x5CA3):
+// max(1, price*condition/100 - price/25).  Verified vs the emulator sell screen.
+int sell_price(int item_index, int condition);
 
 // --- Inn-rest cost + effect (image 0x820a..0x8680) --------------------------
 // The night's-rest price, derived from the counting loop at 0x823a..0x83a9:

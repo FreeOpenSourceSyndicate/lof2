@@ -2715,3 +2715,27 @@ LOF_KEYGAP=250`, frames 1600), but reproducing it ad-hoc to add sell keys landed
 on the play screen (empty party grid) both times — the exact key frames matter.
 A DOSBox capture of a real sell (price shown + gold delta) would settle the
 formula fastest.
+
+
+## Emporium SELL price — IMPLEMENTED + emulator-verified (2026-11-25)
+
+Resolved the earlier cap-loop inconsistency with an **actual scripted sell in the
+analysis emulator** (town -> Emporium -> S -> char 1 -> item 1).  The shop
+offered **"For the object Leather armour I'll offer 15$, do you agree?"** for
+Leather armour (list price **15**, condition **100%**).  That equals
+`price*condition/100 - price/25` = 15 - 15/25 = **15**, the **condition term** —
+NOT the capped haggle sum.  So the credited gold is the condition term; the
+`haggle` (rand15/charisma) only drives a *display* variant on the 0x5DA8/0x5E54
+path for items priced >= ~100 (it does not change the gold credited at 0x611A).
+The earlier "random price" note was wrong.
+
+**Implemented** (port/char.{h,cpp}): `int sell_price(int item_index, int
+condition)` = `max(1, price*condition/100 - price/25)`; and `lof --sell-auto N
+SLOT [--amulet-out FILE]` computes it, does the engine weight check (`+0x66 +
+price <= +0x64`, else "too heavy"), credits gold (+0x72) and removes+compacts.
+(`--sell N SLOT PRICE` raw effect unchanged.)
+
+**Verified:** `char_test::test_sell_price` pins Leather armour 100%->15
+(emulator), Studded 100%->24, Scale mail 100%->53, Scale 50%->25, Scale 0%->1,
+invalid->0.  `port_building_test::check_sell_auto` runs `--sell-auto`
+end-to-end (GAME4 Gandalf slot 0 -> price 8, gold +8, item removed).

@@ -399,6 +399,21 @@ bool sell_item(SaveChar& c, int slot, uint32_t price) {
     return true;
 }
 
+int sell_price(int item_index, int condition) {
+    const ItemRecord* it = item_by_index(item_index);
+    if (!it) return 0;
+    int price = it->price < 0 ? 0 : it->price;
+    if (condition < 0) condition = 0;
+    if (condition > 100) condition = 100;
+    // Image 0x5C24..0x5CA3: the shop's credited gold is the condition-adjusted
+    // value `price*condition/100 - price/25`, floored to 1.  Verified against
+    // the emulator (sell screen): Leather armour (price 15, condition 100%)
+    // offers exactly 15 gold (15 - 15/25 = 15).  The haggle/random term in the
+    // routine only drives a display variant, not the gold credited (0x611A).
+    int v = (price * condition) / 100 - price / 25;
+    return v < 1 ? 1 : v;
+}
+
 int rest_cost(const SaveGame& g, bool with_rations) {
     int members = 0;
     long sum = 0;
