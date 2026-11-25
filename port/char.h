@@ -698,6 +698,11 @@ enum CharOffset : size_t {
     // +0x45 with "Strength improves!", +0x46 with "Dexterity improves!", +0x48
     // with "Wisdom improves!", and the Con->HP bonus reads +0x44.
     kCharCon44     = 0x44,  // byte: Constitution
+    // +0x60 byte: the Temple revive XP boost divides by this cell while
+    // multiplying by +0x44 (Con) -- it equals +0x44 (Con base) in every shipped
+    // save record, and revive decrements only +0x44, so they diverge after one
+    // revive.  See `temple_revive` (image 0xA983..0xA9E2).
+    kCharBaseCon60 = 0x60,
     kCharStr45     = 0x45,  // byte: Strength
     kCharDex46     = 0x46,  // byte: Dexterity
     kCharInt47     = 0x47,  // byte: Intelligence

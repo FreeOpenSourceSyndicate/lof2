@@ -1409,8 +1409,12 @@ static void test_temple_heal() {
 
 static void test_temple_revive() {
     // Temple (R)evive: cost = level*300; success iff CON!=0 && CON*4+5 >= roll.
+    // On success it also adds the XP boost
+    //   (Con_after * training_cost(prof) * 2^(level-1)) / +0x60.
+    assert(training_cost(0) == 2000);   // prof_base table == training_cost
     SaveChar c{};
     c.raw[0] = 1; c.raw[kCharLevel17] = 2; c.raw[kCharCon44] = 10;
+    c.raw[kCharProf1b] = 0; c.raw[kCharBaseCon60] = 10;   // +0x60 == base Con
     c.raw[kCharHpMax20] = 20; c.raw[kCharHpCur22] = 0; c.raw[kCharStatus1f] = 7;
     assert(temple_revive_cost(c) == 600);
     // roll 45 == CON*4+5 -> success; CON 10->9; status 7->0; hp_cur 0->1.
@@ -1418,6 +1422,10 @@ static void test_temple_revive() {
     assert(c.raw[kCharCon44] == 9);
     assert(c.raw[kCharStatus1f] == 0);
     assert((c.raw[kCharHpCur22] | (c.raw[kCharHpCur22 + 1] << 8)) == 1);
+    // XP boost: (9 * 2000 * 2^1) / 10 = 3600.
+    uint32_t exp = c.raw[kCharExp6c] | (c.raw[kCharExp6c + 1] << 8) |
+                   (c.raw[kCharExp6c + 2] << 16) | (c.raw[kCharExp6c + 3] << 24);
+    assert(exp == 3600);
     // roll 46 > 45 -> failure; body decays (hp_max = hp_cur = 0).
     SaveChar d{};
     d.raw[0] = 1; d.raw[kCharCon44] = 10; d.raw[kCharHpMax20] = 20; d.raw[kCharHpCur22] = 0;

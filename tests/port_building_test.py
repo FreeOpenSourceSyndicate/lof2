@@ -196,6 +196,23 @@ def check_temple_revive_effect() -> int:
         print("port_building_test: FAIL temple-revive effect (paid %d != %d)"
               % (gold(rec(a, 1)) - gold(rec(b, 1)), cost))
         return 1
+
+    # XP boost = (Con_after * prof_base(prof) * 2^(level-1)) / +0x60, with the
+    # 16-bit product truncated and prof_base == the training-cost table.
+    def exp(r):
+        return r[0x6c] | (r[0x6d] << 8) | (r[0x6e] << 16) | (r[0x6f] << 24)
+
+    def prof_base(p):
+        return 1500 if p in (2, 3, 10, 11) else (2000 if p in (0, 1, 4, 9) else 2250)
+
+    c60 = r0[0x60]
+    shift = (1 << (lvl - 1)) if 1 <= lvl <= 16 else 0
+    prod = (prof_base(r0[0x1b]) * shift) & 0xffff
+    expected_boost = ((con - 1) * prod) // c60 if c60 else 0
+    if exp(r0b) != exp(r0) + expected_boost:
+        print("port_building_test: FAIL temple-revive effect (exp %d -> %d, "
+              "want +%d)" % (exp(r0), exp(r0b), expected_boost))
+        return 1
     if len(b) != 13134 or b[0x2e3a:0x2e3e] == a[0x2e3a:0x2e3e]:
         print("port_building_test: FAIL temple-revive effect (save not resealed)")
         return 1

@@ -461,6 +461,20 @@ bool temple_revive(SaveChar& c, int roll) {
     if (ok) {
         if (con > 1) r[kCharCon44] = (uint8_t)(con - 1);
         r[kCharStatus1f] = 0;
+        // XP boost (image 0xA983..0xA9E2, on the revive success path):
+        //   boost = (Con_after * training_cost(prof) * 2^(level-1)) / +0x60
+        // where prod = training_cost(prof) * 2^(level-1) is a 16-bit mul
+        // (discarding the high word) and the outer product with Con is a full
+        // 32-bit LXMUL, divided by the +0x60 byte.  prof_base == training_cost
+        // (verified against the runtime table [0xaf68]:0xb7a).
+        int level = r[kCharLevel17];
+        uint32_t shift = (level >= 1 && level - 1 < 16) ? (1u << (level - 1)) : 0u;
+        uint32_t prod = ((uint32_t)training_cost(r[kCharProf1b]) * shift) & 0xffffu;
+        uint32_t c60 = r[kCharBaseCon60];
+        if (c60 != 0) {
+            uint32_t boost = ((uint32_t)r[kCharCon44] * prod) / c60;
+            wr32(r, kCharExp6c, rd32(r, kCharExp6c) + boost);
+        }
         if (rd16(r, kCharHpCur22) < 1) wr16(r, kCharHpCur22, 1);
     } else {
         wr16(r, kCharHpMax20, 0);
