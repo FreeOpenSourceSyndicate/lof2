@@ -1806,6 +1806,66 @@ static void test_training_cost() {
     assert(training_cost(12) == 0);  // out of range
 }
 
+static void test_training_model() {
+    // training_xp_needed = training_cost(prof) * 2^(level-1)  (image 0x8A20)
+    assert(training_xp_needed(0, 1) == 2000);
+    assert(training_xp_needed(0, 3) == 8000);    // 2000 * 4
+    assert(training_xp_needed(5, 3) == 9000);    // 2250 * 4
+    assert(training_xp_needed(10, 4) == 12000);  // 1500 * 8
+    assert(training_xp_needed(0, 0) == 0);       // guard
+    // train_character: XP gate (not deducted) then flat gold fee from the payer.
+    auto set_dword = [](std::array<uint8_t, 410>& r, int off, uint32_t v) {
+        for (int n = 0; n < 4; n++) r[off + n] = (uint8_t)(v >> (8 * n));
+    };
+    auto gold_of = [](const SaveChar& c) {
+        return (uint32_t)c.raw[kCharGold72] | ((uint32_t)c.raw[kCharGold72 + 1] << 8) |
+               ((uint32_t)c.raw[kCharGold72 + 2] << 16) |
+               ((uint32_t)c.raw[kCharGold72 + 3] << 24);
+    };
+    SaveGame sg;
+    sg.chars.resize(2);
+    SaveChar& a = sg.chars[0];
+    a.present = 1;
+    a.raw[kCharProf1b] = 0;   // prof 0 -> cost 2000
+    a.raw[0x17] = 3;          // level 3 -> need 8000
+    a.raw[kCharHpMax20] = 0x40;
+    SaveChar& p = sg.chars[1];
+    p.present = 1;
+    set_dword(p.raw, kCharGold72, 5000);
+
+    // XP short: 7999 < 8000 -> refused, nothing changes.
+    set_dword(a.raw, kCharExp6c, 7999);
+    TrainResult r1 = train_character(sg, 0, 1, 5);
+    assert(!r1.ok && r1.xp_short && !r1.gold_short);
+    assert(a.raw[0x17] == 3);             // level unchanged
+    assert(gold_of(p) == 5000);           // payer unchanged
+    assert(r1.xp_needed == 8000 && r1.xp_have == 7999);
+
+    // XP ok but payer gold short: expensive prof ($2250) vs 1000 available.
+    SaveChar& c2 = sg.chars[0];
+    c2.raw[kCharProf1b] = 5;              // cost 2250
+    set_dword(c2.raw, kCharExp6c, 100000);
+    set_dword(sg.chars[1].raw, kCharGold72, 1000);
+    TrainResult r2 = train_character(sg, 0, 1, 5);
+    assert(!r2.ok && !r2.xp_short && r2.gold_short);
+    assert(c2.raw[0x17] == 3);
+    assert(gold_of(sg.chars[1]) == 1000);
+
+    // XP + gold ok: trains, payer charged the flat fee, XP NOT deducted.
+    c2.raw[kCharProf1b] = 0;              // cost 2000
+    set_dword(c2.raw, kCharExp6c, 9000);  // >= 8000
+    set_dword(sg.chars[1].raw, kCharGold72, 5000);
+    TrainResult r3 = train_character(sg, 0, 1, 5);
+    assert(r3.ok && !r3.xp_short && !r3.gold_short);
+    assert(c2.raw[0x17] == 4);            // leveled up
+    assert(gold_of(sg.chars[1]) == 3000); // 5000 - 2000
+    uint32_t xp_after = (uint32_t)c2.raw[kCharExp6c] |
+                        ((uint32_t)c2.raw[kCharExp6c + 1] << 8) |
+                        ((uint32_t)c2.raw[kCharExp6c + 2] << 16) |
+                        ((uint32_t)c2.raw[kCharExp6c + 3] << 24);
+    assert(xp_after == 9000);             // experience not spent
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
@@ -1825,6 +1885,7 @@ int main(int argc, char** argv) {
     test_spell_memorisation();
     test_level_up();
     test_training_cost();
+    test_training_model();
     synthetic_rost_load();
 
     // --dump-spec prints the decoded tables (for eyeballing / the front-end).

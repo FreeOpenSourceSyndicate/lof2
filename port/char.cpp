@@ -737,6 +737,33 @@ uint32_t training_cost(uint8_t profession) {
     return profession < 12 ? kCost[profession] : 0;
 }
 
+uint32_t training_xp_needed(uint8_t profession, int level) {
+    // image 0x8A20: prof_base * 2^(level-1), a 32-bit product (0x1efe mul).
+    if (level < 1 || level > 31) return 0;
+    return training_cost(profession) << (level - 1);
+}
+
+TrainResult train_character(SaveGame& sg, int char_idx, int payer_idx, int hp_gain) {
+    TrainResult res;
+    if (char_idx < 0 || char_idx >= (int)sg.chars.size()) return res;
+    SaveChar& c = sg.chars[char_idx];
+    if (!c.present) return res;
+    uint8_t* b = c.raw.data();
+    int prof = b[kCharProf1b], level = b[0x17];
+    res.xp_needed = training_xp_needed((uint8_t)prof, level);
+    res.xp_have = (uint32_t)b[kCharExp6c] | ((uint32_t)b[kCharExp6c + 1] << 8) |
+                  ((uint32_t)b[kCharExp6c + 2] << 16) |
+                  ((uint32_t)b[kCharExp6c + 3] << 24);
+    if (res.xp_have < res.xp_needed) { res.xp_short = true; return res; }
+    res.gold_cost = training_cost((uint8_t)prof);
+    SaveChar& payer = (payer_idx >= 0 && payer_idx < (int)sg.chars.size())
+                          ? sg.chars[payer_idx] : c;
+    if (!pay_gold(payer, (int)res.gold_cost)) { res.gold_short = true; return res; }
+    res.level = level_up(c, hp_gain);   // XP is not deducted (cumulative gate)
+    res.ok = true;
+    return res;
+}
+
 std::string use_item_effect(SaveChar& c, int item_index) {
     const ItemRecord* it = item_by_index(item_index);
     if (!it) return "";

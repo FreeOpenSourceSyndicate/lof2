@@ -1949,6 +1949,9 @@ int main(int argc, char** argv) {
     int spells_do = 0;              // 1-based char for --spells
     int train_do = 0;               // 1-based char for --train
     int train_hp = 5;               // HP gain roll for --train
+    int house_train_do = 0;         // 1-based char for --house-train (full gate)
+    int house_train_payer = 0;      // 1-based payer for --house-train
+    int house_train_hp = 5;         // HP gain roll for --house-train
     int repair_do = 0;              // 1-based char for --repair
     int repair_slot = 0;            // 0-based inventory slot to repair
     int repair_payer = -1;          // 1-based payer for --repair-payer (-1 = owner)
@@ -2019,6 +2022,11 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--train" && i + 2 < argc) {
             train_do = atoi(argv[++i]);
             train_hp = atoi(argv[++i]);
+        }
+        else if (std::string(argv[i]) == "--house-train" && i + 3 < argc) {
+            house_train_do = atoi(argv[++i]);
+            house_train_payer = atoi(argv[++i]);
+            house_train_hp = atoi(argv[++i]);
         }
         else if (std::string(argv[i]) == "--repair" && i + 2 < argc) {
             repair_do = atoi(argv[++i]);
@@ -2376,6 +2384,44 @@ int main(int argc, char** argv) {
         printf("lof: character %d -> level %d (+%d hp); improved:",
                train_do, lr.new_level, lr.hp_gain);
         for (auto& s : lr.improved) printf(" %s", s.c_str());
+        printf("\n");
+        return 0;
+    }
+    if (house_train_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --house-train needs a valid --save\n"); return 1; }
+        if (house_train_do - 1 < 0 || house_train_do - 1 >= (int)sg.chars.size()) {
+            fprintf(stderr, "lof: --house-train %d: no such character\n", house_train_do);
+            return 1;
+        }
+        TrainResult tr = train_character(sg, house_train_do - 1,
+                                         house_train_payer - 1, house_train_hp);
+        if (tr.xp_short) {
+            printf("lof: character %d needs %u more experience points to climb to "
+                   "level %d\n", house_train_do, tr.xp_needed - tr.xp_have,
+                   sg.chars[house_train_do - 1].raw[0x17] + 1);
+            return 0;
+        }
+        if (tr.gold_short) {
+            printf("lof: cannot afford %u gold to train character %d\n",
+                   tr.gold_cost, house_train_do);
+            return 0;
+        }
+        if (!tr.ok) {
+            fprintf(stderr, "lof: --house-train %d: not a present character\n",
+                    house_train_do);
+            return 1;
+        }
+        if (!amulet_out.empty() &&
+            !write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        printf("lof: character %d trained to level %d for %u gold; improved:",
+               house_train_do, tr.level.new_level, tr.gold_cost);
+        for (auto& s : tr.level.improved) printf(" %s", s.c_str());
         printf("\n");
         return 0;
     }

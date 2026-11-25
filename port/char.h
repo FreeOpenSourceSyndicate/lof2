@@ -1353,14 +1353,15 @@ void consume_spell_slot(SaveChar& c, int slot);
 int spell_school(uint8_t profession);
 void refresh_spell_casts(SaveChar& c);
 
-// The level-up routine (image 0x9144..0x96E6): level (+0x17) += 1, HP (current
+// The level-up routine (image 0x9144..0x99F7): level (+0x17) += 1, HP (current
 // +0x22 and max +0x20) += hp_gain (the engine's rand(10)+1), the four capped-100
-// fields +0x30/+0x32/+0x34/+0x36 += 1, and Strength/Dexterity/Wisdom
-// (+0x45/+0x46/+0x48) += 1 capped at 19.  `hp_gain` is the caller's roll.
+// fields +0x30/+0x32/+0x34/+0x36 += 1, then the derived-stat recompute (magic,
+// weight, base Con, speed, base stat).  Strength/Dexterity/Wisdom are NOT
+// touched.  `hp_gain` is the caller's roll.
 struct LevelUpResult {
     int hp_gain = 0;
     int new_level = 0;
-    std::vector<std::string> improved;  // attributes that actually rose
+    std::vector<std::string> improved;  // fields that actually rose
 };
 LevelUpResult level_up(SaveChar& c, int hp_gain);
 
@@ -1369,6 +1370,29 @@ LevelUpResult level_up(SaveChar& c, int hp_gain);
 // training for <name> amount to <fee>"; it is level-independent.  Returns 0
 // for an out-of-range profession (see docs/notes-maintainer-state.md).
 uint32_t training_cost(uint8_t profession);
+
+// The experience a character must have ACCUMULATED (the +0x6c dword, which is
+// not spent) to train from `level` to level+1: training_cost(profession) *
+// 2^(level-1) (image 0x8A20).  The House prints "additional <N> experience
+// points are needed to climb to <next>" when short (N = this - +0x6c).
+uint32_t training_xp_needed(uint8_t profession, int level);
+
+// Full House-of-Trades training (image 0x8894 handler -> 0x89DA action ->
+// 0x905F payment -> 0x9144 level-up): gate on accumulated experience, charge
+// the flat gold fee from `payer_idx`, then level the character up.  Experience
+// is NOT deducted (a cumulative gate, image 0x8A5B has no subtraction).  On
+// failure `xp_short` / `gold_short` say which gate stopped it and the character
+// is unchanged.
+struct TrainResult {
+    bool ok = false;
+    bool xp_short = false;
+    bool gold_short = false;
+    uint32_t xp_needed = 0;
+    uint32_t xp_have = 0;
+    uint32_t gold_cost = 0;
+    LevelUpResult level;
+};
+TrainResult train_character(SaveGame& sg, int char_idx, int payer_idx, int hp_gain);
 
 // Load GAMES/GAMEn; ok is false only if the file is too short or the header is
 // not the expected magic.

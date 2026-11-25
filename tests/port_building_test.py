@@ -618,6 +618,83 @@ def check_training_effect() -> int:
     return 0
 
 
+def check_house_train() -> int:
+    # --house-train N PAYER HP: full House-of-Trades training — gate on the
+    # accumulated experience (training_cost(prof) * 2^(level-1), not spent),
+    # then charge the flat gold fee from the payer, then level up.  Exercised on
+    # the real GAME4 fixture: an XP-short refusal, a gold-short refusal, and a
+    # success (payer gold patched in a temp copy so the flat fee is affordable).
+    if not os.path.exists(GAME4):
+        print("port_building_test: SKIP house-train (no GAME4)")
+        return 0
+    COST = [2000, 2000, 1500, 1500, 2000, 2250, 2250, 2250, 2250, 2000, 1500, 1500]
+
+    def rec(b, i):
+        return b[4 + i * 410:4 + (i + 1) * 410]
+
+    def dword(r, off):
+        return r[off] | (r[off + 1] << 8) | (r[off + 2] << 16) | (r[off + 3] << 24)
+
+    a = open(GAME4, "rb").read()
+    c1 = rec(a, 0)   # Conan (prof 0, level 3): 7723 XP < 8000 -> XP short.
+    prof, lvl = c1[0x1b], c1[0x17]
+    xp = dword(c1, 0x6c)
+    need = COST[prof] * (2 ** (lvl - 1)) if lvl >= 1 else 0
+    if xp >= need:
+        print("port_building_test: SKIP house-train XP-short (char 1 has XP)")
+    else:
+        r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                            "--house-train", "1", "1", "5", "--save", GAME4],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out = r.stdout.decode()
+        if ("needs %d more experience points" % (need - xp)) not in out:
+            print("port_building_test: FAIL house-train XP short (%r)" % out.strip())
+            return 1
+
+    # Gold short: Lara (char 3) has enough XP but only 7 gold < her $ fee.
+    c3 = rec(a, 2)
+    prof3 = c3[0x1b]
+    cost3 = COST[prof3]
+    if dword(c3, 0x72) < cost3 and dword(c3, 0x6c) >= COST[prof3] * (2 ** (c3[0x17] - 1)):
+        r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                            "--house-train", "3", "3", "5", "--save", GAME4],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out = r.stdout.decode()
+        if ("cannot afford %d gold" % cost3) not in out:
+            print("port_building_test: FAIL house-train gold short (%r)" % out.strip())
+            return 1
+
+    # Success: patch Conan's gold to 5000 in a temp copy, train Lara with Conan
+    # as payer -> level 3->4, Conan charged the flat fee.
+    rich = bytearray(a)
+    off = 4 + 0 * 410 + 0x72
+    rich[off:off + 4] = (5000).to_bytes(4, "little")
+    tmp_in = "/tmp/game4_rich.sav"
+    open(tmp_in, "wb").write(rich)
+    lara = rec(a, 2)
+    if lara[0x1b] == 5 and lara[0x17] == 3 and dword(lara, 0x6c) >= COST[5] * 4:
+        tmp_out = "/tmp/game4_trained.sav"
+        r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                            "--house-train", "3", "1", "5", "--save", tmp_in,
+                            "--amulet-out", tmp_out],
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out = r.stdout.decode()
+        if "trained to level 4 for 2250 gold" not in out:
+            print("port_building_test: FAIL house-train success (%r)" % out.strip())
+            return 1
+        b = open(tmp_out, "rb").read()
+        if rec(b, 2)[0x17] != 4:
+            print("port_building_test: FAIL house-train success (level %d)"
+                  % rec(b, 2)[0x17])
+            return 1
+        if dword(rec(b, 0), 0x72) != 5000 - 2250:
+            print("port_building_test: FAIL house-train success (payer gold %d)"
+                  % dword(rec(b, 0), 0x72))
+            return 1
+    print("port_building_test: ok house-train (XP gate, gold fee, level-up)")
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
@@ -630,6 +707,7 @@ def main() -> int:
     rc |= check_buy_effect()
     rc |= check_repair_effect()
     rc |= check_training_effect()
+    rc |= check_house_train()
     rc |= check_use_effect()
     rc |= check_cast_effect()
     return rc

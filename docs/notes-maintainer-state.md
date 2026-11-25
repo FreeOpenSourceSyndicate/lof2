@@ -2418,3 +2418,27 @@ final `0x1b83:0x1e8` call sets `+0x1d = Dex<16 ? 10 : Dex*5-65` (verified for al
 does not change on level-up the +0x1d recompute is a no-op here, and +0x1e is
 already maintained by the equip logic — both are therefore not re-applied in
 `level_up()`.
+
+### House-of-Trades training flow (2026-11-24)
+
+The House dispatch (image `0x8894`) funnels `(T)raining`/`(L)earn magic`/
+`(A)nother language` into one action (`0x89DA`) with a mode argument (0/1/2).
+Training (mode 0) flow:
+1. **XP gate** (image `0x8A20`/`0x8A5B`): the character's accumulated experience
+   dword (+0x6c, NOT spent) must be `>= training_cost(prof) * 2^(level-1)`. If
+   short, the House prints "The Grand Board of Trades decides that, an
+   additional <N> experience points are needed to climb to <next>" (strings
+   `0x4c57..0x4cad`) and does not train.
+2. **Gold fee** (image `0x8BB2`/`0x905F`): "The costs of training for <name>
+   amount to <fee>$, who'll pay that (1-6)?" — `fee == training_cost(prof)` (the
+   flat table value), deducted from a chosen payer via `pay_gold` (0xbdec).
+3. **Level-up** (image `0x9144`): the effect modelled by `level_up()`.
+
+Experience is a cumulative **threshold**, not a currency — there is no
+subtraction of +0x6c anywhere in the flow. Verified against GAME4: every
+character is a few hundred XP short of their next level (Conan 7723/8000,
+Siegmund 6299/8000, Laladil 4255/4500, Gandalf 4079/4500), exactly as a
+threshold model predicts for an adventuring party. Lara/Joanna carry stray
+0xFF high bytes at +0x6e/+0x6f (huge XP) — the engine reads the same 4 bytes, so
+the port matches. `port/char.{h,cpp}`: `training_xp_needed()`,
+`train_character()`; CLI `lof --house-train N PAYER HP`.
