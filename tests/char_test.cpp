@@ -1531,9 +1531,14 @@ static void test_use_item() {
         if (x && x->effect == 3) { poison = i; break; }
     }
     if (poison > 0) {
+        const ItemRecord* px = item_by_index(poison);
+        // Poison I carries damage (+0x19) = 15; the effect-3 magnitude is the
+        // damage byte, not the charge count (1).
+        assert(px && px->name == "Poison I" && px->damage == 15);
         SaveChar p{};
-        p.raw[kCharHpCur22] = 10;
+        p.raw[kCharHpCur22] = 50; p.raw[kCharHpCur22 + 1] = 0;
         assert(use_item_effect(p, poison) == "poisons");
+        assert((p.raw[kCharHpCur22] | (p.raw[kCharHpCur22 + 1] << 8)) == 35);
         assert(p.raw[kCharStatus1f] == 3);
     }
     // Effect 30 (antidote): clears the poisoned state 3.

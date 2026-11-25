@@ -621,8 +621,13 @@ std::string use_item_effect(SaveChar& c, int item_index) {
         wr16(r, kCharHpCur22, (uint16_t)nh);
         return "heals";
     }
-    case 3:  // poison: hp -= charges, mark the poisoned state
-        wr16(r, kCharHpCur22, (uint16_t)(rd16(r, kCharHpCur22) - (uint16_t)val));
+    case 3:  // Poison I: hp_cur -= the item's damage byte (+0x19 = high byte of
+             // f4, 15 for "Poison I"), then the poisoned state.  The effect-3
+             // handler (image 0xE9C2) reads the SAME byte es:[bx+0xfd5] as
+             // effect 23, which is record+0x19 = damage (Poison II = 24 there).
+             // Poison I has no spell (f4 low byte = 0), so this raw subtract is
+             // its only mechanism — the magnitude is damage, not charges.
+        wr16(r, kCharHpCur22, (uint16_t)(rd16(r, kCharHpCur22) - (uint16_t)it->damage));
         r[kCharStatus1f] = 3;
         r[0x57] = 4;
         r[0x58] = 0x12;

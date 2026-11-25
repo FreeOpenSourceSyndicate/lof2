@@ -814,7 +814,7 @@ effect value 34 (lantern) as a light source; recorded under G-004.
   **not** it — that is a data offset passed to the string printer
   (`0x18d:0x16a8`).
 
-### G-019 — item use-effect magnitude field (heal/poison) (Lane M)
+### G-019 — item use-effect magnitude field (heal/poison) (Lane M) — RESOLVED 2026-11-24
 
 - **What:** `use_item_effect()` applies the item's use-effect byte (item +0x1f):
   effect 10 heals HP and effect 3 poisons HP by the value `item.charges`
@@ -873,3 +873,24 @@ effect value 34 (lantern) as a light source; recorded under G-004.
   healing spell); the poison (effect 3) magnitude is still the charge count (its
   spell path is not yet decoded).  Pinned by `char_test::test_use_item`
   (Healing I -> +8) and the use-effect check in `port_building_test.py`.
+
+- **RESOLVED 2026-11-24 (poison magnitude = the damage byte).**  The earlier
+  "Round 2" contradiction (record+0x19 = 0 for the Healing potion) is explained:
+  the magnitude byte `es:[bx+0xfd5]` IS record+0x19 = the **`damage`** field (high
+  byte of f4), and it is *supposed* to be 0 for the Healing potion — because the
+  potion's power is its **spell** (f4 low byte = 80 = Healing I), not a damage
+  value.  Items whose power is a raw amount have `damage != 0` and no spell:
+  **Poison I** (f4 low = 0, `damage` = 15) and **Poison II** (f4 low = 0,
+  `damage` = 24).  The effect-3 handler (`0xE9C2`) and effect-10 handler
+  (`0xEA90`) read the exact same byte as effect 23 (`0xEB4E`), so the magnitude
+  for all three is the `damage` field.  Therefore:
+  - **effect 3 (Poison I):** `hp_cur -= damage` = **15** (was wrongly `charges`
+    = 1).  Fixed in `use_item_effect`; pinned by `char_test::test_use_item`
+    (50 -> 35).
+  - **effect 23 (Poison II):** `hp_cur -= damage` = 24 (implemented 2026-11-24).
+  - **effect 10 (Healing potion):** `damage` = 0, so the raw-add path heals
+    nothing; the potion's heal is its spell (Healing I, +8), which the port
+    keeps via `apply_spell_effect`.  The `charges` fallback is now unreachable
+    for shipped data (only effect-10 item is the Healing potion).
+  So G-019 is resolved: the magnitude field is `ItemRecord::damage` (record
+  +0x19), with spell-casting for the items that carry a spell instead.
