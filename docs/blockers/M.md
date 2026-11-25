@@ -86,14 +86,16 @@ gameplay:
    "placeholder" branch has not been decoded; the specks are omitted rather than
    guessed.
 
-2. **Gender-variant profession table.** The char-sheet disassembly
-   (`0x2676e`) selects the profession string from a table indexed by
-   `record[+0x18]` (a sex/class selector); a gender-variant table
-   (`gender_profession_names()`, e.g. Priest→Priestess) is visible in the
-   disassembly. The port uses the plain `profession_names()` table for the
-   race+profession line so the sheet agrees with the party grid (which also uses
-   it). Which sex value selects which table is not proven; the only oracle
-   (Decker, male) is satisfied either way.
+2. **Gender-variant profession table — premise corrected 2026-11-24.** The
+   `record[+0x18]` field is the **class flag (1 = PC, 2 = big monster)**
+   (`char.h kSnsClass4c = 0x4c`), NOT a sex selector — so the earlier
+   "gender table indexed by +0x18" claim is wrong. The char sheet copies the
+   whole record (`0x2676e`, `repne movsw 0xcd` words) and the profession-string
+   selector is the real **sex** field (the port has `sex_names()` /
+   `gender_profession_names()` already, unused on the sheet). Which sex value
+   keys the gender-variant table is still unverified; the port draws the plain
+   `profession_names()` (matches the male Decker oracle and the party grid). Do
+   NOT wire a guessed selector — needs a female-character oracle to confirm.
 
 **Resolved (2026-11-24) — party-grid proportional gauges.** The earlier report
 that the grid carried a ~480 px mismatch is fixed. `draw_party_grid` now draws
