@@ -2442,3 +2442,32 @@ threshold model predicts for an adventuring party. Lara/Joanna carry stray
 0xFF high bytes at +0x6e/+0x6f (huge XP) — the engine reads the same 4 bytes, so
 the port matches. `port/char.{h,cpp}`: `training_xp_needed()`,
 `train_character()`; CLI `lof --house-train N PAYER HP`.
+
+### House of Trades — learn magic / language (partially decoded, NOT implemented)
+
+The House dispatch (image `0x8894`) maps `(T)`=mode 0 (training, DONE),
+`(L)`=mode 1 (learn magic), `(A)`=mode 2 (learn language); all call the action
+routine `0x89DA(char, mode)`. The two "learn" paths are decoded enough to state
+their prerequisites but NOT their picker UI or final write, so they are not
+implemented (Rule #1 — no guessing the prompt/effect):
+
+- **Learn magic (mode 1, image `0x8C13`).** A character may learn magic only if
+  it is profession 3 or 4 **or owns a spellbook** — the routine scans the
+  inventory (`+0x6b` used-slot count, slots at `+0x82`) for item index `0x28`
+  (a spellbook); if absent it prints "In order to learn new spells, <name>
+  needs at least a spellbook!" (strings `0x4d15/0x4d2c/0x4d35`). The number of
+  *new* spells it can still learn is `0x212f:0x93d6(char) - char[+0x6a]` (the
+  spell cap function `0x93d6` minus the already-known count `+0x6a`). Past
+  `0x8DB8` is the cost/learn step (not fully decoded); the spell chooser and the
+  slot write are undecoded.
+- **Learn language (mode 2, image `0x8E9E`).** Scans the 8 seed slots
+  `char[+0x7a + n]` (n = 0..7, `0x63` = a "full/end" sentinel set at
+  `+0x89E7..0x8EB6`) for a free one; if none, "has great command of all
+  languages that we teach, send another scholar" (`0x4de6/0x4dfa/0x4e20`).
+  Otherwise it would store a chosen language — picker + store undecoded.
+
+**Missing to finish either:** the spell/language picker prompt strings, the gold
+cost expression, and the effect write (the `0x8DB8+` magic step and the
+language store). Also needs a save fixture holding a spellbook (item `#0x28`) to
+verify — file as part of OT-005. `0x212f:0x93d6` (the spell-cap function) is a
+useful future decode.
