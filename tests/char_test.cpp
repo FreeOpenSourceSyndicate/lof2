@@ -1467,6 +1467,70 @@ static void test_joint_deposit() {
     assert(!joint_deposit(h, 0));  // no gold at all
 }
 
+static void test_repair() {
+    // Emporium repair (image 0x6172): cost = price - (condition*price)/100,
+    // magic items (spell != 0) and pristine items (condition >= 100) refused,
+    // condition restored to 100, fee paid from the chosen payer.
+    int item = -1;
+    for (int i = 1; i <= (int)kItemCount; i++) {
+        const ItemRecord* it = item_by_index(i);
+        if (it && it->spell == 0 && it->price > 0) { item = i; break; }
+    }
+    if (item < 0) return;
+    const ItemRecord* it = item_by_index(item);
+    int price = it->price;
+    // Formula: condition 40 -> cost = price - price*40/100.
+    int cost40 = price - (40 * price) / 100;
+    assert(repair_cost(item, 40) == cost40);
+    assert(repair_cost(item, 0) == price);       // no durability -> full price
+    assert(repair_cost(item, 100) == 0);         // pristine -> free
+
+    SaveGame g;
+    g.chars.resize(1);
+    g.chars[0].present = 1;
+    uint32_t gold = (uint32_t)(cost40 + 7);
+    g.chars[0].raw[kCharGold72] = gold & 0xff;
+    g.chars[0].raw[kCharGold72 + 1] = (gold >> 8) & 0xff;
+    uint8_t* p = &g.chars[0].raw[kCharInv82];   // slot 0
+    p[0] = (uint8_t)item;
+    p[3] = 40;                                   // worn to 40
+    assert(repair_item(g, 0, 0, -1));
+    assert(char_gold(g.chars[0]) == 7);          // paid cost40
+    assert(p[3] == 100);                         // restored to pristine
+
+    // Pristine item: refused, gold unchanged.
+    SaveGame h; h.chars.resize(1); h.chars[0].present = 1;
+    h.chars[0].raw[kCharGold72] = 50;
+    uint8_t* q = &h.chars[0].raw[kCharInv82];
+    q[0] = (uint8_t)item; q[3] = 100;
+    assert(!repair_item(h, 0, 0, -1));
+    assert(char_gold(h.chars[0]) == 50);
+
+    // Magic item (spell != 0): refused.
+    int magic = -1;
+    for (int i = 1; i <= (int)kItemCount; i++) {
+        const ItemRecord* m = item_by_index(i);
+        if (m && m->spell != 0) { magic = i; break; }
+    }
+    if (magic > 0) {
+        SaveGame k; k.chars.resize(1); k.chars[0].present = 1;
+        k.chars[0].raw[kCharGold72] = 0xff; k.chars[0].raw[kCharGold72 + 1] = 0xff;
+        uint8_t* r = &k.chars[0].raw[kCharInv82];
+        r[0] = (uint8_t)magic; r[3] = 50;
+        assert(!repair_item(k, 0, 0, -1));
+    }
+
+    // Cannot afford: refused, condition unchanged.
+    SaveGame u; u.chars.resize(1); u.chars[0].present = 1;
+    u.chars[0].raw[kCharGold72] = 0; u.chars[0].raw[kCharGold72 + 1] = 0;
+    uint8_t* s = &u.chars[0].raw[kCharInv82];
+    s[0] = (uint8_t)item; s[3] = 10;
+    if (repair_cost(item, 10) > 0) {
+        assert(!repair_item(u, 0, 0, -1));
+        assert(s[3] == 10);
+    }
+}
+
 static void test_buy_item() {
     // The item table is compiled-in; pick a cheap, light, in-stock item.
     int item = -1, price = 0;
@@ -1687,6 +1751,7 @@ int main(int argc, char** argv) {
     test_bank();
     test_joint_deposit();
     test_buy_item();
+    test_repair();
     test_use_item();
     test_apply_spell_effect();
     test_spell_slots();

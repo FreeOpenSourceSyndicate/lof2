@@ -515,6 +515,40 @@ bool buy_item(SaveGame& g, int char_idx, int item_index, ShopData* shop) {
     return true;
 }
 
+int repair_cost(int item_index, int condition) {
+    const ItemRecord* it = item_by_index(item_index);
+    if (!it) return 0;
+    int price = it->price < 0 ? 0 : it->price;
+    if (condition < 0) condition = 0;
+    if (condition > 100) condition = 100;
+    // cost = price - (condition*price)/100 (image 0x624a: LXMUL cond*price, LDIV
+    // by 100, then price - quotient).  cond*price <= 100*3800 fits in 32 bits.
+    int wear = (condition * price) / 100;
+    return price - wear;
+}
+
+bool repair_item(SaveGame& g, int char_idx, int slot, int payer_idx) {
+    if (char_idx < 0 || char_idx >= (int)g.chars.size() || g.chars[char_idx].present == 0)
+        return false;
+    if (slot < 0 || slot >= (int)kCharInvCount) return false;
+    SaveChar& c = g.chars[char_idx];
+    uint8_t* p = &c.raw[kCharInv82 + slot * kCharInvStride];
+    int item = p[0];
+    if (item == 0) return false;
+    const ItemRecord* it = item_by_index(item);
+    if (!it) return false;
+    if (it->spell != 0) return false;   // magic artefact: refused (0x4112)
+    int cond = p[3];
+    if (cond >= 100) return false;      // immaculate: nothing to repair (0x419e)
+    int cost = repair_cost(item, cond);
+    int payer = (payer_idx >= 0) ? payer_idx : char_idx;
+    if (payer < 0 || payer >= (int)g.chars.size() || g.chars[payer].present == 0)
+        return false;
+    if (!pay_gold(g.chars[payer], cost)) return false;
+    p[3] = 100;                         // restore durability (0x6378)
+    return true;
+}
+
 std::string apply_spell_effect(SaveChar& t, const SpellRecord& sp) {
     uint8_t* r = t.raw.data();
     switch (sp.data[kSpellEffectByte]) {

@@ -33,6 +33,7 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME = os.path.join(ROOT, "game")
 GAME4 = os.path.join(GAME, "GAMES", "GAME4")
+GAME2 = os.path.join(GAME, "GAMES", "GAME2")
 # Committed fixture: character 1 dead (status 7, 0 HP), character 2 has 2000
 # gold — the setup the owner described for testing the Temple revive.
 REVIVE_FIXTURE = os.path.join(ROOT, "saves", "dng00-Conan-393da5b1.sav")
@@ -353,6 +354,57 @@ def check_buy_effect() -> int:
     return 0
 
 
+def check_repair_effect() -> int:
+    # --repair N SLOT: cost = price - condition*price/100, condition -> 100.
+    # GAME2 char 1 slot 1 is a worn "Small shield" (condition 92).
+    if not os.path.exists(GAME2):
+        print("port_building_test: SKIP repair effect (no GAME2)")
+        return 0
+
+    def rec(b, i):
+        return b[4 + i * 410:4 + (i + 1) * 410]
+
+    def gold(r):
+        return r[0x72] | (r[0x72 + 1] << 8) | (r[0x72 + 2] << 16) | (r[0x72 + 3] << 24)
+
+    a = open(GAME2, "rb").read()
+    slot = 1
+    cond_before = rec(a, 0)[0x82 + slot * 4 + 3]
+    if rec(a, 0)[0x82 + slot * 4] == 0 or cond_before >= 100:
+        print("port_building_test: SKIP repair effect (slot %d not worn)" % slot)
+        return 0
+    out = "/tmp/port_repair.sav"
+    r = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--repair", "1", str(slot), "--save", GAME2,
+                        "--amulet-out", out],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode != 0:
+        print("port_building_test: FAIL repair effect (%s)"
+              % r.stderr.decode().strip())
+        return 1
+    m = re.search(r"for (\d+) gold", r.stderr.decode())
+    if not m:
+        print("port_building_test: FAIL repair effect (no cost in output)")
+        return 1
+    cost = int(m.group(1))
+    b = open(out, "rb").read()
+    rb = rec(b, 0)
+    if gold(rec(a, 0)) - gold(rb) != cost:
+        print("port_building_test: FAIL repair effect (gold %d->%d, cost %d)"
+              % (gold(rec(a, 0)), gold(rb), cost))
+        return 1
+    if rb[0x82 + slot * 4 + 3] != 100:
+        print("port_building_test: FAIL repair effect (condition %d->%d)"
+              % (cond_before, rb[0x82 + slot * 4 + 3]))
+        return 1
+    if len(b) != 13134:
+        print("port_building_test: FAIL repair effect (save not resealed)")
+        return 1
+    print("port_building_test: ok repair effect (condition %d->100 for %dg, resealed)"
+          % (cond_before, cost))
+    return 0
+
+
 def check_use_effect() -> int:
     # --use N ITEM: effect 10 (healing potion) raises HP, clamped to hp_max.
     if not os.path.exists(GAME4):
@@ -491,6 +543,7 @@ def main() -> int:
     rc |= check_bank_effect()
     rc |= check_joint_deposit_effect()
     rc |= check_buy_effect()
+    rc |= check_repair_effect()
     rc |= check_use_effect()
     rc |= check_cast_effect()
     return rc

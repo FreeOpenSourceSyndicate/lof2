@@ -1949,6 +1949,9 @@ int main(int argc, char** argv) {
     int spells_do = 0;              // 1-based char for --spells
     int train_do = 0;               // 1-based char for --train
     int train_hp = 5;               // HP gain roll for --train
+    int repair_do = 0;              // 1-based char for --repair
+    int repair_slot = 0;            // 0-based inventory slot to repair
+    int repair_payer = -1;          // 1-based payer for --repair-payer (-1 = owner)
     bool temple_heal_flag = false;
     bool temple_revive_flag = false;
     bool encounter_flag = false;
@@ -2016,6 +2019,13 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--train" && i + 2 < argc) {
             train_do = atoi(argv[++i]);
             train_hp = atoi(argv[++i]);
+        }
+        else if (std::string(argv[i]) == "--repair" && i + 2 < argc) {
+            repair_do = atoi(argv[++i]);
+            repair_slot = atoi(argv[++i]);
+        }
+        else if (std::string(argv[i]) == "--repair-payer" && i + 1 < argc) {
+            repair_payer = atoi(argv[++i]);
         }
         else if (std::string(argv[i]) == "--temple-heal") temple_heal_flag = true;
         else if (std::string(argv[i]) == "--temple-revive") temple_revive_flag = true;
@@ -2367,6 +2377,42 @@ int main(int argc, char** argv) {
                train_do, lr.new_level, lr.hp_gain);
         for (auto& s : lr.improved) printf(" %s", s.c_str());
         printf("\n");
+        return 0;
+    }
+    if (repair_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --repair needs a valid --save\n"); return 1; }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: --repair needs --amulet-out\n"); return 1; }
+        if (repair_do - 1 < 0 || repair_do - 1 >= (int)sg.chars.size() ||
+            sg.chars[repair_do - 1].present == 0) {
+            fprintf(stderr, "lof: --repair %d: no such character\n", repair_do);
+            return 1;
+        }
+        if (repair_slot < 0 || repair_slot >= (int)kCharInvCount) {
+            fprintf(stderr, "lof: --repair slot %d out of range\n", repair_slot);
+            return 1;
+        }
+        const uint8_t* p = &sg.chars[repair_do - 1].raw[kCharInv82 + repair_slot * kCharInvStride];
+        int item = p[0];
+        int cond_before = p[3];
+        if (item == 0) { fprintf(stderr, "lof: --repair: slot %d is empty\n", repair_slot); return 1; }
+        const ItemRecord* it = item_by_index(item);
+        int cost = it ? repair_cost(item, cond_before) : 0;
+        int payer0 = (repair_payer > 0) ? repair_payer - 1 : -1;
+        if (!repair_item(sg, repair_do - 1, repair_slot, payer0)) {
+            fprintf(stderr, "lof: cannot repair slot %d ('%s', condition %d)\n",
+                    repair_slot, it ? it->name.c_str() : "?", cond_before);
+            return 1;
+        }
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        int payer1 = (repair_payer > 0) ? repair_payer : repair_do;
+        fprintf(stderr, "lof: repaired '%s' (condition %d -> 100) for %d gold, paid by character %d (gold now %u)\n",
+                it->name.c_str(), cond_before, cost, payer1, char_gold(sg.chars[payer1 - 1]));
         return 0;
     }
     if (charsheet_flag) {

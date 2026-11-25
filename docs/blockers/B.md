@@ -20,7 +20,7 @@ hub: [`../BLOCKERS.md`](../BLOCKERS.md). IDs are `BLK-B<nnn>`, numbered from
 | BLK-B003 | B (characters/items) | Agent B | Medium | Resolved | — |
 | BLK-B004 | B (characters/items) | Maintainer | Medium | **Resolved (2026-11-18)**: dispatcher+state+printer grounded; **column meanings derived from the decompilation** — W = weapon damaged, P = shield/armour damaged, B = ability improved, Attack = Passed/Failed. Owner play corroborated `P`; OT-003 (optional W/B corroboration) closed as not-needed | — |
 | BLK-B005 | B (characters/items) | Agent B | Medium | Resolved | — |
-| BLK-B006 | B (characters/items) | Maintainer | Low | **Open** (2026-11-24): Emporium sell/repair price partially decoded (image `0x5938`/`0x5C24`), blocked on the 3 runtime math helpers `0x2f0e:{0x1efe,0x1e62,0x2f6a}`; do not guess the price — sell/repair left unimplemented | — |
+| BLK-B006 | B (characters/items) | Maintainer | Low | **Partial (2026-11-24)**: **(R)epair DONE** — `repair_cost()`/`repair_item()`, cost = price − condition·price/100, magic/pristine refused, condition→100, pinned by `char_test::test_repair` + `port_building_test`; **(S)ell still blocked** on the haggling RNG `0x1f32` + stat identities (do not guess) | — |
 
 ---
 

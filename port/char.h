@@ -1284,6 +1284,21 @@ struct ShopData;  // defined below (ROST/SHOP)
 // `shop` may be null to skip the stock check.  Returns true on a completed buy.
 bool buy_item(SaveGame& g, int char_idx, int item_index, ShopData* shop);
 
+// --- Emporium repair (effect, image 0x6172..0x638a) ------------------------
+// The repair fee for item `item_index` at durability `condition` (0..100):
+//   cost = price - (condition * price) / 100        (LXMUL then LDIV by 100)
+// i.e. the missing durability fraction of the price.  Magic items (item.spell
+// != 0) are refused by the handler ("Oh!, a magic artefact. ... I can't repair
+// that for you.", strings 0x4112/0x4148/0x4181) and a pristine item (condition
+// >= 100) needs no repair, so repair_item() refuses both.
+int repair_cost(int item_index, int condition);
+
+// Repair inventory `slot` (0-based, 0..47) of character `char_idx`: charges the
+// fee to `payer_idx` (0-based; pass -1 to use char_idx) via pay_gold (refusing
+// when short) and restores the slot's condition to 100.  Returns true on a
+// completed repair.  Pinned by char_test::test_repair.
+bool repair_item(SaveGame& g, int char_idx, int slot, int payer_idx);
+
 // --- Item use effects (use routine 0x0e89d) --------------------------------
 // Applies the use-effect of item `item_index` (its +0x1f effect byte) to
 // character `c`.  Derived effects: 10 heal HP by item.charges (f3 high byte; the
