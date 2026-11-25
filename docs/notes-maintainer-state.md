@@ -2595,3 +2595,38 @@ Validation of `recompute_derived_stats()` (image `0x96F7..0x9901`) against GAME3
   magic logic is not yet decoded — if it ever matters, file it.)
 * Factored `recompute_derived_stats(SaveChar&)` out of `level_up()` (behaviour
   unchanged) so it is testable directly.
+
+## GAME3 spell slots — confirms memorisation school-base, +0x6a scaling (2026-11-25)
+
+Dumping GAME3's casters confirms the **memorisation school-base table**
+(`[0xaf62]:0xc0e` = {1,33,59,80,100,118,127}): each caster's spell indices are
+**sequential from its school base** (`spell index = school_base[school] + s`):
+
+| member | prof | lvl | +0x6a | spell indices |
+|--------|------|-----|-------|----------------|
+| Joanna | 10 | 12 | 14 | 100..111 (+ 12,13) |
+| Skol   | 5  | 11 | 14 | 80..91 (+ 12,13) |
+| Elzndra| 8  | 2  | 3  | 33,34,35 |
+| Merlin | 7  | 1  | 2  | 1,2 |
+| Claudia| 6  | 1  | 1  | 59 |
+| Dorgir | 3  | 1  | 1  | 118 |
+
+School base by profession confirmed here: **prof7->1, prof8->33, prof6->59,
+prof5->80, prof10->100, prof3->118** (six of the seven table entries).  This
+validates the spell-memorisation machinery at high level too.
+
+`+0x6a` (learned spell count) scales with level: lvl 1 -> 1-2, lvl 2 -> 3,
+lvl 11-12 -> 14.  Whether `+0x6a` equals `spell_capacity` (fully learned) or is
+just "learned so far" is not proven, so it does **not** by itself validate the
+`spell_capacity` formula.
+
+**spell_capacity still blocked.** `spell_capacity` = `0x212f:0x93d6` (image
+`0x2A6C6`).  Its `cap = SCHOOL_BASE[S]*min(15,level)/15` needs the signed-byte
+`SCHOOL_BASE` at `[0xb09e]:0xc0f` (uncaptured).  The per-profession branch-factor
+targets listed in the earlier recon
+(`0x30a16,0x2fd9f,0x29e2d,0x2a53e,0x2f4c1,...`) do **not** decode to clean
+"set factor S; jmp 0x2A790" stubs at those image offsets — re-derive them (they
+may be a relocated/relative table) before trusting them.  Next step to unblock:
+capture `SCHOOL_BASE` at runtime (drive the House learn screen, dump
+`[0xb09e]:0xc0f` like the memorisation table was captured).  Do **not** synthesise
+the capacity (Rule #1).
