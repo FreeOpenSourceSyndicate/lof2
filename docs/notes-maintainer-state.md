@@ -2739,3 +2739,38 @@ price <= +0x64`, else "too heavy"), credits gold (+0x72) and removes+compacts.
 (emulator), Studded 100%->24, Scale mail 100%->53, Scale 50%->25, Scale 0%->1,
 invalid->0.  `port_building_test::check_sell_auto` runs `--sell-auto`
 end-to-end (GAME4 Gandalf slot 0 -> price 8, gold +8, item removed).
+
+
+## Learn-magic: reachable in town; needs a SPELLBOOK; second gate found (2026-11-25)
+
+Following the owner's tip (the Emporium-sell key path is *in town*, so swap
+`E`->`H`, `S`->`L`), I reached the House-of-Trades **learn-magic** screen in the
+analysis emulator:
+
+- Keys that reach the House learn prompt (from the boot/add-character town hub):
+  `LOF_NO_TIMER=1 LOF_CMDLEN=3 LOF_KEYAUTO=0x1e,0x03,0x2e,0x2e,0x23,0x26
+  LOF_KEYGAP=250` -> **"Who would like to learn magic spells (1-6)?"**.
+- Picking the added warrior (STILETTO) -> **"In order to learn new spells,
+  Stiletto needs at least a spellbook!"**.  So learning requires the
+  **Spellbook item (item 15, price 30)** in the character's inventory.  No
+  shipped save carries one.
+- **Owner OT-001 idea CONFIRMED:** loading the "in front of Cyldane" save
+  (`dng00-Conan-d8b1cad7`, DNG00, facing West) and pressing **Up (0x48) enters
+  the town** (the party then shows in the town hub / House of Trades viewport).
+- With a Spellbook added to Joanna (prof10 HEALER, +1000g, re-sealed), picking
+  her in town gives the *second* gate: **"The Grand Board of Trades announces
+  that Joanna cannot, at the moment learn new spells."**  Clearing her
+  memorised slots (`+0x142`, four stride-2 slots = spells 100..103) did **not**
+  lift it, so the gate is **not** the `+0x142` slot count.  Candidate causes
+  (unproven): a separate permanent learned-spell array vs `+0x6a` capacity
+  (level-based), or a level-up gate.  Needs a runtime `LOF_PXWATCH`/`LOF_TRACE`
+  of the learn routine to pin — **not guessed** (Rule #1).
+
+Recipe to reproduce the in-town learn screen: copy `dng00-Conan` to a slot,
+add item 15 (condition 100) to a caster (e.g. Joanna, slot 4) + re-seal (fold:
+seed 1, add even / xor odd, NUL->1 over `[0,0x2e3a)`), load with `O`+slot, press
+`Up` to enter town, `H` then `L`, then the character digit.
+
+STILL TO DO: decode the "cannot at the moment" gate + the spell-list picker +
+the slot write + the cost, then implement `learn_magic()` + a port test (the
+in-town learn screen is now a reachable oracle).
