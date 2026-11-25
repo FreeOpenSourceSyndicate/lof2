@@ -17,8 +17,41 @@ Rules for this file:
 
 ## Open
 
-_None. Every owner task below is resolved; see **Done**. The Maintainer
-re-checks this each session (Rule 8)._
+> Re-audited under the single-lane definition (a "blocker" = needs outside help;
+> see `docs/BLOCKERS.md`). What genuinely needs you is **real save fixtures** and
+> **real-play verification of random/timed mechanics** — everything else is
+> maintainer research. The Maintainer re-checks this each session (Rule 8).
+
+### OT-005 — Provide real late-game / varied-state save fixtures (verification data)
+
+- **Status: open.** Every archived save is **level ≤ 4** and located in `DNG00`
+  (wilderness) or `DNG05` (the Temple). To *verify* — not merely derive — several
+  behaviours I need real saves the repo does not have. **Why only you:** I can
+  patch a save to *fake* a state, but that does not prove the engine actually
+  reaches it, so it cannot validate the port.
+- **What I need (any one or more of these, via `saves/inbox/`):**
+  1. a **high-level caster** (level ≥ 10, ideally two different professions) — to
+     confirm the level-5..16 magic-max table rows beyond what level ≤ 4 exercises;
+  2. a save **inside `DNG13`** (the deep dungeon, header `level=4`) or any
+     non-Temple dungeon at depth ≥ 2 — to confirm the D≥2 view sprites
+     (`CHAR2/CH40`, `CHAR2/CH25`) are keyed by depth and not by scenario 5;
+  3. a save **mid-shop or mid-combat** (shop open with items listed / a combat
+     round in progress) — to confirm shop stock/price and round state.
+- **Unblocks:** BLK-A005 remainder, the level-5..16 magic verification, and
+  shop/combat state checks. **Not urgent** (derivation continues without them).
+
+### OT-006 — Real-play confirmation of randomised / timed mechanics (when implemented)
+
+- **Status: open (activation deferred until the feature exists).** Encounter
+  spawns (P-4), the Emporium sell/buy haggling price (BLK-B006) and the internal
+  clock's pacing are **randomised/time-driven**. DOSBox and the analysis emulator
+  can only *sample* them, never prove a formula.
+- **Why only you:** confirming the port matches **real play** here needs you to
+  play the original (or capture several DOSBox frames of the same action) so I
+  can compare distributions, not a single sample.
+- **Unblocks:** closing BLK-B006 and P-4 with confidence rather than only a
+  derived-but-unverified implementation.
+- **Action now:** none — I will ping when a feature is ready to sample.
 
 ## Done
 

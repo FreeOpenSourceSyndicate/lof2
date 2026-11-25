@@ -20,7 +20,7 @@ work.
 | ID | Blocked lane | Responsible | Priority | Status | Depends on |
 |----|--------------|-------------|----------|--------|------------|
 | BLK-M001 | M (maintainer) | Maintainer | Medium | Resolved | — |
-| BLK-M002 | M (maintainer) | Maintainer | Low | Open | — |
+| BLK-M002 | M (maintainer) | Maintainer | Low | **Open — maintainer research, NOT external**: both residues (status-block value drawer; which `+0x18` value selects the gender-variant profession table) are derivable by further disassembly/oracle work | — |
 
 ---
 
