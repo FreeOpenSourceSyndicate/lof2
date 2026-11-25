@@ -1292,6 +1292,57 @@ static void test_combine_item() {
     assert(d.raw[kCharInv82 + e*4] == 94);
 }
 
+static void test_remove_sell() {
+    // remove_item: shift later 4-byte slots down, clear last, inv_count-- (image
+    // 0x212f:0x7b6e).  sell_item: gold dword += price then remove (0x611A).
+    SaveChar c{};
+    c.present = 1;
+    for (int i = 0; i < 3; ++i) {
+        c.raw[kCharInv82 + i * 4 + 0] = (uint8_t)(i + 1);   // items 1,2,3
+        c.raw[kCharInv82 + i * 4 + 1] = (uint8_t)(10 + i);  // charges
+        c.raw[kCharInv82 + i * 4 + 3] = 100;                // condition
+    }
+    c.raw[kCharInvUsed6b] = 3;
+
+    // Removing the middle slot compacts slot 2 down into slot 1.
+    assert(remove_item(c, 1));
+    assert(c.raw[kCharInvUsed6b] == 2);
+    assert(c.raw[kCharInv82 + 0 * 4] == 1);
+    assert(c.raw[kCharInv82 + 1 * 4] == 3);   // item that was in slot 2
+    assert(c.raw[kCharInv82 + 1 * 4 + 1] == 12);
+    assert(c.raw[kCharInv82 + 2 * 4] == 0);   // vacated tail cleared
+    // The last physical slot (47) is cleared too.
+    assert(c.raw[kCharInv82 + (int)kCharInvCount * 4 - 4] == 0);
+
+    // Removing an empty slot is refused.
+    assert(!remove_item(c, 5));
+
+    // sell_item: gold += price, item gone, compaction, used count--.
+    SaveChar d{};
+    d.present = 1;
+    d.raw[kCharInv82 + 0 * 4] = 1;
+    d.raw[kCharInv82 + 1 * 4] = 2;
+    d.raw[kCharInvUsed6b] = 2;
+    uint32_t gold0 = (uint32_t)d.raw[kCharGold72] | ((uint32_t)d.raw[kCharGold72 + 1] << 8) |
+                     ((uint32_t)d.raw[kCharGold72 + 2] << 16) |
+                     ((uint32_t)d.raw[kCharGold72 + 3] << 24);
+    assert(sell_item(d, 0, 500));
+    uint32_t gold1 = (uint32_t)d.raw[kCharGold72] | ((uint32_t)d.raw[kCharGold72 + 1] << 8) |
+                     ((uint32_t)d.raw[kCharGold72 + 2] << 16) |
+                     ((uint32_t)d.raw[kCharGold72 + 3] << 24);
+    assert(gold1 == gold0 + 500);
+    assert(d.raw[kCharInvUsed6b] == 1);
+    assert(d.raw[kCharInv82 + 0 * 4] == 2);    // slot 1's item moved down
+    assert(d.raw[kCharInv82 + 1 * 4] == 0);
+    // Selling an empty slot is refused (no gold change).
+    uint32_t before = gold1;
+    assert(!sell_item(d, 5, 1000));
+    uint32_t after = (uint32_t)d.raw[kCharGold72] | ((uint32_t)d.raw[kCharGold72 + 1] << 8) |
+                     ((uint32_t)d.raw[kCharGold72 + 2] << 16) |
+                     ((uint32_t)d.raw[kCharGold72 + 3] << 24);
+    assert(after == before);
+}
+
 static void test_give_item() {
     // The Amulet -> first empty slot (0), condition 100, charges from the
     // record, used-slot count incremented (engine add routine 0x69e2..0x6c5f).
@@ -1870,6 +1921,7 @@ int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
     test_give_item();
+    test_remove_sell();
     test_combine_item();
     test_rest_effect();
     test_temple_heal();

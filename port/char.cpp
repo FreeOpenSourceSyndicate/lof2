@@ -367,6 +367,38 @@ static void wr32(uint8_t* r, int off, uint32_t v) {
     r[off + 3] = (uint8_t)((v >> 24) & 0xff);
 }
 
+static void refresh_carried_weight(SaveChar& c) {
+    CharSheet sh = decode_char(c.raw.data());
+    uint16_t w = (uint16_t)(weight_base(sh) + carried_item_weight(sh));
+    c.raw[kCharWeight66]     = (uint8_t)(w & 0xff);
+    c.raw[kCharWeight66 + 1] = (uint8_t)(w >> 8);
+}
+
+bool remove_item(SaveChar& c, int slot) {
+    if (slot < 0 || slot >= (int)kCharInvCount) return false;
+    if (c.raw[kCharInv82 + slot * 4] == 0) return false;   // empty slot
+    if (c.raw[kCharInvUsed6b] > 0) c.raw[kCharInvUsed6b] -= 1;
+    // image 0x212f:0x7b6e: shift every later 4-byte slot down one, clear last.
+    for (int i = slot; i < (int)kCharInvCount - 1; ++i) {
+        uint8_t* cur = &c.raw[kCharInv82 + i * 4];
+        uint8_t* nxt = &c.raw[kCharInv82 + (i + 1) * 4];
+        for (int k = 0; k < 4; ++k) cur[k] = nxt[k];
+    }
+    uint8_t* last = &c.raw[kCharInv82 + (kCharInvCount - 1) * 4];
+    for (int k = 0; k < 4; ++k) last[k] = 0;
+    refresh_carried_weight(c);
+    return true;
+}
+
+bool sell_item(SaveChar& c, int slot, uint32_t price) {
+    if (slot < 0 || slot >= (int)kCharInvCount) return false;
+    if (c.raw[kCharInv82 + slot * 4] == 0) return false;
+    // image 0x611A: gold dword (+0x72) += price, then remove + compact (0x6145).
+    wr32(c.raw.data(), kCharGold72, rd32(c.raw.data(), kCharGold72) + price);
+    remove_item(c, slot);   // refreshes carried weight (gold adds weight too)
+    return true;
+}
+
 int rest_cost(const SaveGame& g, bool with_rations) {
     int members = 0;
     long sum = 0;

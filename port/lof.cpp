@@ -1952,6 +1952,9 @@ int main(int argc, char** argv) {
     int house_train_do = 0;         // 1-based char for --house-train (full gate)
     int house_train_payer = 0;      // 1-based payer for --house-train
     int house_train_hp = 5;         // HP gain roll for --house-train
+    int sell_do = 0;               // 1-based char for --sell
+    int sell_slot = 0;             // 0-based inventory slot to sell
+    int sell_price = 0;            // gold the item sells for
     int repair_do = 0;              // 1-based char for --repair
     int repair_slot = 0;            // 0-based inventory slot to repair
     int repair_payer = -1;          // 1-based payer for --repair-payer (-1 = owner)
@@ -2027,6 +2030,11 @@ int main(int argc, char** argv) {
             house_train_do = atoi(argv[++i]);
             house_train_payer = atoi(argv[++i]);
             house_train_hp = atoi(argv[++i]);
+        }
+        else if (std::string(argv[i]) == "--sell" && i + 3 < argc) {
+            sell_do = atoi(argv[++i]);
+            sell_slot = atoi(argv[++i]);
+            sell_price = atoi(argv[++i]);
         }
         else if (std::string(argv[i]) == "--repair" && i + 2 < argc) {
             repair_do = atoi(argv[++i]);
@@ -2423,6 +2431,30 @@ int main(int argc, char** argv) {
                house_train_do, tr.level.new_level, tr.gold_cost);
         for (auto& s : tr.level.improved) printf(" %s", s.c_str());
         printf("\n");
+        return 0;
+    }
+    if (sell_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --sell needs a valid --save\n"); return 1; }
+        if (sell_do - 1 < 0 || sell_do - 1 >= (int)sg.chars.size() ||
+            !sg.chars[sell_do - 1].present) {
+            fprintf(stderr, "lof: --sell %d: no such character\n", sell_do);
+            return 1;
+        }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: --sell needs --amulet-out\n"); return 1; }
+        if (!sell_item(sg.chars[sell_do - 1], sell_slot, (uint32_t)sell_price)) {
+            fprintf(stderr, "lof: --sell %d slot %d: empty or invalid\n",
+                    sell_do, sell_slot);
+            return 1;
+        }
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        printf("lof: character %d sold slot %d for %d gold\n",
+               sell_do, sell_slot, sell_price);
         return 0;
     }
     if (repair_do > 0) {

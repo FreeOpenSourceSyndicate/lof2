@@ -695,6 +695,53 @@ def check_house_train() -> int:
     return 0
 
 
+def check_sell_mechanic() -> int:
+    # --sell N SLOT PRICE: the deterministic sell mechanic — gold dword += price
+    # then remove+compact the slot (image 0x611A + 0x212f:0x7b6e).  Verified
+    # end-to-end on GAME4 (Gandalf, slot 0): gold +price, used-count -1, items
+    # shift down.  (The live price is random — see the sell decode — so the CLI
+    # takes it as a parameter.)
+    if not os.path.exists(GAME4):
+        print("port_building_test: SKIP sell (no GAME4)")
+        return 0
+    a = open(GAME4, "rb").read()
+    # find a present character with at least 2 items
+    idx = None
+    for i in range(6):
+        r = a[4 + i * 410:4 + (i + 1) * 410]
+        if r[0] and r[0x6b] >= 2 and r[0x82] and r[0x82 + 4]:
+            idx = i
+            break
+    if idx is None:
+        print("port_building_test: SKIP sell (no suitable character)")
+        return 0
+    r = a[4 + idx * 410:4 + (idx + 1) * 410]
+    gold0 = r[0x72] | (r[0x73] << 8) | (r[0x74] << 16) | (r[0x75] << 24)
+    used0 = r[0x6b]
+    old_item1 = r[0x82 + 4]
+    price = 123
+    out = "/tmp/sell_out.sav"
+    p = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--sell", str(idx + 1), "0", str(price), "--save", GAME4,
+                        "--amulet-out", out],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if p.returncode != 0:
+        print("port_building_test: FAIL sell rc=%d %r" % (p.returncode, p.stderr.decode()))
+        return 1
+    b = open(out, "rb").read()
+    r2 = b[4 + idx * 410:4 + (idx + 1) * 410]
+    gold1 = r2[0x72] | (r2[0x73] << 8) | (r2[0x74] << 16) | (r2[0x75] << 24)
+    if gold1 != gold0 + price:
+        print("port_building_test: FAIL sell gold %d -> %d" % (gold0, gold1)); return 1
+    if r2[0x6b] != used0 - 1:
+        print("port_building_test: FAIL sell used %d -> %d" % (used0, r2[0x6b])); return 1
+    if r2[0x82] != old_item1:
+        print("port_building_test: FAIL sell compaction (slot0 %d, want %d)"
+              % (r2[0x82], old_item1)); return 1
+    print("port_building_test: ok sell mechanic (gold +price, remove+compact)")
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
@@ -708,6 +755,7 @@ def main() -> int:
     rc |= check_repair_effect()
     rc |= check_training_effect()
     rc |= check_house_train()
+    rc |= check_sell_mechanic()
     rc |= check_use_effect()
     rc |= check_cast_effect()
     return rc

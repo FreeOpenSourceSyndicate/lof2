@@ -1215,6 +1215,19 @@ int give_item(SaveChar& c, int item_index);
 // partner is absent (the engine's "That doesn't seem to work." case).
 bool combine_item(SaveChar& c, int slot);
 
+// Remove the item in inventory slot `slot` (0-based) and compact: every later
+// slot shifts down one 4-byte slot, the last slot is cleared and the used-slot
+// count (+0x6b) drops by one (image 0x212f:0x7b6e, the engine's remove routine
+// called by the emporium sell at 0x6145).  Refreshes the carried total (+0x66).
+bool remove_item(SaveChar& c, int slot);
+
+// Sell the item in slot `slot` for `price` gold: add `price` to the character's
+// gold dword (+0x72, image 0x611A) then remove + compact the slot.  The price is
+// supplied by the caller (the live engine computes it randomly — see
+// `docs/notes-maintainer-state.md` sell decode); this is the deterministic
+// remove+pay mechanic.  Returns false if the slot is empty.
+bool sell_item(SaveChar& c, int slot, uint32_t price);
+
 // --- Inn-rest cost + effect (image 0x820a..0x8680) --------------------------
 // The night's-rest price, derived from the counting loop at 0x823a..0x83a9:
 //   2 * present_members  [+ 3 * sum_over_members(min(14, (weight_max(+0x64) -
