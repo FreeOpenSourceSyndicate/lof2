@@ -621,3 +621,15 @@ Traced the deep-room save under the emulator (`LOF_I21`, `LOF_PXWATCH`, `LOF_DIS
   sprite model (`dungeon_view_for`) only reproduces shallow/`CHAR2` cases; the real
   deep view is a multi-layer composite. Next: decompile the composition loop (the
   caller of `119D:06C0`) — trace buffer writes instead of EGA writes.
+
+### BLK-A005 — DP bank is mixed-size TILES (depth sweep captured, 2026-11-26)
+Own depth sweep of the deep-room save (load slot 1, then Up x0/x1/x2/x3) ->
+`ref/emu/dng02_depth{4,3,2,1}.png` + montage `dng02_sweep.png`; the corridor
+recedes each step.  Palette is the standard EGA set.  The `EGA/D2/DPnnn` bank is
+mixed-size pieces, not all full views: DP001 120x119 (base), DP014 120x119,
+DP015 64x59, DP020 16x29, DP030 16x59, DP040 32x59, DP050 8x29, DP058/DP060
+120x119.  So the viewport is a tiled perspective composite: full-frame base(s) +
+small wall/floor/ceiling tiles at depth-scaled positions.  The composition loop
+(caller of the DP loader 119D:06C0) chooses tile+dest per march cell.  Next:
+single-step one view build with LOF_WATCH on buffer ds:0x000A to map each tile
+blit -> source sprite + dest offset across the 4 captured depths.
