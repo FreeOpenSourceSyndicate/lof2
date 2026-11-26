@@ -770,3 +770,17 @@ EGA. The composition is therefore a SEQUENTIAL tile stream (tile k at the runnin
 segment offset), with the perspective baked into each tile's size + the fixed
 order, not arbitrary 2-D placement. Next: decode the tile ORDER (which `DP` per
 step, from the 36-call trace) + the segment->2-D mapping, then render.
+
+### BLK-A005 — dungeon bank = 70 tiles with direction-conditional load masks
+Full bank-3 list (view index -> DS:0x4A27): all `ega\d0\dpNNN`, with a load mask
+per entry tested against the current direction bit `cs:[0xA8C]` (=
+`0xA8E[cs:[0x240E]]` byte-swapped; `0x240E` is a direction index 0..7, table
+`0xA8E`=0x0001..0x0080):
+- mask `0xFF00` (always): dp001, dp014..dp057 — the wall/ceiling/floor fragments.
+- mask `0xFE00` (always): dp058, dp059, dp060, dp067, dp068, dp069 — the 120x119
+  base scenes + 32x119 sides.
+- mask `0x0100` (only when direction bit 0 set): dp002..dp013, dp061..dp066.
+So facing selects which tile subset is resident; the fragments are then decoded
+into the 320x200 4-plane scratch (sequential segment advance) and blitted. The
+remaining unknown is still the per-tile 2-D placement; capturing extra facings
+(the no-monster saves allow turning) will give the samples needed to pin it.
