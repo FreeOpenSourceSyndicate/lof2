@@ -707,3 +707,14 @@ overlays for walls/ceiling/floor — the perspective renderer.  Saved
 `ref/emu/game5_corridor.png` + `_vp.png`.  Remaining: the exact overlay set +
 blit order per march cell, and the depth->base rule (already: depth1=DPn,
 2=CH40, >=3=CH25).
+
+### BLK-A005 — GAME4 room: a different tile set (view is per-cell)
+GAME4 (dng43, a big room) decodes to a DIFFERENT view tile set than the corridor:
+ceiling/back wall `DP037`(64x59)/`DP040`/`DP041`(32x59) at (40..70,41), right wall
+`DP016`(32x29)/`DP020`(16x29) at (102..104,155), `DP031`(8x59)@(126,133),
+`DP018`/`DP019`(32x59)@(101..102,135).  The y>=135 tiles (`DP034`/`DP022`/…)
+are identical in BOTH saves = the location-block HUD, not the view.  So the
+first-person view is a per-march-cell `DP` tile set blitted at fixed screen
+positions — the perspective renderer.  Saved `ref/emu/game4_room{,_vp}.png`.
+Remaining: the cell->tile-set rule (march + walls), then implement + verify
+against the emulator frames (corridor + room + the 4 depth frames).
