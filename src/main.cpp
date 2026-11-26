@@ -317,6 +317,7 @@ int main(int argc, char** argv) {
         std::vector<std::string> ring;
         uint16_t min_sp = 0xFFFF;
         ring.reserve(64);
+        const char* trace_ip_env = getenv("LOF_TRACE_IP");
         while (m.running) {
             for (int i = 0; i < 300000 && m.running; i++) {
                 uint32_t pc0 = (uint32_t)m.cpu.cs * 16u + m.cpu.ip;
@@ -328,7 +329,8 @@ int main(int argc, char** argv) {
                         m.cpu.si, m.cpu.di, m.cpu.bp, m.cpu.sp, m.cpu.ds, m.cpu.es, m.cpu.ss, m.cpu.flags);
                     trace_left--;
                 }
-                if (const char* tip = getenv("LOF_TRACE_IP")) {
+                if (trace_ip_env) {
+                    const char* tip = trace_ip_env;
                     // LOF_TRACE_IP=addr  (exact)  or  lo:hi  (range, hex, half-open)
                     static long lo = -2, hi = 0, left = 0;
                     static bool bt = false;

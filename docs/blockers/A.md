@@ -651,3 +651,19 @@ fill order is observed as DP001 then DP014..DP060 (the whole bank decoded once a
 dungeon load) — the per-view selection is applied at blit time from a per-cell
 table still to be read.  Next session: dump the caller of `119D:0A20` and walk its
 per-tile (sprite, dest-offset) pairs against the four depth frames.
+
+### BLK-A005 — full decode-call trace captured; placement blit still missing
+Hoisted the per-instruction `getenv("LOF_TRACE_IP")` out of the emulator's inner
+loop (was called 6.5M times -> tracing never reached the dungeon).  With linear
+addressing (`LOF_TRACE_IP=123F2:123F4` = decoder entry `119D:0A22`), a full view
+build shows **156 tile-decode calls** (`ref/emu/dng02_decode_trace.txt`):
+slots `bx=08..AD`, every decode into temp segment `es=468E`, reading sprite data
+`ds=4130`.  So a single view decodes 156 tile sprites — confirming the composite.
+
+The **still-unfound piece** is the placement blit that copies each decoded tile
+from the temp (`468E`) into the viewport buffer (`6492:000A`) at its depth-scaled
+rectangle, then the 4-plane blit to the card.  The decode trace's `di` is the
+caller's, not the tile dest, so the dest is set separately (likely `cs:[0A20]` /
+`cs:[0A06]`); next: `LOF_WATCH` on those two cs-globals (`linear 0x123F0` /
+`0x123D6`) during a view build to read the per-tile dest directly, then the
+placement routine.  Renderer implementation follows once the dest table is read.

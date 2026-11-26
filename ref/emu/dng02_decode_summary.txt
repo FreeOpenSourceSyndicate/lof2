@@ -1,0 +1,1 @@
+Decode-call trace: 156 tile decodes, slots bx=08..AD, all es=468E (temp), ds=4130 (sprite src). See dng02_decode_trace.txt.
