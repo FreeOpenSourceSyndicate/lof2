@@ -2832,3 +2832,21 @@ applies `learn_spells(chars[N-1], C)`, and writes a sealed save, printing
 learned 0, capacity 4 -> 4 spells (100..103), 60 gold, charges 10/6/6/7 (matches
 the emulator).  Guarded by `port_building_test::check_learn_magic`.
 STILL OPEN: the "who'll pay"/spellbook/item-40 gate prompts + `spell_capacity`.
+
+### CORRECTION: the spell tables ARE in the EXE; spell_capacity implemented (2026-11-25)
+Earlier notes called `[0xaf62]:0xc0e` / `[0xb09e]:0xc0f` "runtime data not in the
+file image".  **That was wrong** - they are in the EXE's DGROUP (ds=0x4c92), at
+image **0x3D42E**, stored stride-2 and interleaved:
+  even bytes 0x3D42E = school-base {1,33,59,80,100,118,127}  (`kBase`)
+  odd  bytes 0x3D42F = capacity factors {32,26,21,20,18,10,14} (`kCap`)
+(`[0xaf62]` and `[0xb09e]` both = 0x4C92 = DGROUP, confirmed from a memory dump.)
+The prof->capacity-class jump table is the `cs:0x9488` table = image **0x2A778**
+(cs=0x313F = 0x212f relocated +0x1010; ip = image - 0x212F0):
+  prof 0,1,2,11 -> -1 (no magic); 3->5, 4->2(level-5,cap10), 5->3, 6->2,
+  7->0, 8->1, 9->3(level-3,cap10), 10->4.
+So `spell_capacity()` (image 0x2A6C6) = `max(1, kCap[class]*min(15,level+adj)/15)`,
+level = `+0x17` (NOT +0x1a).  Verified: Joanna prof10 level 4 -> 18*4/15 = 4,
+exactly the emulator's "4 new spells".  `port/char.cpp::spell_capacity()` now
+implements it; `--learn-magic N` uses it automatically (no --learn-capacity
+needed); pinned by `char_test::test_spell_capacity`.  Everything here is EXE
+content (code + DGROUP), transcribed like the spell/magic tables - no data file.

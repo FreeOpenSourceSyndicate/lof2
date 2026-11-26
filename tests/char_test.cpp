@@ -2035,6 +2035,26 @@ static void test_learn_spells() {
     assert(w.raw[kCharFlag6a] == 0);
 }
 
+static void test_spell_capacity() {
+    // spell_capacity (image 0x2A6C6): cap = max(1, kCap[class]*min(15,level+adj)/15),
+    // class from the cs:0x9488 jump table, kCap {32,26,21,20,18,10,14} (DGROUP 0xc0f).
+    SaveChar c{};
+    c.raw[kCharProf1b] = 10; c.raw[0x17] = 4;   // HEALER lvl4 -> class4 (18)
+    assert(spell_capacity(c) == 4);             // 18*4/15 == 4 (emulator: 4 spells)
+    c.raw[kCharProf1b] = 7;  c.raw[0x17] = 2;   // MAGICIAN lvl2 -> class0 (32)
+    assert(spell_capacity(c) == 4);             // 32*2/15 == 4
+    c.raw[kCharProf1b] = 10; c.raw[0x17] = 15;
+    assert(spell_capacity(c) == 18);            // 18*15/15
+    c.raw[kCharProf1b] = 0;  c.raw[0x17] = 10;  // WARRIOR -> no class
+    assert(spell_capacity(c) == 0);
+    c.raw[kCharProf1b] = 4;  c.raw[0x17] = 4;   // prof4: level-5 < 0 -> 0
+    assert(spell_capacity(c) == 0);
+    c.raw[kCharProf1b] = 4;  c.raw[0x17] = 10;  // prof4: level10-5=5, 21*5/15 == 7
+    assert(spell_capacity(c) == 7);
+    c.raw[kCharProf1b] = 9;  c.raw[0x17] = 5;   // prof9: level5-3=2, 20*2/15 == 2
+    assert(spell_capacity(c) == 2);
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
@@ -2056,6 +2076,7 @@ int main(int argc, char** argv) {
     test_consume_spell_slot();
     test_spell_memorisation();
     test_learn_spells();
+    test_spell_capacity();
     test_level_up();
     test_recompute_high_level();
     test_training_cost();

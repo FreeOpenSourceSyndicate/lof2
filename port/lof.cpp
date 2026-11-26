@@ -2217,7 +2217,7 @@ int main(int argc, char** argv) {
         }
         if (amulet_out.empty()) { fprintf(stderr, "lof: --learn-magic needs --amulet-out\n"); return 1; }
         int learned = sg.chars[h].raw[kCharFlag6a];
-        int cap = learn_capacity > 0 ? learn_capacity : learned;
+        int cap = learn_capacity > 0 ? learn_capacity : spell_capacity(sg.chars[h]);
         int n = cap - learned;
         if (n <= 0) {
             fprintf(stderr, "lof: character %d cannot learn more (learned %d, capacity %d)\n",

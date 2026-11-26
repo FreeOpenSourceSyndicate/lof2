@@ -1379,6 +1379,18 @@ void consume_spell_slot(SaveChar& c, int slot);
 int spell_school(uint8_t profession);
 void refresh_spell_casts(SaveChar& c);
 
+// The engine's spell-capacity routine (image 0x2A6C6): the maximum number of
+// spells a character can know at its current level (the `+0x6a` learned-count
+// is capped by this).  It maps the profession (+0x1b) to a capacity class via
+// the `cs:0x9488` jump table (image 0x2A778), then computes
+//   cap = max(1, kCap[class] * min(15, level+adj) / 15)
+// where kCap = {32,26,21,20,18,10,14} is the DGROUP table at ds:0xc0f (image
+// 0x3D42F — the odd bytes interleaved with the school-base table 0x3D42E),
+// level = +0x17, and profs 4 and 9 subtract 5/3 from the level and clamp to 10.
+// Non-casters (prof 0/1/2/11) return 0.  All inputs are transcribed from
+// LOF.EXE (DGROUP / code), not from a data file.
+int spell_capacity(const SaveChar& c);
+
 // House-of-Trades "learn magic spells" effect (image 0x9B7C..0x9CFD).  The
 // guild teaches ALL available spells for one fee (no per-spell picker): it sets
 // the learned-count +0x6a to `capacity` and, for s = old count .. capacity-1,

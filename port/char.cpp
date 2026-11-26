@@ -710,6 +710,26 @@ void refresh_spell_casts(SaveChar& c) {
     }
 }
 
+int spell_capacity(const SaveChar& c) {
+    // image 0x2A6C6.  prof -> capacity-class via the cs:0x9488 jump table
+    // (image 0x2A778); class -> factor via DGROUP ds:0xc0f (image 0x3D42F, the
+    // odd bytes interleaved with the school-base table at 0x3D42E).
+    static const int8_t kClass[12] = {-1, -1, -1, 5, 2, 3, 2, 0, 1, 3, 4, -1};
+    static const uint8_t kCap[7] = {32, 26, 21, 20, 18, 10, 14};
+    int prof = c.raw[kCharProf1b];
+    if (prof < 0 || prof >= 12) return 0;
+    int cls = kClass[prof];
+    if (cls < 0) return 0;
+    int lvl = c.raw[0x17];                 // +0x17 level
+    if (prof == 4) lvl -= 5;               // case 0x2A76C: level-5, clamp 10
+    if (prof == 9) lvl -= 3;               // case 0x2A736: level-3, clamp 10
+    if (lvl < 0) return 0;
+    if ((prof == 4 || prof == 9) && lvl > 10) lvl = 10;
+    if (lvl > 15) lvl = 15;
+    int cap = kCap[cls] * lvl / 15;
+    return cap == 0 ? 1 : cap;
+}
+
 bool learn_spells(SaveChar& c, int capacity) {
     static const uint8_t kBase[7] = {1, 33, 59, 80, 100, 118, 127};
     uint8_t* r = c.raw.data();
