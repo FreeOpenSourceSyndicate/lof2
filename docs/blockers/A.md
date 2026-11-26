@@ -718,3 +718,20 @@ first-person view is a per-march-cell `DP` tile set blitted at fixed screen
 positions — the perspective renderer.  Saved `ref/emu/game4_room{,_vp}.png`.
 Remaining: the cell->tile-set rule (march + walls), then implement + verify
 against the emulator frames (corridor + room + the 4 depth frames).
+
+### BLK-A005 — DP tile vocabulary (D3 bank) = base scenes + fragments
+The `D3` bank is 51 `DP` tiles in two kinds:
+- **Full bases (120x119):** DP001 (corridor), DP014 (arch passage), DP036
+  (room arch), DP058 (stair/table room), DP059 (well room), DP060 (cavern),
+  DP067. These are the per-cell base scenes.
+- **Wall/ceiling/floor FRAGMENTS**, in same-size GROUPS (each group = a texture):
+  DP015..DP023 (red corridor arch pieces 64x59/32x29/24x19/32x59/16x29/16x19),
+  DP024/025 (32x119 tall side walls), DP026/027/030 (16x59 pillars),
+  DP037..DP045 (grey stone, same size pattern as 015..023), DP046/047 (32x119),
+  DP052/053 (16x50), DP054..057 (16x28/27), DP068/069 (32x119).  Sizes are
+  powers-of-2-ish = the perspective depth scale.
+
+Montage: `ref/emu/d3_tiles_montage.png`.  So the view = a 120x119 base scene +
+positioned fragments (the visible walls); the base is chosen by the cell's view
+index, the fragments by the march.  Remaining: that selection rule (then
+implement + verify).
