@@ -633,3 +633,21 @@ small wall/floor/ceiling tiles at depth-scaled positions.  The composition loop
 (caller of the DP loader 119D:06C0) chooses tile+dest per march cell.  Next:
 single-step one view build with LOF_WATCH on buffer ds:0x000A to map each tile
 blit -> source sprite + dest offset across the 4 captured depths.
+
+### BLK-A005 — decoder located (119D:0A20), pipeline clarified (2026-11-26)
+`LOF_WATCH` on a buffer-centre byte hit the routine `119D:0A20..0A79`: a **standard
+EGA RLE decoder** (read escape byte bl; next byte; if ==bl then (count,value) ->
+`rep stosb` else literal; `add di`; advance dest segment `cs:[0x0A06]` by
+count/16+1 per plane -> decodes the 4 planes of one sprite into consecutive
+segments). So the DP view pipeline is:
+1. open `EGA/D<d>/DP<nnn>` (loader `119D:06C0`, INT21 AH=3D on `cs:[0x0A7C]`);
+2. RLE-decode into a temp (routine `119D:0A20`);
+3. blit the decoded tile into the 32000-byte viewport buffer (`ds:0x000A`);
+4. 4-plane blit buffer -> EGA (`119D:0B40` + `119D:0B93`).
+
+The **composition (step 3: which tile -> which dest offset, per march cell)** is
+the remaining un-decompiled piece (the caller of `119D:0A20`/`119D:06C0`).  Tile
+fill order is observed as DP001 then DP014..DP060 (the whole bank decoded once at
+dungeon load) — the per-view selection is applied at blit time from a per-cell
+table still to be read.  Next session: dump the caller of `119D:0A20` and walk its
+per-tile (sprite, dest-offset) pairs against the four depth frames.
