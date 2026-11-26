@@ -735,7 +735,7 @@ LearnGate learn_magic_gate(const SaveChar& c) {
     bool has_book = (prof == 3 || prof == 4);
     if (!has_book) {
         int used = c.raw[kCharInvUsed6b];
-        for (int s = 0; s < used && s < kCharInvCount; s++) {
+        for (int s = 0; s < used && s < (int)kCharInvCount; s++) {
             if (c.raw[kCharInv82 + s * kCharInvStride] == 40) { has_book = true; break; }
         }
     }

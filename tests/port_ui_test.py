@@ -116,6 +116,67 @@ def check_cast_charges() -> int:
     return 0
 
 
+def check_learn_magic() -> int:
+    """The --ui House (L) learn flow: pick char -> gate -> fee -> payer -> teach.
+
+    Self-contained: build a town save (location 8, no DNG08) with a caster that
+    has learned 0, item 40 (spellbook) and 1000 gold, then script
+    [space,space,O,H,L,<char>,<payer>] and require the "learns N spell(s) for C
+    gold ... Concentration improves!" log (image 0x89da / 0x9B7C).
+    """
+    school_of = {3: 5, 5: 3, 6: 2, 7: 0, 8: 1, 10: 4}
+    src = None
+    for cand in (os.path.join(GAME, "GAMES", "GAME4"),
+                 os.path.join(GAME, "GAMES", "GAME2")):
+        if os.path.exists(cand):
+            src = cand
+            break
+    if src is None:
+        print("port_ui_test: SKIP learn-magic (no save)")
+        return 0
+    a = bytearray(open(src, "rb").read())
+    idx = None
+    for i in range(6):
+        r = a[4 + i * 410:4 + (i + 1) * 410]
+        if r[0] and r[0x1b] in school_of:
+            idx = i
+            break
+    if idx is None:
+        print("port_ui_test: SKIP learn-magic (no caster)")
+        return 0
+    base = 4 + idx * 410
+    a[base + 0x6a] = 0                                    # learned 0
+    for k in range(4):
+        a[base + 0x72 + k] = (1000 >> (8 * k)) & 0xff     # 1000 gold
+    a[base + 0x82] = 40                                   # item 40 (spellbook)
+    if a[base + 0x6b] < 1:
+        a[base + 0x6b] = 1
+    a[0x9a2] = 8
+    a[0x9a4] = 0                                          # location 8 -> town
+    KS = 0x2e3a
+    acc = 1
+    for i in range(KS):
+        c = a[i] if a[i] else 1
+        acc = ((acc + c) if i % 2 == 0 else (acc ^ c)) & 0xFFFFFFFF
+    for i in range(4):
+        a[KS + i] = (acc >> (8 * i)) & 0xff
+    save = "/tmp/ui_learn_in.sav"
+    open(save, "wb").write(a)
+    d = 49 + idx   # ASCII of the 1-based slot digit ('1'=49 .. '6'=54)
+    keys = "32,32,79,72,76,%d,%d" % (d, d)   # space,space,O,H,L,char,payer
+    r = subprocess.run(
+        [os.path.join(ROOT, "lof"), "--dir", GAME, "--headless", "--ui",
+         "--ui-keys", keys, "--save", save, "--shot", SHOT],
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    err = r.stderr.decode()
+    if "learns" not in err or "Concentration improves!" not in err:
+        print("port_ui_test: FAIL learn-magic (%r)" % err[-200:])
+        return 1
+    line = [l for l in err.splitlines() if "learns" in l][0]
+    print("port_ui_test: learn-magic ok (%s)" % line.strip())
+    return 0
+
+
 def main() -> int:
     if not os.path.exists(PLAY_ORACLE):
         print("port_ui_test: SKIP (no oracle capture)")
@@ -168,6 +229,7 @@ def main() -> int:
 
     rc |= check_round_trip()
     rc |= check_cast_charges()
+    rc |= check_learn_magic()
 
     return rc
 

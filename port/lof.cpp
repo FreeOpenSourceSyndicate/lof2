@@ -865,6 +865,49 @@ static bool compose_house_screen(const std::string& dir, Screen& s, std::string&
                                    sizeof(kText) / sizeof(kText[0]), s, err, sg);
 }
 
+// The House (L)earn sub-prompt over the House screen (TWN04).  stage 0 asks
+// "Who would like to learn magic spells (1-6)?" (engine strings ds:0x4bfa
+// "Who would like to learn " + 0x4c13 "magic spells " + 0x4c2d " (1-6)?").
+// After a character is chosen the gate decides: Ok -> "The Wise demand for N
+// new spells C$," + "who'll pay that (1-6)?" (ds:0x4da6 / 0x4cfe); otherwise
+// the engine's reason ("... needs at least a spellbook!", 0x4d15/0x4d2c/0x4d35,
+// or "cannot, at the moment, learn new spells.", 0x4d52/0x4d6d/0x4d94).  Text is
+// drawn in the shared building-text area (x=139, 8-px rows from y=92).
+static bool compose_house_learn_screen(const std::string& dir, int stage,
+                                       const SaveGame& sg, int char_idx,
+                                       int n, int cost, LearnGate gate,
+                                       Screen& s, std::string& err) {
+    // Viewport + party grid only (no greeting: the prompt replaces the Board's
+    // greeting text, so it must not overlap it).
+    if (!compose_building_screen(dir, "TWN04", nullptr, 0, s, err, &sg)) return false;
+    Font font;
+    if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
+    if (stage == 0) {
+        font.draw_text(s, 139, 92, "Who would like to learn", 15);
+        font.draw_text(s, 139, 100, "magic spells (1-6)?", 15);
+        font.draw_text(s, 139, 124, "(C)ontinue", 0);
+        return true;
+    }
+    std::string name;
+    if (char_idx >= 0 && char_idx < (int)sg.chars.size()) name = sg.chars[char_idx].name;
+    if (gate == LearnGate::NoSpellbook) {
+        font.draw_text(s, 139, 92, "In order to learn new", 15);
+        font.draw_text(s, 139, 100, "spells, " + name + " needs at least", 15);
+        font.draw_text(s, 139, 108, "a spellbook!", 15);
+    } else if (gate == LearnGate::NoCapacity) {
+        font.draw_text(s, 139, 92, "The Grand Board of Trades", 15);
+        font.draw_text(s, 139, 100, "announces that " + name + " cannot,", 15);
+        font.draw_text(s, 139, 108, "at the moment, learn new", 15);
+        font.draw_text(s, 139, 116, "spells.", 15);
+    } else {
+        font.draw_text(s, 139, 92, "The Wise demand for " + std::to_string(n), 15);
+        font.draw_text(s, 139, 100, "new spells " + std::to_string(cost) + "$,", 15);
+        font.draw_text(s, 139, 108, "who'll pay that (1-6)?", 15);
+    }
+    font.draw_text(s, 139, 124, "(C)ontinue", 0);
+    return true;
+}
+
 // Compose the Temple screen: MSCR + the temple exterior EGA/TWN/TWN05 in the
 // viewport + the priest's greeting and the temple menu.  The exterior tile is a
 // full 120x119 cell blitted at the viewport origin, pixel-exact against the
@@ -1472,7 +1515,11 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
     // decision prompt (image 0x1810E) then the round resolution (0x17982) and
     // its table.  `C` in play opens a round against the pinned Mercenary group.
     enum { INTRO, PLAY, DECISION, RESULT, TOWN, EMPORIUM, BANK, HOUSE, TEMPLE,
-           AMULET } state = INTRO;
+           AMULET, LEARN } state = INTRO;
+    // House (L)earn sub-flow: stage 0 = pick character, 1 = pick payer (gate Ok),
+    // 2 = show a gate-failure message (any key returns to the House screen).
+    int learn_stage = 0, learn_char = -1, learn_n = 0, learn_cost_v = 0;
+    LearnGate learn_gate = LearnGate::Ok;
     Screen combat_screen;
     Screen town_screen;
     std::vector<Combatant> combat_party, combat_monsters;
@@ -1501,7 +1548,8 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
         if (state == INTRO) win.present(intro[frame]);
         else if (state == DECISION || state == RESULT) win.present(combat_screen);
         else if (state == TOWN || state == EMPORIUM || state == BANK ||
-                 state == HOUSE || state == TEMPLE || state == AMULET)
+                 state == HOUSE || state == TEMPLE || state == AMULET ||
+                 state == LEARN)
             win.present(town_screen);
         else if (have_play) win.present(play_screen);
         int key = -1; bool quit = false;
@@ -1588,11 +1636,56 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
             }
         } else if (state == EMPORIUM || state == BANK || state == HOUSE ||
                    state == TEMPLE) {
-            // Any key returns to the town hub.
             std::string e2;
-            compose_town_screen(dir, town_name_from_save(save_path), town_screen, e2,
-                                &play_sg);
-            state = TOWN;
+            if (state == HOUSE && key == 'L') {
+                learn_stage = 0; learn_char = -1; learn_gate = LearnGate::Ok;
+                if (!compose_house_learn_screen(dir, 0, play_sg, -1, 0, 0,
+                                                LearnGate::Ok, town_screen, e2))
+                    fprintf(stderr, "lof: %s\n", e2.c_str());
+                state = LEARN;
+            } else {
+                // Any key returns to the town hub.
+                compose_town_screen(dir, town_name_from_save(save_path), town_screen, e2,
+                                    &play_sg);
+                state = TOWN;
+            }
+        } else if (state == LEARN) {
+            std::string e2;
+            if (learn_stage == 0 && key >= '1' && key <= '6') {
+                int c = key - '1';
+                if (c < (int)play_sg.chars.size() && play_sg.chars[c].present != 0) {
+                    learn_char = c;
+                    learn_gate = learn_magic_gate(play_sg.chars[c]);
+                    if (learn_gate == LearnGate::Ok) {
+                        int cap = spell_capacity(play_sg.chars[c]);
+                        int learned = play_sg.chars[c].raw[kCharFlag6a];
+                        learn_n = cap - learned;
+                        learn_cost_v = learn_cost(cap, learned);
+                        learn_stage = 1;
+                    } else {
+                        learn_stage = 2;
+                    }
+                    compose_house_learn_screen(dir, 1, play_sg, learn_char,
+                                               learn_n, learn_cost_v, learn_gate,
+                                               town_screen, e2);
+                }
+            } else if (learn_stage == 1 && key >= '1' && key <= '6') {
+                int p = key - '1';
+                if (p < (int)play_sg.chars.size() && play_sg.chars[p].present != 0 &&
+                    pay_gold(play_sg.chars[p], learn_cost_v)) {
+                    learn_spells(play_sg.chars[learn_char],
+                                 spell_capacity(play_sg.chars[learn_char]));
+                    fprintf(stderr, "lof: %s learns %d spell(s) for %d gold (payer %d); Concentration improves!\n",
+                            play_sg.chars[learn_char].name.c_str(), learn_n,
+                            learn_cost_v, p + 1);
+                    compose_house_screen(dir, town_screen, e2, &play_sg);
+                    state = HOUSE;
+                }
+            } else {
+                // Any other key: back to the House screen.
+                compose_house_screen(dir, town_screen, e2, &play_sg);
+                state = HOUSE;
+            }
         } else if (state == AMULET) {
             // The leave-town step.  (L)eave it, (C)ontinue or a member digit
             // 1-6 all head out; a digit also hands the amulet to that member.
@@ -1699,7 +1792,8 @@ static bool run_ui(const std::string& dir, const std::vector<Screen>& intro,
     if (!shot.empty()) {
         const Screen& s = (state == DECISION || state == RESULT) ? combat_screen
                           : (state == TOWN || state == EMPORIUM || state == BANK ||
-                             state == HOUSE || state == TEMPLE || state == AMULET)
+                             state == HOUSE || state == TEMPLE || state == AMULET ||
+                             state == LEARN)
                                 ? town_screen
                                 : (have_play ? play_screen : intro[frame]);
         if (!save_png(shot, s)) { fprintf(stderr, "lof: cannot write %s\n", shot.c_str()); return false; }
