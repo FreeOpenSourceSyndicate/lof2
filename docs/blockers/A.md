@@ -667,3 +667,15 @@ caller's, not the tile dest, so the dest is set separately (likely `cs:[0A20]` /
 `cs:[0A06]`); next: `LOF_WATCH` on those two cs-globals (`linear 0x123F0` /
 `0x123D6`) during a view build to read the per-tile dest directly, then the
 placement routine.  Renderer implementation follows once the dest table is read.
+
+### BLK-A005 — emulator 10x speedup; decoder writes the viewport directly
+Cached the per-access `getenv` hooks in `src/emu.h` (`wb`/`ww`/`rb`:
+LOF_WATCH/BB/PG1/VC/F1390/RAM/RWATCH/RM) as one-time `static const bool`.  The
+emulator was doing 6+ `getenv` on EVERY memory read/write, which is why traces
+never reached the dungeon.  Now ~10x faster (traces land in seconds); `make test`
+still green.  With it: `LOF_WATCH` on the viewport buffer `6492:000A` shows the
+decoder (`119D:0A55`/`0A5B`, the `rep stosb`) writes it **directly** — so the
+decoder IS the compositor: each of the 156 calls decodes a DP tile into the
+viewport.  The per-tile base is not `cs:[0A20]` (written only twice: 46D4 then
+0000 = a scratch base); the varying dest must be traced at the fill (`di` at
+`119D:0A51`, linear 0x12421) or the per-tile selector.  Next session.
