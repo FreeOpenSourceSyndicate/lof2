@@ -828,6 +828,63 @@ static bool compose_emporium_screen(const std::string& dir, Screen& s, std::stri
                                    sizeof(kText) / sizeof(kText[0]), s, err, sg);
 }
 
+// The Emporium buy list, shown after (B)uy -> pick a character (image 0x6c60):
+//   "%-10s:" + " Gold:" + "%05ld"          (buyer name + gold, colour 5)
+//   "Weight...:  " + "%04d/%04d"           (carried/max weight, /10)
+//   " " + "%c" + "%-15s" + "%4d$ %3dlb"    (row number, name, price, weight) x8
+//   "(C)ontinue"
+// The 8 rows are the shop's carried items in item-index order (stock != 0).  The
+// strings are the engine's own (ds:0x4458 "%-10s:", 0x445f " Gold:", 0x4466
+// "%05ld", 0x446c "Weight...:  ", 0x4479 "%04d/%04d", 0x4483 "%c", 0x4495
+// "%-15s", 0x449b "%4d$ %3dlb").  Drawn in the building text area (x=139).
+static bool compose_emporium_buy_screen(const std::string& dir, int char_idx,
+                                        const SaveGame& sg, const ShopData& shop,
+                                        Screen& s, std::string& err) {
+    if (!compose_building_screen(dir, "TWN01", nullptr, 0, s, err, &sg)) return false;
+    Font font;
+    if (!font.load(dir + "/EGA/UP/CHR1", &err)) return false;
+    if (char_idx < 0 || char_idx >= (int)sg.chars.size()) { err = "bad character"; return false; }
+    const SaveChar& c = sg.chars[char_idx];
+    auto u16 = [&](int o) { return (int)(c.raw[o] | (c.raw[o + 1] << 8)); };
+    auto u32 = [&](int o) {
+        return (long)(c.raw[o] | (c.raw[o + 1] << 8) | (c.raw[o + 2] << 16) |
+                      ((unsigned)c.raw[o + 3] << 24));
+    };
+    char buf[96];
+    // Header 1: "<name>:" black (0), " Gold:" white (15), the value black (0).
+    // (Colours matched to the DOSBox capture; the disasm's 0x175a colour index
+    // does not map directly to the EGA attribute, so these are empirical.)
+    snprintf(buf, sizeof buf, "%-10s:", c.name.c_str());
+    font.draw_text(s, 139, 92, buf, 0);
+    font.draw_text(s, 205, 92, " Gold:", 15);
+    snprintf(buf, sizeof buf, "%05ld", u32(kCharGold72));
+    font.draw_text(s, 241, 92, buf, 0);
+    // Header 2: "Weight...:  <cur>/<max>" all black (0).
+    snprintf(buf, sizeof buf, "Weight...:  %04d/%04d",
+             u16(kCharWeight66) / 10, u16(kCharWeight64) / 10);
+    font.draw_text(s, 139, 100, buf, 0);
+    // 8 item rows: number grey (8) @139, name white (15) @151, price "$" black
+    // (0) right-aligned so the digits land at x=259, weight "lb" black @277.
+    std::vector<int> carried;
+    for (int i = 1; i <= (int)kItemCount && (int)carried.size() < 8; i++)
+        if (shop.carries(i)) carried.push_back(i);
+    for (int r = 0; r < 8; r++) {
+        int y = 108 + r * 8;
+        snprintf(buf, sizeof buf, "%d", r + 1);
+        font.draw_text(s, 139, y, buf, 8);
+        if (r < (int)carried.size()) {
+            const ItemRecord* it = item_by_index(carried[r]);
+            font.draw_text(s, 151, y, it ? it->name : "?", 15);
+            snprintf(buf, sizeof buf, "%4d$", it ? it->price : 0);
+            font.draw_text(s, 241, y, buf, 0);
+            snprintf(buf, sizeof buf, "%3dlb", it ? it->weight / 10 : 0);
+            font.draw_text(s, 277, y, buf, 0);
+        }
+    }
+    font.draw_text(s, 139, 180, "(C)ontinue", 0);
+    return true;
+}
+
 // Compose the Bank screen: MSCR + the bank exterior EGA/TWN/TWN02 + the
 // teller's greeting and the account menu.  Strings are the engine's own
 // (LOF.EXE ds:0x631C/0x634D/...); decoded from the emulator's Bank frame.
@@ -2016,6 +2073,8 @@ int main(int argc, char** argv) {
     int charsheet_member = 0;      // 0-based party slot for --charsheet
     bool town_flag = false;
     bool emporium_flag = false;
+    bool emporium_buy_flag = false;
+    int emporium_buy_char = 1;
     bool bank_flag = false;
     bool house_flag = false;
     bool temple_flag = false;
@@ -2084,6 +2143,10 @@ int main(int argc, char** argv) {
                 charsheet_member = atoi(argv[++i]) - 1;  // 1-based on the CLI
         }
         else if (std::string(argv[i]) == "--emporium") emporium_flag = true;
+        else if (std::string(argv[i]) == "--emporium-buy" && i + 1 < argc) {
+            emporium_buy_flag = true;
+            emporium_buy_char = atoi(argv[++i]);
+        }
         else if (std::string(argv[i]) == "--bank") bank_flag = true;
         else if (std::string(argv[i]) == "--house") house_flag = true;
         else if (std::string(argv[i]) == "--temple") temple_flag = true;
@@ -2724,13 +2787,17 @@ int main(int argc, char** argv) {
         if (!headless) present_sdl(s, "Legend of Faerghail");
         return 0;
     }
-    if (town_flag || emporium_flag || bank_flag || house_flag || temple_flag ||
+    if (town_flag || emporium_flag || emporium_buy_flag || bank_flag || house_flag || temple_flag ||
         inn_rest_flag || inn_rest_pay_flag || temple_heal_flag || temple_revive_flag) {
         std::string err;
         Screen s;
         SaveGame bsg;
         const SaveGame* sgptr = nullptr;
         if (!save.empty()) { bsg = load_save(save); if (bsg.ok) sgptr = &bsg; }
+        if (emporium_buy_flag && !sgptr) {
+            fprintf(stderr, "lof: --emporium-buy needs a valid --save\n");
+            return 1;
+        }
         bool ok = temple_heal_flag   ? compose_temple_prompt(dir, "Whose wounds should",
                                                              "we heal (1-6)?", s, err, sgptr)
                   : temple_revive_flag ? compose_temple_prompt(dir, "Who should be revived",
@@ -2741,6 +2808,8 @@ int main(int argc, char** argv) {
                   : house_flag    ? compose_house_screen(dir, s, err, sgptr)
                   : bank_flag   ? compose_bank_screen(dir, s, err, sgptr)
                   : emporium_flag ? compose_emporium_screen(dir, s, err, sgptr)
+                  : emporium_buy_flag ? compose_emporium_buy_screen(
+                        dir, emporium_buy_char - 1, *sgptr, load_shop(dir + "/ROST/SHOP"), s, err)
                                 : compose_town_screen(dir, town_name_from_save(save), s, err, sgptr);
         if (!ok) {
             fprintf(stderr, "lof: %s\n", err.c_str());

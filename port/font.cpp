@@ -48,6 +48,7 @@ static bool glyph_cell(char ch, int& band, int& cell) {
         case '*': band = 1; cell = 30; return true;
         case '!': band = 0; cell = 39; return true;
         case '/': band = 2; cell = 2; return true;
+        case '$': band = 2; cell = 1; return true;
         default: return false;
     }
 }
