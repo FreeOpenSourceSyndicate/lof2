@@ -574,3 +574,32 @@ without keys (Round 19); the DNG header now gives entry position/facing directly
 ## Closed (kept for the record)
 
 *(none yet — entries move here when `Status: Resolved`)*
+
+### BLK-A005 update (2026-11-26) — deep/open-room view is a COMPOSITE
+Owner-supplied `saves/dng02-Grischnak-cff2147c.sav` (DNG02 "Sagacita catacombs",
+party faces a huge room; back wall too far -> black "horizon").  Real DOSBox
+frame `ref/emu/dng02_deep.png`.  The port renders `D2/DP001` (the depth-1 tileset
+sprite); whole-viewport match **0.66**.
+
+Searched EVERY `EGA/**` sprite (all `D0..D7`, `CHAR2`, and the whole EGA tree,
+both the full 120x119 viewport and the middle band) as a single-image overlay:
+**no single pre-rendered sprite matches** (best whole-viewport = D2/DP001 0.66;
+best middle band = 0.41).  Region split of the real vs D2/DP001:
+
+| viewport band | match |
+|---|---|
+| top y11-41 (ceiling)   | 0.91 |
+| mid y41-71 (far)       | 0.42 |
+| mid y71-101 (far)      | 0.41 |
+| bot y101-130 (floor)   | 0.92 |
+
+So the engine keeps the **floor+ceiling of DP001** but REPLACES the middle with a
+**converging far corridor** that is not any shipped DP/CH image.  The deep view is
+therefore a *composed* render (nested/scaled perspective pieces), not the
+single-sprite model (`dungeon_view_for`) the port implements — which is correct
+only for shallow (depth<=1) views and for the D5/Temple `CHAR2` depth-2/3 pins.
+
+To close: trace the engine's per-cell view-blit (the routine that draws the far
+corridor pieces) — deep work, same class as P-4 (owner: "think twice").  A
+depth sweep in this exact room (captures after 1, 2, 3 forward steps) would let
+us reverse-engineer the pieces; pending.
