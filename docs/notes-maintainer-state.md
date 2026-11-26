@@ -2868,3 +2868,14 @@ enforces it (prints the engine's reason).  Pinned by
 teach-all (learn_spells) + capacity (spell_capacity) + sealed save.  Remaining:
 the interactive `--ui` House (L) wiring (currently the House screen only draws;
 the prompt-driven pick/pay flow is the last layer).
+
+### learn-magic FULLY CLOSED (2026-11-25)
+Added the interactive `--ui` House (L) flow: `compose_house_learn_screen()`
+renders "Who would like to learn magic spells (1-6)?" (ds:0x4bfa/0x4c13/0x4c2d),
+then on a char digit runs `learn_magic_gate()` (Ok -> "The Wise demand for N new
+spells C$," + "who'll pay that (1-6)?" ds:0x4da6/0x4cfe; NoSpellbook/NoCapacity
+-> the engine's reason), then on a payer digit pays (`pay_gold`) + teaches
+(`learn_spells`).  Pinned by `port_ui_test::check_learn_magic`
+(space,space,O,H,L,<char>,<payer> -> "learns N spell(s) ... Concentration
+improves!").  So learn-magic is complete end-to-end: gate + capacity + cost +
+pay + teach + CLI (`--learn-magic`) + interactive flow, all tested.
