@@ -693,3 +693,17 @@ march cell.  Remaining: map the 36 `bx` slots -> `DPnnn` files + the per-tile
 screen rectangle, then implement + verify against the four depth frames.
 (Interpretation is tentative — the segment/offset accounting still needs a
 careful single-step to confirm the exact 2D placement.)
+
+### BLK-A005 — the view IS a DP tile composition (GAME5 corridor, decoded)
+Decoded the emulator's EGA planes for GAME5 (dng43, a long left wall; no-monster
+area).  **Decode fix: EGA 320px = 40 bytes per plane per row, not 80** (my first
+pass used 80 -> 640-wide garbage).  With it the view is unambiguously a
+composition of `EGA/D3/DP*` tiles: `DP001` (120x119) as the base at (10,11) plus
+small overlays at their on-screen positions — ceiling/left wall `DP043`/`DP042`/
+`DP038` at (10..25,57), ceiling/right wall `DP039`/`DP045` at (100..110,61),
+right wall `DP030` at (118,133), and floor tiles (`DP034`/`DP022`/`DP023`…).
+So the first-person view = a depth-selected base sprite + positioned `DP`
+overlays for walls/ceiling/floor — the perspective renderer.  Saved
+`ref/emu/game5_corridor.png` + `_vp.png`.  Remaining: the exact overlay set +
+blit order per march cell, and the depth->base rule (already: depth1=DPn,
+2=CH40, >=3=CH25).
