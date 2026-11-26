@@ -31,11 +31,14 @@ Rules for this file:
   reaches it, so it cannot validate the port.
 - **What I need (any one or more of these, via `saves/inbox/`):**
   1. ~~high-level caster~~ **DONE** — GAME3 supplies level 11–12 casters (Joanna lvl12, Skol lvl11);
-  2. ~~depth ≥ 2 non-Temple dungeon~~ **PROVIDED 2026-11-25** — GAME3 (DNG02, "Sagacita
-     catakombs", party two levels down). Verified: the port's viewport matches the real
-     game **1.0000** at the load position (`ref/emu/dng02_sagacita.png`); the D≥2 CHAR2
-     sprites were not triggered at this cell (the march depth is 1 here), so that sub-case
-     stays unobserved but is not contradicted.
+  2. **depth ≥ 2 non-Temple dungeon** — two saves provided, and the second one
+     **confirms a real gap**. GAME3 (DNG02) matched the port 1.0000 (that cell's march
+     depth was 1). The new **huge-room save** (`saves/dng02-Grischnak-cff2147c.sav`)
+     faces a long open room; the port does NOT match there (0.66) because the deep
+     view is a **composite of mixed-size `DP` tiles**, not a single pre-rendered
+     sprite. Now being decompiled under **BLK-A005** (own depth sweep
+     `ref/emu/dng02_depth{4,3,2,1}.png`; emulator decode trace captured). **No further
+     save needed** — the four depth frames are enough ground truth.
   3. ~~mid-shop / mid-combat save~~ **DONE 2026-11-25 (M-7, captured myself)** — the engine
      forbids saving there, so I took DOSBox screenshots instead: `ref/emu/emporium_buylist.png`
      (slot 4 -> town -> Emporium -> B -> 1: the 8-item buy list with name/price/weight + the
