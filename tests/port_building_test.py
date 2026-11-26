@@ -823,6 +823,64 @@ def check_sell_auto() -> int:
     return 0
 
 
+def check_learn_magic() -> int:
+    # --learn-magic N --learn-capacity C applies learn_spells (image 0x9B7C..):
+    # sets +0x6a = C, fills slots +0x142+2s = kBase[school]+s, bumps +0x2b;
+    # cost = (C - learned) * 15.  Self-contained: clear a caster's learned count,
+    # learn 2 spells, verify slots/gold (emulator: HEALER 4 spells/60 gold).
+    school_of = {3: 5, 5: 3, 6: 2, 7: 0, 8: 1, 10: 4}
+    kbase = [1, 33, 59, 80, 100, 118, 127]
+    src = idx = None
+    for cand in (GAME4, GAME2):
+        if not os.path.exists(cand):
+            continue
+        a = bytearray(open(cand, "rb").read())
+        for i in range(6):
+            r = a[4 + i * 410:4 + (i + 1) * 410]
+            if r[0] and r[0x1b] in school_of:
+                src, idx = cand, i
+                break
+        if idx is not None:
+            break
+    if idx is None:
+        print("port_building_test: SKIP learn-magic (no caster)")
+        return 0
+    base = 4 + idx * 410
+    a[base + 0x6a] = 0                                   # learned 0
+    for k in range(4):
+        a[base + 0x72 + k] = (1000 >> (8 * k)) & 0xff    # 1000 gold
+    KS = 0x2e3a
+    acc = 1
+    for i in range(KS):
+        c = a[i] if a[i] else 1
+        acc = ((acc + c) if i % 2 == 0 else (acc ^ c)) & 0xFFFFFFFF
+    for i in range(4):
+        a[KS + i] = (acc >> (8 * i)) & 0xff
+    inp = "/tmp/learn_magic_in.sav"
+    open(inp, "wb").write(a)
+    out = "/tmp/learn_magic_out.sav"
+    p = subprocess.run([os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+                        "--learn-magic", str(idx + 1), "--learn-capacity", "2",
+                        "--save", inp, "--amulet-out", out],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if p.returncode != 0:
+        print("port_building_test: FAIL learn-magic rc=%d %r" % (p.returncode, p.stderr.decode()))
+        return 1
+    r2 = open(out, "rb").read()[4 + idx * 410:4 + (idx + 1) * 410]
+    if r2[0x6a] != 2:
+        print("port_building_test: FAIL learn-magic +0x6a=%d (want 2)" % r2[0x6a]); return 1
+    g1 = r2[0x72] | (r2[0x73] << 8) | (r2[0x74] << 16) | (r2[0x75] << 24)
+    if g1 != 1000 - 30:
+        print("port_building_test: FAIL learn-magic gold=%d (want 970)" % g1); return 1
+    sch = school_of[r2[0x1b]]
+    if r2[0x142] != kbase[sch] or r2[0x144] != kbase[sch] + 1:
+        print("port_building_test: FAIL learn-magic slots %d,%d (want %d,%d)" % (
+            r2[0x142], r2[0x144], kbase[sch], kbase[sch] + 1)); return 1
+    print("port_building_test: ok learn-magic (2 spells, 30g, slots %d,%d)" % (
+        r2[0x142], r2[0x144]))
+    return 0
+
+
 def main() -> int:
     rc = 0
     for flag, ref, label in BUILDINGS:
@@ -838,6 +896,7 @@ def main() -> int:
     rc |= check_house_train()
     rc |= check_sell_mechanic()
     rc |= check_sell_auto()
+    rc |= check_learn_magic()
     rc |= check_time_tick()
     rc |= check_use_effect()
     rc |= check_cast_effect()

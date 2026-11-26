@@ -2820,3 +2820,15 @@ Pinned by `char_test::test_learn_spells` (HEALER, capacity 4 -> spells 100..103,
 (spell_capacity jump table + the 0xc0f table) and the spellbook/gate-1 item check
 are still undecoded, so the guild flow is only half-implemented (the *effect*,
 not the prompt/gate).
+
+### --learn-magic CLI wired (2026-11-25)
+`lof --learn-magic N --learn-capacity C [--learn-payer M] --save S --amulet-out O`
+loads the save, pays `learn_cost(C, learned)=(C-learned)*15` from the payer,
+applies `learn_spells(chars[N-1], C)`, and writes a sealed save, printing
+"taught character N <n> spell(s) for <c> gold ...; Concentration improves!".
+`--learn-capacity` is a parameter because the engine's `spell_capacity()`
+(0x2A6C6: `max(1, kCap[base]*min(level,15)/15)`, per-prof base jump table + a
+0xc0f table) is not yet fully extracted.  Verified end-to-end: HEALER (prof10)
+learned 0, capacity 4 -> 4 spells (100..103), 60 gold, charges 10/6/6/7 (matches
+the emulator).  Guarded by `port_building_test::check_learn_magic`.
+STILL OPEN: the "who'll pay"/spellbook/item-40 gate prompts + `spell_capacity`.

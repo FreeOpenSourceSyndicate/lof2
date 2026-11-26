@@ -1932,6 +1932,9 @@ int main(int argc, char** argv) {
     bool inn_rest_rations = false;  // --inn-rest-rations: the "replenished" option
     int temple_heal_do = 0;         // 1-based char to heal (--temple-heal-do)
     int temple_heal_payer = 0;      // 1-based payer (0 = the healed char)
+    int learn_do = 0;               // 1-based char to teach (--learn-magic)
+    int learn_capacity = 0;         // target learned-count (--learn-capacity)
+    int learn_payer = 0;            // 1-based payer (0 = the taught char)
     int temple_revive_do = 0;       // 1-based char to revive (--temple-revive-do)
     int temple_revive_payer = 0;    // 1-based payer (0 = the revived char)
     int temple_revive_roll = 1;     // engine rand(100)+1; CLI takes it as input
@@ -2000,6 +2003,9 @@ int main(int argc, char** argv) {
         else if (std::string(argv[i]) == "--inn-rest-rations") inn_rest_rations = true;
         else if (std::string(argv[i]) == "--temple-heal-do" && i + 1 < argc) temple_heal_do = atoi(argv[++i]);
         else if (std::string(argv[i]) == "--temple-heal-payer" && i + 1 < argc) temple_heal_payer = atoi(argv[++i]);
+        else if (std::string(argv[i]) == "--learn-magic" && i + 1 < argc) learn_do = atoi(argv[++i]);
+        else if (std::string(argv[i]) == "--learn-capacity" && i + 1 < argc) learn_capacity = atoi(argv[++i]);
+        else if (std::string(argv[i]) == "--learn-payer" && i + 1 < argc) learn_payer = atoi(argv[++i]);
         else if (std::string(argv[i]) == "--temple-revive-do" && i + 1 < argc) temple_revive_do = atoi(argv[++i]);
         else if (std::string(argv[i]) == "--temple-revive-payer" && i + 1 < argc) temple_revive_payer = atoi(argv[++i]);
         else if (std::string(argv[i]) == "--temple-revive-roll" && i + 1 < argc) temple_revive_roll = atoi(argv[++i]);
@@ -2192,6 +2198,47 @@ int main(int argc, char** argv) {
         }
         fprintf(stderr, "lof: healed character %d for %d gold (payer %d)\n",
                 temple_heal_do, cost, p + 1);
+        return 0;
+    }
+    if (learn_do > 0) {
+        SaveGame sg;
+        bool have_sg = false;
+        if (!save.empty()) { sg = load_save(save); have_sg = sg.ok; }
+        if (!have_sg) { fprintf(stderr, "lof: --learn-magic needs a valid --save\n"); return 1; }
+        int h = learn_do - 1;
+        if (h < 0 || h >= (int)sg.chars.size() || sg.chars[h].present == 0) {
+            fprintf(stderr, "lof: --learn-magic %d: no present character\n", learn_do);
+            return 1;
+        }
+        int p = learn_payer > 0 ? learn_payer - 1 : h;
+        if (p < 0 || p >= (int)sg.chars.size() || sg.chars[p].present == 0) {
+            fprintf(stderr, "lof: --learn-payer %d: no present character\n", p + 1);
+            return 1;
+        }
+        if (amulet_out.empty()) { fprintf(stderr, "lof: --learn-magic needs --amulet-out\n"); return 1; }
+        int learned = sg.chars[h].raw[kCharFlag6a];
+        int cap = learn_capacity > 0 ? learn_capacity : learned;
+        int n = cap - learned;
+        if (n <= 0) {
+            fprintf(stderr, "lof: character %d cannot learn more (learned %d, capacity %d)\n",
+                    learn_do, learned, cap);
+            return 1;
+        }
+        int cost = learn_cost(cap, learned);
+        if (!pay_gold(sg.chars[p], cost)) {
+            fprintf(stderr, "lof: character %d cannot pay %d gold\n", p + 1, cost);
+            return 1;
+        }
+        if (!learn_spells(sg.chars[h], cap)) {
+            fprintf(stderr, "lof: character %d has no magic school\n", learn_do);
+            return 1;
+        }
+        if (!write_save_file(amulet_out, build_save(sg))) {
+            fprintf(stderr, "lof: cannot write %s\n", amulet_out.c_str());
+            return 1;
+        }
+        fprintf(stderr, "lof: taught character %d %d spell(s) for %d gold (payer %d); Concentration improves!\n",
+                learn_do, n, cost, p + 1);
         return 0;
     }
     if (temple_revive_do > 0) {
