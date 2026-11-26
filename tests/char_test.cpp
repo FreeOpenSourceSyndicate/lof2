@@ -2010,6 +2010,31 @@ static void test_training_model() {
     assert(xp_after == 9000);             // experience not spent
 }
 
+static void test_learn_spells() {
+    // House-of-Trades learn-magic effect (image 0x9B7C..0x9CFD).  HEALER
+    // (prof 10 -> school 4, base 100); emulator: learned 0, capacity 4 ->
+    // "4 new spells 60$", fills slots 100..103, +0x6a = 4, +0x2b++.
+    SaveChar c{};
+    c.raw[kCharProf1b] = 10;
+    c.raw[kCharFlag6a] = 0;
+    assert(learn_cost(4, 0) == 60);
+    assert(learn_cost(4, 4) == 0);
+    assert(learn_spells(c, 4));
+    assert(c.raw[kCharFlag6a] == 4);
+    for (int s = 0; s < 4; s++) {
+        int idx = 100 + s;
+        assert(c.raw[kCharSkill142 + 2 * s] == idx);
+        const SpellRecord* sp = spell_by_index(idx);
+        assert(sp && c.raw[kCharSkill142 + 2 * s + 1] == sp->data[9]);
+    }
+    assert(c.raw[0x2b] == 1);   // success stat bumped from 0
+    // A non-caster (warrior prof 0) has no school -> nothing learned.
+    SaveChar w{};
+    w.raw[kCharProf1b] = 0;
+    assert(!learn_spells(w, 4));
+    assert(w.raw[kCharFlag6a] == 0);
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
@@ -2030,6 +2055,7 @@ int main(int argc, char** argv) {
     test_spell_slots();
     test_consume_spell_slot();
     test_spell_memorisation();
+    test_learn_spells();
     test_level_up();
     test_recompute_high_level();
     test_training_cost();

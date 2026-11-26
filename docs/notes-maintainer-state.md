@@ -2808,3 +2808,15 @@ STILL TO IMPLEMENT (`learn_magic()`): the write of the N spells into the
 learned-spellbook array + `+0x6a += N`, and the `spell_capacity()` formula.
 NB the 4-slot array at `+0x142` is the *memorised/castable* set, NOT the learned
 count (`+0x6a`); clearing `+0x142` did not lift gate 2, clearing `+0x6a` did.
+
+
+### learn_spells() implemented (2026-11-25)
+`port/char.{h,cpp}`: `learn_spells(SaveChar&, capacity)` reproduces the decoded
+write (0x9B7C..0x9CFD) - sets +0x6a = capacity, fills +0x142+2s = kBase[school]+s
+and +0x143+2s = spell data[9] for s = old..capacity-1, bumps +0x2b (clamp 100);
+returns false for a non-caster.  `learn_cost(capacity, learned) = (cap-learned)*15`.
+Pinned by `char_test::test_learn_spells` (HEALER, capacity 4 -> spells 100..103,
+60 gold).  NOT yet wired to a CLI or the town UI; the capacity tables
+(spell_capacity jump table + the 0xc0f table) and the spellbook/gate-1 item check
+are still undecoded, so the guild flow is only half-implemented (the *effect*,
+not the prompt/gate).

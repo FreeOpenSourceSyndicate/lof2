@@ -1379,6 +1379,22 @@ void consume_spell_slot(SaveChar& c, int slot);
 int spell_school(uint8_t profession);
 void refresh_spell_casts(SaveChar& c);
 
+// House-of-Trades "learn magic spells" effect (image 0x9B7C..0x9CFD).  The
+// guild teaches ALL available spells for one fee (no per-spell picker): it sets
+// the learned-count +0x6a to `capacity` and, for s = old count .. capacity-1,
+// writes slot s's spell index (+0x142+2s = kBase[school] + s) and its charge
+// count (+0x143+2s = the spell record's data[9]), then bumps the success stat
+// +0x2b (clamped 100).  Returns false for a non-caster (spell_school < 0).
+// The engine writes up to `capacity` slots; this writes only the first four
+// (the port models a 4-slot memorised array) pending a check of the real
+// array size, so `capacity` is expected to be <= 4 here.
+bool learn_spells(SaveChar& c, int capacity);
+
+// The guild's fee for learning `capacity - learned` spells: 15 gold per spell
+// (image 0x9A1C multiplies the count by the [0xaf56:0x381e] price, measured 15;
+// emulator: Joanna 4 spells -> 60 gold).
+int learn_cost(int capacity, int learned);
+
 // The level-up routine (image 0x9144..0x99F7): level (+0x17) += 1, HP (current
 // +0x22 and max +0x20) += hp_gain (the engine's rand(10)+1), the four capped-100
 // fields +0x30/+0x32/+0x34/+0x36 += 1, then the derived-stat recompute (magic,

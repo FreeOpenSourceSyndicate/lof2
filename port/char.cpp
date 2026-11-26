@@ -710,6 +710,29 @@ void refresh_spell_casts(SaveChar& c) {
     }
 }
 
+bool learn_spells(SaveChar& c, int capacity) {
+    static const uint8_t kBase[7] = {1, 33, 59, 80, 100, 118, 127};
+    uint8_t* r = c.raw.data();
+    int school = spell_school(r[kCharProf1b]);
+    if (school < 0) return false;
+    int learned = r[kCharFlag6a];                 // +0x6a: learned count
+    if (capacity < learned) capacity = learned;
+    for (int s = learned; s < capacity && s < 4; s++) {
+        const SpellRecord* sp = spell_by_index(kBase[school] + s);
+        if (!sp) continue;
+        r[kCharSkill142 + 2 * s] = (uint8_t)(kBase[school] + s);  // spell index
+        r[kCharSkill142 + 2 * s + 1] = sp->data[9];               // charges
+    }
+    r[kCharFlag6a] = (uint8_t)capacity;           // +0x6a = capacity (0x9BB7)
+    if (r[0x2b] < 100) r[0x2b]++;                 // success stat +0x2b (0x9CD4)
+    return true;
+}
+
+int learn_cost(int capacity, int learned) {
+    int n = capacity - learned;
+    return n > 0 ? n * 15 : 0;
+}
+
 void recompute_derived_stats(SaveChar& c) {
     uint8_t* r = c.raw.data();
     // Derived-stat recompute (image 0x96F7..0x9901), which the same routine runs
