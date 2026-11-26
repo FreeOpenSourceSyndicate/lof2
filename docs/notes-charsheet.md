@@ -30,20 +30,31 @@ the party-slot digit, not the combat "1"/encounter "1").
   This is exactly manual sheet page 1 (attributes). Pages 2–5 (objects,
   spells, special abilities, languages) are reached with `(N)ext`.
 
-## Portrait — the unresolved piece (composite, like BLK-A005's view)
+## Portrait — RESOLVED: a single class sprite + a custom palette
 
-Searched every `CHAR0..CHAR3` ≥100×100 sprite against the oracle portrait at a
-range of offsets. Best is **`CHAR3/CH09` at (10,11)** — the Paladin class body:
+NOT a composite. Driving the emulator (press the member's number key on the play
+screen) opens the sheet, and it loads exactly **one** sprite,
+`CHAR3/CH<profession>`, blitted at (10,11): Grischnak the Warrior -> `CH00`,
+Decker the Paladin -> `CH09`. No face/armour overlays load.
 
-- whole 120×119 match **0.63**,
-- head rows (0–35) match **0.81** (so the head IS CH09),
-- chest 0.64, but **legs (y80–119) only 0.48** — the lower body differs.
+The earlier 0.63 mismatch was a **palette** error: the character sheet programs
+its OWN palette (greens), NOT the standard EGA set. Derived from the CH09<->oracle
+correspondence (most-common RGB per 4-bit index):
 
-So the portrait is `CHAR3/CH09` with something overlaid/replaced on the lower
-body (and possibly a face/helmet part), exactly the same class of problem as the
-deep-view compositor. The individual `CHAR1` parts the earlier note mentioned
-(bare face CH67, breastplate CH68) are all 120×119 full frames, i.e. overlays
-composited onto the body — the blit order/positions are not yet derived.
+| idx | RGB | idx | RGB |
+|----|----------|----|-----------|
+| 0  | (0,0,0)  | 8  | (0,85,0)  |
+| 4  | (170,0,0)| 12 | (170,85,0)|
+| 6  | (170,170,0)| 14 | (170,255,0) |
+| 7  | (170,170,170)| 15 | (170,255,170) |
+
+With it, `CHAR3/CH09` reproduces the oracle portrait **1.0000** (14280 px).
+
+So P-8 = `CHAR3/CH<profession>` (portrait) + the sheet's custom palette + the
+grid/text/location (all measured). Class->CH so far: Warrior=CH00, Paladin=CH09
+(derive the rest by pressing 2..6, or from the class table). Palette indices not
+used by the portrait (1,2,3,5,9,10,11,13) come from the text — dump via the
+emulator palette or the oracle's other regions.
 
 ## Next steps (do not guess)
 
