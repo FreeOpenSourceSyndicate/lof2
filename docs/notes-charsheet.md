@@ -1,9 +1,10 @@
 # P-8 character sheet — analysis notes
 
 Oracle: `ref/oracle/charsheet.png` (Decker the Paladin, page 1 of the sheet).
-Reach (from the manual, `docs/notes-manual.md`): LEFT-CLICK a party member in
-the character list; exit with the right mouse button. It is a mouse action, not
-a keyboard hot-key.
+Reach: **press the member's number key 1–6** (owner-confirmed 2026-11-26), or
+left-click the member in the character list; exit with the right mouse button.
+So it IS reachable by keyboard (the earlier "unknown reach key" is solved: it's
+the party-slot digit, not the combat "1"/encounter "1").
 
 ## Layout (matches the oracle; cross-checked with the manual §VII)
 
