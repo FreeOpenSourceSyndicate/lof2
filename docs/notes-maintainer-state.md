@@ -2896,3 +2896,18 @@ ingested as `saves/dng02-Grischnak-f07632b1.sav`.  DOSBox capture
 screen 0.8966 (residue = the status box: the engine shows "Direction ?? /
 Time of day ??" on a fresh load until the party turns, while the port draws the
 save's stored "Facing North / Midday").  Minor: consider showing ?? on load.
+
+### Emporium buy list DONE (2026-11-25)
+`lof --emporium-buy N --save GAMEn` renders the 8-slot stock list (image 0x6c60,
+`compose_emporium_buy_screen`): header "%-10s:" + " Gold:" + "%05ld" and
+"Weight...:  %04d/%04d" (cur/10, max/10); eight rows "%d" + "%-15s" +
+"%4d$ %3dlb" (item weight /10); "(C)ontinue" at y=180.  The 8 rows are the
+shop's carried items in index order.  Colours (empirical, from the DOSBox
+capture — the disasm 0x175a index is not the raw EGA attribute): header name &
+value black, " Gold:" white; weight line black; item number grey(8), name
+white(15), price/weight black; Continue black.  Also added the '$' glyph to the
+font (CHR1 band 2 cell 1 — matched exactly).  Text matches
+`ref/emu/emporium_buylist.png` **0.9985** (whole 0.994, residue = dynamic party
+panel); `tests/port_emporium_buy_test.py` in `make golden-port`.  Remaining P-7:
+wire (B)uy->char-digit->list into the `--ui` Emporium flow + the buy-from-list
+selection; (S)ell still blocked (BLK-B006).
