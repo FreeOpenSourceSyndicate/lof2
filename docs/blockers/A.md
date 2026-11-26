@@ -747,3 +747,16 @@ bank-3 `D<n>/DP` tiles.  (`119D:0B06` is a generic full-screen blit via table
 `0xAFE`, used for intro/pages, not the view.)  Still to locate: the per-cell
 **view composition** routine (march -> base scene + fragment positions).  That is
 the last piece before implementing the renderer.
+
+### BLK-A005 — the 3 loader callers (and the char-portrait loader)
+Loader `119D:0x68C` has exactly 3 call sites: (a) `0xAE0` = the asset-bank
+loader (`0A90`); (b) `0xB29` = the full-screen blit (`0B06`); (c) `0x2AC4` = a
+routine `0x2A4E` that builds the template `ega\char0\ch00`, flips char0->char3
+and the ch digit via table `0x2A3E`[0,1,1,1,1,2,2,2], and loads
+`ega\char3\ch<nn>` — i.e. the **character-portrait loader** (confirms P-8:
+portrait = `char3\ch<profession>`, chosen by `cs:[0x240E]`).  None of the 3 is
+the dungeon **view march**: the `D<n>/DP` tiles are loaded as asset bank 3, then
+composed by a routine that reads the party cell/facing + the map and blits the
+tiles at the measured positions.  That march routine is the remaining target —
+it does not call `0x68C` directly (it uses the already-resident bank tiles), so
+the next probe is to trace reads of the loaded DP buffer / the view-draw entry.
