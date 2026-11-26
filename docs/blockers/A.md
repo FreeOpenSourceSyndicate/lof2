@@ -735,3 +735,15 @@ Montage: `ref/emu/d3_tiles_montage.png`.  So the view = a 120x119 base scene +
 positioned fragments (the visible walls); the base is chosen by the cell's view
 index, the fragments by the march.  Remaining: that selection rule (then
 implement + verify).
+
+### BLK-A005 — asset-bank loader + tables (disassembled)
+`119D:0A90` walks the CS table `0xA7E` (7 DS-relative pointers) = **7 asset
+banks**: 0=`ega\up\up00..0d` (UI), 1=`ega\twn\twn00..05` (town), 2=`ega\twn\twn03`,
+3=`ega\d0\dp001..025` (dungeon view tiles), 4=`ega\anim\an..` (combat), 5=`ega\in\`
+(intro), 6=`ega\page\` (pages).  Entries are 6-byte (filename ptr + mask
+0xFF00/0x0100/0x0000 = resident/priority).  The loader `119D:0x68C` opens each
+(INT21 AH=3D/3F) then decodes it (`call 0xA22`).  So the 36 per-view decodes =
+bank-3 `D<n>/DP` tiles.  (`119D:0B06` is a generic full-screen blit via table
+`0xAFE`, used for intro/pages, not the view.)  Still to locate: the per-cell
+**view composition** routine (march -> base scene + fragment positions).  That is
+the last piece before implementing the renderer.
