@@ -679,3 +679,17 @@ decoder IS the compositor: each of the 156 calls decodes a DP tile into the
 viewport.  The per-tile base is not `cs:[0A20]` (written only twice: 46D4 then
 0000 = a scratch base); the varying dest must be traced at the fill (`di` at
 `119D:0A51`, linear 0x12421) or the per-tile selector.  Next session.
+
+### BLK-A005 — dungeon view = 36 sequentially-decoded DP tiles (table saved)
+Filtered the decode trace to the actual dungeon build (`instr>6.8M`): exactly
+**36 tile decodes** (slots `bx=0x86..0xAD`), all `es=cs:[0A06]` / `di=cs:[0A20]`.
+The decoder advances the dest segment per tile (`0A70: cs:[0A06] += count/16+1`),
+so the 36 tiles are decoded **consecutively** into the buffer (a sequential tile
+stream — the engine does not random-access place them).  Per-tile table (instr,
+bx slot, di dest, ax/si source): `ref/emu/dng02_view_tiles.txt`.  So the view is
+a fixed sequence of 36 pre-rendered `DP` pieces composited in order; the geometry
+comes from the pieces (120x119 / 64x59 / 16x29 …) + their sequence, iterated per
+march cell.  Remaining: map the 36 `bx` slots -> `DPnnn` files + the per-tile
+screen rectangle, then implement + verify against the four depth frames.
+(Interpretation is tentative — the segment/offset accounting still needs a
+careful single-step to confirm the exact 2D placement.)
