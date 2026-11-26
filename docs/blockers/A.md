@@ -760,3 +760,13 @@ composed by a routine that reads the party cell/facing + the map and blits the
 tiles at the measured positions.  That march routine is the remaining target —
 it does not call `0x68C` directly (it uses the already-resident bank tiles), so
 the next probe is to trace reads of the loaded DP buffer / the view-draw entry.
+
+### BLK-A005 — view tiles are decoded SEQUENTIALLY into a linear buffer
+`LOF_WATCH` on `cs:[0x0A06]` (the decode dest segment) shows the decoder advances
+it per tile (`119D:0A77`: `add cs:[0x0A06],dx`): 6492 -> 64D9 -> 6520 -> 6524 ->
+... So the view tiles are decoded one after another into a linear buffer (the
+composed 320x200 4-plane view); the final blit (`0B95`) then copies it to the
+EGA. The composition is therefore a SEQUENTIAL tile stream (tile k at the running
+segment offset), with the perspective baked into each tile's size + the fixed
+order, not arbitrary 2-D placement. Next: decode the tile ORDER (which `DP` per
+step, from the 36-call trace) + the segment->2-D mapping, then render.
