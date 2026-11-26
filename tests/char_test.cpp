@@ -2055,6 +2055,21 @@ static void test_spell_capacity() {
     assert(spell_capacity(c) == 2);
 }
 
+static void test_learn_magic_gate() {
+    // Gate (image 0x8C33..0x8D3C): prof 3/4 OR item 40 in the bag, AND learned
+    // (+0x6a) < spell_capacity.
+    SaveChar p{};
+    p.raw[kCharProf1b] = 3; p.raw[0x17] = 4;       // Paladin -> spellbook ok
+    assert(learn_magic_gate(p) == LearnGate::Ok);   // cap 10*4/15=2, learned 0<2
+    p.raw[kCharFlag6a] = 2;                         // learned 2 == cap
+    assert(learn_magic_gate(p) == LearnGate::NoCapacity);
+    SaveChar m{};
+    m.raw[kCharProf1b] = 10; m.raw[0x17] = 4;       // HEALER, no items
+    assert(learn_magic_gate(m) == LearnGate::NoSpellbook);
+    m.raw[kCharInvUsed6b] = 1; m.raw[kCharInv82] = 40;  // carry item 40
+    assert(learn_magic_gate(m) == LearnGate::Ok);   // cap 18*4/15=4, learned 0<4
+}
+
 int main(int argc, char** argv) {
     synthetic_spec();
     synthetic_rost_checksum();
@@ -2077,6 +2092,7 @@ int main(int argc, char** argv) {
     test_spell_memorisation();
     test_learn_spells();
     test_spell_capacity();
+    test_learn_magic_gate();
     test_level_up();
     test_recompute_high_level();
     test_training_cost();

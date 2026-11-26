@@ -849,6 +849,9 @@ def check_learn_magic() -> int:
     a[base + 0x6a] = 0                                   # learned 0
     for k in range(4):
         a[base + 0x72 + k] = (1000 >> (8 * k)) & 0xff    # 1000 gold
+    a[base + 0x82] = 40                                  # item 40 (spellbook) for the gate
+    if a[base + 0x6b] < 1:
+        a[base + 0x6b] = 1
     KS = 0x2e3a
     acc = 1
     for i in range(KS):

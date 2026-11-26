@@ -730,6 +730,20 @@ int spell_capacity(const SaveChar& c) {
     return cap == 0 ? 1 : cap;
 }
 
+LearnGate learn_magic_gate(const SaveChar& c) {
+    int prof = c.raw[kCharProf1b];
+    bool has_book = (prof == 3 || prof == 4);
+    if (!has_book) {
+        int used = c.raw[kCharInvUsed6b];
+        for (int s = 0; s < used && s < kCharInvCount; s++) {
+            if (c.raw[kCharInv82 + s * kCharInvStride] == 40) { has_book = true; break; }
+        }
+    }
+    if (!has_book) return LearnGate::NoSpellbook;
+    if (c.raw[kCharFlag6a] >= spell_capacity(c)) return LearnGate::NoCapacity;
+    return LearnGate::Ok;
+}
+
 bool learn_spells(SaveChar& c, int capacity) {
     static const uint8_t kBase[7] = {1, 33, 59, 80, 100, 118, 127};
     uint8_t* r = c.raw.data();

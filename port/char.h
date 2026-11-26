@@ -1391,6 +1391,16 @@ void refresh_spell_casts(SaveChar& c);
 // LOF.EXE (DGROUP / code), not from a data file.
 int spell_capacity(const SaveChar& c);
 
+// The House-of-Trades learn-magic gate (image 0x8C33..0x8D3C).  A character may
+// learn spells iff it is a Paladin/Cleric (profession 3 or 4) OR carries item 40
+// in its bag (the engine's "spellbook" - failing this draws "In order to learn
+// new spells, <name> needs at least a spellbook!"), AND its learned count
+// (+0x6a) is below spell_capacity() (else "cannot, at the moment, learn new
+// spells").  Decoded from the disassembly; item index is 1-based at
+// +0x82 + slot*4 over the used slots (+0x6b).
+enum class LearnGate { Ok, NoSpellbook, NoCapacity };
+LearnGate learn_magic_gate(const SaveChar& c);
+
 // House-of-Trades "learn magic spells" effect (image 0x9B7C..0x9CFD).  The
 // guild teaches ALL available spells for one fee (no per-spell picker): it sets
 // the learned-count +0x6a to `capacity` and, for s = old count .. capacity-1,

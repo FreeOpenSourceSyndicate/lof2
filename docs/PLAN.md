@@ -78,7 +78,7 @@ keep a session (state effects), then fidelity and polish.  Estimates are
 first.
 
 **Priority order (2026-11-24, re-ordered; P-1 and P-8 DONE):** P-4 -> P-7 -> P-6 -> P-5 -> P-3 ->
-P-2 -> P-9 -> P-10 -> P-11 -> P-12 -> P-13 -> P-14 -> P-15.  The rows
+P-2 -> P-9 -> P-10 -> P-16 -> P-11 -> P-12 -> P-13 -> P-14 -> P-15.  The rows
 below are in this order.  Rationale: **progression** first (P-4, leaving town),
 then **survival** (P-7 town, P-6 items), then **combat** (P-5 spells; P-3 demoted
 because the shipped monster gate *aborts* — monsters do not act in the shipped
@@ -102,6 +102,7 @@ stat block (P-2/G-018), then **fidelity/polish**.  (P-1, the save writer, is don
 | **P-13** | **All-out-of-action message** (old P-10) | 2–4 | **Low.** Cosmetic. | Scan decoded 2026-11-24: the 6-slot loop (`0x18435..0x18449`) sets `[bp-0x36]=1` iff some member **can act** — `+0x49==0` (not out), `+0x1f<3`, present; "all-out" is the state where it stays 0 after all six. The message DRAW is not in this routine (the tail at `0x18462` is the monster-instance clear), so it is in the caller — still needs a mid-encounter oracle frame for the wording+colour+position. `port/lof.cpp` `port/lof.cpp` |
 | **P-14** | **VOR credits palette** | — | **DONE / non-issue.** DOSBox renders VOR with the STOCK set (CRED == port 100% pixel-exact vs `ref/oracle/vor_cred.png`; DRAG 94.8% = fade residue). The port's `kEgaAttr` is already correct; no palette change needed. Guarded by `port_vor_test.py`. See `docs/notes-vor-palette.md`. |
 | **P-15** | **Event-key table 70-entry overflow** (G-014) — *new in this revision* | 1–2 | **Low.** No shipped level reaches it; the port caps at `kEventKeyMax` and never overflows. | Feed the emulator a synthetic DNGS with >70 distinct tile-3 object words and watch `[0x7d00]` and the resulting SPEC index. `port/dungeon.cpp` |
+| **P-16** | **Resource-sourcing audit** — *new in this revision* | 3–6 | **Medium.** Correctness/faithfulness: every value the port renders or applies must come from its true origin — EXE code/DGROUP (transcribed) or a data file (loaded from that file). A wrongly-sourced resource is a fidelity bug even when the screen looks right (e.g. an EXE DGROUP table treated as file data). | Walk every table/constant in `port/` and classify it: EXE-transcribed (documented image offset — spell/magic/item/name tables, and `spell_capacity`'s school-base/capacity/jump tables at image 0x3D42E / 0x2A778) vs file-loaded (`EGA/`, `SYST/`, `DNGS/`, `ROST/`, `*.SAV`, `DSKTAB.DFS`). Confirm each is read from its real origin; file a blocker for any table whose origin is not yet proven instead of hardcoding it. Owner directive 2026-11-25. |
 
 ### Done (kept for context; no action)
 

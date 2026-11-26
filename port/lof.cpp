@@ -2216,6 +2216,15 @@ int main(int argc, char** argv) {
             return 1;
         }
         if (amulet_out.empty()) { fprintf(stderr, "lof: --learn-magic needs --amulet-out\n"); return 1; }
+        LearnGate g = learn_magic_gate(sg.chars[h]);
+        if (g == LearnGate::NoSpellbook) {
+            fprintf(stderr, "lof: character %d needs at least a spellbook (item 40 or prof 3/4)\n", learn_do);
+            return 1;
+        }
+        if (g == LearnGate::NoCapacity) {
+            fprintf(stderr, "lof: character %d cannot, at the moment, learn new spells\n", learn_do);
+            return 1;
+        }
         int learned = sg.chars[h].raw[kCharFlag6a];
         int cap = learn_capacity > 0 ? learn_capacity : spell_capacity(sg.chars[h]);
         int n = cap - learned;

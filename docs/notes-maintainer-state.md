@@ -2850,3 +2850,21 @@ exactly the emulator's "4 new spells".  `port/char.cpp::spell_capacity()` now
 implements it; `--learn-magic N` uses it automatically (no --learn-capacity
 needed); pinned by `char_test::test_spell_capacity`.  Everything here is EXE
 content (code + DGROUP), transcribed like the spell/magic tables - no data file.
+
+### learn-magic gate DONE (2026-11-25)
+Disassembled the gate in the learn routine (0x8C33..0x8D3C):
+- **gate-1** (0x8C33): pass if profession 3/4 (Paladin/Cleric) OR the bag holds
+  item **40** (scanned as `es:[bx+si+0x82]==0x28` over the used slots +0x6b).
+  Failing it draws "In order to learn new " (0x4d15) + "spells, " (0x4d2c) +
+  <name> + " needs at least a spellbook!" (0x4d35) - so **item 40 is the engine's
+  "spellbook"** (Joanna's bag has {26,7,40,47}; removing 40 makes the CLI report
+  "needs at least a spellbook").
+- **gate-2** (0x8D3A): `char[+0x6a] < spell_capacity()` else "The Grand Board of
+  Trades announces that <name> cannot, at the moment, learn new spells."
+`learn_magic_gate()` returns Ok / NoSpellbook / NoCapacity; `--learn-magic`
+enforces it (prints the engine's reason).  Pinned by
+`char_test::test_learn_magic_gate` + the building-test learn-magic check.
+**learn-magic is now functionally complete**: gate + cost (15/spell) + pay +
+teach-all (learn_spells) + capacity (spell_capacity) + sealed save.  Remaining:
+the interactive `--ui` House (L) wiring (currently the House screen only draws;
+the prompt-driven pick/pay flow is the last layer).
