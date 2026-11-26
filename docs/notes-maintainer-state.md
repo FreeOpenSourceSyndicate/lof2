@@ -2879,3 +2879,20 @@ spells C$," + "who'll pay that (1-6)?" ds:0x4da6/0x4cfe; NoSpellbook/NoCapacity
 (space,space,O,H,L,<char>,<payer> -> "learns N spell(s) ... Concentration
 improves!").  So learn-magic is complete end-to-end: gate + capacity + cost +
 pay + teach + CLI (`--learn-magic`) + interactive flow, all tested.
+
+### OT-005 fixtures obtained by M-7 (2026-11-25)
+Owner clarified: only the repo root is writable, no screenshot uploads, and the
+engine forbids saving in a shop/combat.  So I captured the shop/combat frames
+myself via DOSBox (`apt install dosbox xvfb xdotool`, tools/capture_dosbox.sh):
+- `ref/emu/emporium_buylist.png` — slot 4 -> town -> Emporium -> B -> 1: the
+  8-item buy list ("Conan : Gold 00007 / Weight 0201/0530" + Club 5g 10lb .. 
+  Warhammer 12g 6lb).  This is the 8-slot shop display (0x6c60) the port does
+  NOT yet render -> a P-7 feature.
+- `ref/emu/combat_ogres.png` — slot 5 (Temple, Evening) is attacked on load by
+  3 Ogres (Rnk 2) + 6 Ogres (Rnk 1).
+Owner also uploaded GAME3 = DNG02 ("Sagacita catakombs", two levels down);
+ingested as `saves/dng02-Grischnak-f07632b1.sav`.  DOSBox capture
+`ref/emu/dng02_sagacita.png`: the port's viewport matches **1.0000**; whole
+screen 0.8966 (residue = the status box: the engine shows "Direction ?? /
+Time of day ??" on a fresh load until the party turns, while the port draws the
+save's stored "Facing North / Midday").  Minor: consider showing ?? on load.

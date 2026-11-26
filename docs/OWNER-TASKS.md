@@ -24,19 +24,23 @@ Rules for this file:
 
 ### OT-005 — Provide real late-game / varied-state save fixtures (verification data)
 
-- **Status: open.** Every archived save is **level ≤ 4** and located in `DNG00`
-  (wilderness) or `DNG05` (the Temple). To *verify* — not merely derive — several
+- **Status: open — only item (2) remains.** (Items (1) and (3) are now done; see below.)
+  To *verify* — not merely derive — several
   behaviours I need real saves the repo does not have. **Why only you:** I can
   patch a save to *fake* a state, but that does not prove the engine actually
   reaches it, so it cannot validate the port.
 - **What I need (any one or more of these, via `saves/inbox/`):**
-  1. a **high-level caster** (level ≥ 10, ideally two different professions) — to
-     confirm the level-5..16 magic-max table rows beyond what level ≤ 4 exercises;
-  2. a save **inside `DNG13`** (the deep dungeon, header `level=4`) or any
-     non-Temple dungeon at depth ≥ 2 — to confirm the D≥2 view sprites
-     (`CHAR2/CH40`, `CHAR2/CH25`) are keyed by depth and not by scenario 5;
-  3. a save **mid-shop or mid-combat** (shop open with items listed / a combat
-     round in progress) — to confirm shop stock/price and round state.
+  1. ~~high-level caster~~ **DONE** — GAME3 supplies level 11–12 casters (Joanna lvl12, Skol lvl11);
+  2. ~~depth ≥ 2 non-Temple dungeon~~ **PROVIDED 2026-11-25** — GAME3 (DNG02, "Sagacita
+     catakombs", party two levels down). Verified: the port's viewport matches the real
+     game **1.0000** at the load position (`ref/emu/dng02_sagacita.png`); the D≥2 CHAR2
+     sprites were not triggered at this cell (the march depth is 1 here), so that sub-case
+     stays unobserved but is not contradicted.
+  3. ~~mid-shop / mid-combat save~~ **DONE 2026-11-25 (M-7, captured myself)** — the engine
+     forbids saving there, so I took DOSBox screenshots instead: `ref/emu/emporium_buylist.png`
+     (slot 4 -> town -> Emporium -> B -> 1: the 8-item buy list with name/price/weight + the
+     "Conan : Gold 00007 / Weight 0201/0530" header) and `ref/emu/combat_ogres.png` (slot 5,
+     Temple at Evening -> attacked by 3 Ogres (Rnk 2) + 6 Ogres (Rnk 1) on load).
 - **Unblocks:** BLK-A005 remainder, the level-5..16 magic verification, and
   shop/combat state checks. **Not urgent** (derivation continues without them).
 
