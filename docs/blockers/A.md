@@ -603,3 +603,21 @@ To close: trace the engine's per-cell view-blit (the routine that draws the far
 corridor pieces) — deep work, same class as P-4 (owner: "think twice").  A
 depth sweep in this exact room (captures after 1, 2, 3 forward steps) would let
 us reverse-engineer the pieces; pending.
+
+### BLK-A005 — engine view-render architecture (disassembly, 2026-11-26)
+Traced the deep-room save under the emulator (`LOF_I21`, `LOF_PXWATCH`, `LOF_DISASM`):
+- The engine loads the **whole `EGA/D2/DPnnn` bank** (opens `dp001` then `dp014..dp060`
+  sequentially) at the dungeon load — it is a sprite *library*, not one view image.
+- The viewport is **composed into a 32000-byte RAM buffer** (`ds:0x000A`, four EGA
+  planes of 0x1F40 bytes) and then blitted to the card by the routine at `119D:0B40`
+  (per-plane 200-row copy with the 0x2000 interleave) + the 4-plane loop at
+  `119D:0B93` (`mov si,0x000A; mov bp,4; rep movsw x0FA0; lcall 119D:0184; dec bp`).
+- So `LOF_PXWATCH` on an EGA pixel reports the *final 4-plane blit* (`119D:0B95`),
+  not the composition. The composition drawer (which reads the `DPnnn` sprites and
+  paints the buffer at `ds:0x000A`) is the still-un-decompiled piece; `119D:06C0`
+  is the DP file *loader* (`INT 21h AH=3D` on `cs:[0x0A7C]`), whose caller is the
+  composition loop.
+- **This supersedes the AGENTS.md "single pre-rendered sprite" note**: the single-
+  sprite model (`dungeon_view_for`) only reproduces shallow/`CHAR2` cases; the real
+  deep view is a multi-layer composite. Next: decompile the composition loop (the
+  caller of `119D:06C0`) — trace buffer writes instead of EGA writes.
