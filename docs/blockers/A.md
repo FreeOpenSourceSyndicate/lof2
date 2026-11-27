@@ -847,3 +847,24 @@ sometimes lands on the walk view and sometimes on an intermediate roster screen
 ("Direction ?? / Time of day ??"), so `LOF_WATCH`/`LOF_PXWATCH` on the compositor
 vars is inconsistent run-to-run.  A deterministic capture harness (fixed
 LOF_TICK + gated keys) is needed before the march can be traced reliably.
+
+### BLK-A005 — blitter located; blocked on LOF_TRACE_IP's ~200-hit cap
+`LOF_WATCH` on the scratch window `A2D60..A2D90` (dungeon run) shows the viewport
+scratch is written by **`119D:0463`** — the masked sub-pixel OR-store loop — for
+the whole run (instr 1,105,412 .. 494,247,613).  So the dungeon view IS composed
+by the routine whose inner loop is at `0x463` (it uses `cs:[0x390]`/`cs:[0x39c]`/
+`cs:[0xe5e]`, the masked OR into `es:[bx+di]` at `0x460`).  BUT: `LOF_TRACE_IP`
+on `0x463` returns exactly **200** hits, all at instr ~2.7M (the boot/menu) — the
+tool **silently caps trace output at ~200 hits**, so it never reaches the dungeon
+frames (instr >20M).  That cap is why tracing the routine entry (`0x3A4`/`0x402`)
+looked empty and misled earlier passes.  The code is static (dumps differ by only
+120 runtime bytes), so the linear disassembly is valid — the "entry doesn't fire"
+results were the cap, not a different code path.
+
+**To finish:** trace the blitter WITHOUT the hit cap (or add a per-call logger
+that records `ds` (tile segment), `cs:[0x376]`/`cs:[0x378]` (X,Y), and `cs:[0x37a]`
+(mask) at each `0x402`/`0x463` during the dungeon frame).  Those (tile, X, Y)
+tuples ARE the placement table — no further static analysis needed.  Concrete
+next step: raise/remove the 200-hit cap in `src/machine.cpp`'s `LOF_TRACE_IP`
+path (or add a dedicated `LOF_BLITLOG` that logs the 5 words per blit), rebuild,
+and dump the dungeon-frame blit list; then transcribe the march from it.
