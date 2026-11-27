@@ -976,3 +976,24 @@ comes from the march's wall codes: the main loop `3A8D:0x2190` draws slots
 `119D:0x259f`/`0x25be`/`0x2a30` draw the L/R wall slots.  Transcribe those three
 side passes to get the wall-code -> slot mapping, then the port draws base +
 visible slots.
+
+### BLK-A005 — visibility dispatch decoded (the last algorithm piece)
+The view function is an explicit per-slot conditional draw. Callers of the
+drawers (`lcall 119d,0x2682|0x26b4|0x278e`) sit in one block at image
+`0x3CAE3..0x3D6C3`; each is the pattern
+`cmp byte es:[bx+0x34], CODE ; jne skip ; mov ax,SLOT ; push ax ; lcall drawer`.
+So for every (wall-code, slot) pair the engine draws `DP00(T[slot])` at
+`(X[slot],Y[slot])` iff the cell's wall code matches.  The explicit slot
+indices passed are 1..20 (the side/far walls at Y 41/57), and the depth loop
+`3A8D:0x2190` adds slots 22..27 (Y 61); `0x25be` draws base DP001@(10,11) and
+`0x259f` a side tile @(10,60).  `es:[bx+0x34]` is the march's per-cell wall-code
+array (bx = cell/depth index; BLK-A005's earlier `view_opaque` low-nibble rule
+governs how the march fills it).
+
+**Status: BLK-A005 is now fully DECODED** — architecture (masked plane blitter
+`0x3A0`), geometry (28-slot X/Y/DP table + tile-id->DP), and visibility (the
+`cmp code -> draw slot` dispatch + depth loop + base/side passes).  What remains
+is mechanical: transcribe the `0x3CAE3..0x3D6C3` (code,slot) pairs into a table,
+reuse the port's existing march (`dungeon_view_for`/`view_opaque`) to produce the
+per-cell codes, and blit base + matched slots in `render_dungeon_view`, then
+compare against a stable DOSBox capture.
