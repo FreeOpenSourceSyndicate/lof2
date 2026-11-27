@@ -829,4 +829,16 @@ bool render_dungeon_tiled(Screen& scr, const std::string& dir, int dungeon,
     return true;
 }
 
+uint8_t dungeon_march_code(uint8_t tile, uint16_t obj, bool side_flag) {
+    if (tile == 0xd) return 6;
+    if (tile == 4 || tile == 5) return 0;
+    if (tile == 9) return 0xa;
+    if (tile == 3) {
+        if (obj == 1) return 6;
+        if (obj == 2 || obj == 4) return side_flag ? 8 : 7;
+        return 3;
+    }
+    return tile;
+}
+
 }  // namespace lofport

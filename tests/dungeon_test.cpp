@@ -1879,6 +1879,22 @@ static void test_view_tiled(const std::string& gameDir) {
     printf("view_tiled: ok (%d non-zero viewport px; base+pieces composed)\n", nz);
 }
 
+static void test_view_march() {
+    assert(dungeon_march_code(6, 0, false) == 6);
+    assert(dungeon_march_code(7, 0, false) == 7);
+    assert(dungeon_march_code(8, 0, false) == 8);
+    assert(dungeon_march_code(12, 0, false) == 0xc);
+    assert(dungeon_march_code(0, 0, false) == 0);
+    assert(dungeon_march_code(4, 0, false) == 0);   // 4/5 -> open
+    assert(dungeon_march_code(5, 0, false) == 0);
+    assert(dungeon_march_code(9, 0, false) == 0xa);
+    assert(dungeon_march_code(0xd, 0, false) == 6);
+    assert(dungeon_march_code(3, 1, false) == 6);
+    assert(dungeon_march_code(3, 2, false) == 7 && dungeon_march_code(3, 2, true) == 8);
+    assert(dungeon_march_code(3, 4, false) == 7);
+    printf("view_march: ok (tile->wall-code rules)\n");
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_view_slots();
@@ -1886,6 +1902,7 @@ int main(int argc, char** argv) {
     test_view_tiled((argc > 1)
                         ? std::filesystem::path(argv[1]).parent_path().string()
                         : std::string("game"));
+    test_view_march();
     test_render();
     test_reachable();
     test_render_facing();

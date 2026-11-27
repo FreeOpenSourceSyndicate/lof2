@@ -656,6 +656,12 @@ std::vector<ViewTile> dungeon_view_pieces(const uint8_t* codes, bool side_flag);
 bool render_dungeon_tiled(Screen& scr, const std::string& dir, int dungeon,
                           const uint8_t* codes, bool side_flag);
 
+// March: translate a map tile code (+ its object word) to a view wall code, per
+// the engine's cell-fill rules (3A8D:0x1C90): tile 0xd->6, 4/5->0 (open),
+// 9->0xa (far), 3 (door) + obj 1->6 / obj 2|4->7 or 8 by the side flag; every
+// other tile passes through (map tiles 0/6/7/8/0xc are already view codes).
+uint8_t dungeon_march_code(uint8_t tile, uint16_t obj, bool side_flag);
+
 }  // namespace lofport
 
 #endif
