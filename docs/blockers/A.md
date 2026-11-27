@@ -811,3 +811,16 @@ shape-index encodes the (side, near/far-corner, ceiling, floor) slot, and the
 layer is chosen by how many cells the march sees.  This is the structure the
 compositor fills; the exact shape-index -> screen-slot table is the last item to
 pin (now feasible from the 4-facing captures).
+
+### BLK-A005 — the placement primitive (0x3252) takes an explicit destination
+The decoder has a SECOND caller besides the loader: `119D:0x3252` is a
+"load one tile into an explicit destination" primitive.  Before decoding it sets
+`cs:[0x0A20] = cx` (destination OFFSET) and `cs:[0x0A06] = dx` (destination
+SEGMENT), calls the decoder, then resets the offset to 0.  Its only caller
+(`0x3C2A2`, inside routine `0x3C242`) passes `dx=0x468E`, `cx=0x46D4` plus a
+filename at `0x408A:0x408A`.  So the first-person compositor computes a
+`(segment, offset)` destination per tile and calls `0x3252` — the 2-D placement
+is EXPLICIT, computed by the march, not implicit in decode order.  This is the
+hook the port's `render_dungeon_view` must reproduce: march -> (filename, dest
+segment:offset) per piece -> decode at that destination.  Remaining: read the
+march's destination computation (the caller chain above `0x3C242`).
