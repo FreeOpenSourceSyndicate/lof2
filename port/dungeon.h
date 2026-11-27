@@ -622,6 +622,23 @@ void render_dungeon_viewport(Screen& scr, const Dungeon& d, const DungeonPos& p,
                              int vx = kViewportX, int vy = kViewportY,
                              int vw = kViewportW, int vh = kViewportH);
 
+// ---------------------------------------------------------------------------
+// First-person view slot geometry (BLK-A005, decoded from the disassembly).
+//
+// The engine's dungeon view is a table-driven tiler: for each view cell it
+// dispatches on the cell's wall code to one of three drawers, each of which
+// looks up a fixed (X,Y,tile) for a "slot" and blits `DP00(tile+drawer_off)`.
+//   drawer A (wall codes 6/7/8) : X/Y from the A/B tables, DP = DP00(T)
+//   drawer B (wall code 0xa)    : X/Y from the A/B tables, DP = DP00(T-0x16)
+//   drawer C (wall code 0xc)    : its own X/Y/T tables,   DP = DP00(T+0x3c)
+// `dungeon_slot_dp` returns the DP number (e.g. 43 -> EGA/D<d>/DP043), or -1
+// when that (drawer, slot) cell is unused.
+enum class ViewDrawer { A, B, C };
+int dungeon_slot_count();                       // number of slots (28)
+int dungeon_slot_x(ViewDrawer d, int slot);
+int dungeon_slot_y(ViewDrawer d, int slot);
+int dungeon_slot_dp(ViewDrawer d, int slot);    // DP number, or -1 if unused
+
 }  // namespace lofport
 
 #endif

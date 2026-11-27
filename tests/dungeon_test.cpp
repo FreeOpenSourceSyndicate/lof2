@@ -1803,8 +1803,33 @@ static void test_teleport(const std::string& dir) {
                 checked);
 }
 
+static void test_view_slots() {
+    assert(dungeon_slot_count() == 28);
+    // drawer A: DP == table T (cross-checked against the emulator's blits)
+    assert(dungeon_slot_dp(ViewDrawer::A, 0) == 36);
+    assert(dungeon_slot_dp(ViewDrawer::A, 10) == 43);   // DP043 @ (10,57)
+    assert(dungeon_slot_dp(ViewDrawer::A, 11) == 38);   // DP038 @ (25,57)
+    assert(dungeon_slot_dp(ViewDrawer::A, 16) == 54);   // DP054
+    assert(dungeon_slot_dp(ViewDrawer::A, 17) == 50);   // DP050
+    assert(dungeon_slot_dp(ViewDrawer::A, 22) == 39);   // DP039
+    assert(dungeon_slot_x(ViewDrawer::A, 10) == 10 && dungeon_slot_y(ViewDrawer::A, 10) == 57);
+    assert(dungeon_slot_x(ViewDrawer::A, 22) == 20 && dungeon_slot_y(ViewDrawer::A, 22) == 61);
+    // drawer B: DP = T - 0x16
+    assert(dungeon_slot_dp(ViewDrawer::B, 22) == 39 - 0x16);
+    assert(dungeon_slot_dp(ViewDrawer::B, 10) == 43 - 0x16);
+    // drawer C: its own tables, DP = T + 0x3c, unused slots -> -1
+    assert(dungeon_slot_dp(ViewDrawer::C, 0) == 2 + 0x3c);
+    assert(dungeon_slot_x(ViewDrawer::C, 0) == 10 && dungeon_slot_y(ViewDrawer::C, 0) == 11);
+    assert(dungeon_slot_dp(ViewDrawer::C, 1) == -1);
+    // out-of-range guards
+    assert(dungeon_slot_dp(ViewDrawer::A, -1) == -1);
+    assert(dungeon_slot_dp(ViewDrawer::A, 28) == -1);
+    printf("view_slots: ok (28 slots; A/B/C DP math cross-checked vs blits)\n");
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
+    test_view_slots();
     test_render();
     test_reachable();
     test_render_facing();
