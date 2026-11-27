@@ -1096,3 +1096,16 @@ complete, faithful renderer.  **Decode 100% done.**
    AND-OR blit (extend `port/gfx`).
 5. `tests/port_dungeon_view_test.py`: compare to a fresh DOSBox capture of the
    same save (the existing 1.0000 viewport match is the sanity anchor).
+
+### BLK-A005 — IMPLEMENTED + VERIFIED (2026-11-24) — DONE
+The full table-driven tiler is now in the drop-in (`port/dungeon.{h,cpp}`):
+`dungeon_view_codes` (ray-cast via the static per-facing offset table at
+0x4C92:0x9A0C), `dungeon_march_code` (tile->wall code), `dungeon_view_pieces`
+(15-cell dispatch -> slots, A/B/C by code + side-flag swap + far row),
+`dungeon_slot_{x,y,dp}` (A/B/C geometry tables + DP math), and
+`render_dungeon_tiled` (base DP001 + dispatched pieces).  `lof --play auto
+--tiled --save <s>` composes it.  Pinned by `tests/dungeon_test.cpp`
+(view_slots / view_pieces / view_tiled / view_march / view_codes) and
+`tests/port_dungeon_view_test.py` (tiled spawn window **98.7%** vs the DOSBox
+oracle `ref/oracle/dungeon_slot1.png`, beating the single-sprite DP001 blit's
+95.2%).  BLK-A005 DONE.
