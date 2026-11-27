@@ -1145,3 +1145,24 @@ real dungeon view is a **perspective renderer**; BLK-A005's tiler is the right
 `ref/oracle/dungeon_slot1_forward.png`.  Until then the depth-sprite stays (it at
 least matches the flat-wall views); the tiler stays experimental (`--play
 --tiled`).
+
+### BLK-A005 — ROOT CAUSE FOUND (2026-11-24): geometry is right, the DP mapping is wrong
+Tracing the real renderer (the previous comment offsets were wrong — image 0x2682 is
+*startup* code, not the drawer) located the actual code:
+  * base draw  **0x13D24**: `cs:[0x376]=10, cs:[0x378]=11`, tile from `[0x4130:0x49f3+6*id]`;
+  * piece draws **0x13F51 / 0x13F72 / 0x13F91** (drawer **0x143d7**): set `cs:[0x376]/[0x378]`,
+    then `mul cx(=6)` -> `[0x4130:0x4a29 + 6*id]` -> a 6-byte record whose word0 is the
+    preloaded EGA image pointer, blitted at `(X,Y)`.
+  * The slot tables **kXab/kYab/kTab ARE real** — they live at linear **0x13FAA as words**
+    (`0a 00 0a 00 64 00 ...`), matching `dungeon.cpp` exactly (my earlier byte-search
+    missed them).  So the **geometry transcription is correct**.
+The bug is the **tile-id -> DP-file mapping**.  Tile id is *not* the DP number: it indexes
+the runtime record table at `0x4130:0x4a29` (base `0x49f3`), which is filled **lazily** when
+the dungeon's `DPnnn` images load (the base pointers are valid; the piece pointers are 0
+until the dungeon is entered).  The DP tiles are **small perspective segments** (16x29,
+24x19, 64x59, 120x119...), not full viewport images — my compose blits them at the right
+(X,Y) but with the wrong DP file, so it shows bands instead of the corridor.
+**Remaining work:** decode the `0x4130:0x4a29` record table's tile-id -> DP-file mapping
+(dump it after the dungeon loads, or decode the loader loop that fills it), then the compose
+should reproduce `ref/oracle/dungeon_slot1_forward.png`.  Not guessable from the static
+image alone.

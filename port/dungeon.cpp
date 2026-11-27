@@ -747,16 +747,21 @@ std::string dungeon_file_name(int dungeon, int level) {
 }
 
 // ---------------------------------------------------------------------------
-// BLK-A005 view slot geometry.  Tables transcribed from the engine's data
-// segment (cs-relative offsets in the comment); the DP number follows from the
-// drawer's tile offset and the id->DP(12+id) descriptor mapping.
+// BLK-A005 view slot geometry.  The X/Y/tile tables are real engine data at
+// linear 0x13FAA (X), +0x38 (Y), +0x70 (tile) as 16-bit words, matching these
+// arrays exactly.  The renderer lives at image 0x13D00+ (base draw 0x13D24,
+// piece drawer 0x143d7); the tile id is NOT a DP number -- it indexes a runtime
+// record table at 0x4130:0x4a29 that maps it to a preloaded DP image.  The DP
+// files are small perspective segments (16x29 .. 120x119).  See
+// docs/blockers/A.md ("ROOT CAUSE FOUND"): the geometry is correct; the
+// tile-id->DP mapping is the unresolved part.
 namespace {
 constexpr int kSlotCount = 28;
-// drawers A/B: X 0x25DA, Y 0x2612, tile 0x264A
+// drawers A/B: X, Y, tile tables (linear 0x13FAA / +0x38 / +0x70)
 const int kXab[kSlotCount] = {10,10,100,10,40,100,10,40,85,115,10,25,55,85,115,10,25,55,80,105,120,10,20,40,60,80,100,120};
 const int kYab[kSlotCount] = {11,11,11,41,41,41,41,41,41,41,57,57,57,57,57,57,57,57,57,57,57,61,61,61,61,61,61,61};
 const int kTab[kSlotCount] = {36,46,47,41,37,40,52,48,49,53,43,38,38,38,42,56,54,50,51,55,57,45,39,39,39,39,39,44};
-// drawer C: X 0x26E6, Y 0x271E, tile 0x2756
+// drawer C: X/Y/tile tables (same word layout; values below)
 const int kXc[kSlotCount] = {10,0,0,10,41,101,0,0,0,0,10,25,55,85,115,0,0,0,0,0,0,10,20,40,60,80,100,120};
 const int kYc[kSlotCount] = {11,0,0,41,41,41,0,0,0,0,57,57,57,57,57,0,0,0,0,0,0,61,61,61,61,61,61,61};
 const int kTc[kSlotCount] = {2,0,0,6,3,7,0,0,0,0,8,4,4,4,9,0,0,0,0,0,0,10,5,5,5,5,5,11};
