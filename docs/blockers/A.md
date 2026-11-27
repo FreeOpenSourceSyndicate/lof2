@@ -1020,3 +1020,14 @@ decoded**; only the *implementation* remains: transcribe the 15-cell dispatch
 table above + the march that fills the grid from the map/facing, and wire it
 into `render_dungeon_view`.  The march's cell-fill is the last sub-decode (the
 port already has `view_opaque`/`dungeon_view_for` scaffolding).
+
+### BLK-A005 — march (cell-fill) still to locate; renderer otherwise complete
+Correction: the `lcall 0x119d,0x309e` that the view makes before drawing is a
+screen wipe / display setup (`0x309e` -> `0x30c8` is a `rep movsw` row-copy wipe),
+**not** the cell-fill march.  The march that writes the 15-cell grid
+`[0xb100]:0x34..0x42` (wall codes 6/7/8/0xa/0xc) is still to be located — find it
+with `LOF_WATCH` on the cell array: resolve `[0xb100]` to a segment, then
+`LOF_WATCH=<thatseg*16+0x34>:<+0x43>` while loading the dungeon save, and read the
+writing `cs:ip`.  Everything else (blitter, 28-slot geometry, tile-id->DP,
+15-cell dispatch) is decoded and committed; the march is the only remaining
+sub-decode before implementation.
