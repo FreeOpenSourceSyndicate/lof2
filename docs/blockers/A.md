@@ -1031,3 +1031,23 @@ with `LOF_WATCH` on the cell array: resolve `[0xb100]` to a segment, then
 writing `cs:ip`.  Everything else (blitter, 28-slot geometry, tile-id->DP,
 15-cell dispatch) is decoded and committed; the march is the only remaining
 sub-decode before implementation.
+
+### BLK-A005 — MARCH decoded (the cell-fill, 3A8D:0x1C90..0x1E42)
+Located via `LOF_WATCH 0x468E:0x34..0x42` (cell seg `[0xb100]`=0x468E, found by
+tracing the view entry `3A8D:0x2110` = linear 0x3C9E0 for DS=0x4C92).  The march
+loops a 32-bit cell index `bx` (0..0x16, the cells ahead) and, per cell, maps the
+**map tile** `[0xb102]:[bx+0x23e]` to a **view wall-code** `[0xb100]:[bx+0x34]`:
+* default: `view = map_tile` (map tiles already carry the 6/7/8/0xa/0xc codes);
+* map_tile==3 (door/alcove): if flag `[0xb104]:[bx*2+0x37b4]==1` -> 6; if flag
+  ==2 or 4 -> 7 or 8 (the two side-wall codes, swapped by the L/R flag
+  `[bp-0x10]|[bp-0xe]` and by whether bx is one of the "edge" cells 1/5/0xb/0x12);
+* map_tile==0xd -> 6 ; map_tile==4 or 5 -> 0 (open) ; map_tile==9 -> 0xa (far).
+Then it clears the map/flag cell and stages that cell's sprite (the `si/di`
+setup at 0x1E35).
+
+**BLK-A005 is now FULLY decoded end-to-end**, all committed:
+march (map_tile->wall_code) -> 15-cell dispatch (wall_code->slot) -> 28-slot
+geometry (slot->X,Y,DP) -> masked plane blitter.  Remaining = implementation
+only: transcribe the march rules + dispatch table into `port/dungeon.cpp` and
+`render_dungeon_view`, driving it from the port's existing map loader, then
+verify against a stable DOSBox capture.
