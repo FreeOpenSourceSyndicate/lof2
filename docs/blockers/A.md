@@ -868,3 +868,24 @@ tuples ARE the placement table — no further static analysis needed.  Concrete
 next step: raise/remove the 200-hit cap in `src/machine.cpp`'s `LOF_TRACE_IP`
 path (or add a dedicated `LOF_BLITLOG` that logs the 5 words per blit), rebuild,
 and dump the dungeon-frame blit list; then transcribe the march from it.
+
+### BLK-A005 — BREAKTHROUGH: uncapped placement capture via new LOF_BLITLOG
+Added a `LOF_BLITLOG=<ip>` hook to `src/main.cpp` (env: `LOF_BLITLOG_N`,
+`LOF_BLITLOG_MIN`) that logs one line per blitted ROW at a given store IP,
+**uncapped** (unlike `LOF_TRACE_IP`'s 200-hit cap that had been hiding the
+dungeon frames).  Logging at the blitter store (`119D:0x463`, linear `0x11E33`,
+`LOF_BLITLOG_MIN=20000000` to skip the menu) yields the engine's exact
+`(tile-segment ds, X=di*8, Y=bx/40)` per row.  The loaded tiles are the EGA
+tiles **decoded in place**: at `ds:0` is `0x1234`, `[+2]`=wb, `[+4]`=h,
+`[+6]`=4*wb*h, and the raw 4-plane data starts at `ds:10` (decoding it
+reproduces a recognisable corridor — verified).  Captured GAME5 view:
+* **base** `ds=6DCD` (120x119) @ (10,11) — the full pre-rendered corridor scene
+  (matches the viewport 88% alone);
+* **pieces** overlaid at slots: `798C`(16x29)@(8,57), `7B85`(16x28)@(24,57),
+  `78AB`(32x29)@(24,57), `7B31`(8x27)@(48,57), `79AC`(16x19)@(8,61),
+  `78D0`(24x19)@(16,61),(80,61),(96,61).
+So the view = base tile + pieces at fixed slots (the base already carries the
+bulk; pieces refine arches/floor).  **Remaining:** (a) map each runtime `ds` to
+its `EGA/D3/DPnnn` file (decode `ds:10` + compare — sizes match DP groups), and
+(b) capture all four facings with `LOF_BLITLOG` and read the wall->slot->tile
+rule off the per-facing slot sets.  The tool makes both mechanical.

@@ -383,6 +383,22 @@ int main(int argc, char** argv) {
                         left--;
                     }
                 }
+                if (const char* blip = getenv("LOF_BLITLOG")) {
+                    static long blo = -1, bleft = 2000000, bmin = 0;
+                    static uint16_t pds = 0xFFFF, pbx = 0xFFFF;
+                    if (blo == -1) { blo = strtol(blip, nullptr, 16); char* n = getenv("LOF_BLITLOG_N"); if (n) bleft = atol(n); char* mn = getenv("LOF_BLITLOG_MIN"); if (mn) bmin = atol(mn); }
+                    long pc = (long)(m.cpu.cs * 16u + m.cpu.ip);
+                    if (pc == blo && bleft > 0 && (long)m.instr_count >= bmin) {
+                        // One line per blitted ROW (ds + bx = row base); di at the
+                        // row start gives the X byte offset.  Unbounded (vs the
+                        // 200-hit cap on LOF_TRACE_IP).
+                        if (m.cpu.ds != pds || m.cpu.bx != pbx) {
+                            fprintf(stderr, "BL %08u ds=%04X si=%04X di=%04X bx=%04X\n",
+                                    m.instr_count, m.cpu.ds, m.cpu.si, m.cpu.di, m.cpu.bx);
+                            pds = m.cpu.ds; pbx = m.cpu.bx; bleft--;
+                        }
+                    }
+                }
                 if (getenv("LOF_SPLOW")) {
                     static bool done = false;
                     long lim = strtol(getenv("LOF_SPLOW"), nullptr, 16);
