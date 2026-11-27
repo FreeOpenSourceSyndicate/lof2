@@ -1859,10 +1859,33 @@ static void test_view_pieces() {
     printf("view_pieces: ok (dispatch A/B/C + side-flag swap + far-row)\n");
 }
 
+static void test_view_tiled(const std::string& gameDir) {
+    if (!std::filesystem::exists(gameDir + "/EGA/D5/DP001")) {
+        printf("view_tiled: skipped (no game data)\n");
+        return;
+    }
+    Screen scr;
+    scr.resize(320, 200);
+    scr.clear(0);
+    uint8_t codes[22] = {0};
+    codes[14] = 6;  // far wall -> slot 20 drawer A (DP057 @ 120,57)
+    codes[16] = 6;  // far row -> slot 22 drawer A (DP039 @ 20,61)
+    assert(render_dungeon_tiled(scr, gameDir, 5, codes, false));
+    int nz = 0;
+    for (int y = 11; y < 130; y++)
+        for (int x = 10; x < 130; x++)
+            if (scr.pixels[(size_t)y * 320 + x]) nz++;
+    assert(nz > 1000);  // base + pieces actually drew
+    printf("view_tiled: ok (%d non-zero viewport px; base+pieces composed)\n", nz);
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_view_slots();
     test_view_pieces();
+    test_view_tiled((argc > 1)
+                        ? std::filesystem::path(argv[1]).parent_path().string()
+                        : std::string("game"));
     test_render();
     test_reachable();
     test_render_facing();

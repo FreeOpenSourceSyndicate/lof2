@@ -816,4 +816,17 @@ std::vector<ViewTile> dungeon_view_pieces(const uint8_t* codes, bool side_flag) 
     return out;
 }
 
+bool render_dungeon_tiled(Screen& scr, const std::string& dir, int dungeon,
+                          const uint8_t* codes, bool side_flag) {
+    EgaImage base;
+    if (!load_ega_image(dungeon_view_path(dir, dungeon, 1), base)) return false;
+    blit_image(scr, base, kViewportX, kViewportY, false);
+    for (const ViewTile& t : dungeon_view_pieces(codes, side_flag)) {
+        EgaImage img;
+        if (load_ega_image(dungeon_view_path(dir, dungeon, t.dp), img))
+            blit_image(scr, img, t.x, t.y, true);
+    }
+    return true;
+}
+
 }  // namespace lofport

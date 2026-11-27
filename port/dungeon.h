@@ -648,6 +648,14 @@ struct ViewTile { int dp; int x; int y; };
 // in blit order (far cells first); the base DP001 is drawn separately first.
 std::vector<ViewTile> dungeon_view_pieces(const uint8_t* codes, bool side_flag);
 
+// Compose the first-person viewport into `scr` from the 22 per-cell wall codes:
+// blit the base DP001 at the viewport origin, then each dispatched piece (DP00(
+// tile) at its slot) transparently.  This is the faithful table-driven tiler
+// (BLK-A005); the caller supplies `codes` from the march.  Returns false if the
+// base sprite cannot be loaded.
+bool render_dungeon_tiled(Screen& scr, const std::string& dir, int dungeon,
+                          const uint8_t* codes, bool side_flag);
+
 }  // namespace lofport
 
 #endif
