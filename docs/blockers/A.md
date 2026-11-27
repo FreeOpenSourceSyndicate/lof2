@@ -1109,3 +1109,20 @@ The full table-driven tiler is now in the drop-in (`port/dungeon.{h,cpp}`):
 `tests/port_dungeon_view_test.py` (tiled spawn window **98.7%** vs the DOSBox
 oracle `ref/oracle/dungeon_slot1.png`, beating the single-sprite DP001 blit's
 95.2%).  BLK-A005 DONE.
+
+### BLK-A005 — CORRECTION (2026-11-24): the tiler is NOT the first-person view
+The table-driven tiler (`dungeon_view_codes` / `dungeon_march_code` /
+`dungeon_view_pieces` / `render_dungeon_tiled`) is implemented and matches the
+DOSBox **spawn** oracle at 98.7% — but that oracle is a flat grey wall where
+*every* sampled cell is a wall, so it does **not** exercise the ray-cast or the
+march (any cell -> code 6 -> the same wall pieces).  Against the DOSBox **moved**
+oracle (`ref/oracle/dungeon_slot1_moved.png`, a flat-grey `CH25` deep-corridor
+view) the tiler scores only **16.4%**, while the single-sprite depth-march
+(`render_dungeon_play_view`: `DP001`/`CH40`/`CH25`) scores **99.9%**.
+So the **depth-sprite is the real first-person renderer**, and the tiler is a
+different/related routine (possibly the outdoor view or a preview) — NOT the
+dungeon view.  The tiler is kept as `lof --play --tiled` (experimental, spawn
+only) and is **NOT** wired into the live play loop (`--walk`/`--ui` still use the
+verified depth-sprite).  Resolving what the tiler actually renders needs a fresh
+DOSBox corridor capture at a known position/facing.  Shipped dungeon view:
+depth-sprite, 95.2% spawn / 99.9% moved vs DOSBox.
