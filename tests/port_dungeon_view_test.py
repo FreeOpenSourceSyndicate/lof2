@@ -60,6 +60,13 @@ def walk(keys, shot):
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def tiled(shot):
+    subprocess.run(
+        [os.path.join(ROOT, "lof"), "--dir", GAME, "--headless",
+         "--play", "auto", "--tiled", "--save", SAVE, "--shot", shot],
+        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def load(path):
     return np.asarray(Image.open(path).convert("RGB")).astype(int)
 
@@ -84,6 +91,20 @@ def main() -> int:
     else:
         print("port_dungeon_view_test: FAIL spawn (window=%.1f%% < %.0f%%)"
               % (100 * m, 100 * SPAWN_MIN))
+        rc = 1
+
+    # Table-driven tiler (BLK-A005): --play --tiled composes the viewport from the
+    # ray-cast + march + dispatch + slot geometry, matching the DOSBox spawn
+    # oracle more closely than the single-sprite DP001 blit.
+    tiled("/tmp/port_dungeon_tiled.png")
+    m = float((window(load("/tmp/port_dungeon_tiled.png"))
+               == window(load(SPAWN_ORACLE))).all(2).mean())
+    if m >= 0.98:
+        print("port_dungeon_view_test: tiled ok (window=%.1f%%, table-driven tiler)"
+              % (100 * m))
+    else:
+        print("port_dungeon_view_test: FAIL tiled (window=%.1f%% < 98%%)"
+              % (100 * m))
         rc = 1
 
     walk("0x48", "/tmp/port_dungeon_moved.png")   # step south -> open corridor
