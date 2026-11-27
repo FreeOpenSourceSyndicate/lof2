@@ -3035,6 +3035,13 @@ int main(int argc, char** argv) {
                 return 1;
             }
             place_party_from_save(d, sg, pos);
+            const char* ov = getenv("LOF_TILEDPOS");
+            if (ov) {
+                int ox, oy, of;
+                if (sscanf(ov, "%d,%d,%d", &ox, &oy, &of) == 3) {
+                    pos.x = ox; pos.y = oy; pos.facing = of;
+                }
+            }
             if (!compose_play_screen(dir, "", sg, true, s, err, /*with_view=*/false)) {
                 fprintf(stderr, "lof: %s\n", err.c_str());
                 return 1;
