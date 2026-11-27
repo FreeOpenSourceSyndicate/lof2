@@ -1070,3 +1070,29 @@ and committed.  The remaining work is the C++ implementation in `port/dungeon.cp
 + `render_dungeon_view` and a regression test against a stable DOSBox capture —
 a mechanical, well-scoped transcription of the five stages above, no further
 reverse-engineering required.
+
+### BLK-A005 — drawer table-sets (the three "layers")
+Each wall-code drawer reads its OWN (X,Y,tile) tables and a different tile offset:
+* **A `0x2682`** (codes 6/7/8): X `0x25DA`, Y `0x2612`, T `0x264A`, `tile=T-0x0C`
+  -> `DP00(T)`.
+* **B `0x26B4`** (code 0xa):   X `0x25DA`, Y `0x2612`, T `0x264A`, `tile=T-0x22`
+  -> `DP00(T-0x10)`.
+* **C `0x278E`** (code 0xc):   X `0x26E6`, Y `0x271E`, T `0x2756`, `tile=T+0x30`
+  (its own table set — the "door/ceiling" layer).
+So a slot's (X,Y) is fixed but its DP depends on the drawer.  Together with the
+ray-cast (map cell per view cell), march (map tile -> wall code), the 15-cell
+dispatch (code -> slot + drawer), and the masked plane blitter, this is the
+complete, faithful renderer.  **Decode 100% done.**
+
+### BLK-A005 — implementation plan (next work chunk, no more RE needed)
+1. `port/dungeon.cpp`: add the three table-sets (A/B/C X,Y,T above), the
+   drawer tile-offsets, and the 15-cell dispatch table (code -> {slot,drawer}).
+2. Ray-cast: from the party cell+facing fill the 22-cell view buffer (2-col x
+   4-depth anchors 0,1,4,5,0xa,0xb,0x11,0x12 + mirror), reading `Dungeon.tiles`
+   / `.objects`.
+3. March: apply the map-tile -> wall-code rules.
+4. Compose: blit base `DP001`@(10,11) then, per (cell,code), blit
+   `DP00(T[slot] + drawer_off)` at `(X[slot],Y[slot])` via a masked plane
+   AND-OR blit (extend `port/gfx`).
+5. `tests/port_dungeon_view_test.py`: compare to a fresh DOSBox capture of the
+   same save (the existing 1.0000 viewport match is the sanity anchor).
