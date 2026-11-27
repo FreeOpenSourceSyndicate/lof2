@@ -639,6 +639,15 @@ int dungeon_slot_x(ViewDrawer d, int slot);
 int dungeon_slot_y(ViewDrawer d, int slot);
 int dungeon_slot_dp(ViewDrawer d, int slot);    // DP number, or -1 if unused
 
+// One tile to blit: DP file number (e.g. 43 -> EGA/D<d>/DP043) at screen (x,y).
+struct ViewTile { int dp; int x; int y; };
+
+// Compose the first-person view pieces from the 22 per-cell wall codes (the
+// march output; `codes[i]` is the code for cell offset 0x34+i, i = 0..21) and
+// the L/R side flag (set when the party faces east/west).  Returns the pieces
+// in blit order (far cells first); the base DP001 is drawn separately first.
+std::vector<ViewTile> dungeon_view_pieces(const uint8_t* codes, bool side_flag);
+
 }  // namespace lofport
 
 #endif

@@ -785,4 +785,35 @@ int dungeon_slot_dp(ViewDrawer d, int slot) {
     return t;  // drawer A
 }
 
+std::vector<ViewTile> dungeon_view_pieces(const uint8_t* codes, bool side_flag) {
+    std::vector<ViewTile> out;
+    auto add = [&](ViewDrawer d, int slot) {
+        int dp = dungeon_slot_dp(d, slot);
+        if (dp >= 0) out.push_back({dp, dungeon_slot_x(d, slot), dungeon_slot_y(d, slot)});
+    };
+    // Per-cell primary + adjacent slots (cells 0x34..0x42 = index 0..14), decoded
+    // from the dispatch block (image 0x3CAE3..).  code 7/8 pick the near/far
+    // drawer by the side flag (7 = the side that swaps A<->B with facing).
+    static const int P[15]   = {1, 0, 2, 6, 7, 4, 8, 9, 15, 16, 17, 12, 18, 19, 20};
+    static const int Adj[15] = {0, 0, 0, 0, 3, 0, 5, 0, 0, 10, 11, 0, 13, 14, 0};
+    const ViewDrawer left  = side_flag ? ViewDrawer::B : ViewDrawer::A;
+    const ViewDrawer right = side_flag ? ViewDrawer::A : ViewDrawer::B;
+    for (int i = 14; i >= 0; --i) {
+        int code = codes[i];
+        if (code == 6)        { add(ViewDrawer::A, P[i]); if (Adj[i]) add(ViewDrawer::A, Adj[i]); }
+        else if (code == 7)   { add(left,  P[i]);         if (Adj[i]) add(left,  Adj[i]); }
+        else if (code == 8)   { add(right, P[i]);         if (Adj[i]) add(right, Adj[i]); }
+        else if (code == 0xa) { add(ViewDrawer::B, P[i]); if (Adj[i]) add(ViewDrawer::B, Adj[i]); }
+        else if (code == 0xc) { if (Adj[i]) add(ViewDrawer::C, Adj[i]); }
+    }
+    // Far-row depth loop (3A8D:0x2190): cells 0x44..0x49 (index 16..21) -> slots 22..27.
+    for (int i = 16; i <= 21; ++i) {
+        int slot = 22 + (i - 16), code = codes[i];
+        if (code == 6 || code == 7)        add(ViewDrawer::A, slot);
+        else if (code == 8 || code == 0xa) add(ViewDrawer::B, slot);
+        else if (code == 0xc)              add(ViewDrawer::C, slot);
+    }
+    return out;
+}
+
 }  // namespace lofport

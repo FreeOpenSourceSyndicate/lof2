@@ -1827,9 +1827,42 @@ static void test_view_slots() {
     printf("view_slots: ok (28 slots; A/B/C DP math cross-checked vs blits)\n");
 }
 
+static void test_view_pieces() {
+    uint8_t codes[22] = {0};
+    assert(dungeon_view_pieces(codes, false).empty());          // all open
+    // code 6 at cell 0x42 (index 14) -> slot 20 drawer A -> DP057 @ (120,57)
+    codes[14] = 6;
+    auto p = dungeon_view_pieces(codes, false);
+    assert(p.size() == 1 && p[0].dp == 57 && p[0].x == 120 && p[0].y == 57);
+    // code 0xa -> slot 20 drawer B -> DP057-0x16=35
+    codes[14] = 0xa;
+    p = dungeon_view_pieces(codes, false);
+    assert(p.size() == 1 && p[0].dp == 35 && p[0].x == 120 && p[0].y == 57);
+    codes[14] = 0;
+    // code 6 at cell 0x41 (index 13) -> slots 19 + adjacent 14 (drawer A)
+    codes[13] = 6;
+    p = dungeon_view_pieces(codes, false);
+    assert(p.size() == 2 && p[0].dp == 55 && p[1].dp == 42);
+    codes[13] = 0;
+    // code 7/8 swap near/far drawer by the side flag
+    codes[14] = 7;
+    assert(dungeon_view_pieces(codes, false)[0].dp == 57);
+    assert(dungeon_view_pieces(codes, true)[0].dp == 35);
+    codes[14] = 8;
+    assert(dungeon_view_pieces(codes, false)[0].dp == 35);
+    assert(dungeon_view_pieces(codes, true)[0].dp == 57);
+    codes[14] = 0;
+    // far-row depth loop: cell 0x44 (index 16) code 6 -> slot 22 drawer A -> DP039 @ (20,61)
+    codes[16] = 6;
+    p = dungeon_view_pieces(codes, false);
+    assert(p.size() == 1 && p[0].dp == 39 && p[0].x == 20 && p[0].y == 61);
+    printf("view_pieces: ok (dispatch A/B/C + side-flag swap + far-row)\n");
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_view_slots();
+    test_view_pieces();
     test_render();
     test_reachable();
     test_render_facing();
