@@ -997,3 +997,26 @@ is mechanical: transcribe the `0x3CAE3..0x3D6C3` (code,slot) pairs into a table,
 reuse the port's existing march (`dungeon_view_for`/`view_opaque`) to produce the
 per-cell codes, and blit base + matched slots in `render_dungeon_view`, then
 compare against a stable DOSBox capture.
+
+### BLK-A005 — COMPLETE dispatch table (15-cell view grid)
+The march fills a 15-cell grid `es:[0x34]`..`es:[0x42]` with wall codes; the
+draw block (image `0x3CAE3..0x3D6C3`) then, per cell, dispatches by code:
+**6/7/8 -> drawer A `0x2682`** (near wall), **0xa -> drawer B `0x26b4`** (far
+wall), **0xc -> drawer C `0x278e`** (door/ceiling); each also draws an adjacent
+"open" slot (the `[bp-0xa]` flag) one step nearer.  Cell -> slot(s) (extracted
+from the 78 dispatch calls):
+
+    cell 0x42 -> 20 ; 0x41 -> 19,14 ; 0x40 -> 18,13 ; 0x3f -> 12 ;
+    0x3e -> 17,11 ; 0x3d -> 16,10 ; 0x3c -> 15 ; 0x3b -> 9 ;
+    0x3a -> 8,5 ; 0x39 -> 4 ; 0x38 -> 7,3 ; 0x37 -> 6 ;
+    0x36 -> 2 ; 0x35 -> 0 ; 0x34 -> 1
+    (+ depth loop 3A8D:0x2190 -> slots 22..27 ; + base DP001@(10,11) via 0x25be
+    and a side tile @(10,60) via 0x259f)
+
+So the renderer is, end to end: **march 15 cells -> per cell pick drawer by code
+-> blit `DP00(T[slot])` at `(X[slot],Y[slot])`** (slot tables in the previous
+entry), through the masked sub-pixel plane blitter.  BLK-A005 is now **fully
+decoded**; only the *implementation* remains: transcribe the 15-cell dispatch
+table above + the march that fills the grid from the map/facing, and wire it
+into `render_dungeon_view`.  The march's cell-fill is the last sub-decode (the
+port already has `view_opaque`/`dungeon_view_for` scaffolding).
