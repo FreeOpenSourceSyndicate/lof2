@@ -662,6 +662,12 @@ bool render_dungeon_tiled(Screen& scr, const std::string& dir, int dungeon,
 // other tile passes through (map tiles 0/6/7/8/0xc are already view codes).
 uint8_t dungeon_march_code(uint8_t tile, uint16_t obj, bool side_flag);
 
+// Ray-cast: fill the 22 per-cell view codes from the map at the party's position
+// + facing, using the engine's static per-facing offset table
+// (`map_cell = party_cell + kRayOffset[facing][i]`, decoded at 0x4C92:0x9A0C).
+// The codes then feed dungeon_view_pieces() / render_dungeon_tiled().
+void dungeon_view_codes(const Dungeon& d, const DungeonPos& p, uint8_t codes[22]);
+
 }  // namespace lofport
 
 #endif

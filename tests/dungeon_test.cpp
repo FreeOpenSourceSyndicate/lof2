@@ -1895,6 +1895,30 @@ static void test_view_march() {
     printf("view_march: ok (tile->wall-code rules)\n");
 }
 
+static void test_view_codes() {
+    Dungeon d;
+    d.tiles.assign(kDungeonTiles, 0);
+    d.objects.assign(kDungeonTiles, 0);
+    DungeonPos p; p.x = 18; p.y = 18; p.facing = 2;
+    uint8_t codes[22];
+    dungeon_view_codes(d, p, codes);
+    for (int i = 0; i < 22; i++) assert(codes[i] == 0);      // all open
+    std::fill(d.tiles.begin(), d.tiles.end(), 6);
+    dungeon_view_codes(d, p, codes);
+    for (int i = 0; i < 22; i++) assert(codes[i] == 6);      // all wall
+    std::fill(d.tiles.begin(), d.tiles.end(), 9);
+    dungeon_view_codes(d, p, codes);
+    for (int i = 0; i < 22; i++) assert(codes[i] == 0xa);    // all far
+    // every facing stays in range from a central cell
+    std::fill(d.tiles.begin(), d.tiles.end(), 0);
+    for (int f = 0; f < 4; f++) {
+        p.facing = f;
+        dungeon_view_codes(d, p, codes);
+        for (int i = 0; i < 22; i++) assert(codes[i] == 0);
+    }
+    printf("view_codes: ok (ray-cast + march produce per-cell view codes)\n");
+}
+
 int main(int argc, char** argv) {
     test_synthetic();
     test_view_slots();
@@ -1903,6 +1927,7 @@ int main(int argc, char** argv) {
                         ? std::filesystem::path(argv[1]).parent_path().string()
                         : std::string("game"));
     test_view_march();
+    test_view_codes();
     test_render();
     test_reachable();
     test_render_facing();

@@ -841,4 +841,25 @@ uint8_t dungeon_march_code(uint8_t tile, uint16_t obj, bool side_flag) {
     return tile;
 }
 
+void dungeon_view_codes(const Dungeon& d, const DungeonPos& p, uint8_t codes[22]) {
+    // Per-facing cell offsets (static table, decoded at 0x4C92:0x9A0C); a view
+    // cell samples the map cell at party_cell + offset.
+    static const int kRay[4][22] = {
+        {-37, -36, -35, -74, -73, -72, -71, -70, -111, -110, -109, -108, -107, -106, -105, -147, -146, -145, -144, -143, -142, -141},
+        {-35,   1,  37, -70, -34,   2,  38,  74, -105,  -69,  -33,    3,   39,   75,  111, -104,  -68,  -32,    4,   40,   76,  112},
+        { 37,  36,  35,  74,  73,  72,  71,  70,  111,  110,  109,  108,  107,  106,  105,  147,  146,  145,  144,  143,  142,  141},
+        { 35,  -1, -37,  70,  34,  -2, -38, -74,  105,   69,   33,   -3,  -39,  -75, -111,  104,   68,   32,   -4,  -40,  -76, -112},
+    };
+    int facing = ((p.facing % 4) + 4) % 4;
+    int party = p.y * kDungeonW + p.x;
+    bool side = (facing == 1 || facing == 3);
+    for (int i = 0; i < 22; i++) {
+        int cell = party + kRay[facing][i];
+        if (cell < 0 || cell >= kDungeonTiles) { codes[i] = 0; continue; }
+        codes[i] = dungeon_march_code(d.tile(cell % kDungeonW, cell / kDungeonW),
+                                      d.object(cell % kDungeonW, cell / kDungeonW),
+                                      side);
+    }
+}
+
 }  // namespace lofport
