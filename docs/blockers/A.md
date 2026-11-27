@@ -799,3 +799,15 @@ HUD (no fragments).  **Fixed (view-independent) frame elements:** `DP030`
 y>=135 — identical in all four facings.  This 4-facing dataset (pieces + slots)
 is the raw material to derive the perspective slot-grid + piece-selection rule
 for `render_dungeon_view`.
+
+### BLK-A005 — piece groups have identical size patterns (depth/texture layers)
+The D3 fragment pieces form two PARALLEL groups with the *same* size sequence:
+DP015..DP031 and DP037..DP051 both run 64x59, 32x29, 24x19, 32x59, 32x59,
+16x29, 16x29, 16x19, 16x19, then 32x119/32x119, 16x59/16x59, 8x27/8x27, ... — i.e.
+the same set of perspective piece-SHAPES in two layers.  Facing forward (GAME5)
+uses the DP037..051 layer; the deeper GAME4 room uses both layers
+(DP037/040/041 + DP016/018/019/020).  So the engine layers depth: each layer's
+shape-index encodes the (side, near/far-corner, ceiling, floor) slot, and the
+layer is chosen by how many cells the march sees.  This is the structure the
+compositor fills; the exact shape-index -> screen-slot table is the last item to
+pin (now feasible from the 4-facing captures).
