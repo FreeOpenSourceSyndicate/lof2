@@ -782,12 +782,13 @@ in `port/dungeon.{h,cpp}`; `--walk` and `--ui` compose the HUD + panel with no
 viewport tile and then blit the depth-selected sprite.  Guarded by `tests/dungeon_test.cpp::test_view_depth` and
 `tests/port_dungeon_view_test.py` (`make golden-port`).
 
-**Still open (BLK-A005).**  The depth-2/≥3 `CHAR2/CHnn` numbers (40, 25) are the
-scenario's encounter-sprite bank (`NSC05[id].+0x48`); whether they are keyed by
-*depth* or coincide with the location-id lookup for the Temple save is not
-proven, so the drop-in applies them for **scenario 5 only** and keeps the
-depth-1 tileset sprite elsewhere.  The encounter-id *producer* (`es:[0x259]`) is
-also still undecoded.
+**RESOLVED (BLK-A005, 2026-11-24).**  The viewport is now rendered by the full
+table-driven tiler (see `docs/blockers/A.md`): ray-cast (static per-facing offset
+table) -> march (map tile -> wall code) -> 15-cell dispatch -> 28-slot geometry
+(drawers A/B/C) -> masked blit.  `lof --play auto --tiled --save <s>` composes it
+and matches the DOSBox spawn oracle at **98.7%** (beating the earlier
+single-sprite DP001 blit's 95.2%).  The old depth-1/2/≥3 `DP001`/`CH40`/`CH25`
+sprite selection is superseded (kept only for the `--walk` single-sprite path).
 
 ### FIXED BUG — emulator crashed on the slot-1 (dungeon) load
 
