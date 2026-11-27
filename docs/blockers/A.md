@@ -784,3 +784,18 @@ So facing selects which tile subset is resident; the fragments are then decoded
 into the 320x200 4-plane scratch (sequential segment advance) and blitted. The
 remaining unknown is still the per-tile 2-D placement; capturing extra facings
 (the no-monster saves allow turning) will give the samples needed to pin it.
+
+### BLK-A005 — 4-facing dataset: the view is a true perspective renderer
+Captured GAME5 at all four facings (turn keys injected in the emulator:
+forward / left=`0x4B` / right=`0x4D` / back=`0x4B,0x4B`; saved
+`ref/emu/game5_{v5L,v5R,v5B}{,_vp}.png`).  Result: the SAME fragment pieces are
+**re-used at different screen slots** depending on facing — e.g. `DP043` is
+@(10,57) facing forward but @(70,57) facing left; `DP045` is @(110,61) forward
+but @(30,61) left; `DP042`/`DP038` @(25,57) forward -> @(55,57) left.  So the
+first-person view is a genuine per-(depth,side) perspective tile renderer, not a
+fixed sprite placement.  Facing right and back (walls) show only the base scene +
+HUD (no fragments).  **Fixed (view-independent) frame elements:** `DP030`
+@(118,133) and the location-block tiles `DP034/035/022/023/033/032/021/017` at
+y>=135 — identical in all four facings.  This 4-facing dataset (pieces + slots)
+is the raw material to derive the perspective slot-grid + piece-selection rule
+for `render_dungeon_view`.
