@@ -2069,6 +2069,7 @@ int main(int argc, char** argv) {
 // panel layout were recovered by matching the decoded assets against a
 // DOSBox capture of save slot 2 (ref/oracle/play.png).
     std::string play, save;
+    bool tiled = false;
     bool charsheet_flag = false;
     int charsheet_member = 0;      // 0-based party slot for --charsheet
     bool town_flag = false;
@@ -2135,6 +2136,7 @@ int main(int argc, char** argv) {
     std::vector<RoundRow> round_rows;
     for (int i = 1; i < argc; i++) {
         if (std::string(argv[i]) == "--play" && i + 1 < argc) play = argv[++i];
+        else if (std::string(argv[i]) == "--tiled") tiled = true;
         else if (std::string(argv[i]) == "--save" && i + 1 < argc) save = argv[++i];
         else if (std::string(argv[i]) == "--town") town_flag = true;
         else if (std::string(argv[i]) == "--charsheet") {
@@ -3024,7 +3026,23 @@ int main(int argc, char** argv) {
             play = vd + "/DP001";
         }
         Screen s;
-        if (!compose_play_screen(dir, play, sg, have_sg, s, err)) {
+        if (tiled && have_sg) {
+            uint16_t location = save_location(sg);
+            Dungeon d;
+            DungeonPos pos;
+            if (!load_dungeon(dir + "/DNGS/" + dungeon_map_name(location), d, &err)) {
+                fprintf(stderr, "lof: %s\n", err.c_str());
+                return 1;
+            }
+            place_party_from_save(d, sg, pos);
+            if (!compose_play_screen(dir, "", sg, true, s, err, /*with_view=*/false)) {
+                fprintf(stderr, "lof: %s\n", err.c_str());
+                return 1;
+            }
+            uint8_t codes[22];
+            dungeon_view_codes(d, pos, codes);
+            render_dungeon_tiled(s, dir, location, codes, pos.facing == 1 || pos.facing == 3);
+        } else if (!compose_play_screen(dir, play, sg, have_sg, s, err)) {
             fprintf(stderr, "lof: %s\n", err.c_str());
             return 1;
         }
