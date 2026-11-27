@@ -944,3 +944,35 @@ addresses) + the side-wall setup passes `0x259f`/`0x25be`/`0x2a30`, then in the
 port do exactly this: march the 6 cells -> per cell, pick drawer by wall code ->
 blit tile at (Xtable,Ytable).  This is a bounded transcription now, not a
 search.
+
+### BLK-A005 — COMPLETE geometry decode: tile-id -> DP file, slot -> (X,Y,DP)
+Read the runtime descriptor table `0x4130:0x4A29` from a dungeon-state dump
+(it is all-zero at boot — populated when the tile bank loads). Each 6-byte
+entry's first word is the loaded tile SEGMENT; decoding that segment (raw
+4-plane at `seg:10`) matches exactly one `EGA/D3/DPnnn`:
+
+    id 1 -> DP001 ; id N (2..45) -> DP(12+N)   [e.g. id24->DP036, id27->DP039, id45->DP057]
+
+Since the wall drawer blits tile-id `T-0xC` and the descriptor `id` maps to
+`DP(12+id)`, a slot whose table value is `T` blits **`DP00(T)`** directly.
+So the 28-slot table is the full placement `slot -> (X, Y, DPnnn)`:
+
+    slot  0:(10,11)DP036  1:(10,11)DP046  2:(100,11)DP047
+    slot  3:(10,41)DP041  4:(40,41)DP037  5:(100,41)DP040  6:(10,41)DP052
+    slot  7:(40,41)DP048  8:(85,41)DP049  9:(115,41)DP053
+    slot 10:(10,57)DP043 11:(25,57)DP038 12:(55,57)DP038 13:(85,57)DP038
+    slot 14:(115,57)DP042 15:(10,57)DP056 16:(25,57)DP054 17:(55,57)DP050
+    slot 18:(80,57)DP051 19:(105,57)DP055 20:(120,57)DP057
+    slot 21:(10,61)DP045 22:(20,61)DP039 23:(40,61)DP039 24:(60,61)DP039
+    slot 25:(80,61)DP039 26:(100,61)DP039 27:(120,61)DP044
+
+**Cross-checked against `LOF_BLITLOG`:** the actual blits DP043@(8,57),
+DP038@(24,57), DP054@(24,57), DP050@(48,57), DP045@(8,61), DP039@(16/80/96,61)
+are exactly slots 10/11/16/17/21/22/25/26 (within the 2-4 px sub-pixel
+rounding). The base tile DP001@(10,11) is a separate background pass (not a wall
+slot).  **Remaining:** the per-view VISIBILITY (which of the 28 slots are drawn)
+comes from the march's wall codes: the main loop `3A8D:0x2190` draws slots
+22-27 (the far row) from the 6 depth cells, and the side passes
+`119D:0x259f`/`0x25be`/`0x2a30` draw the L/R wall slots.  Transcribe those three
+side passes to get the wall-code -> slot mapping, then the port draws base +
+visible slots.
