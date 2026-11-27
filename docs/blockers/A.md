@@ -1051,3 +1051,22 @@ geometry (slot->X,Y,DP) -> masked plane blitter.  Remaining = implementation
 only: transcribe the march rules + dispatch table into `port/dungeon.cpp` and
 `render_dungeon_view`, driving it from the port's existing map loader, then
 verify against a stable DOSBox capture.
+
+### BLK-A005 — RAY-GATHER decoded (map cell per view cell, 3A8D:0x1AFA..0x1C90)
+The last data-flow piece.  `0x1AFA` is the ray-gather function: it seeds the L/R
+side flag (`[bp-0x10]|[bp-0xe]`, set when facing is 1 or 3), then loops a 32-bit
+view-cell index `[bp-4]` and, for each, computes the **source map cell** `[bp-8]`
+and stores it into `es:[0x3806/0x3808/0x380a/...]` for the 8 "anchor" view cells
+`0,1,4,5,0xa,0xb,0x11,0x12` (a 2-column x 4-depth grid — the Beholder left+center
+columns; the right column mirrors).  `0x1C48` then copies each view cell's map
+tile `[0xb0d0]:[bp-8]+0x46d8` and object word `+0x4be8` into the contiguous
+buffer `[0xb102]:[bp-4]+0x23e`, which the march (previous entry) turns into the
+wall codes.  All segments alias the arena `0x468E`; the map tile/object arrays
+are the loaded `DNGS` wall+object layers at `+0x46d8`/`+0x4be8`.
+
+**BLK-A005 decode is COMPLETE** (ray-cast -> march -> 15-cell dispatch -> 28-slot
+geometry -> masked plane blitter), every piece transcribed in the entries above
+and committed.  The remaining work is the C++ implementation in `port/dungeon.cpp`
++ `render_dungeon_view` and a regression test against a stable DOSBox capture —
+a mechanical, well-scoped transcription of the five stages above, no further
+reverse-engineering required.
