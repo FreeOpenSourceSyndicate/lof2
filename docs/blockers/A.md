@@ -824,3 +824,26 @@ is EXPLICIT, computed by the march, not implicit in decode order.  This is the
 hook the port's `render_dungeon_view` must reproduce: march -> (filename, dest
 segment:offset) per piece -> decode at that destination.  Remaining: read the
 march's destination computation (the caller chain above `0x3C242`).
+
+### BLK-A005 — the tile BLITTER interface (119D:0x3A4) is decoded
+The first-person compositor is built from two primitives, both now decoded:
+* **Tile blitter `119D:0x3A4`** — blits ONE EGA-format tile into the 4-plane
+  scratch with a **masked, sub-pixel-shifted OR-composite**.  Interface:
+  the tile's data segment is in `DX` (image magic `0x1234` at `[si]`); the
+  destination pixel is `cs:[0x376]`=X, `cs:[0x378]`=Y; the scratch segment is
+  `cs:[0x1fe]`; the sub-pixel shift is `X & 7` (the `0x80,0xC0,0xE0,0xF0,0xF8,
+  0xFC,0xFE` mask table at `0x380..`); tile width/height from the header words
+  `[si+2]`/`[si+4]`; a per-row mask pointer `cs:[0x37a]`.  Inner store is the
+  masked OR into `es:[bx+di]` at `0x0460` across the 4 planes (`cs:[0x39c]=4`).
+* **Scratch→EGA blit `119D:0x129F`** (`rep movsb` rows) — copies the scratch
+  (segment **A1F4**, 4-plane 320x200) to the EGA.  PXWATCH of viewport pixel
+  (40,65) shows the EGA write from `ds=A1F4`, offset `0x0A2D`.
+
+So the renderer is: march -> for each visible piece call `0x3A4` with (X,Y, tile
+segment) -> then `0x129F` copies A1F4 to EGA.  **Remaining:** the march that
+supplies (X,Y, tile-segment) per piece.  Caveat that has slowed this: the
+headless save-load is **timing-sensitive** — the same `0x18,0x02` script
+sometimes lands on the walk view and sometimes on an intermediate roster screen
+("Direction ?? / Time of day ??"), so `LOF_WATCH`/`LOF_PXWATCH` on the compositor
+vars is inconsistent run-to-run.  A deterministic capture harness (fixed
+LOF_TICK + gated keys) is needed before the march can be traced reliably.
