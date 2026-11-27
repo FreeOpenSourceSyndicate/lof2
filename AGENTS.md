@@ -782,16 +782,18 @@ in `port/dungeon.{h,cpp}`; `--walk` and `--ui` compose the HUD + panel with no
 viewport tile and then blit the depth-selected sprite.  Guarded by `tests/dungeon_test.cpp::test_view_depth` and
 `tests/port_dungeon_view_test.py` (`make golden-port`).
 
-**CORRECTION (BLK-A005, 2026-11-24).**  A table-driven tiler (ray-cast + march +
-15-cell dispatch + 28-slot geometry A/B/C + masked blit) was decoded and
-implemented (`dungeon_view_codes` / `dungeon_march_code` / `dungeon_view_pieces` /
-`render_dungeon_tiled`; `lof --play --tiled`).  It matches the DOSBox *spawn*
-oracle at 98.7%, but that oracle is a flat grey wall (every sampled cell is a
-wall), so it never exercises the ray-cast/march.  Against the DOSBox *moved*
-oracle (flat-grey `CH25`) the tiler scores only 16.4%, while the depth-march
-sprite selection (`DP001`/`CH40`/`CH25`) scores 99.9%.  So the **depth-march
-sprite is the real first-person renderer**; the tiler is a different routine,
-kept experimental and NOT wired into `--walk`/`--ui`.  See `docs/blockers/A.md`.
+**DEFINITIVE (BLK-A005, 2026-11-24, fresh DOSBox capture).**  A fresh DOSBox
+capture at the spawn is byte-identical to `dungeon_slot1.png`.  After a forward
+move the real engine draws a **perspective corridor** (converging walls + floor),
+saved as `ref/oracle/dungeon_slot1_forward.png`.  Neither renderer reproduces it:
+the depth-march sprite (`DP001`/`CH40`/`CH25`) gives flat grey (0.515), and the
+table-driven tiler gives bright horizontal bands (~0.24).  The old
+`dungeon_slot1_moved.png` (flat-grey `CH25`) is a **wall-facing** state, not the
+corridor — it misled the earlier "depth-sprite is correct" reading.  The real
+view is a **perspective renderer**; the tiler is the right *family* but its piece
+geometry/dispatch must be re-derived against `dungeon_slot1_forward.png`.  The
+depth-sprite stays for now (it matches the flat-wall views); the tiler stays
+experimental (`lof --play --tiled`).  See `docs/blockers/A.md`.
 
 ### FIXED BUG — emulator crashed on the slot-1 (dungeon) load
 
