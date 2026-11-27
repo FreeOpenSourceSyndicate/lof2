@@ -889,3 +889,24 @@ bulk; pieces refine arches/floor).  **Remaining:** (a) map each runtime `ds` to
 its `EGA/D3/DPnnn` file (decode `ds:10` + compare — sizes match DP groups), and
 (b) capture all four facings with `LOF_BLITLOG` and read the wall->slot->tile
 rule off the per-facing slot sets.  The tool makes both mechanical.
+
+### BLK-A005 — remaining blockers (after the LOF_BLITLOG breakthrough)
+1. **View nondeterminism blocks verification.** Even with `LOF_NO_TIMER=1
+   LOF_TICK=11`, successive runs render *different* scenes: the archived
+   `ref/emu/game5_corridor.png` and this session's `egaB` dump disagree, and
+   `DP001@(10,11)` scores 0.88 vs the old ref but 0.60 vs the new run's EGA.  So
+   the spawn/facing (or the load sub-path) still varies run-to-run; a fixed
+   reference frame must be established first (pin the spawn cell+facing, or use
+   `LOF_KEYAT` frame-exact keys) before a capture can be verified.
+2. **The piece composite is a masked AND-OR, not a plain OR.** The blitter does
+   `es:[bx+di] = (es:[bx+di] & mask) | (source >> shift)` (`mask` from
+   `cs:[0x37a]`/`bp`, per-row).  A naive plane-OR of base+pieces scores *worse*
+   than the base alone (0.73 vs 0.88), so the per-row mask must be captured too
+   (extend `LOF_BLITLOG` to also dump the mask pointer's bytes).
+3. **Wall->slot->tile rule** still to read from the per-facing captures once (1)
+   and (2) are solved.
+
+The tooling is in place (`LOF_BLITLOG`); the placement model (base + masked
+pieces at fixed slots) is confirmed.  Closure needs: deterministic capture ->
+add mask logging -> capture 4 facings -> transcribe the rule -> implement the
+masked composite in `render_dungeon_view`.
