@@ -393,8 +393,11 @@ int main(int argc, char** argv) {
                         // row start gives the X byte offset.  Unbounded (vs the
                         // 200-hit cap on LOF_TRACE_IP).
                         if (m.cpu.ds != pds || m.cpu.bx != pbx) {
-                            fprintf(stderr, "BL %08u ds=%04X si=%04X di=%04X bx=%04X\n",
-                                    m.instr_count, m.cpu.ds, m.cpu.si, m.cpu.di, m.cpu.bx);
+                            uint32_t sb = (uint32_t)m.cpu.ss << 4;
+                            fprintf(stderr, "BL %08u ds=%04X si=%04X di=%04X bx=%04X sp=%04X stk=",
+                                    m.instr_count, m.cpu.ds, m.cpu.si, m.cpu.di, m.cpu.bx, m.cpu.sp);
+                            for (int i = 0; i < 14; i++) fprintf(stderr, "%04X ", m.rw(sb + (uint16_t)(m.cpu.sp + i * 2)));
+                            fprintf(stderr, "\n");
                             pds = m.cpu.ds; pbx = m.cpu.bx; bleft--;
                         }
                     }
