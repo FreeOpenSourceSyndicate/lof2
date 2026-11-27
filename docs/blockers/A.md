@@ -1126,3 +1126,22 @@ only) and is **NOT** wired into the live play loop (`--walk`/`--ui` still use th
 verified depth-sprite).  Resolving what the tiler actually renders needs a fresh
 DOSBox corridor capture at a known position/facing.  Shipped dungeon view:
 depth-sprite, 95.2% spawn / 99.9% moved vs DOSBox.
+
+### BLK-A005 — DEFINITIVE (2026-11-24, fresh DOSBox capture)
+A fresh DOSBox capture at the DNG05 spawn is **byte-identical** to
+`dungeon_slot1.png`, so that oracle is genuine.  After a forward move the real
+engine draws a **perspective corridor** (walls converging to a vanishing point,
+floor at the bottom) — saved as `ref/oracle/dungeon_slot1_forward.png`.  Neither
+current renderer reproduces it:
+  * **depth-march sprite** (`DP001`/`CH40`/`CH25`): flat grey (`CH25`), 0.515 vs
+    the fresh corridor — only matches flat wall-facing views, not a corridor;
+  * **table-driven tiler** (`dungeon_view_codes`/`render_dungeon_tiled`): bright
+    horizontal bands, ~0.24 vs the fresh corridor — the slot geometry / dispatch
+    does not form the perspective.
+The old `dungeon_slot1_moved.png` (flat-grey `CH25`) is a **wall-facing** state,
+not the corridor — it misled the earlier "depth-sprite is correct" reading.  The
+real dungeon view is a **perspective renderer**; BLK-A005's tiler is the right
+*family* but its piece geometry/dispatch must be re-derived against
+`ref/oracle/dungeon_slot1_forward.png`.  Until then the depth-sprite stays (it at
+least matches the flat-wall views); the tiler stays experimental (`--play
+--tiled`).
