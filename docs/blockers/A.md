@@ -910,3 +910,37 @@ The tooling is in place (`LOF_BLITLOG`); the placement model (base + masked
 pieces at fixed slots) is confirmed.  Closure needs: deterministic capture ->
 add mask logging -> capture 4 facings -> transcribe the rule -> implement the
 masked composite in `render_dungeon_view`.
+
+### BLK-A005 — DECODED from disassembly: table-driven multi-pass renderer
+(Proper static analysis — the real algorithm, not pixel fitting.)
+
+**Main draw loop `3A8D:0x2190`.** It calls setup passes (`lcall 119D:0x25be`,
+`0x2a30`, `0x259f`) then loops the 6 depth cells `bx=0x15..0x10`, reading the
+march's per-cell wall code `es:[bx+0x34]`, and dispatches:
+* code `6`, or `7` (when a side-flag is clear) -> drawer `119D:0x2682`;
+* code `8` (flag clear) or `0xa` -> drawer `119D:0x26b4`;
+* code `0xc` -> drawer `119D:0x278e`.
+Each drawer is the SAME shape (e.g. `0x2682`): `bx = (depth+6)`, then
+`X = cs:[bx*2+0x25DA]`, `Y = cs:[bx*2+0x2612]`, `tile = cs:[bx*2+0x264A]-0x0C`
+(`0x26b4` uses `-0x22`), then `call 0x2A07` which blits the tile whose
+descriptor is `[0x4130:0x4A29 + tile*6]` via the blitter `0x3A0`.
+
+**The geometry tables (dumped, cs-relative):**
+* X `0x25DA`: `10,10,100,10,40,100,10,40,85,115,10,25,55,85,115,10,25,55,80,105,120,10,20,40,60,80,100,120`
+* Y `0x2612`: `11,11,11,41,41,41,41,41,41,41,57,57,57,57,57,57,57,57,57,57,57,61,61,61,61,61,61,61`
+* tile `0x264A`: `36,46,47,41,37,40,52,48,49,53,43,38,38,38,42,56,54,50,51,55,57,45,39,39,39,39,39,44`
+Indexed by `depth+6` (idx 22..27 for the depth loop = X 20..120, Y 61).
+
+**Floor/foreground pass `119D:0x29B9`** uses a parallel set of tables
+(`X 0x2912`, `Y 0x294A`, `tile 0x2982`, tile ptr `0x48A3`); its visible slots
+(slot 0 = (10,11) base; slots 3-5 Y92; 10-14 Y82; 21-27 Y76) draw tiles
+61/62/63 (=bank idx 52/53/54).
+
+So the engine is a **Beholder-style table-driven tiler**: per (pass, depth/slot)
+it looks up a fixed (X,Y,tile-id) and blits a pre-rendered EGA tile through the
+masked sub-pixel AND-OR blitter.  **To implement faithfully:** transcribe the
+three tables (done) + the `0x4A29`/`0x48A3` descriptor tables (tile data
+addresses) + the side-wall setup passes `0x259f`/`0x25be`/`0x2a30`, then in the
+port do exactly this: march the 6 cells -> per cell, pick drawer by wall code ->
+blit tile at (Xtable,Ytable).  This is a bounded transcription now, not a
+search.
